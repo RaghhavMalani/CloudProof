@@ -1,0 +1,16 @@
+{
+  "name": "@miniraft/replica",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Crash-safe Raft replica for the miniRaft consensus lab",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node index.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "axios": "^1.6.5",
+    "express": "^4.18.2"
+  }
+}

@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta
+    name="description"
+    content="miniRaft is an interactive distributed-consensus lab: draw on a replicated whiteboard, kill a leader, and watch Raft recover in real time."
+  />
+  <meta name="theme-color" content="#080b0c" />
+  <title>miniRaft — Interactive Consensus Lab</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="ambient" aria-hidden="true"></div>
+  <div class="grain" aria-hidden="true"></div>
+
+  <div class="boot-intro" aria-hidden="true">
+    <p>Distributed systems, made visible</p>
+    <h1>Replicate. <em>Elect.</em> Recover.</h1>
+    <span></span>
+  </div>
+
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand-lockup">
+        <div class="brand-mark" aria-hidden="true">MR</div>
+        <div>
+          <a class="brand-name" href="/" aria-label="miniRaft home">miniRaft</a>
+          <p>Interactive consensus lab</p>
+        </div>
+      </div>
+
+      <div class="system-ribbon" aria-label="Cluster summary">
+        <div class="ribbon-item leader-ribbon" id="leader-badge">
+          <span class="signal-dot" id="leader-dot"></span>
+          <span class="ribbon-copy">
+            <small>Leader</small>
+            <strong class="mono" id="leader-name">electing</strong>
+          </span>
+        </div>
+        <div class="ribbon-item">
+          <span class="ribbon-index">01</span>
+          <span class="ribbon-copy">
+            <small>Term</small>
+            <strong class="mono" id="cluster-term">—</strong>
+          </span>
+        </div>
+        <div class="ribbon-item">
+          <span class="ribbon-index">02</span>
+          <span class="ribbon-copy">
+            <small>Committed</small>
+            <strong class="mono" id="stroke-count">0</strong>
+          </span>
+        </div>
+        <div class="ribbon-item">
+          <span class="ribbon-index">03</span>
+          <span class="ribbon-copy">
+            <small>Clients</small>
+            <strong class="mono" id="client-count">—</strong>
+          </span>
+        </div>
+      </div>
+
+      <div class="connection-pill" id="ws-pill">
+        <span class="ws-indicator" id="ws-indicator"></span>
+        <span id="ws-status">Connecting</span>
+      </div>
+    </header>
+
+    <main class="workbench">
+      <aside class="panel command-deck" aria-label="Drawing controls">
+        <div class="panel-heading">
+          <span class="panel-index">01 / COMMAND</span>
+          <span class="panel-kicker">Client input</span>
+        </div>
+        <div class="deck-intro">
+          <h2>Make a mark.<br /><em>Raft makes it durable.</em></h2>
+          <p>Every gesture becomes a log entry and waits for a majority before it appears for everyone.</p>
+        </div>
+
+        <section class="control-section">
+          <div class="control-label">
+            <span>Tool</span>
+            <span class="mono">T</span>
+          </div>
+          <div class="tool-grid" id="tool-group">
+            <button class="tool-btn active" id="tool-pen" data-tool="pen" type="button">
+              <span class="tool-glyph" aria-hidden="true">／</span>
+              <span>Pen</span>
+              <kbd>P</kbd>
+            </button>
+            <button class="tool-btn" id="tool-eraser" data-tool="eraser" type="button">
+              <span class="tool-glyph" aria-hidden="true">◇</span>
+              <span>Eraser</span>
+              <kbd>E</kbd>
+            </button>
+            <button class="tool-btn danger-btn" id="tool-clear" type="button">
+              <span class="tool-glyph" aria-hidden="true">×</span>
+              <span>Clear board</span>
+              <kbd>C</kbd>
+            </button>
+          </div>
+        </section>
+
+        <section class="control-section">
+          <div class="control-label">
+            <span>Signal color</span>
+            <span class="mono">8 presets</span>
+          </div>
+          <div class="color-palette" id="color-palette" aria-label="Brush colors">
+            <button class="color-swatch active" data-color="#f2f3ed" style="--swatch:#f2f3ed" title="Paper"></button>
+            <button class="color-swatch" data-color="#73f5c3" style="--swatch:#73f5c3" title="Mint"></button>
+            <button class="color-swatch" data-color="#57b5ff" style="--swatch:#57b5ff" title="Blue"></button>
+            <button class="color-swatch" data-color="#38e8ff" style="--swatch:#38e8ff" title="Cyan"></button>
+            <button class="color-swatch" data-color="#b6ff3c" style="--swatch:#b6ff3c" title="Lime"></button>
+            <button class="color-swatch" data-color="#f7c873" style="--swatch:#f7c873" title="Amber"></button>
+            <button class="color-swatch" data-color="#ff7962" style="--swatch:#ff7962" title="Coral"></button>
+            <button class="color-swatch" data-color="#c49cff" style="--swatch:#c49cff" title="Violet"></button>
+          </div>
+          <div class="custom-color-row">
+            <span class="custom-preview" id="custom-preview"></span>
+            <label for="color-custom" class="color-custom-label">Choose custom</label>
+            <input type="color" id="color-custom" value="#73f5c3" class="color-custom" />
+          </div>
+        </section>
+
+        <section class="control-section">
+          <div class="control-label">
+            <span>Brush weight</span>
+            <span class="size-val mono" id="size-val">4px</span>
+          </div>
+          <div class="size-group">
+            <input
+              type="range"
+              id="brush-size"
+              min="1"
+              max="40"
+              value="4"
+              class="size-slider"
+              aria-label="Brush size"
+            />
+            <div class="size-scale">
+              <span>Fine</span>
+              <div class="size-preview-wrap"><div class="size-preview" id="size-preview"></div></div>
+              <span>Bold</span>
+            </div>
+          </div>
+        </section>
+
+        <div class="client-proof">
+          <div>
+            <span class="live-dot" aria-hidden="true"></span>
+            <span>Idempotent client</span>
+          </div>
+          <code id="client-id">initializing</code>
+        </div>
+      </aside>
+
+      <section class="canvas-stage" aria-label="Replicated drawing canvas">
+        <div class="stage-header">
+          <div>
+            <span class="stage-eyebrow">Replicated state machine / live</span>
+            <h2>Shared canvas</h2>
+          </div>
+          <div class="stage-metrics">
+            <div>
+              <small>Commit latency</small>
+              <strong class="mono" id="commit-latency">—</strong>
+            </div>
+            <div>
+              <small>Elections</small>
+              <strong class="mono" id="elections-count">0</strong>
+            </div>
+          </div>
+        </div>
+
+        <div class="canvas-wrap" id="canvas-wrap">
+          <div class="canvas-grid" aria-hidden="true"></div>
+          <canvas id="drawing-canvas" aria-label="Collaborative drawing area"></canvas>
+          <div class="canvas-hint" id="canvas-hint" aria-hidden="true">
+            <span>Draw here</span>
+            <p>One gesture → one replicated command</p>
+          </div>
+          <div class="toast" id="toast" role="status" aria-live="polite"></div>
+          <div class="failover-overlay" id="failover-overlay" aria-live="assertive">
+            <div class="election-orbit" aria-hidden="true"><i></i><i></i><i></i></div>
+            <span class="stage-eyebrow">Consensus interrupted</span>
+            <p class="failover-title">Electing a new leader</p>
+            <p class="failover-sub">Writes pause while the majority agrees on the next term.</p>
+          </div>
+        </div>
+
+        <div class="proof-strip" id="proof-strip">
+          <div class="proof-state">
+            <span class="proof-icon">✓</span>
+            <span>
+              <small>Safety invariant</small>
+              <strong id="safety-proof">Waiting for cluster state</strong>
+            </span>
+          </div>
+          <div class="proof-flow" aria-label="Raft write path">
+            <span>Client</span><i></i><span>Leader log</span><i></i><span>Majority</span><i></i><span>Commit</span>
+          </div>
+        </div>
+      </section>
+
+      <aside class="panel cluster-deck" aria-label="Raft cluster controls">
+        <div class="panel-heading">
+          <span class="panel-index">02 / CLUSTER</span>
+          <span class="panel-kicker">Live proof</span>
+        </div>
+
+        <div class="cluster-title">
+          <div>
+            <span class="live-dot" aria-hidden="true"></span>
+            <h2>Three nodes.<br /><em>One history.</em></h2>
+          </div>
+          <div class="quorum-counter">
+            <strong id="quorum-status">—/3</strong>
+            <span>available</span>
+          </div>
+        </div>
+
+        <div class="topology-wrap">
+          <div class="topology-caption">
+            <span>AppendEntries mesh</span>
+            <span class="mono" id="heartbeat-rate">150ms</span>
+          </div>
+          <svg id="topology-svg" viewBox="0 0 260 190" role="img" aria-label="Three-node Raft topology">
+            <line id="line-12" x1="130" y1="42" x2="218" y2="150" class="topo-line"/>
+            <line id="line-13" x1="130" y1="42" x2="42" y2="150" class="topo-line"/>
+            <line id="line-23" x1="218" y1="150" x2="42" y2="150" class="topo-line"/>
+            <g id="pulses"></g>
+            <g id="topo-node-replica1" class="topo-node" transform="translate(130,42)">
+              <circle r="28" class="node-ring"/>
+              <circle r="21" class="node-body"/>
+              <text y="3" class="node-label">01</text>
+            </g>
+            <g id="topo-node-replica2" class="topo-node" transform="translate(218,150)">
+              <circle r="28" class="node-ring"/>
+              <circle r="21" class="node-body"/>
+              <text y="3" class="node-label">02</text>
+            </g>
+            <g id="topo-node-replica3" class="topo-node" transform="translate(42,150)">
+              <circle r="28" class="node-ring"/>
+              <circle r="21" class="node-body"/>
+              <text y="3" class="node-label">03</text>
+            </g>
+          </svg>
+          <div class="majority-proof">
+            <span>Majority rule</span>
+            <code id="quorum-formula">⌊3 / 2⌋ + 1 = 2</code>
+          </div>
+        </div>
+
+        <div class="node-list" id="replica-cards">
+          <article class="replica-card" id="card-replica1" data-id="replica1">
+            <div class="card-identity">
+              <span class="card-dot" id="dot-replica1"></span>
+              <div><strong class="mono">replica.01</strong><small id="badge-replica1">discovering</small></div>
+            </div>
+            <div class="card-stats">
+              <div><span>Term</span><strong class="mono" id="term-replica1">—</strong></div>
+              <div><span>Log</span><strong class="mono" id="log-replica1">—</strong></div>
+              <div><span>Applied</span><strong class="mono" id="commit-replica1">—</strong></div>
+            </div>
+            <div class="card-actions">
+              <button class="ctrl-btn kill-btn" id="kill-replica1" data-id="replica1" type="button">Kill node</button>
+              <button class="ctrl-btn revive-btn" id="revive-replica1" data-id="replica1" type="button" disabled>Restore</button>
+            </div>
+          </article>
+
+          <article class="replica-card" id="card-replica2" data-id="replica2">
+            <div class="card-identity">
+              <span class="card-dot" id="dot-replica2"></span>
+              <div><strong class="mono">replica.02</strong><small id="badge-replica2">discovering</small></div>
+            </div>
+            <div class="card-stats">
+              <div><span>Term</span><strong class="mono" id="term-replica2">—</strong></div>
+              <div><span>Log</span><strong class="mono" id="log-replica2">—</strong></div>
+              <div><span>Applied</span><strong class="mono" id="commit-replica2">—</strong></div>
+            </div>
+            <div class="card-actions">
+              <button class="ctrl-btn kill-btn" id="kill-replica2" data-id="replica2" type="button">Kill node</button>
+              <button class="ctrl-btn revive-btn" id="revive-replica2" data-id="replica2" type="button" disabled>Restore</button>
+            </div>
+          </article>
+
+          <article class="replica-card" id="card-replica3" data-id="replica3">
+            <div class="card-identity">
+              <span class="card-dot" id="dot-replica3"></span>
+              <div><strong class="mono">replica.03</strong><small id="badge-replica3">discovering</small></div>
+            </div>
+            <div class="card-stats">
+              <div><span>Term</span><strong class="mono" id="term-replica3">—</strong></div>
+              <div><span>Log</span><strong class="mono" id="log-replica3">—</strong></div>
+              <div><span>Applied</span><strong class="mono" id="commit-replica3">—</strong></div>
+            </div>
+            <div class="card-actions">
+              <button class="ctrl-btn kill-btn" id="kill-replica3" data-id="replica3" type="button">Kill node</button>
+              <button class="ctrl-btn revive-btn" id="revive-replica3" data-id="replica3" type="button" disabled>Restore</button>
+            </div>
+          </article>
+        </div>
+      </aside>
+    </main>
+
+    <section class="event-log" id="event-log" aria-label="Raft event stream">
+      <div class="event-log-header">
+        <div class="log-title">
+          <span class="live-dot" aria-hidden="true"></span>
+          <span>Raft event stream</span>
+          <code>follow --cluster</code>
+        </div>
+        <div class="log-legend">
+          <span><i class="legend-election"></i> election</span>
+          <span><i class="legend-commit"></i> commit</span>
+          <span><i class="legend-system"></i> system</span>
+        </div>
+        <button id="clear-log" class="clear-log-btn" type="button">Clear stream</button>
+      </div>
+      <div class="event-log-body" id="event-log-body" role="log" aria-live="polite"></div>
+    </section>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>

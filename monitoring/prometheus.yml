@@ -1,0 +1,12 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: miniraft
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - replica1:5001
+          - replica2:5002
+          - replica3:5003
