@@ -1,0 +1,3289 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>miniRaft — a Raft-replicated vector store, running in your browser</title>
+<meta name="description" content="A hand-written Raft consensus engine replicating an HNSW vector index. The real code, running client-side over a simulated network.">
+<style>
+:root{
+  --bg:#0b0e14; --panel:#12161f; --line:#232a38; --dim:#8b96ab; --fg:#e6edf3;
+  --leader:#3fb950; --follower:#58a6ff; --down:#f85149; --warn:#d29922; --accent:#a371f7;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font:14px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace}
+a{color:var(--follower)}
+header{padding:22px 24px 16px;border-bottom:1px solid var(--line)}
+h1{font-size:19px;margin:0 0 6px;letter-spacing:.3px}
+.tagline{color:var(--dim);font-size:13px;max-width:74ch}
+.tagline b{color:var(--fg);font-weight:600}
+main{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:14px;padding:14px;max-width:1500px}
+section{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:15px}
+h2{font-size:10.5px;text-transform:uppercase;letter-spacing:1.3px;color:var(--dim);margin:0 0 13px}
+.node{display:flex;justify-content:space-between;align-items:center;padding:9px 11px;
+  border-radius:6px;background:#0b0e14;border:1px solid var(--line);margin-bottom:7px;transition:border-color .25s}
+.node.leader{border-color:var(--leader)}
+.node.down{opacity:.5;border-style:dashed}
+.badge{font-size:9.5px;padding:2px 7px;border-radius:10px;letter-spacing:.6px;margin-left:6px}
+.LEADER{border:1px solid var(--leader);color:var(--leader)}
+.FOLLOWER{border:1px solid var(--follower);color:var(--follower)}
+.CANDIDATE{border:1px solid var(--warn);color:var(--warn)}
+.DOWN,.ISOLATED{border:1px solid var(--down);color:var(--down)}
+.meta{color:var(--dim);font-size:10.5px;text-align:right;line-height:1.65}
+button{font:inherit;font-size:12px;background:#1b2130;color:var(--fg);border:1px solid var(--line);
+  border-radius:6px;padding:7px 11px;cursor:pointer;margin:0 6px 6px 0}
+button:hover:not(:disabled){border-color:var(--follower);color:var(--follower)}
+button.danger:hover:not(:disabled){border-color:var(--down);color:var(--down)}
+button:disabled{opacity:.35;cursor:not-allowed}
+input{font:inherit;font-size:12px;background:#0b0e14;color:var(--fg);border:1px solid var(--line);
+  border-radius:6px;padding:7px 10px;width:100%;margin-bottom:7px}
+.hint{color:var(--dim);font-size:11px;margin-top:11px;line-height:1.65}
+#events{font-size:11px;max-height:260px;overflow:auto}
+#events div{padding:3px 0;border-bottom:1px solid #1a2029;display:flex;gap:9px}
+#events .t{color:#4a5568;flex-shrink:0;min-width:58px}
+.ok{color:var(--leader)}.warn{color:var(--warn)}.err{color:var(--down)}.acc{color:var(--accent)}
+table{width:100%;border-collapse:collapse;font-size:11.5px}
+td,th{padding:5px 6px;border-bottom:1px solid var(--line);text-align:left}
+th{color:var(--dim);font-weight:500;font-size:9.5px;text-transform:uppercase;letter-spacing:.9px}
+.score{color:var(--accent);text-align:right}
+pre{margin:9px 0 0;font-size:11px;color:var(--dim);white-space:pre-wrap;max-height:190px;overflow:auto}
+.stat{display:flex;justify-content:space-between;padding:3px 0;font-size:11.5px}
+.stat span:last-child{color:var(--accent)}
+footer{padding:18px 24px 40px;color:var(--dim);font-size:11.5px;border-top:1px solid var(--line);max-width:1500px}
+</style>
+</head>
+<body>
+<header>
+  <h1>miniRaft — a Raft-replicated vector store</h1>
+  <div class="tagline">
+    Three replicas running a <b>hand-written Raft consensus engine</b>, each building its own
+    <b>HNSW index</b> from the replicated log. This is the real engine — the same
+    <code>raft.js</code> and <code>hnsw.js</code> that run on the server — executing in your browser
+    over a <b>deterministic simulated network</b>. Break it and watch it recover.
+  </div>
+</header>
+
+<main>
+  <section>
+    <h2>Consensus tier</h2>
+    <div id="nodes"></div>
+    <div class="hint">
+      Quorum is 2 of 3. Isolate the leader and the survivors elect a new one at a higher term;
+      the old leader steps down when it rejoins. Isolate two and writes stall — correctly, because
+      a minority must never commit.
+    </div>
+  </section>
+
+  <section>
+    <h2>Add a document</h2>
+    <input id="doc" placeholder="a golden retriever running through a field" autocomplete="off">
+    <button id="add">Add to the index</button>
+    <button id="seed-docs">Load 16 sample documents</button>
+    <div class="hint">
+      The leader embeds the text, then replicates the <em>vector</em> — never the text. Replica
+      agreement is then bit-exact by construction instead of depending on every machine producing
+      identical floats.
+    </div>
+    <pre id="add-out"></pre>
+  </section>
+
+  <section>
+    <h2>Search</h2>
+    <input id="query" placeholder="a puppy playing outside" autocomplete="off">
+    <button id="search">Search every replica</button>
+    <table id="results"><thead><tr><th>replica</th><th>top result</th><th class="score">score</th></tr></thead><tbody></tbody></table>
+    <div class="hint">
+      Every replica answers from its own graph. Identical results are the point — the fingerprints
+      below are a structural hash, which is a far stronger claim than agreeing on a few queries.
+    </div>
+  </section>
+
+  <section>
+    <h2>Break things</h2>
+    <div>
+      <button class="danger" id="isolate-leader">Isolate the leader</button>
+      <button class="danger" id="crash-leader">Crash the leader</button>
+    </div>
+    <div>
+      <button id="isolate-two">Partition 2 of 3 (writes must stall)</button>
+    </div>
+    <div>
+      <button id="heal">Heal everything</button>
+    </div>
+    <div class="hint">Speed <input type="range" id="speed" min="1" max="40" value="10" style="width:120px;vertical-align:middle;margin:0 8px 0 0"><span id="speed-label">10x</span></div>
+  </section>
+
+  <section>
+    <h2>Cluster state</h2>
+    <div id="stats"></div>
+    <div class="hint" id="agree"></div>
+  </section>
+
+  <section style="grid-column:1/-1">
+    <h2>Event log</h2>
+    <div id="events"></div>
+  </section>
+</main>
+
+<footer>
+  Everything above runs client-side. No server, no API, no cost.
+  The same engine is verified by a deterministic fuzzer that searches fault schedules and
+  machine-checks the resulting histories for linearizability — it found two real bugs in this
+  Raft implementation, both described in the repository.
+</footer>
+
+<script>
+
+(function (global) {
+'use strict';
+
+const __stub = (name) => new Proxy({}, {
+  get: (_, prop) => () => {
+    throw new Error(`${name}.${String(prop)} is not available in the browser build`);
+  },
+});
+const __builtins = {
+  fs: __stub('fs'),
+  'fs/promises': __stub('fs/promises'),
+  path: {
+    join: (...parts) => parts.filter(Boolean).join('/'),
+    dirname: (p) => p.split('/').slice(0, -1).join('/') || '.',
+  },
+  crypto: __stub('crypto'),
+  axios: __stub('axios'),
+};
+
+const __registry = {};
+const __cache = {};
+
+function __resolve(from, request) {
+  if (__builtins[request]) return { builtin: __builtins[request] };
+
+  if (__registry[request]) return { id: request };
+  const base = from.split('/').slice(0, -1);
+  const segments = request.split('/');
+  for (const segment of segments) {
+    if (segment === '.') continue;
+    else if (segment === '..') base.pop();
+    else base.push(segment);
+  }
+  let id = base.join('/');
+  if (!__registry[id] && __registry[id + '.js']) id += '.js';
+  if (!__registry[id]) throw new Error('cannot resolve ' + request + ' from ' + from);
+  return { id };
+}
+
+function __require(from, request) {
+  const resolved = __resolve(from, request);
+  if (resolved.builtin) return resolved.builtin;
+  if (__cache[resolved.id]) return __cache[resolved.id].exports;
+  const module = { exports: {} };
+  __cache[resolved.id] = module;
+  __registry[resolved.id](module, module.exports, (r) => __require(resolved.id, r));
+  return module.exports;
+}
+
+__registry["replica/quantize.js"] = function (module, exports, require) {
+
+const POPCOUNT = new Uint8Array(256);
+for (let i = 0; i < 256; i += 1) {
+    POPCOUNT[i] = (i & 1) + POPCOUNT[i >> 1];
+}
+
+function quantizeInt8(vector) {
+    const n = vector.length;
+    let maxAbs = 0;
+    for (let i = 0; i < n; i += 1) {
+        const a = Math.abs(vector[i]);
+        if (a > maxAbs) maxAbs = a;
+    }
+
+    const scale = maxAbs === 0 ? 1 : maxAbs / 127;
+    const codes = new Int8Array(n);
+    for (let i = 0; i < n; i += 1) {
+
+        const q = Math.round(vector[i] / scale);
+        codes[i] = q > 127 ? 127 : q < -128 ? -128 : q;
+    }
+    return { codes, scale };
+}
+
+function dequantizeInt8(codes, scale) {
+    const out = new Float32Array(codes.length);
+    for (let i = 0; i < codes.length; i += 1) out[i] = codes[i] * scale;
+    return out;
+}
+
+function dotInt8(aCodes, aScale, bCodes, bScale) {
+    let acc = 0;
+    for (let i = 0; i < aCodes.length; i += 1) acc += aCodes[i] * bCodes[i];
+    return acc * aScale * bScale;
+}
+
+function quantizeBinary(vector) {
+    const bytes = new Uint8Array(Math.ceil(vector.length / 8));
+    for (let i = 0; i < vector.length; i += 1) {
+        if (vector[i] > 0) bytes[i >> 3] |= 1 << (i & 7);
+    }
+    return bytes;
+}
+
+function hamming(a, b) {
+    let distance = 0;
+    for (let i = 0; i < a.length; i += 1) distance += POPCOUNT[a[i] ^ b[i]];
+    return distance;
+}
+
+function hammingToCosine(distance, dimensions) {
+    return Math.cos(Math.PI * (distance / dimensions));
+}
+
+function footprint(dim) {
+    return {
+        float32: dim * 4,
+        int8: dim + 4,
+        binary: Math.ceil(dim / 8),
+    };
+}
+
+module.exports = {
+    quantizeInt8,
+    dequantizeInt8,
+    dotInt8,
+    quantizeBinary,
+    hamming,
+    hammingToCosine,
+    footprint,
+    POPCOUNT,
+};
+
+};
+__registry["replica/sparse.js"] = function (module, exports, require) {
+
+const K1 = 1.2;   // term-frequency saturation
+const B = 0.75;   // length normalisation strength
+const RRF_K = 60; // damping constant from the original RRF paper
+
+function tokenize(text) {
+    return String(text || '')
+        .toLowerCase()
+        .split(/[^a-z0-9_]+/)
+        .filter((t) => t.length > 0 && t.length < 40);
+}
+
+class BM25Index {
+    constructor() {
+        
+        this.postings = new Map();
+        
+        this.lengths = new Map();
+        this.totalLength = 0;
+    }
+
+    get size() { return this.lengths.size; }
+    get averageLength() { return this.lengths.size === 0 ? 0 : this.totalLength / this.lengths.size; }
+
+    add(id, text) {
+        this.remove(id);
+        const tokens = tokenize(text);
+        if (tokens.length === 0) return;
+
+        const frequencies = new Map();
+        for (const token of tokens) frequencies.set(token, (frequencies.get(token) || 0) + 1);
+
+        for (const [term, count] of frequencies) {
+            let posting = this.postings.get(term);
+            if (!posting) { posting = new Map(); this.postings.set(term, posting); }
+            posting.set(id, count);
+        }
+
+        this.lengths.set(id, tokens.length);
+        this.totalLength += tokens.length;
+    }
+
+    remove(id) {
+        const length = this.lengths.get(id);
+        if (length === undefined) return false;
+        this.lengths.delete(id);
+        this.totalLength -= length;
+
+        for (const [term, posting] of this.postings) {
+            if (posting.delete(id) && posting.size === 0) this.postings.delete(term);
+        }
+        return true;
+    }
+
+    search(query, k = 10, filter = null, payloadOf = null) {
+        const terms = tokenize(query);
+        if (terms.length === 0 || this.size === 0) return [];
+
+        const N = this.size;
+        const avgdl = this.averageLength || 1;
+        const scores = new Map();
+
+        for (const term of terms) {
+            const posting = this.postings.get(term);
+            if (!posting) continue;
+
+            const df = posting.size;
+
+            const idf = Math.log(1 + (N - df + 0.5) / (df + 0.5));
+
+            for (const [id, tf] of posting) {
+                if (filter && payloadOf && !filter(payloadOf(id), id)) continue;
+                const dl = this.lengths.get(id) || 0;
+                const denominator = tf + K1 * (1 - B + B * (dl / avgdl));
+                scores.set(id, (scores.get(id) || 0) + idf * ((tf * (K1 + 1)) / denominator));
+            }
+        }
+
+        return [...scores.entries()]
+
+            .sort((a, b) => (b[1] - a[1]) || (a[0] < b[0] ? -1 : 1))
+            .slice(0, k)
+            .map(([id, score]) => ({ id, score }));
+    }
+
+    stats() {
+        return { documents: this.size, terms: this.postings.size, averageLength: Number(this.averageLength.toFixed(1)) };
+    }
+}
+
+function reciprocalRankFusion(rankings, { k = RRF_K, weights = null, limit = 10 } = {}) {
+    const fused = new Map();
+
+    rankings.forEach((ranking, source) => {
+        const weight = weights ? (weights[source] ?? 1) : 1;
+        ranking.forEach((hit, position) => {
+            const contribution = weight / (k + position + 1);
+            const entry = fused.get(hit.id) || { id: hit.id, score: 0, sources: {}, payload: hit.payload };
+            entry.score += contribution;
+            entry.sources[source === 0 ? 'dense' : 'sparse'] = { rank: position + 1, score: hit.score };
+            if (hit.payload && !entry.payload) entry.payload = hit.payload;
+            fused.set(hit.id, entry);
+        });
+    });
+
+    return [...fused.values()]
+        .sort((a, b) => (b.score - a.score) || (a.id < b.id ? -1 : 1))
+        .slice(0, limit);
+}
+
+module.exports = { BM25Index, reciprocalRankFusion, tokenize, RRF_K };
+
+};
+__registry["replica/hnsw.js"] = function (module, exports, require) {
+
+const {
+    quantizeInt8, dequantizeInt8, dotInt8,
+    quantizeBinary, hamming, hammingToCosine, footprint,
+} = require('./quantize');
+
+class Rng {
+    constructor(seed = 0x9e3779b9) {
+        this.x = seed >>> 0 || 1;
+        this.y = 362436069;
+        this.z = 521288629;
+        this.w = 88675123;
+    }
+
+    next() {
+        const t = (this.x ^ (this.x << 11)) >>> 0;
+        this.x = this.y; this.y = this.z; this.z = this.w;
+        this.w = ((this.w ^ (this.w >>> 19)) ^ (t ^ (t >>> 8))) >>> 0;
+        return this.w;
+    }
+
+    
+    unit() {
+        return (this.next() + 1) / 4294967297;
+    }
+
+    state() { return [this.x, this.y, this.z, this.w]; }
+    restore([x, y, z, w]) { this.x = x; this.y = y; this.z = z; this.w = w; }
+}
+
+class Heap {
+    constructor(invert = false) {
+        this.items = [];
+        this.sign = invert ? -1 : 1;
+    }
+
+    get size() { return this.items.length; }
+    peek() { return this.items[0]; }
+
+    _before(a, b) {
+        const d = (a.distance - b.distance) * this.sign;
+        if (d !== 0) return d < 0;
+        return (a.label - b.label) * this.sign < 0;
+    }
+
+    push(item) {
+        const items = this.items;
+        items.push(item);
+        let i = items.length - 1;
+        while (i > 0) {
+            const parent = (i - 1) >> 1;
+            if (!this._before(items[i], items[parent])) break;
+            [items[i], items[parent]] = [items[parent], items[i]];
+            i = parent;
+        }
+    }
+
+    pop() {
+        const items = this.items;
+        const top = items[0];
+        const last = items.pop();
+        if (items.length > 0) {
+            items[0] = last;
+            let i = 0;
+            for (;;) {
+                const l = 2 * i + 1;
+                const r = l + 1;
+                let best = i;
+                if (l < items.length && this._before(items[l], items[best])) best = l;
+                if (r < items.length && this._before(items[r], items[best])) best = r;
+                if (best === i) break;
+                [items[i], items[best]] = [items[best], items[i]];
+                i = best;
+            }
+        }
+        return top;
+    }
+}
+
+class HnswIndex {
+    
+    constructor({
+        dim,
+        M = 16,
+        efConstruction = 200,
+        seed = 0x9e3779b9,
+
+        storage = 'float32',
+
+        traversal = 'exact',
+
+        rescoreFactor = 4,
+    } = {}) {
+        if (!Number.isInteger(dim) || dim <= 0) throw new Error('dim must be a positive integer');
+        if (!['float32', 'int8'].includes(storage)) throw new Error(`unknown storage: ${storage}`);
+        if (!['exact', 'binary'].includes(traversal)) throw new Error(`unknown traversal: ${traversal}`);
+
+        this.dim = dim;
+        this.storage = storage;
+        this.traversal = traversal;
+        this.rescoreFactor = rescoreFactor;
+        this.M = M;
+
+        this.M0 = M * 2;
+        this.efConstruction = efConstruction;
+        this.seed = seed;
+        this.rng = new Rng(seed);
+        this.levelMultiplier = 1 / Math.log(M);
+
+        
+        this.vectors = [];
+        
+        this.q8 = [];
+        
+        this.scales = [];
+        
+        this.bin = [];
+        
+        this.ids = [];
+        
+        this.payloads = [];
+        
+        this.deleted = [];
+        
+        this.links = [];
+        
+        this.levels = [];
+
+        this.entryPoint = -1;
+        this.maxLevel = -1;
+        this.size = 0;          // live elements
+        this.tombstones = 0;
+
+        
+        this.labelOf = new Map();
+    }
+
+    
+    _prepare(rawVector) {
+        const vector = HnswIndex.normalise(rawVector);
+        const ctx = { vector, codes: null, scale: 1, bin: null };
+        if (this.storage === 'int8') {
+            const q = quantizeInt8(vector);
+            ctx.codes = q.codes;
+            ctx.scale = q.scale;
+        }
+        if (this.traversal === 'binary') ctx.bin = quantizeBinary(vector);
+        return ctx;
+    }
+
+    
+    _dotDistance(a, b) {
+        let sum = 0;
+        for (let i = 0; i < this.dim; i += 1) sum += a[i] * b[i];
+        return -sum;
+    }
+
+    
+    _distStored(ctx, label) {
+        if (this.storage === 'int8') {
+            return -dotInt8(ctx.codes, ctx.scale, this.q8[label], this.scales[label]);
+        }
+        return this._dotDistance(ctx.vector, this.vectors[label]);
+    }
+
+    
+    _distWalk(ctx, label) {
+        if (this.traversal === 'binary') {
+            return -hammingToCosine(hamming(ctx.bin, this.bin[label]), this.dim);
+        }
+        return this._distStored(ctx, label);
+    }
+
+    _storedVector(label) {
+        return this.storage === 'int8'
+            ? dequantizeInt8(this.q8[label], this.scales[label])
+            : this.vectors[label];
+    }
+
+    static normalise(vector) {
+        const out = vector instanceof Float32Array ? vector : Float32Array.from(vector);
+        let norm = 0;
+        for (let i = 0; i < out.length; i += 1) norm += out[i] * out[i];
+        norm = Math.sqrt(norm);
+
+        if (norm === 0) return out;
+        const scaled = new Float32Array(out.length);
+        for (let i = 0; i < out.length; i += 1) scaled[i] = out[i] / norm;
+        return scaled;
+    }
+
+    _randomLevel() {
+        return Math.floor(-Math.log(this.rng.unit()) * this.levelMultiplier);
+    }
+
+    
+    upsert(id, rawVector, payload = null) {
+        if (rawVector.length !== this.dim) {
+            throw new Error(`expected ${this.dim} dimensions, received ${rawVector.length}`);
+        }
+
+        const existing = this.labelOf.get(id);
+        if (existing !== undefined) this._tombstone(existing);
+
+        const ctx = this._prepare(rawVector);
+        const vector = ctx.vector;
+        const label = this.ids.length;
+        const level = this._randomLevel();
+
+        if (this.storage === 'int8') {
+            this.q8.push(ctx.codes);
+            this.scales.push(ctx.scale);
+        } else {
+            this.vectors.push(vector);
+        }
+        if (this.traversal === 'binary') this.bin.push(ctx.bin);
+
+        this.ids.push(id);
+        this.payloads.push(payload);
+        this.deleted.push(0);
+        this.levels.push(level);
+        this.links.push(Array.from({ length: level + 1 }, () => []));
+        this.labelOf.set(id, label);
+        this.size += 1;
+
+        if (this.entryPoint === -1) {
+            this.entryPoint = label;
+            this.maxLevel = level;
+            return label;
+        }
+
+        let current = this.entryPoint;
+        let currentDistance = this._distStored(ctx, current);
+
+        for (let l = this.maxLevel; l > level; l -= 1) {
+            let improved = true;
+            while (improved) {
+                improved = false;
+                for (const neighbour of this.links[current][l] || []) {
+                    const d = this._distStored(ctx, neighbour);
+
+                    if (d < currentDistance || (d === currentDistance && neighbour < current)) {
+                        current = neighbour;
+                        currentDistance = d;
+                        improved = true;
+                    }
+                }
+            }
+        }
+
+        for (let l = Math.min(level, this.maxLevel); l >= 0; l -= 1) {
+            const candidates = this._searchLayer(ctx, current, this.efConstruction, l, {
+                includeDeleted: true,
+                precise: true,
+            });
+            const chosen = this._selectNeighbours(candidates, l === 0 ? this.M0 : this.M);
+
+            this.links[label][l] = chosen.slice();
+
+            for (const neighbour of chosen) {
+                const neighbourLinks = this.links[neighbour][l];
+                neighbourLinks.push(label);
+                const limit = l === 0 ? this.M0 : this.M;
+                if (neighbourLinks.length > limit) {
+
+                    const repacked = this._selectNeighbours(
+                        neighbourLinks.map((n) => ({
+                            label: n,
+                            distance: this._distLabels(neighbour, n),
+                        })),
+                        limit,
+                    );
+                    this.links[neighbour][l] = repacked;
+                }
+            }
+
+            if (chosen.length > 0) current = chosen[0];
+        }
+
+        if (level > this.maxLevel) {
+            this.maxLevel = level;
+            this.entryPoint = label;
+        }
+
+        return label;
+    }
+
+    
+    _searchLayer(ctx, entry, ef, level, { includeDeleted = false, precise = false, filter = null } = {}) {
+        const distance = precise
+            ? (label) => this._distStored(ctx, label)
+            : (label) => this._distWalk(ctx, label);
+
+        const admits = (label) => {
+            if (!includeDeleted && this.deleted[label]) return false;
+            if (filter && !filter(this.payloads[label], this.ids[label])) return false;
+            return true;
+        };
+
+        const visited = new Set([entry]);
+        const entryDistance = distance(entry);
+
+        const candidates = new Heap();          // nearest first
+        const results = new Heap(true);         // furthest first
+        candidates.push({ label: entry, distance: entryDistance });
+        if (admits(entry)) results.push({ label: entry, distance: entryDistance });
+
+        while (candidates.size > 0) {
+            const nearest = candidates.pop();
+            const furthest = results.peek();
+
+            if (results.size >= ef && furthest && nearest.distance > furthest.distance) break;
+
+            for (const neighbour of this.links[nearest.label][level] || []) {
+                if (visited.has(neighbour)) continue;
+                visited.add(neighbour);
+
+                const d = distance(neighbour);
+                const worst = results.peek();
+                const admissible = results.size < ef
+                    || !worst
+                    || d < worst.distance
+                    || (d === worst.distance && neighbour < worst.label);
+
+                if (!admissible) continue;
+
+                candidates.push({ label: neighbour, distance: d });
+
+                if (admits(neighbour)) {
+                    results.push({ label: neighbour, distance: d });
+                    if (results.size > ef) results.pop();
+                }
+            }
+        }
+
+        return results.items.slice().sort(compareCandidates);
+    }
+
+    
+    _distLabels(a, b) {
+        if (this.storage === 'int8') {
+            return -dotInt8(this.q8[a], this.scales[a], this.q8[b], this.scales[b]);
+        }
+        return this._dotDistance(this.vectors[a], this.vectors[b]);
+    }
+
+    
+    _selectNeighbours(candidates, limit) {
+        const sorted = candidates.slice().sort(compareCandidates);
+        const chosen = [];
+
+        for (const candidate of sorted) {
+            if (chosen.length >= limit) break;
+            let keep = true;
+            for (const already of chosen) {
+                if (this._distLabels(candidate.label, already) < candidate.distance) {
+                    keep = false;
+                    break;
+                }
+            }
+            if (keep) chosen.push(candidate.label);
+        }
+
+        if (chosen.length < limit) {
+            for (const candidate of sorted) {
+                if (chosen.length >= limit) break;
+                if (!chosen.includes(candidate.label)) chosen.push(candidate.label);
+            }
+        }
+
+        return chosen;
+    }
+
+    _tombstone(label) {
+        if (this.deleted[label]) return false;
+        this.deleted[label] = 1;
+        this.size -= 1;
+        this.tombstones += 1;
+        return true;
+    }
+
+    delete(id) {
+        const label = this.labelOf.get(id);
+        if (label === undefined) return false;
+        const removed = this._tombstone(label);
+        this.labelOf.delete(id);
+        return removed;
+    }
+
+    
+    search(rawQuery, k = 10, ef = Math.max(k, 64), { filter = null } = {}) {
+        if (this.entryPoint === -1 || this.size === 0) return [];
+        const ctx = this._prepare(rawQuery);
+
+        if (filter) {
+            let matching = 0;
+            for (let label = 0; label < this.ids.length; label += 1) {
+                if (!this.deleted[label] && filter(this.payloads[label], this.ids[label])) matching += 1;
+            }
+            const selectivity = matching / Math.max(1, this.size);
+            if (matching === 0) return [];
+            if (selectivity < 0.02 || matching <= Math.max(k * 8, 128)) {
+                return this._exactScan(ctx, k, filter, 'exact-fallback');
+            }
+        }
+
+        let current = this.entryPoint;
+        let currentDistance = this._distWalk(ctx, current);
+
+        for (let l = this.maxLevel; l > 0; l -= 1) {
+            let improved = true;
+            while (improved) {
+                improved = false;
+                for (const neighbour of this.links[current][l] || []) {
+                    const d = this._distWalk(ctx, neighbour);
+                    if (d < currentDistance || (d === currentDistance && neighbour < current)) {
+                        current = neighbour;
+                        currentDistance = d;
+                        improved = true;
+                    }
+                }
+            }
+        }
+
+        let effectiveEf = Math.max(ef, k);
+        if (this.traversal === 'binary') effectiveEf *= this.rescoreFactor;
+        if (filter) effectiveEf *= 2;
+
+        const found = this._searchLayer(ctx, current, effectiveEf, 0, { filter });
+
+        if (this.traversal !== 'binary') {
+            return found.slice(0, k).map((c) => this._hit(c.label, -c.distance));
+        }
+
+        const rescored = found
+            .map((c) => ({ label: c.label, distance: this._distStored(ctx, c.label) }))
+            .sort(compareCandidates);
+        return rescored.slice(0, k).map((c) => this._hit(c.label, -c.distance));
+    }
+
+    _hit(label, score) {
+        return { id: this.ids[label], score, payload: this.payloads[label] };
+    }
+
+    _exactScan(ctx, k, filter, strategy) {
+        const scored = [];
+        for (let label = 0; label < this.ids.length; label += 1) {
+            if (this.deleted[label]) continue;
+            if (filter && !filter(this.payloads[label], this.ids[label])) continue;
+            scored.push({ label, distance: this._distStored(ctx, label) });
+        }
+        scored.sort(compareCandidates);
+        const hits = scored.slice(0, k).map((c) => this._hit(c.label, -c.distance));
+        if (strategy) for (const hit of hits) hit.strategy = strategy;
+        return hits;
+    }
+
+    
+    searchExact(rawQuery, k = 10, { filter = null } = {}) {
+        return this._exactScan(this._prepare(rawQuery), k, filter, null);
+    }
+
+    
+    fingerprint() {
+        let h = 2166136261;
+        const mix = (n) => { h ^= n | 0; h = Math.imul(h, 16777619); };
+
+        mix(this.entryPoint);
+        mix(this.maxLevel);
+        mix(this.ids.length);
+
+        for (let label = 0; label < this.links.length; label += 1) {
+            mix(label);
+            mix(this.levels[label]);
+            mix(this.deleted[label]);
+            for (let l = 0; l < this.links[label].length; l += 1) {
+                mix(l);
+
+                for (const n of [...this.links[label][l]].sort((a, b) => a - b)) mix(n);
+            }
+        }
+        return (h >>> 0).toString(16).padStart(8, '0');
+    }
+
+    stats() {
+        let edges = 0;
+        for (const perLevel of this.links) for (const level of perLevel) edges += level.length;
+
+        const perVector = footprint(this.dim);
+        const vectorBytes = this.ids.length
+            * (this.storage === 'int8' ? perVector.int8 : perVector.float32)
+            + (this.traversal === 'binary' ? this.ids.length * perVector.binary : 0);
+
+        return {
+            dim: this.dim,
+            size: this.size,
+            tombstones: this.tombstones,
+            capacity: this.ids.length,
+            maxLevel: this.maxLevel,
+            edges,
+            M: this.M,
+            efConstruction: this.efConstruction,
+            seed: this.seed,
+            storage: this.storage,
+            traversal: this.traversal,
+            rescoreFactor: this.rescoreFactor,
+            vectorBytes,
+
+            float32Bytes: this.ids.length * perVector.float32,
+            compression: Number((this.ids.length * perVector.float32 / Math.max(1, vectorBytes)).toFixed(2)),
+            fingerprint: this.fingerprint(),
+        };
+    }
+}
+
+function compareCandidates(a, b) {
+    if (a.distance !== b.distance) return a.distance - b.distance;
+    return a.label - b.label;
+}
+
+module.exports = { HnswIndex, Rng, Heap };
+
+};
+__registry["replica/state-machine.js"] = function (module, exports, require) {
+
+const { HnswIndex } = require('./hnsw');
+const { BM25Index, reciprocalRankFusion } = require('./sparse');
+
+const EVENT_BUFFER_LIMIT = 1024;
+const RESULT_CACHE_LIMIT = 4096;
+
+const HAS_BUFFER = typeof Buffer !== 'undefined';
+
+function bytesToBase64(bytes) {
+    if (HAS_BUFFER) return Buffer.from(bytes).toString('base64');
+    let binary = '';
+
+    for (let i = 0; i < bytes.length; i += 8192) {
+        binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192));
+    }
+    return btoa(binary);
+}
+
+function base64ToBytes(text) {
+    if (HAS_BUFFER) return new Uint8Array(Buffer.from(text, 'base64'));
+    const binary = atob(text);
+    const out = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) out[i] = binary.charCodeAt(i);
+    return out;
+}
+
+function encodeVector(vector) {
+    const typed = vector instanceof Float32Array ? vector : Float32Array.from(vector);
+    return bytesToBase64(new Uint8Array(typed.buffer, typed.byteOffset, typed.byteLength));
+}
+
+function decodeVector(encoded) {
+    if (encoded instanceof Float32Array) return encoded;
+    if (Array.isArray(encoded)) return Float32Array.from(encoded);
+    const bytes = base64ToBytes(encoded);
+
+    const out = new Float32Array(bytes.byteLength / 4);
+    new Uint8Array(out.buffer).set(bytes);
+    return out;
+}
+
+class StateMachine {
+    constructor() {
+        
+        this.store = new Map();
+        
+        this.leases = new Map();
+
+        this.clock = 0;
+
+        this.revision = 0;
+        this.lastAppliedIndex = -1;
+
+        
+        this.index = null;
+        this.indexConfig = null;
+        
+        this.sparse = new BM25Index();
+
+        this.events = [];
+        this.eventsDropped = 0;
+        this._results = new Map();
+        this._listeners = new Set();
+    }
+
+    get activeLeaseCount() {
+        return this.leases.size;
+    }
+
+    get(key) {
+        const record = this.store.get(key);
+        if (!record) return null;
+        return { key, ...record };
+    }
+
+    list(prefix = '') {
+        const out = [];
+        for (const [key, record] of this.store) {
+            if (key.startsWith(prefix)) out.push({ key, ...record });
+        }
+        return out.sort((a, b) => (a.key < b.key ? -1 : 1));
+    }
+
+    
+    leaseInfo(key) {
+        const lease = this.leases.get(key);
+        if (!lease) return null;
+        return { key, ...lease, remainingMs: Math.max(0, lease.expiresAt - this.clock) };
+    }
+
+    eventsSince(revision, { prefix = '' } = {}) {
+        return this.events.filter(
+            (event) => event.rev > revision && event.key.startsWith(prefix),
+        );
+    }
+
+    resultFor(index) {
+        return this._results.get(index) ?? null;
+    }
+
+    subscribe(listener) {
+        this._listeners.add(listener);
+        return () => this._listeners.delete(listener);
+    }
+
+    _emit(event) {
+        this.events.push(event);
+        if (this.events.length > EVENT_BUFFER_LIMIT) {
+            this.events.splice(0, this.events.length - EVENT_BUFFER_LIMIT);
+            this.eventsDropped += 1;
+        }
+
+        for (const listener of this._listeners) {
+            try {
+                listener(event);
+            } catch (error) {
+                console.error(`[state-machine] watcher threw: ${error.message}`);
+            }
+        }
+    }
+
+    _rememberResult(index, result) {
+        if (index == null) return result;
+        this._results.set(index, result);
+        if (this._results.size > RESULT_CACHE_LIMIT) {
+            const oldest = this._results.keys().next().value;
+            this._results.delete(oldest);
+        }
+        return result;
+    }
+
+    
+    apply(entry) {
+        if (!entry) return { ok: false, error: 'empty entry' };
+
+        if (Number.isFinite(entry.ts) && entry.ts > this.clock) this.clock = entry.ts;
+        this.lastAppliedIndex = entry.index;
+
+        this._expireLeases(entry.index);
+
+        const command = entry.data || {};
+        const op = command.op || 'append';
+
+        let result;
+        switch (op) {
+            case 'tick':
+                result = { ok: true, clock: this.clock };
+                break;
+            case 'noop':
+
+                result = { ok: true, noop: true };
+                break;
+            case 'set':
+                result = this._applySet(command, entry);
+                break;
+            case 'delete':
+                result = this._applyDelete(command, entry);
+                break;
+            case 'cas':
+                result = this._applyCas(command, entry);
+                break;
+            case 'lease-acquire':
+                result = this._applyLeaseAcquire(command, entry);
+                break;
+            case 'lease-renew':
+                result = this._applyLeaseRenew(command, entry);
+                break;
+            case 'lease-release':
+                result = this._applyLeaseRelease(command, entry);
+                break;
+            case 'index-create':
+                result = this._applyIndexCreate(command);
+                break;
+            case 'vector-upsert':
+                result = this._applyVectorUpsert(command, entry);
+                break;
+            case 'vector-delete':
+                result = this._applyVectorDelete(command, entry);
+                break;
+            case 'append':
+
+                result = { ok: true, opaque: true };
+                break;
+            default:
+                result = { ok: false, error: `unknown op: ${op}` };
+        }
+
+        return this._rememberResult(entry.index, result);
+    }
+
+    _expireLeases(index) {
+        for (const [key, lease] of [...this.leases]) {
+            if (lease.expiresAt > this.clock) continue;
+            this.leases.delete(key);
+            this.store.delete(key);
+            this.revision += 1;
+            this._emit({
+                type: 'lease-expired',
+                key,
+                holder: lease.holder,
+                value: null,
+                rev: this.revision,
+                index,
+                clock: this.clock,
+            });
+        }
+    }
+
+    _put(key, value, entry, { lease = null, type = 'put' } = {}) {
+        const existing = this.store.get(key);
+        this.revision += 1;
+        const record = {
+            value,
+            rev: this.revision,
+            createRev: existing ? existing.createRev : this.revision,
+            lease,
+        };
+        this.store.set(key, record);
+        this._emit({
+            type,
+            key,
+            value,
+            rev: this.revision,
+            createRev: record.createRev,
+            index: entry.index,
+            clock: this.clock,
+        });
+        return record;
+    }
+
+    _remove(key, entry, type = 'delete') {
+        if (!this.store.has(key)) return false;
+        this.store.delete(key);
+        this.leases.delete(key);
+        this.revision += 1;
+        this._emit({
+            type,
+            key,
+            value: null,
+            rev: this.revision,
+            index: entry.index,
+            clock: this.clock,
+        });
+        return true;
+    }
+
+    _applySet({ key, value }, entry) {
+        if (typeof key !== 'string' || key === '') {
+            return { ok: false, error: 'set requires a key' };
+        }
+        const record = this._put(key, value, entry);
+        return { ok: true, key, rev: record.rev };
+    }
+
+    _applyDelete({ key }, entry) {
+        if (typeof key !== 'string' || key === '') {
+            return { ok: false, error: 'delete requires a key' };
+        }
+        const removed = this._remove(key, entry);
+        return { ok: true, key, deleted: removed, rev: this.revision };
+    }
+
+    
+    _applyCas(command, entry) {
+        const { key, expectRev, expect, value = null } = command;
+        if (typeof key !== 'string' || key === '') {
+            return { ok: false, error: 'cas requires a key' };
+        }
+
+        const current = this.store.get(key) || null;
+        const currentRev = current ? current.rev : 0;
+
+        if (expectRev !== undefined) {
+            if (currentRev !== expectRev) {
+                return {
+                    ok: false,
+                    error: 'revision mismatch',
+                    key,
+                    actualRev: currentRev,
+                    actual: current ? current.value : null,
+                };
+            }
+        } else if (expect !== undefined) {
+            const actual = current ? current.value : null;
+            if (JSON.stringify(actual) !== JSON.stringify(expect)) {
+                return {
+                    ok: false,
+                    error: 'value mismatch',
+                    key,
+                    actualRev: currentRev,
+                    actual,
+                };
+            }
+        } else {
+            return { ok: false, error: 'cas requires expectRev or expect' };
+        }
+
+        if (value === null) {
+            this._remove(key, entry);
+            return { ok: true, key, rev: this.revision, deleted: true };
+        }
+        const record = this._put(key, value, entry);
+        return { ok: true, key, rev: record.rev };
+    }
+
+    _applyLeaseAcquire({ key, holder, ttlMs }, entry) {
+        if (typeof key !== 'string' || key === '' || typeof holder !== 'string') {
+            return { ok: false, error: 'lease-acquire requires key and holder' };
+        }
+        if (!Number.isFinite(ttlMs) || ttlMs <= 0) {
+            return { ok: false, error: 'lease-acquire requires a positive ttlMs' };
+        }
+
+        const existing = this.leases.get(key);
+        if (existing && existing.holder !== holder) {
+
+            return {
+                ok: false,
+                error: 'held',
+                key,
+                holder: existing.holder,
+                remainingMs: existing.expiresAt - this.clock,
+            };
+        }
+
+        const expiresAt = this.clock + ttlMs;
+        this.leases.set(key, { holder, ttlMs, expiresAt, rev: this.revision + 1 });
+        const record = this._put(key, holder, entry, { lease: holder, type: 'lease-granted' });
+        return { ok: true, key, holder, rev: record.rev, expiresAt, clock: this.clock };
+    }
+
+    _applyLeaseRenew({ key, holder, ttlMs }, entry) {
+        const lease = this.leases.get(key);
+        if (!lease) return { ok: false, error: 'expired', key };
+        if (lease.holder !== holder) {
+            return { ok: false, error: 'held', key, holder: lease.holder };
+        }
+        const extension = Number.isFinite(ttlMs) && ttlMs > 0 ? ttlMs : lease.ttlMs;
+        lease.ttlMs = extension;
+        lease.expiresAt = this.clock + extension;
+
+        return {
+            ok: true,
+            key,
+            holder,
+            expiresAt: lease.expiresAt,
+            clock: this.clock,
+            renewed: true,
+        };
+    }
+
+    _applyLeaseRelease({ key, holder }, entry) {
+        const lease = this.leases.get(key);
+        if (!lease) return { ok: true, key, released: false };
+        if (lease.holder !== holder) {
+            return { ok: false, error: 'held', key, holder: lease.holder };
+        }
+        this._remove(key, entry, 'lease-released');
+        return { ok: true, key, released: true, rev: this.revision };
+    }
+
+    _applyIndexCreate({
+        dim, M = 16, efConstruction = 200, seed = 0x9e3779b9,
+        storage = 'float32', traversal = 'exact', rescoreFactor = 4,
+    }) {
+        if (!Number.isInteger(dim) || dim <= 0) {
+            return { ok: false, error: 'index-create requires a positive integer dim' };
+        }
+        if (this.index) {
+
+            const candidate = { dim, M, efConstruction, seed, storage, traversal, rescoreFactor };
+            const same = Object.keys(candidate)
+                .every((key) => this.indexConfig[key] === candidate[key]);
+            return same
+                ? { ok: true, alreadyExists: true, ...this.indexConfig }
+                : { ok: false, error: 'an index already exists with a different configuration' };
+        }
+
+        this.indexConfig = { dim, M, efConstruction, seed, storage, traversal, rescoreFactor };
+        this.index = new HnswIndex(this.indexConfig);
+        this.revision += 1;
+        return { ok: true, ...this.indexConfig };
+    }
+
+    
+    _applyVectorUpsert({ id, vector, payload = null }, entry) {
+        if (!this.index) return { ok: false, error: 'no index; commit index-create first' };
+        if (typeof id !== 'string' || id === '') {
+            return { ok: false, error: 'vector-upsert requires a string id' };
+        }
+
+        let decoded;
+        try {
+            decoded = decodeVector(vector);
+        } catch (error) {
+            return { ok: false, error: `undecodable vector: ${error.message}` };
+        }
+        if (decoded.length !== this.index.dim) {
+            return {
+                ok: false,
+                error: `dimension mismatch: index is ${this.index.dim}, vector is ${decoded.length}`,
+            };
+        }
+
+        const replaced = this.index.labelOf.has(id);
+        this.index.upsert(id, decoded, payload);
+
+        if (payload && typeof payload.text === 'string') this.sparse.add(id, payload.text);
+        this.revision += 1;
+
+        this._emit({
+            type: replaced ? 'vector-replaced' : 'vector-added',
+            key: `vector/${id}`,
+            value: payload,
+            rev: this.revision,
+            index: entry.index,
+            clock: this.clock,
+        });
+
+        return { ok: true, id, replaced, rev: this.revision, size: this.index.size };
+    }
+
+    _applyVectorDelete({ id }, entry) {
+        if (!this.index) return { ok: false, error: 'no index; commit index-create first' };
+        const removed = this.index.delete(id);
+        this.sparse.remove(id);
+        if (!removed) return { ok: true, id, deleted: false, rev: this.revision };
+
+        this.revision += 1;
+        this._emit({
+            type: 'vector-deleted',
+            key: `vector/${id}`,
+            value: null,
+            rev: this.revision,
+            index: entry.index,
+            clock: this.clock,
+        });
+        return { ok: true, id, deleted: true, rev: this.revision, size: this.index.size };
+    }
+
+    
+    hybridSearch(queryVector, queryText, {
+        k = 10, ef, filter = null, weights = null, denseOnly = false, sparseOnly = false,
+    } = {}) {
+        if (!this.index) throw new Error('no index has been created');
+        const depth = Math.max(k * 4, 40);
+        const rankings = [];
+
+        if (!sparseOnly) {
+            rankings.push(this.index.search(queryVector, depth, ef, { filter }));
+        }
+        if (!denseOnly && queryText) {
+            const payloadOf = (id) => {
+                const label = this.index.labelOf.get(id);
+                return label === undefined ? null : this.index.payloads[label];
+            };
+            const lexical = this.sparse.search(queryText, depth, filter, payloadOf);
+            for (const hit of lexical) hit.payload = payloadOf(hit.id);
+            rankings.push(lexical);
+        }
+
+        if (rankings.length === 1) return rankings[0].slice(0, k);
+        return reciprocalRankFusion(rankings, { weights, limit: k });
+    }
+
+    
+    snapshot() {
+        return {
+            clock: this.clock,
+            revision: this.revision,
+            lastAppliedIndex: this.lastAppliedIndex,
+            keys: this.list(),
+            leases: [...this.leases.keys()].map((key) => this.leaseInfo(key)),
+
+            index: this.index ? this.index.stats() : null,
+            sparse: this.sparse.stats(),
+        };
+    }
+}
+
+module.exports = { StateMachine, encodeVector, decodeVector };
+
+};
+__registry["replica/log-store.js"] = function (module, exports, require) {
+
+const fs = require('fs');
+const path = require('path');
+
+const CRC_TABLE = (() => {
+    const table = new Int32Array(256);
+    for (let n = 0; n < 256; n += 1) {
+        let c = n;
+        for (let k = 0; k < 8; k += 1) {
+            c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+        }
+        table[n] = c;
+    }
+    return table;
+})();
+
+function crc32(text) {
+    const bytes = Buffer.from(text, 'utf8');
+    let crc = -1;
+    for (let i = 0; i < bytes.length; i += 1) {
+        crc = CRC_TABLE[(crc ^ bytes[i]) & 0xff] ^ (crc >>> 8);
+    }
+    return (crc ^ -1) >>> 0;
+}
+
+function encodeRecord(entry) {
+    const json = JSON.stringify(entry);
+    return `${crc32(json).toString(16).padStart(8, '0')} ${json}\n`;
+}
+
+function fsyncDirectory(directory) {
+
+    try {
+        const descriptor = fs.openSync(directory, 'r');
+        try {
+            fs.fsyncSync(descriptor);
+        } finally {
+            fs.closeSync(descriptor);
+        }
+    } catch (_) {
+        
+    }
+}
+
+class LogStore {
+    constructor(filePath) {
+        this.filePath = filePath;
+        this.directory = path.dirname(filePath);
+        this._descriptor = null;
+        this.truncatedTailBytes = 0;
+        this.appendCount = 0;
+    }
+
+    
+    load() {
+        let raw;
+        try {
+            raw = fs.readFileSync(this.filePath, 'utf8');
+        } catch (error) {
+            if (error.code !== 'ENOENT') throw error;
+            return [];
+        }
+
+        const lines = raw.split('\n');
+
+        const trailing = lines.pop();
+        if (trailing !== '') this.truncatedTailBytes = Buffer.byteLength(trailing, 'utf8');
+
+        const entries = [];
+        for (let lineNumber = 0; lineNumber < lines.length; lineNumber += 1) {
+            const line = lines[lineNumber];
+            if (line === '') continue;
+
+            const separator = line.indexOf(' ');
+            const checksum = separator > 0 ? line.slice(0, separator) : '';
+            const json = separator > 0 ? line.slice(separator + 1) : '';
+
+            if (crc32(json).toString(16).padStart(8, '0') !== checksum) {
+                throw new Error(
+                    `Raft log corrupted at ${this.filePath}:${lineNumber + 1} — ` +
+                    'checksum mismatch on a complete record',
+                );
+            }
+
+            const entry = JSON.parse(json);
+            if (entry.index !== entries.length) {
+                throw new Error(
+                    `Raft log corrupted at ${this.filePath}:${lineNumber + 1} — ` +
+                    `expected index ${entries.length}, found ${entry.index}`,
+                );
+            }
+            entries.push(entry);
+        }
+
+        if (this.truncatedTailBytes > 0) {
+
+            this.rewrite(entries);
+            console.warn(
+                `[log-store] discarded ${this.truncatedTailBytes}B torn tail from ${this.filePath}; ` +
+                `${entries.length} entries recovered`,
+            );
+        }
+
+        return entries;
+    }
+
+    _open() {
+        if (this._descriptor === null) {
+            fs.mkdirSync(this.directory, { recursive: true });
+            this._descriptor = fs.openSync(this.filePath, 'a', 0o600);
+        }
+        return this._descriptor;
+    }
+
+    
+    append(entries) {
+        if (entries.length === 0) return;
+        const descriptor = this._open();
+        const payload = entries.map(encodeRecord).join('');
+        fs.writeSync(descriptor, payload);
+        fs.fsyncSync(descriptor);
+        this.appendCount += entries.length;
+    }
+
+    
+    rewrite(entries) {
+        fs.mkdirSync(this.directory, { recursive: true });
+        if (this._descriptor !== null) {
+            fs.closeSync(this._descriptor);
+            this._descriptor = null;
+        }
+
+        const temporaryPath = `${this.filePath}.${process.pid}.tmp`;
+        const descriptor = fs.openSync(temporaryPath, 'w', 0o600);
+        try {
+            fs.writeSync(descriptor, entries.map(encodeRecord).join(''));
+            fs.fsyncSync(descriptor);
+        } finally {
+            fs.closeSync(descriptor);
+        }
+
+        try {
+            fs.renameSync(temporaryPath, this.filePath);
+        } catch (error) {
+
+            if (!['EEXIST', 'EPERM'].includes(error.code)) throw error;
+            fs.rmSync(this.filePath, { force: true });
+            fs.renameSync(temporaryPath, this.filePath);
+        }
+
+        fsyncDirectory(this.directory);
+    }
+
+    close() {
+        if (this._descriptor !== null) {
+            fs.closeSync(this._descriptor);
+            this._descriptor = null;
+        }
+    }
+}
+
+module.exports = { LogStore, crc32 };
+
+};
+__registry["replica/raft.js"] = function (module, exports, require) {
+
+const fs = require('fs');
+const path = require('path');
+const axios = require('axios');
+const { LogStore } = require('./log-store');
+const { StateMachine } = require('./state-machine');
+
+const STATES = {
+    FOLLOWER: 'FOLLOWER',
+    CANDIDATE: 'CANDIDATE',
+    LEADER: 'LEADER',
+};
+
+const REAL_CLOCK = {
+    now: () => Date.now(),
+    setTimeout: (fn, ms) => setTimeout(fn, ms),
+    clearTimeout: (handle) => clearTimeout(handle),
+    setInterval: (fn, ms) => setInterval(fn, ms),
+    clearInterval: (handle) => clearInterval(handle),
+};
+
+class StableStateStore {
+    constructor(filePath) {
+        this.filePath = filePath;
+    }
+
+    load() {
+        try {
+            const raw = fs.readFileSync(this.filePath, 'utf8');
+            return JSON.parse(raw);
+        } catch (error) {
+            if (error.code !== 'ENOENT') {
+                throw new Error(`Unable to read Raft state at ${this.filePath}: ${error.message}`);
+            }
+            return {};
+        }
+    }
+
+    save(state) {
+        const directory = path.dirname(this.filePath);
+        fs.mkdirSync(directory, { recursive: true });
+
+        const temporaryPath = `${this.filePath}.${process.pid}.tmp`;
+        const descriptor = fs.openSync(temporaryPath, 'w', 0o600);
+        try {
+            fs.writeFileSync(descriptor, `${JSON.stringify(state, null, 2)}\n`, 'utf8');
+            fs.fsyncSync(descriptor);
+        } finally {
+            fs.closeSync(descriptor);
+        }
+
+        try {
+            fs.renameSync(temporaryPath, this.filePath);
+        } catch (error) {
+
+            if (!['EEXIST', 'EPERM'].includes(error.code)) throw error;
+            fs.rmSync(this.filePath, { force: true });
+            fs.renameSync(temporaryPath, this.filePath);
+        }
+
+        try {
+            const directoryDescriptor = fs.openSync(directory, 'r');
+            try {
+                fs.fsyncSync(directoryDescriptor);
+            } finally {
+                fs.closeSync(directoryDescriptor);
+            }
+        } catch (_) {
+
+        }
+    }
+}
+
+class RaftNode {
+    constructor({
+        replicaId,
+        peers,
+        nodeUrl = null,
+        onCommit,
+        onLeaderChange,
+        storagePath,
+        logPath,
+        stableStore = null,
+        logStore = null,
+        stateMachine,
+        transport = axios,
+        
+        clock = REAL_CLOCK,
+        autoStart = true,
+        electionTimeoutMin = 500,
+        electionTimeoutMax = 800,
+        heartbeatInterval = 150,
+        leaseTickInterval = 250,
+        commitTimeoutMs = 2000,
+    }) {
+        this._clock = clock;
+        this.replicaId = replicaId;
+        this.peers = [...peers];
+        this.nodeUrl = nodeUrl;
+        this.onCommit = onCommit;
+        this.onLeaderChange = onLeaderChange;
+        this.transport = transport;
+
+        this.electionTimeoutMin = electionTimeoutMin;
+        this.electionTimeoutMax = electionTimeoutMax;
+        this.heartbeatInterval = heartbeatInterval;
+        this.leaseTickInterval = leaseTickInterval;
+        this.commitTimeoutMs = commitTimeoutMs;
+
+        this.stateMachine = stateMachine || new StateMachine();
+
+        const defaultStoragePath = () => path.join(
+            (typeof process !== 'undefined' && process.env.DATA_DIR)
+                || path.join(process.cwd(), 'data'),
+            `${replicaId}.json`,
+        );
+
+        this.storagePath = storagePath == null ? defaultStoragePath() : storagePath;
+        this._store = stableStore
+            ?? (this.storagePath === false ? null : new StableStateStore(this.storagePath));
+        this.logPath = this.storagePath === false
+            ? false
+            : logPath || this.storagePath.replace(/\.json$/, '') + '.log';
+        this._logStore = logStore
+            ?? (this.logPath === false ? null : new LogStore(this.logPath));
+
+        const stable = this._store ? this._store.load() : {};
+
+        this.currentTerm = Number.isInteger(stable.currentTerm) ? stable.currentTerm : 0;
+        this.votedFor = typeof stable.votedFor === 'string' ? stable.votedFor : null;
+        this.log = this._logStore ? this._logStore.load() : [];
+
+        if (this.log.length === 0 && Array.isArray(stable.log) && stable.log.length > 0) {
+            this.log = stable.log;
+            this._logStore.rewrite(this.log);
+            console.log(
+                `[${replicaId}] migrated ${this.log.length} entries out of the metadata file`,
+            );
+        }
+
+        const storedCommit = Number.isInteger(stable.commitIndex) ? stable.commitIndex : -1;
+        this.commitIndex = Math.min(storedCommit, this.log.length - 1);
+        this.lastApplied = -1;
+
+        this.nextIndex = {};
+        this.matchIndex = {};
+
+        this.state = STATES.FOLLOWER;
+        this.leaderId = null;
+        this.leaderUrl = null;
+        this.votes = 0;
+        this.paused = false;
+
+        this._timersEnabled = autoStart;
+        this._electionTimer = null;
+        this._heartbeatTimer = null;
+        this._leaseTickTimer = null;
+
+        this._noopIndex = null;
+        this._commitBroadcastQueued = false;
+        this._commitWaiters = new Set();
+        this._replicating = new Set();
+        this.lastQuorumContactAt = 0;
+        this.metrics = {
+            electionsTotal: 0,
+            replayedEntries: 0,
+            commitLatencyCount: 0,
+            commitLatencySumMs: 0,
+            commitLatencyBuckets: { 10: 0, 25: 0, 50: 0, 100: 0, 250: 0, 500: 0, 1000: 0 },
+        };
+
+        this._applyCommittedEntries({ replay: true });
+        this.metrics.replayedEntries = this.lastApplied + 1;
+
+        if (autoStart) this._resetElectionTimer();
+
+        console.log(
+            `[${this.replicaId}] Raft node ready · term=${this.currentTerm} ` +
+            `log=${this.log.length} commit=${this.commitIndex} ` +
+            `replayed=${this.metrics.replayedEntries} keys=${this.stateMachine.store.size}`,
+        );
+    }
+
+    get clusterSize() {
+        return this.peers.length + 1;
+    }
+
+    get quorumSize() {
+        return Math.floor(this.clusterSize / 2) + 1;
+    }
+
+    _persistentSnapshot() {
+        return {
+            version: 2,
+            currentTerm: this.currentTerm,
+            votedFor: this.votedFor,
+            commitIndex: this.commitIndex,
+        };
+    }
+
+    
+    _persistState() {
+        if (this._store) this._store.save(this._persistentSnapshot());
+    }
+
+    
+    _appendToLog(entries) {
+        if (entries.length === 0) return;
+        this.log.push(...entries);
+        if (this._logStore) this._logStore.append(entries);
+    }
+
+    
+    _truncateLogFrom(index) {
+        if (index <= this.commitIndex) {
+            throw new Error(
+                `[${this.replicaId}] refusing to truncate at ${index} with commitIndex ` +
+                `${this.commitIndex}: committed entries must never be discarded`,
+            );
+        }
+        if (index >= this.log.length) return;
+        this.log = this.log.slice(0, index);
+        if (this._logStore) this._logStore.rewrite(this.log);
+    }
+
+    _randomTimeout() {
+        const spread = Math.max(1, this.electionTimeoutMax - this.electionTimeoutMin);
+        return Math.floor(Math.random() * spread) + this.electionTimeoutMin;
+    }
+
+    _resetElectionTimer() {
+        if (this._electionTimer) this._clock.clearTimeout(this._electionTimer);
+        if (!this._timersEnabled || this.paused || this.state === STATES.LEADER) return;
+
+        this._electionTimer = this._clock.setTimeout(() => {
+            this._startElection().catch((error) => {
+                console.error(`[${this.replicaId}] Election failed: ${error.message}`);
+                this._resetElectionTimer();
+            });
+        }, this._randomTimeout());
+    }
+
+    _startHeartbeat() {
+        this._stopHeartbeat();
+        void this._replicateAll();
+        this._heartbeatTimer = this._clock.setInterval(
+            () => void this._replicateAll(),
+            this.heartbeatInterval,
+        );
+    }
+
+    _stopHeartbeat() {
+        if (this._heartbeatTimer) this._clock.clearInterval(this._heartbeatTimer);
+        this._heartbeatTimer = null;
+    }
+
+    stop() {
+        if (this._electionTimer) this._clock.clearTimeout(this._electionTimer);
+        this._electionTimer = null;
+        this._stopHeartbeat();
+        if (this._leaseTickTimer) this._clock.clearInterval(this._leaseTickTimer);
+        this._leaseTickTimer = null;
+        if (this._logStore) this._logStore.close();
+    }
+
+    pause() {
+        if (this.paused) return;
+        this.paused = true;
+        this.stop();
+        if (this.state === STATES.LEADER) {
+            this.state = STATES.FOLLOWER;
+            this.leaderId = null;
+            this.leaderUrl = null;
+        }
+        this._failCommitWaiters();
+        console.log(`[${this.replicaId}] *** PAUSED (simulated failure) ***`);
+    }
+
+    resume() {
+        if (!this.paused) return;
+        this.paused = false;
+        this.state = STATES.FOLLOWER;
+        this.votes = 0;
+
+        this._resetElectionTimer();
+        console.log(`[${this.replicaId}] *** RESUMED · stable state restored ***`);
+    }
+
+    async _startElection() {
+        if (this.paused) return;
+
+        this.currentTerm += 1;
+        this.metrics.electionsTotal += 1;
+        this.state = STATES.CANDIDATE;
+        this.votedFor = this.replicaId;
+        this.votes = 1;
+        this.leaderId = null;
+        this.leaderUrl = null;
+        this._persistState();
+
+        const electionTerm = this.currentTerm;
+        const lastLogIndex = this.log.length - 1;
+        const lastLogTerm = lastLogIndex >= 0 ? this.log[lastLogIndex].term : 0;
+
+        console.log(
+            `[${this.replicaId}] Election started · term=${electionTerm} ` +
+            `quorum=${this.quorumSize}/${this.clusterSize}`,
+        );
+
+        this._resetElectionTimer();
+        if (this.votes >= this.quorumSize) {
+            this._becomeLeader();
+            return;
+        }
+
+        const voteRequests = this.peers.map(async (peerUrl) => {
+            try {
+                const response = await this.transport.post(
+                    `${peerUrl}/request-vote`,
+                    {
+                        term: electionTerm,
+                        candidateId: this.replicaId,
+                        lastLogIndex,
+                        lastLogTerm,
+                    },
+                    { timeout: 400 },
+                );
+
+                if (response.data.term > this.currentTerm) {
+                    this._becomeFollower(response.data.term);
+                    return;
+                }
+
+                if (
+                    response.data.voteGranted &&
+                    this.state === STATES.CANDIDATE &&
+                    this.currentTerm === electionTerm
+                ) {
+                    this.votes += 1;
+                    if (this.votes >= this.quorumSize) this._becomeLeader();
+                }
+            } catch (_) {
+
+            }
+        });
+
+        await Promise.allSettled(voteRequests);
+    }
+
+    _becomeLeader() {
+        if (this.state !== STATES.CANDIDATE) return;
+
+        this.state = STATES.LEADER;
+        this.leaderId = this.replicaId;
+        this.leaderUrl = this.nodeUrl;
+        this.votes = 0;
+        if (this.quorumSize === 1) this.lastQuorumContactAt = this._clock.now();
+
+        if (this._electionTimer) this._clock.clearTimeout(this._electionTimer);
+        this._electionTimer = null;
+
+        for (const peerUrl of this.peers) {
+            this.nextIndex[peerUrl] = this.log.length;
+            this.matchIndex[peerUrl] = -1;
+        }
+
+        
+        this._noopIndex = this.log.length;
+        this._appendToLog([{
+            term: this.currentTerm,
+            index: this._noopIndex,
+            ts: this._clock.now(),
+            data: { op: 'noop', leader: this.replicaId },
+        }]);
+
+        console.log(`[${this.replicaId}] *** LEADER · term=${this.currentTerm} ***`);
+        if (this.onLeaderChange) {
+            this.onLeaderChange(this.replicaId, this.nodeUrl);
+        }
+        this._startHeartbeat();
+        this._syncLeaseTicks();
+    }
+
+    _becomeFollower(term, leaderId = null, leaderUrl = null) {
+        const wasLeader = this.state === STATES.LEADER;
+        const termAdvanced = term > this.currentTerm;
+
+        if (termAdvanced) {
+            this.currentTerm = term;
+            this.votedFor = null;
+            this._persistState();
+        }
+
+        this.state = STATES.FOLLOWER;
+        this.votes = 0;
+        this.leaderId = leaderId;
+        this.leaderUrl = leaderUrl;
+        this._stopHeartbeat();
+        this._syncLeaseTicks();
+
+        this._failCommitWaiters();
+
+        if (wasLeader) {
+            console.log(`[${this.replicaId}] Stepped down · term=${this.currentTerm}`);
+        }
+        this._resetElectionTimer();
+    }
+
+    handleRequestVote({ term, candidateId, lastLogIndex, lastLogTerm }) {
+        if (this.paused || term < this.currentTerm) {
+            return { term: this.currentTerm, voteGranted: false };
+        }
+        if (term > this.currentTerm) this._becomeFollower(term);
+
+        const myLastIndex = this.log.length - 1;
+        const myLastTerm = myLastIndex >= 0 ? this.log[myLastIndex].term : 0;
+        const candidateIsUpToDate =
+            lastLogTerm > myLastTerm ||
+            (lastLogTerm === myLastTerm && lastLogIndex >= myLastIndex);
+        const canVote = this.votedFor === null || this.votedFor === candidateId;
+
+        if (canVote && candidateIsUpToDate) {
+            this.votedFor = candidateId;
+            this._persistState();
+            this._resetElectionTimer();
+            console.log(`[${this.replicaId}] Vote persisted · ${candidateId} term=${term}`);
+            return { term: this.currentTerm, voteGranted: true };
+        }
+
+        return { term: this.currentTerm, voteGranted: false };
+    }
+
+    handleAppendEntries({
+        term,
+        leaderId,
+        leaderUrl,
+        prevLogIndex = -1,
+        prevLogTerm = 0,
+        entries = [],
+        leaderCommit = -1,
+    }) {
+        if (this.paused || term < this.currentTerm) {
+            return {
+                term: this.currentTerm,
+                success: false,
+                conflictIndex: this.log.length,
+                logLength: this.log.length,
+            };
+        }
+
+        const leaderChanged = this.leaderId !== leaderId;
+        if (term > this.currentTerm || this.state !== STATES.FOLLOWER) {
+            this._becomeFollower(term, leaderId, leaderUrl);
+        } else {
+            this.leaderId = leaderId;
+            this.leaderUrl = leaderUrl;
+            this._resetElectionTimer();
+        }
+        if (leaderChanged && this.onLeaderChange) {
+            this.onLeaderChange(leaderId, leaderUrl);
+        }
+        this.lastQuorumContactAt = this._clock.now();
+
+        if (prevLogIndex >= this.log.length) {
+            return {
+                term: this.currentTerm,
+                success: false,
+                conflictIndex: this.log.length,
+                logLength: this.log.length,
+            };
+        }
+
+        if (prevLogIndex >= 0 && this.log[prevLogIndex].term !== prevLogTerm) {
+            const conflictingTerm = this.log[prevLogIndex].term;
+            let conflictIndex = prevLogIndex;
+            while (
+                conflictIndex > 0 &&
+                this.log[conflictIndex - 1].term === conflictingTerm
+            ) {
+                conflictIndex -= 1;
+            }
+            return {
+                term: this.currentTerm,
+                success: false,
+                conflictIndex,
+                conflictTerm: conflictingTerm,
+                logLength: this.log.length,
+            };
+        }
+
+        let offset = 0;
+        let insertionIndex = prevLogIndex + 1;
+        while (offset < entries.length && insertionIndex < this.log.length) {
+            if (this.log[insertionIndex].term !== entries[offset].term) {
+                this._truncateLogFrom(insertionIndex);
+                break;
+            }
+            offset += 1;
+            insertionIndex += 1;
+        }
+
+        this._appendToLog(entries.slice(offset));
+
+        if (leaderCommit > this.commitIndex) {
+            
+            const lastVerifiedIndex = prevLogIndex + entries.length;
+            const next = Math.min(leaderCommit, lastVerifiedIndex);
+            if (next > this.commitIndex) {
+                this.commitIndex = next;
+                this._persistState();
+                this._applyCommittedEntries();
+            }
+        }
+
+        return {
+            term: this.currentTerm,
+            success: true,
+            matchIndex: prevLogIndex + entries.length,
+            logLength: this.log.length,
+        };
+    }
+
+    
+    _applyCommittedEntries({ replay = false } = {}) {
+        while (this.lastApplied < this.commitIndex) {
+            this.lastApplied += 1;
+            const entry = this.log[this.lastApplied];
+            if (!entry) continue;
+
+            const result = this.stateMachine.apply(entry);
+
+            if (this.onCommit) {
+
+                Promise.resolve()
+                    .then(() => this.onCommit(entry, {
+                        isLeader: this.state === STATES.LEADER,
+                        replay,
+                        result,
+                    }))
+                    .catch((error) => {
+                        console.error(
+                            `[${this.replicaId}] commit hook failed at ${entry.index}: ${error.message}`,
+                        );
+                    });
+            }
+        }
+    }
+
+    _advanceCommitIndex() {
+        if (this.state !== STATES.LEADER) return;
+
+        for (let index = this.log.length - 1; index > this.commitIndex; index -= 1) {
+
+            if (this.log[index].term !== this.currentTerm) continue;
+
+            let replicated = 1; // the leader stores its own log
+            for (const peerUrl of this.peers) {
+                if ((this.matchIndex[peerUrl] ?? -1) >= index) replicated += 1;
+            }
+
+            if (replicated >= this.quorumSize) {
+                this.commitIndex = index;
+                this._persistState();
+                this._applyCommittedEntries();
+                this._releaseCommitWaiters();
+                this._scheduleCommitBroadcast();
+                console.log(
+                    `[${this.replicaId}] Commit advanced · index=${index} ` +
+                    `replicas=${replicated}/${this.clusterSize}`,
+                );
+                break;
+            }
+        }
+    }
+
+    
+    _scheduleCommitBroadcast() {
+        if (this._commitBroadcastQueued || this.state !== STATES.LEADER) return;
+        this._commitBroadcastQueued = true;
+        setImmediate(() => {
+
+        this._noopIndex = null;
+        this._commitBroadcastQueued = false;
+            if (this.state === STATES.LEADER && !this.paused) void this._replicateAll();
+        });
+    }
+
+    async _replicateToPeer(peerUrl) {
+        if (this.state !== STATES.LEADER || this.paused || this._replicating.has(peerUrl)) {
+            return false;
+        }
+
+        this._replicating.add(peerUrl);
+        try {
+            const maxAttempts = Math.max(2, this.log.length + 1);
+            for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+                if (this.state !== STATES.LEADER || this.paused) return false;
+
+                const next = Math.max(
+                    0,
+                    Math.min(this.nextIndex[peerUrl] ?? this.log.length, this.log.length),
+                );
+                const prevLogIndex = next - 1;
+                const prevLogTerm =
+                    prevLogIndex >= 0 ? this.log[prevLogIndex].term : 0;
+                const entries = this.log.slice(next);
+
+                try {
+                    const response = await this.transport.post(
+                        `${peerUrl}/append-entries`,
+                        {
+                            term: this.currentTerm,
+                            leaderId: this.replicaId,
+                            leaderUrl: this.nodeUrl,
+                            prevLogIndex,
+                            prevLogTerm,
+                            entries,
+                            leaderCommit: this.commitIndex,
+                        },
+                        { timeout: 450 },
+                    );
+
+                    if (response.data.term > this.currentTerm) {
+                        this._becomeFollower(response.data.term);
+                        return false;
+                    }
+
+                    if (response.data.success) {
+                        const acknowledged = Number.isInteger(response.data.matchIndex)
+                            ? response.data.matchIndex
+                            : prevLogIndex + entries.length;
+                        this.matchIndex[peerUrl] = Math.max(
+                            this.matchIndex[peerUrl] ?? -1,
+                            acknowledged,
+                        );
+                        this.nextIndex[peerUrl] = this.matchIndex[peerUrl] + 1;
+                        this._advanceCommitIndex();
+                        return true;
+                    }
+
+                    const hinted = Number.isInteger(response.data.conflictIndex)
+                        ? response.data.conflictIndex
+                        : Number.isInteger(response.data.logLength)
+                            ? response.data.logLength
+                            : next - 1;
+                    this.nextIndex[peerUrl] = Math.max(
+                        0,
+                        hinted >= next ? next - 1 : hinted,
+                    );
+                } catch (_) {
+                    return false;
+                }
+            }
+            return false;
+        } finally {
+            this._replicating.delete(peerUrl);
+        }
+    }
+
+    async _replicateAll() {
+        if (this.state !== STATES.LEADER || this.paused) return;
+        const results = await Promise.allSettled(
+            this.peers.map((peerUrl) => this._replicateToPeer(peerUrl)),
+        );
+        const reachable = 1 + results.filter(
+            (result) => result.status === 'fulfilled' && result.value === true,
+        ).length;
+        if (reachable >= this.quorumSize) this.lastQuorumContactAt = this._clock.now();
+
+        this._advanceCommitIndex();
+    }
+
+    _findDuplicate(data) {
+        if (!data || !data.clientId || !Number.isInteger(data.seqNo)) return -1;
+        return this.log.findIndex(
+            (entry) =>
+                entry.data &&
+                entry.data.clientId === data.clientId &&
+                entry.data.seqNo === data.seqNo,
+        );
+    }
+
+    async clientAppend(data) {
+        const appendStartedAt = this._clock.now();
+        if (this.state !== STATES.LEADER) {
+            throw new Error(`Not the leader. Current leader: ${this.leaderId || 'unknown'}`);
+        }
+
+        const duplicateIndex = this._findDuplicate(data);
+        if (duplicateIndex >= 0) {
+            const committed = await this._awaitCommit(duplicateIndex);
+            return {
+                committed,
+                entry: this.log[duplicateIndex],
+
+                result: committed ? this.stateMachine.resultFor(duplicateIndex) : null,
+                duplicate: true,
+            };
+        }
+
+        const entry = {
+            term: this.currentTerm,
+            index: this.log.length,
+
+            ts: this._clock.now(),
+            data,
+        };
+        this._appendToLog([entry]);
+
+        console.log(`[${this.replicaId}] Entry persisted · index=${entry.index}`);
+        void this._replicateAll();
+
+        const committed = await this._awaitCommit(entry.index);
+        if (committed) this._recordCommitLatency(this._clock.now() - appendStartedAt);
+        this._syncLeaseTicks();
+        return {
+            committed,
+            entry,
+            result: committed ? this.stateMachine.resultFor(entry.index) : null,
+            duplicate: false,
+        };
+    }
+
+    
+    _awaitCommit(index, timeoutMs = this.commitTimeoutMs) {
+        if (this.commitIndex >= index) return Promise.resolve(true);
+        if (this.state !== STATES.LEADER || this.paused) return Promise.resolve(false);
+
+        return new Promise((resolve) => {
+            const waiter = { index, resolve: null, timer: null };
+            const settle = (value) => {
+                if (waiter.resolve === null) return;
+                waiter.resolve = null;
+                this._clock.clearTimeout(waiter.timer);
+                this._commitWaiters.delete(waiter);
+                resolve(value);
+            };
+            waiter.resolve = settle;
+            waiter.timer = this._clock.setTimeout(() => settle(this.commitIndex >= index), timeoutMs);
+            if (waiter.timer && waiter.timer.unref) waiter.timer.unref();
+            this._commitWaiters.add(waiter);
+        });
+    }
+
+    _releaseCommitWaiters() {
+        for (const waiter of [...this._commitWaiters]) {
+            if (this.commitIndex >= waiter.index) waiter.resolve(true);
+        }
+    }
+
+    
+    _failCommitWaiters() {
+        for (const waiter of [...this._commitWaiters]) {
+            waiter.resolve(this.commitIndex >= waiter.index);
+        }
+    }
+
+    
+    _syncLeaseTicks() {
+        const wanted = this.state === STATES.LEADER
+            && !this.paused
+            && this.stateMachine.activeLeaseCount > 0;
+
+        if (wanted && !this._leaseTickTimer) {
+            this._leaseTickTimer = this._clock.setInterval(() => {
+                void this._appendTick();
+            }, this.leaseTickInterval);
+            if (this._leaseTickTimer && this._leaseTickTimer.unref) this._leaseTickTimer.unref();
+        } else if (!wanted && this._leaseTickTimer) {
+            this._clock.clearInterval(this._leaseTickTimer);
+            this._leaseTickTimer = null;
+        }
+    }
+
+    async _appendTick() {
+        if (this.state !== STATES.LEADER || this.paused) {
+            this._syncLeaseTicks();
+            return;
+        }
+
+        let earliestExpiry = Infinity;
+        for (const lease of this.stateMachine.leases.values()) {
+            if (lease.expiresAt < earliestExpiry) earliestExpiry = lease.expiresAt;
+        }
+        if (this._clock.now() < earliestExpiry) return;
+
+        try {
+            await this.clientAppend({ op: 'tick' });
+        } catch (error) {
+            console.error(`[${this.replicaId}] lease tick failed: ${error.message}`);
+        }
+    }
+
+    _recordCommitLatency(milliseconds) {
+        this.metrics.commitLatencyCount += 1;
+        this.metrics.commitLatencySumMs += milliseconds;
+        for (const boundary of Object.keys(this.metrics.commitLatencyBuckets).map(Number)) {
+            if (milliseconds <= boundary) this.metrics.commitLatencyBuckets[boundary] += 1;
+        }
+    }
+
+    isReady() {
+        if (this.paused || this.state === STATES.CANDIDATE) return false;
+        const leaseWindow = this.electionTimeoutMax * 3;
+        return Boolean(this.leaderId) && this._clock.now() - this.lastQuorumContactAt <= leaseWindow;
+    }
+
+    getStatus() {
+        const replicated = this.state === STATES.LEADER
+            ? Object.values(this.matchIndex).filter(
+                (index) => index >= this.commitIndex && this.commitIndex >= 0,
+            ).length + 1
+            : null;
+
+        return {
+            replicaId: this.replicaId,
+            state: this.paused ? 'PAUSED' : this.state,
+            term: this.currentTerm,
+            logLength: this.log.length,
+            commitIndex: this.commitIndex,
+            lastApplied: this.lastApplied,
+            leaderId: this.leaderId,
+            paused: this.paused,
+            clusterSize: this.clusterSize,
+            quorumSize: this.quorumSize,
+            replicated,
+            durable: Boolean(this._store),
+            ready: this.isReady(),
+            electionsTotal: this.metrics.electionsTotal,
+            replayedEntries: this.metrics.replayedEntries,
+            keys: this.stateMachine.store.size,
+            leases: this.stateMachine.activeLeaseCount,
+            revision: this.stateMachine.revision,
+            logicalClock: this.stateMachine.clock,
+        };
+    }
+
+    isLeader() {
+        return this.state === STATES.LEADER && !this.paused;
+    }
+
+    
+    
+    read(fn) {
+        if (!this.isLeader()) {
+            throw new Error(`Not the leader. Current leader: ${this.leaderId || 'unknown'}`);
+        }
+        const window = Math.max(0, this.electionTimeoutMin - this.heartbeatInterval);
+        if (this._clock.now() - this.lastQuorumContactAt > window) {
+            throw new Error('Stale leader lease: no recent quorum contact');
+        }
+        return fn(this.stateMachine);
+    }
+
+    
+    async readLinearizable(fn) {
+        if (!this.isLeader()) {
+            throw new Error(`Not the leader. Current leader: ${this.leaderId || 'unknown'}`);
+        }
+
+        if (this._noopIndex !== null && this.commitIndex < this._noopIndex) {
+            throw new Error('Leader has not yet committed its term no-op; read not yet safe');
+        }
+
+        const term = this.currentTerm;
+        const readIndex = this.commitIndex;
+
+        const confirmed = await this._confirmLeadership();
+        if (!confirmed || this.currentTerm !== term || !this.isLeader()) {
+            throw new Error('Leadership lost while confirming a read');
+        }
+
+        if (this.lastApplied < readIndex) {
+            throw new Error(`Not yet applied to the read index (${this.lastApplied} < ${readIndex})`);
+        }
+
+        return fn(this.stateMachine);
+    }
+
+    
+    async _confirmLeadership() {
+        if (this.quorumSize === 1) return this.isLeader();
+
+        const term = this.currentTerm;
+        const results = await Promise.allSettled(this.peers.map(async (peerUrl) => {
+            const next = Math.max(0, Math.min(this.nextIndex[peerUrl] ?? this.log.length, this.log.length));
+            const prevLogIndex = next - 1;
+            const response = await this.transport.post(`${peerUrl}/append-entries`, {
+                term,
+                leaderId: this.replicaId,
+                leaderUrl: this.nodeUrl,
+                prevLogIndex,
+                prevLogTerm: prevLogIndex >= 0 ? this.log[prevLogIndex].term : 0,
+                entries: [],
+                leaderCommit: this.commitIndex,
+            }, { timeout: 450 });
+
+            if (response.data.term > this.currentTerm) {
+                this._becomeFollower(response.data.term);
+                return false;
+            }
+
+            return response.data.term === term;
+        }));
+
+        const acks = 1 + results.filter((r) => r.status === 'fulfilled' && r.value === true).length;
+        if (acks >= this.quorumSize) this.lastQuorumContactAt = this._clock.now();
+        return acks >= this.quorumSize;
+    }
+}
+
+module.exports = { RaftNode, StableStateStore, STATES, REAL_CLOCK };
+
+};
+__registry["sim/simulator.js"] = function (module, exports, require) {
+
+class Rng {
+    constructor(seed = 1) {
+        this.x = (seed >>> 0) || 1;
+        this.y = 362436069; this.z = 521288629; this.w = 88675123;
+    }
+
+    next() {
+        const t = (this.x ^ (this.x << 11)) >>> 0;
+        this.x = this.y; this.y = this.z; this.z = this.w;
+        this.w = ((this.w ^ (this.w >>> 19)) ^ (t ^ (t >>> 8))) >>> 0;
+        return this.w;
+    }
+
+    float() { return this.next() / 4294967296; }
+    int(maxExclusive) { return this.next() % maxExclusive; }
+    range(min, max) { return min + this.int(Math.max(1, max - min + 1)); }
+    pick(array) { return array[this.int(array.length)]; }
+    chance(probability) { return this.float() < probability; }
+}
+
+class VirtualClock {
+    constructor(startAt = 1_700_000_000_000) {
+        this.time = startAt;
+        this.queue = [];
+        this.sequence = 0;
+        this.handles = new Map();
+        this.fired = 0;
+        this.compactions = 0;
+    }
+
+    now() { return this.time; }
+
+    _schedule(fn, delayMs, repeatMs = null) {
+        const handle = ++this.sequence;
+        const task = {
+            handle,
+            at: this.time + Math.max(0, delayMs),
+            sequence: handle,
+            fn,
+            repeatMs,
+            cancelled: false,
+        };
+        this.handles.set(handle, task);
+        this.queue.push(task);
+        return handle;
+    }
+
+    setTimeout(fn, ms) { return this._schedule(fn, ms); }
+    setInterval(fn, ms) { return this._schedule(fn, ms, ms); }
+
+    clearTimeout(handle) {
+        const task = this.handles.get(handle);
+        if (task) { task.cancelled = true; this.handles.delete(handle); }
+    }
+
+    clearInterval(handle) { this.clearTimeout(handle); }
+
+    
+    advance() {
+
+        if (this.queue.length > 64) {
+            const live = this.queue.filter((task) => !task.cancelled);
+            if (live.length < this.queue.length / 2) {
+                this.queue = live;
+                this.compactions += 1;
+            }
+        }
+
+        let best = -1;
+        for (let i = 0; i < this.queue.length; i += 1) {
+            const task = this.queue[i];
+            if (task.cancelled) continue;
+            if (best === -1
+                || task.at < this.queue[best].at
+                || (task.at === this.queue[best].at && task.sequence < this.queue[best].sequence)) {
+                best = i;
+            }
+        }
+
+        if (best === -1) { this.queue = []; return false; }
+
+        const task = this.queue[best];
+        this.queue.splice(best, 1);
+        this.time = Math.max(this.time, task.at);
+        this.fired += 1;
+
+        if (task.repeatMs !== null && !task.cancelled) {
+            task.at = this.time + task.repeatMs;
+            task.sequence = ++this.sequence;
+            this.queue.push(task);
+        } else {
+            this.handles.delete(task.handle);
+        }
+
+        task.fn();
+        return true;
+    }
+
+    
+    drain() {
+        return new Promise((resolve) => setImmediate(resolve));
+    }
+
+    
+    async runFor(untilMs) {
+        const deadline = this.time + untilMs;
+        let steps = 0;
+        while (this.time < deadline) {
+            const pending = this.queue.some((t) => !t.cancelled && t.at <= deadline);
+            if (!pending) { this.time = deadline; break; }
+            if (!this.advance()) break;
+            await this.drain();
+            steps += 1;
+            if (steps > 500_000) throw new Error('simulation did not converge');
+        }
+        return steps;
+    }
+}
+
+class SimNetwork {
+    constructor(clock, rng, options = {}) {
+        this.clock = clock;
+        this.rng = rng;
+        this.minLatency = options.minLatency ?? 2;
+        this.maxLatency = options.maxLatency ?? 25;
+        this.dropRate = options.dropRate ?? 0;
+        this.handlers = new Map();   // nodeUrl -> { '/append-entries': fn, ... }
+        this.partitions = [];        // array of Sets; nodes in different sets cannot talk
+        this.crashed = new Set();
+        this.stats = { sent: 0, delivered: 0, dropped: 0, partitioned: 0 };
+    }
+
+    register(url, handlers) { this.handlers.set(url, handlers); }
+
+    
+    _isolated(a, b) {
+        if (this.partitions.length === 0) return false;
+        const sideOf = (url) => this.partitions.findIndex((group) => group.has(url));
+        const sa = sideOf(a);
+        const sb = sideOf(b);
+
+        if (sa === -1 || sb === -1) return false;
+        return sa !== sb;
+    }
+
+    partition(groups) { this.partitions = groups.map((g) => new Set(g)); }
+    heal() { this.partitions = []; }
+    crash(url) { this.crashed.add(url); }
+    restart(url) { this.crashed.delete(url); }
+
+    post(url, body, options = {}) {
+        this.stats.sent += 1;
+        const target = new URL(url).origin;
+        const route = new URL(url).pathname;
+        const from = body.leaderUrl || body.candidateId || 'client';
+
+        return new Promise((resolve, reject) => {
+            const fail = (reason) => {
+
+                this.clock.setTimeout(
+                    () => reject(new Error(reason)),
+                    options.timeout ?? 400,
+                );
+            };
+
+            if (this.crashed.has(target)) return fail('ECONNREFUSED');
+            if (this._isolated(from, target) || this._isolated(this._ownerOf(route, body), target)) {
+                this.stats.partitioned += 1;
+                return fail('EHOSTUNREACH');
+            }
+            if (this.rng.chance(this.dropRate)) {
+                this.stats.dropped += 1;
+                return fail('ETIMEDOUT');
+            }
+
+            const latency = this.rng.range(this.minLatency, this.maxLatency);
+            this.clock.setTimeout(() => {
+                const node = this.handlers.get(target);
+                if (!node || this.crashed.has(target)) return reject(new Error('ECONNREFUSED'));
+                const handler = node[route];
+                if (!handler) return reject(new Error('404'));
+
+                let data;
+                try { data = handler(body); } catch (error) { return reject(error); }
+
+                if (this.rng.chance(this.dropRate)) {
+                    this.stats.dropped += 1;
+                    return fail('ETIMEDOUT');
+                }
+                const back = this.rng.range(this.minLatency, this.maxLatency);
+                this.clock.setTimeout(() => {
+                    this.stats.delivered += 1;
+                    resolve({ data });
+                }, back);
+            }, latency);
+        });
+    }
+
+    _ownerOf(route, body) {
+        return body.leaderUrl || null;
+    }
+}
+
+module.exports = { Rng, VirtualClock, SimNetwork };
+
+};
+__registry["sim/linearizability.js"] = function (module, exports, require) {
+
+const registerModel = {
+    init: () => ({}),
+
+    
+    apply(state, op) {
+        switch (op.kind) {
+            case 'write': {
+                if (op.result !== undefined && op.result !== true) return { ok: false };
+                return { ok: true, state: { ...state, [op.key]: op.value } };
+            }
+            case 'read': {
+                const actual = state[op.key] ?? null;
+
+                if (op.result === undefined) return { ok: true, state };
+                return actual === op.result ? { ok: true, state } : { ok: false };
+            }
+            case 'cas': {
+                const current = state[op.key] ?? null;
+                const succeeds = current === op.expected;
+                if (op.result !== undefined && op.result !== succeeds) return { ok: false };
+                return succeeds
+                    ? { ok: true, state: { ...state, [op.key]: op.value } }
+                    : { ok: true, state };
+            }
+            case 'delete': {
+                const next = { ...state };
+                delete next[op.key];
+                return { ok: true, state: next };
+            }
+            default:
+                return { ok: false };
+        }
+    },
+
+    hash: (state) => JSON.stringify(Object.keys(state).sort().map((k) => [k, state[k]])),
+};
+
+class LinearizabilityChecker {
+    constructor(model = registerModel, { maxSteps = 2_000_000 } = {}) {
+        this.model = model;
+        this.maxSteps = maxSteps;
+    }
+
+    
+    check(history) {
+        const operations = this._pair(history);
+        if (operations.length === 0) return { linearizable: true, steps: 0, checked: 0 };
+
+        const memo = new Set();
+        const witness = [];
+        let steps = 0;
+        let exhausted = false;
+
+        const search = (remaining, state) => {
+            if (steps > this.maxSteps) { exhausted = true; return false; }
+            steps += 1;
+
+            if (remaining.every((op) => op.pending)) return true;
+
+            const key = `${remaining.map((o) => o.id).join(',')}|${this.model.hash(state)}`;
+            if (memo.has(key)) return false;
+            memo.add(key);
+
+            for (let i = 0; i < remaining.length; i += 1) {
+                const candidate = remaining[i];
+
+                let blocked = false;
+                for (let j = 0; j < i; j += 1) {
+                    if (!remaining[j].pending && remaining[j].returnedAt < candidate.invokedAt) {
+                        blocked = true;
+                        break;
+                    }
+                }
+                if (blocked) break;
+
+                const outcome = this.model.apply(state, candidate.op);
+                if (!outcome.ok) continue;
+
+                witness.push(candidate);
+                const rest = remaining.slice(0, i).concat(remaining.slice(i + 1));
+                if (search(rest, outcome.state)) return true;
+                witness.pop();
+            }
+
+            return false;
+        };
+
+        const linearizable = search(operations, this.model.init());
+        return {
+            linearizable,
+            steps,
+            checked: operations.length,
+            exhausted,
+            reason: linearizable
+                ? undefined
+                : exhausted
+                    ? `search budget exhausted after ${steps} steps — inconclusive, not a violation`
+                    : 'no ordering of the concurrent operations reproduces the observed results',
+            witness: linearizable ? witness.map((o) => o.op) : undefined,
+        };
+    }
+
+    
+    _pair(history) {
+        const open = new Map();
+        const operations = [];
+        let id = 0;
+
+        for (const event of history) {
+            if (event.type === 'invoke') {
+                const record = {
+                    id: id++,
+                    process: event.process,
+                    op: { ...event.op },
+                    invokedAt: event.at,
+                    returnedAt: Infinity,
+                    pending: true,
+                };
+                open.set(event.process, record);
+                operations.push(record);
+                continue;
+            }
+
+            const record = open.get(event.process);
+            if (!record) continue;
+            open.delete(event.process);
+
+            if (event.type === 'ok') {
+                record.pending = false;
+                record.returnedAt = event.at;
+                if (event.op && 'result' in event.op) record.op.result = event.op.result;
+            } else if (event.type === 'fail') {
+
+                operations.splice(operations.indexOf(record), 1);
+            }
+
+        }
+
+        return operations.sort((a, b) => a.invokedAt - b.invokedAt || a.id - b.id);
+    }
+}
+
+class HistoryRecorder {
+    constructor(clock) {
+        this.clock = clock;
+        this.events = [];
+    }
+
+    invoke(process, op) {
+        this.events.push({ process, type: 'invoke', op, at: this.clock.now() });
+    }
+
+    ok(process, result) {
+        this.events.push({ process, type: 'ok', op: { result }, at: this.clock.now() });
+    }
+
+    fail(process) {
+        this.events.push({ process, type: 'fail', op: {}, at: this.clock.now() });
+    }
+
+    
+    info(process) {
+        this.events.push({ process, type: 'info', op: {}, at: this.clock.now() });
+    }
+
+    summary() {
+        const counts = { invoke: 0, ok: 0, fail: 0, info: 0 };
+        for (const event of this.events) counts[event.type] += 1;
+        return counts;
+    }
+}
+
+module.exports = { LinearizabilityChecker, HistoryRecorder, registerModel };
+
+};
+__registry["sim/cluster.js"] = function (module, exports, require) {
+
+const { RaftNode } = require('../replica/raft');
+const { StateMachine } = require('../replica/state-machine');
+const { VirtualClock, SimNetwork, Rng } = require('./simulator');
+
+class MemoryStableStore {
+    constructor() { this.data = null; this.writes = 0; }
+    load() { return this.data ? JSON.parse(this.data) : {}; }
+    save(state) { this.data = JSON.stringify(state); this.writes += 1; }
+}
+
+class MemoryLogStore {
+    constructor() { this.entries = []; this.appends = 0; this.rewrites = 0; }
+    load() { return this.entries.map((e) => JSON.parse(JSON.stringify(e))); }
+    append(entries) {
+        this.entries.push(...entries.map((e) => JSON.parse(JSON.stringify(e))));
+        this.appends += entries.length;
+    }
+    rewrite(entries) {
+        this.entries = entries.map((e) => JSON.parse(JSON.stringify(e)));
+        this.rewrites += 1;
+    }
+    close() {}
+}
+
+class SimCluster {
+    constructor({
+        size = 3,
+        seed = 1,
+        dropRate = 0,
+        minLatency = 2,
+        maxLatency = 25,
+        electionTimeoutMin = 150,
+        electionTimeoutMax = 300,
+        heartbeatInterval = 40,
+    } = {}) {
+        this.rng = new Rng(seed);
+        this.clock = new VirtualClock();
+        this.network = new SimNetwork(this.clock, this.rng, { dropRate, minLatency, maxLatency });
+        this.seed = seed;
+        this.size = size;
+        this.config = { electionTimeoutMin, electionTimeoutMax, heartbeatInterval };
+
+        this.urls = Array.from({ length: size }, (_, i) => `http://node${i}:5000`);
+
+        this.stores = this.urls.map(() => ({ stable: new MemoryStableStore(), log: new MemoryLogStore() }));
+        this.nodes = new Map();
+
+        for (let i = 0; i < size; i += 1) this._spawn(i);
+    }
+
+    _spawn(index) {
+        const url = this.urls[index];
+        const node = new RaftNode({
+            replicaId: `node${index}`,
+            peers: this.urls.filter((u) => u !== url),
+            nodeUrl: url,
+            transport: this.network,
+            clock: this.clock,
+            stableStore: this.stores[index].stable,
+            logStore: this.stores[index].log,
+            storagePath: false,
+            stateMachine: new StateMachine(),
+            autoStart: true,
+            commitTimeoutMs: 1500,
+            ...this.config,
+        });
+
+        node.electionTimeoutMin = this.config.electionTimeoutMin + this.rng.int(40);
+
+        this.network.register(url, {
+            '/request-vote': (body) => node.handleRequestVote(body),
+            '/append-entries': (body) => node.handleAppendEntries(body),
+        });
+
+        this.nodes.set(url, node);
+        return node;
+    }
+
+    get leader() {
+        for (const [url, node] of this.nodes) {
+            if (node.isLeader() && !this.network.crashed.has(url)) return { url, node };
+        }
+        return null;
+    }
+
+    
+    async awaitLeader(maxMs = 5000) {
+        const deadline = this.clock.now() + maxMs;
+        while (this.clock.now() < deadline) {
+            if (this.leader) return this.leader;
+            if (!this.clock.advance()) break;
+
+            await this.clock.drain();
+        }
+        return this.leader;
+    }
+
+    tick(ms) { return this.clock.runFor(ms); }
+
+    
+    start({ speed = 1, intervalMs = 50, onTick = null, keepAlive = true } = {}) {
+        if (this._driver) return;
+        this._driver = setInterval(async () => {
+            if (this._driving) return;      // never re-enter mid-advance
+            this._driving = true;
+            try {
+                await this.clock.runFor(intervalMs * speed);
+                if (onTick) onTick(this);
+            } finally {
+                this._driving = false;
+            }
+        }, intervalMs);
+
+        if (!keepAlive && this._driver.unref) this._driver.unref();
+    }
+
+    stopDriver() {
+        if (this._driver) clearInterval(this._driver);
+        this._driver = null;
+    }
+
+    
+    partition(groups) {
+        this.network.partition(groups.map((g) => g.map((i) => this.urls[i])));
+    }
+
+    
+    isolate(index) {
+        const others = this.urls.filter((_, i) => i !== index);
+        this.network.partition([[this.urls[index]], others]);
+    }
+
+    heal() { this.network.heal(); }
+
+    
+    crash(index) {
+        const url = this.urls[index];
+        const node = this.nodes.get(url);
+        if (node) node.stop();
+        this.network.crash(url);
+        this.nodes.delete(url);
+    }
+
+    
+    restart(index) {
+        this.network.restart(this.urls[index]);
+        return this._spawn(index);
+    }
+
+    
+    states() {
+        return [...this.nodes.entries()]
+            .filter(([url]) => !this.network.crashed.has(url))
+            .map(([url, node]) => ({
+                url,
+                replicaId: node.replicaId,
+                term: node.currentTerm,
+                state: node.state,
+                logLength: node.log.length,
+                commitIndex: node.commitIndex,
+                keys: node.stateMachine.list().map((k) => `${k.key}=${JSON.stringify(k.value)}`).join('|'),
+                index: node.stateMachine.index ? node.stateMachine.index.fingerprint() : null,
+            }));
+    }
+
+    
+    checkLogConsistency() {
+        const live = [...this.nodes.values()];
+        for (let i = 0; i < live.length; i += 1) {
+            for (let j = i + 1; j < live.length; j += 1) {
+                const a = live[i].log;
+                const b = live[j].log;
+                const shared = Math.min(a.length, b.length);
+                for (let k = 0; k < shared; k += 1) {
+                    if (a[k].term !== b[k].term) {
+                        return {
+                            ok: false,
+                            reason: `${live[i].replicaId} and ${live[j].replicaId} disagree at index ${k}: `
+                                + `term ${a[k].term} vs ${b[k].term}`,
+                        };
+                    }
+                }
+            }
+        }
+        return { ok: true };
+    }
+
+    
+    checkCommittedPrefix() {
+        const live = [...this.nodes.values()];
+        const minCommit = Math.min(...live.map((n) => n.commitIndex));
+        for (let k = 0; k <= minCommit; k += 1) {
+            const reference = JSON.stringify(live[0].log[k]?.data);
+            for (const node of live.slice(1)) {
+                if (JSON.stringify(node.log[k]?.data) !== reference) {
+                    return { ok: false, reason: `committed entry ${k} differs across replicas` };
+                }
+            }
+        }
+        return { ok: true, verified: minCommit + 1 };
+    }
+
+    stop() {
+        this.stopDriver();
+        for (const node of this.nodes.values()) node.stop();
+    }
+}
+
+module.exports = { SimCluster, MemoryStableStore, MemoryLogStore };
+
+};
+
+global.miniRaft = {
+  cluster: __require('web/entry.js', 'sim/cluster.js'),
+  simulator: __require('web/entry.js', 'sim/simulator.js'),
+  linearizability: __require('web/entry.js', 'sim/linearizability.js'),
+  hnsw: __require('web/entry.js', 'replica/hnsw.js'),
+  quantize: __require('web/entry.js', 'replica/quantize.js'),
+  sparse: __require('web/entry.js', 'replica/sparse.js'),
+  stateMachine: __require('web/entry.js', 'replica/state-machine.js'),
+};
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+const { SimCluster } = miniRaft.cluster;
+const { HnswIndex } = miniRaft.hnsw;
+
+const DIM = 64;
+const SAMPLES = [
+  'a golden retriever running through a field','a small dog playing fetch in the park',
+  'a cat sleeping on a windowsill','a tabby kitten chasing a ball of yarn',
+  'a red sports car on a mountain road','a vintage motorcycle parked outside a cafe',
+  'freshly baked sourdough bread on a wooden board','a bowl of ramen with a soft boiled egg',
+  'snow covered peaks at sunrise','a long sandy beach at low tide',
+  'a crowded subway platform at rush hour','an empty library reading room',
+  'circuit boards under a microscope','a server rack with blinking status lights',
+  'handwritten notes beside a cup of coffee','a violin resting on sheet music',
+];
+
+/**
+ * A tiny deterministic text embedder: a hashed token histogram projected onto a
+ * fixed random basis. Not semantic in the way a real sentence transformer is —
+ * it matches shared words, not shared meaning — but it is a genuine embedding
+ * function, and everything the demo shows about replication is real.
+ */
+const basisCache = new Map();
+function embed(text) {
+  const out = new Float32Array(DIM);
+  const tokens = String(text).toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  for (const token of tokens) {
+    let basis = basisCache.get(token);
+    if (!basis) {
+      basis = new Float32Array(DIM);
+      let h = 2166136261;
+      for (let i = 0; i < token.length; i++) { h ^= token.charCodeAt(i); h = Math.imul(h, 16777619); }
+      for (let d = 0; d < DIM; d++) { h ^= h << 13; h ^= h >>> 17; h ^= h << 5; basis[d] = ((h >>> 0) / 2147483648) - 1; }
+      basisCache.set(token, basis);
+    }
+    for (let d = 0; d < DIM; d++) out[d] += basis[d];
+  }
+  let n = 0; for (let d = 0; d < DIM; d++) n += out[d] * out[d];
+  n = Math.sqrt(n) || 1;
+  for (let d = 0; d < DIM; d++) out[d] /= n;
+  return out;
+}
+
+const b64 = (v) => {
+  const bytes = new Uint8Array(v.buffer, v.byteOffset, v.byteLength);
+  let s = ''; for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+  return btoa(s);
+};
+
+let cluster = null;
+let indexReady = false;
+const isolated = new Set();
+const crashed = new Set();
+
+function log(message, kind) {
+  const host = document.getElementById('events');
+  const row = document.createElement('div');
+  const at = cluster ? ((cluster.clock.now() - 1700000000000) / 1000).toFixed(1) + 's' : '—';
+  row.innerHTML = `<span class="t">${at}</span><span class="${kind || ''}">${message}</span>`;
+  host.prepend(row);
+  while (host.children.length > 120) host.lastChild.remove();
+}
+
+async function boot() {
+  cluster = new SimCluster({ size: 3, seed: Date.now() & 0xffff, minLatency: 4, maxLatency: 30 });
+  cluster.start({ speed: Number(document.getElementById('speed').value) });
+  log('cluster starting — 3 replicas, quorum 2', 'acc');
+
+  const deadline = Date.now() + 8000;
+  while (!cluster.leader && Date.now() < deadline) await new Promise(r => setTimeout(r, 60));
+  if (!cluster.leader) { log('no leader elected', 'err'); return; }
+  log(`leader elected: ${cluster.leader.node.replicaId}`, 'ok');
+
+  // The index configuration — including its PRNG seed — goes through consensus,
+  // so every replica builds a structurally identical graph.
+  const r = await cluster.leader.node.clientAppend({
+    op: 'index-create', dim: DIM, M: 16, efConstruction: 100, seed: 0xc0ffee,
+  });
+  indexReady = r.committed;
+  log(indexReady ? 'index created through the replicated log' : 'index creation did not commit',
+      indexReady ? 'ok' : 'err');
+}
+
+async function addDoc(text) {
+  if (!cluster || !indexReady) return { error: 'index not ready' };
+  const leader = cluster.leader;
+  if (!leader) return { error: 'no leader — heal the cluster first' };
+  const id = 'doc-' + (docCount++);
+  try {
+    const out = await leader.node.clientAppend({
+      op: 'vector-upsert', id, vector: b64(embed(text)), payload: { text },
+    });
+    return out.committed ? { id, ok: true } : { error: 'not committed — no quorum' };
+  } catch (e) { return { error: e.message }; }
+}
+let docCount = 0;
+
+function render() {
+  if (!cluster) return;
+  const host = document.getElementById('nodes');
+  host.innerHTML = '';
+  const states = cluster.states();
+
+  for (let i = 0; i < 3; i++) {
+    const url = cluster.urls[i];
+    const s = states.find(x => x.url === url);
+    const down = crashed.has(i);
+    const iso = isolated.has(i);
+    const label = down ? 'DOWN' : iso ? 'ISOLATED' : (s ? s.state : 'DOWN');
+    const el = document.createElement('div');
+    el.className = 'node' + (label === 'LEADER' ? ' leader' : '') + (down ? ' down' : '');
+    el.innerHTML = `<div><b>node${i}</b><span class="badge ${label}">${label}</span></div>
+      <div class="meta">term ${s ? s.term : '–'} · log ${s ? s.logLength : '–'} · commit ${s ? s.commitIndex : '–'}<br>
+      graph ${s && s.index ? s.index : '—'}</div>`;
+    host.appendChild(el);
+  }
+
+  const stats = document.getElementById('stats');
+  const leader = cluster.leader;
+  const idx = leader ? leader.node.stateMachine.index : null;
+  stats.innerHTML = `
+    <div class="stat"><span>leader</span><span>${leader ? leader.node.replicaId : 'NONE'}</span></div>
+    <div class="stat"><span>term</span><span>${leader ? leader.node.currentTerm : '–'}</span></div>
+    <div class="stat"><span>documents</span><span>${idx ? idx.size : 0}</span></div>
+    <div class="stat"><span>graph edges</span><span>${idx ? idx.stats().edges : 0}</span></div>
+    <div class="stat"><span>messages delivered</span><span>${cluster.network.stats.delivered}</span></div>
+    <div class="stat"><span>blocked by partition</span><span>${cluster.network.stats.partitioned}</span></div>`;
+
+  const prints = new Set(states.map(s => s.index).filter(Boolean));
+  const agree = document.getElementById('agree');
+  agree.innerHTML = states.length === 0 ? '' :
+    prints.size <= 1
+      ? `<span class="ok">All ${states.length} live replicas hold structurally identical graphs.</span>`
+      : `<span class="warn">${prints.size} distinct graphs — replicas are still catching up.</span>`;
+}
+
+// ── wiring ───────────────────────────────────────────────────────────────────
+document.getElementById('add').onclick = async () => {
+  const input = document.getElementById('doc');
+  const text = input.value.trim();
+  if (!text) return;
+  const out = document.getElementById('add-out');
+  out.textContent = 'committing…';
+  const r = await addDoc(text);
+  out.textContent = r.ok ? `committed as ${r.id}` : `failed: ${r.error}`;
+  log(r.ok ? `added "${text.slice(0, 40)}"` : `add failed: ${r.error}`, r.ok ? 'ok' : 'err');
+  if (r.ok) input.value = '';
+};
+
+document.getElementById('seed-docs').onclick = async () => {
+  const out = document.getElementById('add-out');
+  let n = 0;
+  for (const text of SAMPLES) { const r = await addDoc(text); if (r.ok) n++; out.textContent = `${n}/${SAMPLES.length} committed`; }
+  log(`loaded ${n} sample documents through the log`, 'ok');
+};
+
+document.getElementById('search').onclick = () => {
+  const q = document.getElementById('query').value.trim() || 'a puppy playing outside';
+  const vector = embed(q);
+  const body = document.querySelector('#results tbody');
+  body.innerHTML = '';
+  for (const [url, node] of cluster.nodes) {
+    if (cluster.network.crashed.has(url)) continue;
+    const idx = node.stateMachine.index;
+    const hits = idx ? idx.search(vector, 1) : [];
+    const row = document.createElement('tr');
+    row.innerHTML = `<td>${node.replicaId}</td>
+      <td>${hits[0] ? (hits[0].payload && hits[0].payload.text || hits[0].id) : '—'}</td>
+      <td class="score">${hits[0] ? hits[0].score.toFixed(3) : '—'}</td>`;
+    body.appendChild(row);
+  }
+  log(`searched "${q}" on every replica`, 'acc');
+};
+
+document.getElementById('isolate-leader').onclick = () => {
+  const leader = cluster.leader;
+  if (!leader) return;
+  const i = cluster.urls.indexOf(leader.url);
+  cluster.isolate(i);
+  isolated.clear(); isolated.add(i);
+  log(`isolated node${i} (the leader) — watch the survivors elect a new one`, 'warn');
+};
+
+document.getElementById('crash-leader').onclick = () => {
+  const leader = cluster.leader;
+  if (!leader) return;
+  const i = cluster.urls.indexOf(leader.url);
+  cluster.crash(i); crashed.add(i);
+  log(`crashed node${i} — its durable state survives; it will catch up on restart`, 'err');
+};
+
+document.getElementById('isolate-two').onclick = () => {
+  cluster.partition([[0], [1], [2]]);
+  isolated.clear(); [0,1,2].forEach(i => isolated.add(i));
+  log('every node isolated — no majority, so writes must now fail. That is correct.', 'warn');
+};
+
+document.getElementById('heal').onclick = () => {
+  cluster.heal();
+  for (const i of [...crashed]) { cluster.restart(i); crashed.delete(i); }
+  isolated.clear();
+  log('network healed and crashed nodes restarted', 'ok');
+};
+
+const speed = document.getElementById('speed');
+speed.oninput = () => {
+  document.getElementById('speed-label').textContent = speed.value + 'x';
+  if (cluster) { cluster.stopDriver(); cluster.start({ speed: Number(speed.value) }); }
+};
+
+boot().then(() => setInterval(render, 250));
+</script>
+</body>
+</html>

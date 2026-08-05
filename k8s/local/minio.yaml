@@ -1,0 +1,135 @@
+# MinIO — S3 without the S3 bill.
+#
+# This is the piece that makes a free local cluster genuinely useful rather than
+# a toy. The serving pods talk to it through the real @aws-sdk/client-s3 client,
+# with real request signing, real streaming responses and real error shapes. The
+# only difference from EKS is the endpoint and that credentials come from a
+# Secret instead of IRSA.
+#
+# What it does *not* reproduce: S3's latency, its durability, or its cost. Cold
+# starts measured against MinIO on the same machine are a floor, not a forecast.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: minio
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: minio-credentials
+  namespace: minio
+stringData:
+  # Local-only credentials, committed on purpose so the demo is one command.
+  # On EKS there is no equivalent Secret at all: the serving pods get temporary
+  # credentials from IRSA and nothing static exists to leak.
+  accessKey: miniraft
+  secretKey: miniraft-local-dev
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minio
+  namespace: minio
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: minio
+  template:
+    metadata:
+      labels:
+        app: minio
+    spec:
+      # System tier: MinIO is not consensus and must not consume a node the
+      # Raft StatefulSet needs.
+      nodeSelector:
+        miniraft.io/tier: system
+      containers:
+        - name: minio
+          # Pinned. `:latest` on an object store is how a demo that worked last
+          # month stops working with no local change — MinIO has shipped
+          # breaking flag and console changes before.
+          image: quay.io/minio/minio:RELEASE.2024-09-13T20-26-02Z
+          args: ["server", "/data", "--console-address", ":9090"]
+          env:
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef: { name: minio-credentials, key: accessKey }
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: minio-credentials, key: secretKey }
+          ports:
+            - { name: api, containerPort: 9000 }
+            - { name: console, containerPort: 9090 }
+          readinessProbe:
+            httpGet: { path: /minio/health/ready, port: api }
+            initialDelaySeconds: 3
+            periodSeconds: 3
+          volumeMounts:
+            - { name: data, mountPath: /data }
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { cpu: 1000m, memory: 1Gi }
+      volumes:
+        # emptyDir on purpose: artifacts are rebuilt deterministically by the
+        # seed Job, so persisting them would only hide a broken seed.
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio
+  namespace: minio
+spec:
+  selector:
+    app: minio
+  ports:
+    - { name: api, port: 9000, targetPort: api }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio-console
+  namespace: minio
+spec:
+  type: NodePort
+  selector:
+    app: minio
+  ports:
+    - { name: console, port: 9090, targetPort: console, nodePort: 30090 }
+---
+# Generates v1 and v2 deterministically and uploads them, so no artifact bytes
+# ever have to cross from the host into the cluster. Runs to completion and
+# stops; the serving pods stay unready until it finishes, which is the correct
+# ordering and needs no init-container coordination.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: seed-artifacts
+  namespace: minio
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: OnFailure
+      nodeSelector:
+        miniraft.io/tier: system
+      containers:
+        - name: seed
+          image: miniraft-embedding:local
+          imagePullPolicy: IfNotPresent
+          command: ["node", "tools/seed-artifacts.js"]
+          env:
+            - { name: ARTIFACT_BUCKET, value: miniraft-artifacts }
+            - { name: S3_ENDPOINT, value: "http://minio.minio.svc:9000" }
+            - { name: AWS_REGION, value: us-east-1 }
+            - { name: SEED_VERSIONS, value: "v1,v2" }
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef: { name: minio-credentials, key: accessKey }
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef: { name: minio-credentials, key: secretKey }
+          resources:
+            requests: { cpu: 200m, memory: 512Mi }

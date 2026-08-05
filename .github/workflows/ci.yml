@@ -12,9 +12,6 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: replica
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -23,9 +20,23 @@ jobs:
           cache: npm
           cache-dependency-path: replica/package-lock.json
       - run: npm ci
+        working-directory: replica
       - run: npm test
-      - run: node --check raft.js
-      - run: node --check index.js
+        working-directory: replica
+      # Every source file, found rather than listed. The previous version named
+      # raft.js and index.js explicitly, so log-store.js and state-machine.js
+      # were never checked once they were split out — the same class of omission
+      # that left them out of the Docker image.
+      - name: syntax check every module
+        run: |
+          find replica serving tools -name '*.js' -not -path '*/node_modules/*' -print0 \
+            | xargs -0 -n1 node --check
+      # The serving tier and tools require modules across directories. A build
+      # of the image is the only thing that proves those paths resolve, but this
+      # catches a missing dependency before waiting on a container build.
+      - name: serving dependencies install
+        run: npm install --omit=dev
+        working-directory: serving
 
   containers:
     runs-on: ubuntu-latest
@@ -37,6 +48,12 @@ jobs:
             context: replica
           - component: gateway
             dockerfile: gateway/Dockerfile
+            context: .
+          # Built from the repo root because it carries three entrypoints —
+          # the embedding service, the dashboard and the artifact seed job —
+          # which live in two directories.
+          - component: embedding
+            dockerfile: Dockerfile.serving
             context: .
     steps:
       - uses: actions/checkout@v4

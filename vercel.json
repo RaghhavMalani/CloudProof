@@ -1,0 +1,18 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "node tools/build-web.js",
+  "outputDirectory": "web",
+  "framework": null,
+  "installCommand": "echo 'no dependencies'",
+  "headers": [
+    {
+      "source": "/bundle.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    }
+  ]
+}

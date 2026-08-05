@@ -11,7 +11,14 @@ ENV DATA_DIR=/data
 RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 
 COPY --from=dependencies --chown=node:node /app/node_modules ./node_modules
-COPY --chown=node:node package.json raft.js index.js docker-entrypoint.sh ./
+# Every runtime module, listed explicitly rather than `COPY . .` so test files
+# and fixtures stay out of the image. The cost of that choice is that adding a
+# module means editing this line — and forgetting to is exactly the bug that
+# shipped here: log-store.js and state-machine.js were split out of raft.js and
+# not added, which produces a container that builds cleanly and then dies on
+# MODULE_NOT_FOUND the moment it starts.
+COPY --chown=node:node package.json docker-entrypoint.sh ./
+COPY --chown=node:node index.js raft.js log-store.js state-machine.js ./
 
 RUN mkdir -p /data \
     && chown node:node /data \

@@ -6,6 +6,22 @@ const test = require('node:test');
 
 const { RaftNode, STATES } = require('./raft');
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** A transport where every RPC succeeds but takes `latencyMs` to do it. */
+function slowTransport(latencyMs) {
+    return {
+        post: async (url, body) => {
+            await sleep(latencyMs);
+            if (url.endsWith('/append-entries')) {
+                const matchIndex = body.prevLogIndex + body.entries.length;
+                return { data: { term: body.term, success: true, matchIndex, logLength: matchIndex + 1 } };
+            }
+            return { data: { term: body.term, voteGranted: true } };
+        },
+    };
+}
+
 function temporaryState(name) {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), `miniraft-${name}-`));
     return {
@@ -65,7 +81,10 @@ test('restores a committed log after restart and deduplicates client retries', a
         assert.equal(appended.committed, true);
         assert.equal(duplicate.committed, true);
         assert.equal(duplicate.duplicate, true);
-        assert.equal(first.log.length, 1);
+        // Two entries: the Raft §8 no-op this leader appended on election, then
+        // the client command. The duplicate did not add a third.
+        assert.equal(first.log.length, 2);
+        assert.equal(first.log[0].data.op, 'noop');
         first.stop();
 
         const restarted = new RaftNode({
@@ -75,9 +94,9 @@ test('restores a committed log after restart and deduplicates client retries', a
             autoStart: false,
         });
         assert.equal(restarted.currentTerm, 1);
-        assert.equal(restarted.log.length, 1);
-        assert.equal(restarted.commitIndex, 0);
-        assert.equal(restarted.lastApplied, 0);
+        assert.equal(restarted.log.length, 2);
+        assert.equal(restarted.commitIndex, 1);
+        assert.equal(restarted.lastApplied, 1);
     } finally {
         temp.cleanup();
     }
@@ -118,6 +137,161 @@ test('does not commit an older-term entry by replica count alone', () => {
     node.matchIndex.p3 = 2;
     node._advanceCommitIndex();
     assert.equal(node.commitIndex, 2);
+});
+
+test('rebuilds the keyspace by replaying the committed log after a restart', async () => {
+    const temp = temporaryState('replay');
+    try {
+        const first = new RaftNode({
+            replicaId: 'replica1',
+            peers: [],
+            storagePath: temp.file,
+            autoStart: false,
+        });
+        await first._startElection();
+
+        await first.clientAppend({ op: 'set', key: 'model/current', value: 'clip-v2' });
+        const claim = await first.clientAppend({
+            op: 'lease-acquire', key: 'shard/0', holder: 'pod-a', ttlMs: 60000,
+        });
+        assert.equal(claim.result.ok, true);
+        assert.equal(first.stateMachine.get('model/current').value, 'clip-v2');
+        first.stop();
+
+        const restarted = new RaftNode({
+            replicaId: 'replica1',
+            peers: [],
+            storagePath: temp.file,
+            autoStart: false,
+        });
+
+        // This is the bug the old lastApplied persistence hid: the node used to
+        // come back believing it had applied everything while holding an empty
+        // keyspace.
+        // no-op + set + lease-acquire
+        assert.equal(restarted.metrics.replayedEntries, 3);
+        assert.equal(restarted.stateMachine.get('model/current').value, 'clip-v2');
+        assert.equal(restarted.stateMachine.leaseInfo('shard/0').holder, 'pod-a');
+        assert.deepEqual(restarted.stateMachine.snapshot(), first.stateMachine.snapshot());
+        restarted.stop();
+    } finally {
+        temp.cleanup();
+    }
+});
+
+test('a retried cas returns the original verdict rather than re-running it', async () => {
+    const temp = temporaryState('dedup-cas');
+    try {
+        const node = new RaftNode({
+            replicaId: 'replica1',
+            peers: [],
+            storagePath: temp.file,
+            autoStart: false,
+        });
+        await node._startElection();
+
+        const command = {
+            op: 'cas', key: 'shard/0', expectRev: 0, value: 'pod-a',
+            clientId: 'pod-a', seqNo: 1,
+        };
+        const first = await node.clientAppend(command);
+        // The client never saw the response and retries. Re-evaluating the
+        // comparison now would report failure for a swap it actually won.
+        const retry = await node.clientAppend(command);
+
+        assert.equal(first.result.ok, true);
+        assert.equal(retry.duplicate, true);
+        assert.equal(retry.result.ok, true);
+        assert.equal(node.log.length, 2, 'the no-op plus one cas; the retry added nothing');
+        node.stop();
+    } finally {
+        temp.cleanup();
+    }
+});
+
+test('a client write that races an in-flight heartbeat still reports committed', async () => {
+    // Replication to a peer is skipped while a request to that peer is already
+    // outstanding. With heartbeats slower than the heartbeat interval, every
+    // client write lands during one — and used to be reported uncommitted,
+    // pushing clients into retrying writes that had already succeeded.
+    const node = new RaftNode({
+        replicaId: 'replica1',
+        peers: ['http://p2', 'http://p3'],
+        storagePath: false,
+        autoStart: false,
+        transport: slowTransport(60),
+        heartbeatInterval: 25,
+    });
+
+    await node._startElection();
+    assert.equal(node.state, STATES.LEADER);
+    await sleep(40); // guarantee a heartbeat is mid-flight
+
+    const result = await node.clientAppend({ op: 'set', key: 'k', value: 1 });
+    assert.equal(result.committed, true);
+    assert.equal(result.result.ok, true);
+    node.stop();
+});
+
+test('a pending write is answered immediately when the leader steps down', async () => {
+    const node = new RaftNode({
+        replicaId: 'replica1',
+        peers: ['http://p2', 'http://p3'],
+        storagePath: false,
+        autoStart: false,
+        transport: { post: () => new Promise(() => {}) }, // never resolves
+        commitTimeoutMs: 10000,
+    });
+
+    node.state = STATES.LEADER;
+    node.currentTerm = 1;
+    for (const peer of node.peers) {
+        node.nextIndex[peer] = 0;
+        node.matchIndex[peer] = -1;
+    }
+
+    const pending = node.clientAppend({ op: 'set', key: 'k', value: 1 });
+    await sleep(20);
+
+    // A higher term arrives. This entry can never commit under this node's
+    // authority, so holding the client for the full 10s timeout would be
+    // pointless.
+    const startedAt = Date.now();
+    node._becomeFollower(2, 'replica2');
+    const result = await pending;
+
+    assert.equal(result.committed, false);
+    assert.ok(Date.now() - startedAt < 1000, 'answered on step-down, not on timeout');
+    node.stop();
+});
+
+test('refuses to truncate committed entries', () => {
+    const node = new RaftNode({
+        replicaId: 'replica2',
+        peers: ['p1', 'p3'],
+        storagePath: false,
+        autoStart: false,
+    });
+    node.currentTerm = 2;
+    node.log = [
+        { term: 1, index: 0, data: { value: 'a' } },
+        { term: 1, index: 1, data: { value: 'b' } },
+    ];
+    node.commitIndex = 1;
+
+    // A leader claiming index 1 holds a different term would be asking this
+    // follower to discard an entry a majority already acknowledged.
+    assert.throws(
+        () => node.handleAppendEntries({
+            term: 2,
+            leaderId: 'replica1',
+            prevLogIndex: 0,
+            prevLogTerm: 1,
+            entries: [{ term: 2, index: 1, data: { value: 'divergent' } }],
+            leaderCommit: 1,
+        }),
+        /must never be discarded/,
+    );
 });
 
 test('empty AppendEntries heartbeat performs consistency checks and advances commit', () => {

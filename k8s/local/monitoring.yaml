@@ -1,0 +1,303 @@
+# Prometheus and Grafana, in-cluster, free.
+#
+# Written as plain manifests rather than the kube-prometheus-stack Helm chart on
+# purpose. That chart pulls in ~40 CRDs, an operator, node-exporter and
+# alertmanager, which is a lot of moving parts to run on a laptop in order to
+# scrape six pods. This is one Prometheus, one Grafana, and a scrape config you
+# can read in thirty seconds.
+#
+# The cost of that choice: no ServiceMonitor CRDs, so scrape targets come from
+# pod annotations instead. Both the Raft StatefulSet and the embedding pods
+# already carry prometheus.io/* annotations, so nothing else had to change.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: prometheus
+  namespace: monitoring
+---
+# Prometheus discovers targets by asking the API server what pods exist, so it
+# needs read access cluster-wide. Read-only and no secrets: it never needs to
+# see a Secret, and granting that would be a genuine risk for a component whose
+# whole job is to expose data over HTTP.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: prometheus
+rules:
+  - apiGroups: [""]
+    resources: ["nodes", "nodes/metrics", "services", "endpoints", "pods"]
+    verbs: ["get", "list", "watch"]
+  - nonResourceURLs: ["/metrics"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: prometheus
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: prometheus
+subjects:
+  - kind: ServiceAccount
+    name: prometheus
+    namespace: monitoring
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: monitoring
+data:
+  prometheus.yml: |
+    global:
+      # Fast for a demo. KEDA polls Prometheus every 15s by default, so a
+      # slower scrape would make autoscaling look laggy for reasons that have
+      # nothing to do with the scaler.
+      scrape_interval: 5s
+      evaluation_interval: 15s
+
+    scrape_configs:
+      - job_name: kubernetes-pods
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          # Only scrape pods that asked to be scraped.
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: "true"
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+          # Rewrite the address to the annotated port. Without this Prometheus
+          # scrapes the pod IP on the default port and every target fails with
+          # a connection refused that looks like a network problem.
+          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+            target_label: __address__
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            action: replace
+            target_label: pod
+          - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_component]
+            action: replace
+            target_label: component
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: prometheus }
+  template:
+    metadata:
+      labels: { app: prometheus }
+    spec:
+      serviceAccountName: prometheus
+      nodeSelector:
+        miniraft.io/tier: system
+      containers:
+        - name: prometheus
+          image: prom/prometheus:v2.54.1
+          args:
+            - --config.file=/etc/prometheus/prometheus.yml
+            - --storage.tsdb.path=/prometheus
+            # Two hours of retention. This is a demo; keeping a week of data
+            # would only consume laptop disk for samples nobody will look at.
+            - --storage.tsdb.retention.time=2h
+            - --web.enable-lifecycle
+          ports:
+            - { name: http, containerPort: 9090 }
+          readinessProbe:
+            httpGet: { path: /-/ready, port: http }
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - { name: config, mountPath: /etc/prometheus }
+            - { name: data, mountPath: /prometheus }
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { cpu: 500m, memory: 768Mi }
+      volumes:
+        - name: config
+          configMap: { name: prometheus-config }
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: monitoring
+spec:
+  selector: { app: prometheus }
+  ports:
+    - { name: http, port: 9090, targetPort: http }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-provisioning
+  namespace: monitoring
+data:
+  datasource.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus.monitoring.svc:9090
+        isDefault: true
+  dashboards.yaml: |
+    apiVersion: 1
+    providers:
+      - name: miniraft
+        folder: ''
+        type: file
+        options:
+          path: /var/lib/grafana/dashboards
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard
+  namespace: monitoring
+data:
+  miniraft.json: |
+    {
+      "title": "miniRaft",
+      "uid": "miniraft",
+      "timezone": "browser",
+      "refresh": "5s",
+      "time": { "from": "now-15m", "to": "now" },
+      "panels": [
+        {
+          "type": "timeseries", "title": "Raft term by replica",
+          "gridPos": { "h": 7, "w": 8, "x": 0, "y": 0 },
+          "targets": [{ "expr": "miniraft_current_term", "legendFormat": "{{replica}}" }],
+          "description": "Terms should be flat and identical. A staircase means repeated elections, which usually means the election timeout is too tight for the network."
+        },
+        {
+          "type": "timeseries", "title": "Commit index by replica",
+          "gridPos": { "h": 7, "w": 8, "x": 8, "y": 0 },
+          "targets": [{ "expr": "miniraft_commit_index", "legendFormat": "{{replica}}" }],
+          "description": "Followers trail the leader by roughly one heartbeat. A follower that stops tracking is falling behind or partitioned."
+        },
+        {
+          "type": "timeseries", "title": "Elections started",
+          "gridPos": { "h": 7, "w": 8, "x": 16, "y": 0 },
+          "targets": [{ "expr": "increase(miniraft_elections_total[1m])", "legendFormat": "{{replica}}" }],
+          "description": "Should be zero in steady state."
+        },
+        {
+          "type": "timeseries", "title": "Query latency p99 (the KEDA signal)",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 7 },
+          "targets": [{
+            "expr": "histogram_quantile(0.99, sum(rate(embedding_query_latency_ms_bucket[1m])) by (le))",
+            "legendFormat": "p99"
+          }],
+          "description": "This is what the ScaledObject scales on. CPU is the wrong signal for inference: it saturates long after latency has degraded, and barely moves when the bottleneck is memory bandwidth."
+        },
+        {
+          "type": "timeseries", "title": "Serving pods and throughput",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 7 },
+          "targets": [
+            { "expr": "count(embedding_queries_total)", "legendFormat": "pods" },
+            { "expr": "sum(rate(embedding_queries_total[1m]))", "legendFormat": "queries/sec" }
+          ],
+          "description": "Watch pods rise after p99 crosses the threshold, then latency fall back."
+        },
+        {
+          "type": "timeseries", "title": "Active leases",
+          "gridPos": { "h": 7, "w": 8, "x": 0, "y": 15 },
+          "targets": [{ "expr": "miniraft_leases_active", "legendFormat": "{{replica}}" }],
+          "description": "Every replica must agree. Divergence here would mean the state machines have diverged, which is the failure the logical clock exists to prevent."
+        },
+        {
+          "type": "timeseries", "title": "Cold start by phase",
+          "gridPos": { "h": 7, "w": 8, "x": 8, "y": 15 },
+          "targets": [{ "expr": "embedding_cold_start_ms", "legendFormat": "{{pod}} {{phase}}" }],
+          "description": "Populated once per pod at first activation. New bars appear when KEDA scales up."
+        },
+        {
+          "type": "timeseries", "title": "Model activations",
+          "gridPos": { "h": 7, "w": 8, "x": 16, "y": 15 },
+          "targets": [{ "expr": "embedding_activations_total", "legendFormat": "{{pod}}" }],
+          "description": "Steps up by one on every pod at each rollout. If one pod lags, its watch is stuck."
+        }
+      ]
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: grafana }
+  template:
+    metadata:
+      labels: { app: grafana }
+    spec:
+      nodeSelector:
+        miniraft.io/tier: system
+      containers:
+        - name: grafana
+          image: grafana/grafana:11.2.0
+          env:
+            # Anonymous admin: this cluster is on a laptop and dies with the
+            # demo. Do not copy this into anything reachable.
+            - { name: GF_AUTH_ANONYMOUS_ENABLED, value: "true" }
+            - { name: GF_AUTH_ANONYMOUS_ORG_ROLE, value: Admin }
+            - { name: GF_AUTH_DISABLE_LOGIN_FORM, value: "true" }
+            - { name: GF_USERS_DEFAULT_THEME, value: dark }
+          ports:
+            - { name: http, containerPort: 3000 }
+          readinessProbe:
+            httpGet: { path: /api/health, port: http }
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - { name: provisioning-datasources, mountPath: /etc/grafana/provisioning/datasources }
+            - { name: provisioning-dashboards, mountPath: /etc/grafana/provisioning/dashboards }
+            - { name: dashboards, mountPath: /var/lib/grafana/dashboards }
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { cpu: 500m, memory: 512Mi }
+      volumes:
+        - name: provisioning-datasources
+          configMap:
+            name: grafana-provisioning
+            items: [{ key: datasource.yaml, path: datasource.yaml }]
+        - name: provisioning-dashboards
+          configMap:
+            name: grafana-provisioning
+            items: [{ key: dashboards.yaml, path: dashboards.yaml }]
+        - name: dashboards
+          configMap: { name: grafana-dashboard }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  type: NodePort
+  selector: { app: grafana }
+  ports:
+    - { port: 3000, targetPort: http, nodePort: 30300 }

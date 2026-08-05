@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>miniRaft — a Raft-replicated vector store, running in your browser</title>
+<meta name="description" content="A hand-written Raft consensus engine replicating an HNSW vector index. The real code, running client-side over a simulated network.">
+<style>
+:root{
+  --bg:#0b0e14; --panel:#12161f; --line:#232a38; --dim:#8b96ab; --fg:#e6edf3;
+  --leader:#3fb950; --follower:#58a6ff; --down:#f85149; --warn:#d29922; --accent:#a371f7;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font:14px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace}
+a{color:var(--follower)}
+header{padding:22px 24px 16px;border-bottom:1px solid var(--line)}
+h1{font-size:19px;margin:0 0 6px;letter-spacing:.3px}
+.tagline{color:var(--dim);font-size:13px;max-width:74ch}
+.tagline b{color:var(--fg);font-weight:600}
+main{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:14px;padding:14px;max-width:1500px}
+section{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:15px}
+h2{font-size:10.5px;text-transform:uppercase;letter-spacing:1.3px;color:var(--dim);margin:0 0 13px}
+.node{display:flex;justify-content:space-between;align-items:center;padding:9px 11px;
+  border-radius:6px;background:#0b0e14;border:1px solid var(--line);margin-bottom:7px;transition:border-color .25s}
+.node.leader{border-color:var(--leader)}
+.node.down{opacity:.5;border-style:dashed}
+.badge{font-size:9.5px;padding:2px 7px;border-radius:10px;letter-spacing:.6px;margin-left:6px}
+.LEADER{border:1px solid var(--leader);color:var(--leader)}
+.FOLLOWER{border:1px solid var(--follower);color:var(--follower)}
+.CANDIDATE{border:1px solid var(--warn);color:var(--warn)}
+.DOWN,.ISOLATED{border:1px solid var(--down);color:var(--down)}
+.meta{color:var(--dim);font-size:10.5px;text-align:right;line-height:1.65}
+button{font:inherit;font-size:12px;background:#1b2130;color:var(--fg);border:1px solid var(--line);
+  border-radius:6px;padding:7px 11px;cursor:pointer;margin:0 6px 6px 0}
+button:hover:not(:disabled){border-color:var(--follower);color:var(--follower)}
+button.danger:hover:not(:disabled){border-color:var(--down);color:var(--down)}
+button:disabled{opacity:.35;cursor:not-allowed}
+input{font:inherit;font-size:12px;background:#0b0e14;color:var(--fg);border:1px solid var(--line);
+  border-radius:6px;padding:7px 10px;width:100%;margin-bottom:7px}
+.hint{color:var(--dim);font-size:11px;margin-top:11px;line-height:1.65}
+#events{font-size:11px;max-height:260px;overflow:auto}
+#events div{padding:3px 0;border-bottom:1px solid #1a2029;display:flex;gap:9px}
+#events .t{color:#4a5568;flex-shrink:0;min-width:58px}
+.ok{color:var(--leader)}.warn{color:var(--warn)}.err{color:var(--down)}.acc{color:var(--accent)}
+table{width:100%;border-collapse:collapse;font-size:11.5px}
+td,th{padding:5px 6px;border-bottom:1px solid var(--line);text-align:left}
+th{color:var(--dim);font-weight:500;font-size:9.5px;text-transform:uppercase;letter-spacing:.9px}
+.score{color:var(--accent);text-align:right}
+pre{margin:9px 0 0;font-size:11px;color:var(--dim);white-space:pre-wrap;max-height:190px;overflow:auto}
+.stat{display:flex;justify-content:space-between;padding:3px 0;font-size:11.5px}
+.stat span:last-child{color:var(--accent)}
+footer{padding:18px 24px 40px;color:var(--dim);font-size:11.5px;border-top:1px solid var(--line);max-width:1500px}
+</style>
+</head>
+<body>
+<header>
+  <h1>miniRaft — a Raft-replicated vector store</h1>
+  <div class="tagline">
+    Three replicas running a <b>hand-written Raft consensus engine</b>, each building its own
+    <b>HNSW index</b> from the replicated log. This is the real engine — the same
+    <code>raft.js</code> and <code>hnsw.js</code> that run on the server — executing in your browser
+    over a <b>deterministic simulated network</b>. Break it and watch it recover.
+  </div>
+</header>
+
+<main>
+  <section>
+    <h2>Consensus tier</h2>
+    <div id="nodes"></div>
+    <div class="hint">
+      Quorum is 2 of 3. Isolate the leader and the survivors elect a new one at a higher term;
+      the old leader steps down when it rejoins. Isolate two and writes stall — correctly, because
+      a minority must never commit.
+    </div>
+  </section>
+
+  <section>
+    <h2>Add a document</h2>
+    <input id="doc" placeholder="a golden retriever running through a field" autocomplete="off">
+    <button id="add">Add to the index</button>
+    <button id="seed-docs">Load 16 sample documents</button>
+    <div class="hint">
+      The leader embeds the text, then replicates the <em>vector</em> — never the text. Replica
+      agreement is then bit-exact by construction instead of depending on every machine producing
+      identical floats.
+    </div>
+    <pre id="add-out"></pre>
+  </section>
+
+  <section>
+    <h2>Search</h2>
+    <input id="query" placeholder="a puppy playing outside" autocomplete="off">
+    <button id="search">Search every replica</button>
+    <table id="results"><thead><tr><th>replica</th><th>top result</th><th class="score">score</th></tr></thead><tbody></tbody></table>
+    <div class="hint">
+      Every replica answers from its own graph. Identical results are the point — the fingerprints
+      below are a structural hash, which is a far stronger claim than agreeing on a few queries.
+    </div>
+  </section>
+
+  <section>
+    <h2>Break things</h2>
+    <div>
+      <button class="danger" id="isolate-leader">Isolate the leader</button>
+      <button class="danger" id="crash-leader">Crash the leader</button>
+    </div>
+    <div>
+      <button id="isolate-two">Partition 2 of 3 (writes must stall)</button>
+    </div>
+    <div>
+      <button id="heal">Heal everything</button>
+    </div>
+    <div class="hint">Speed <input type="range" id="speed" min="1" max="40" value="10" style="width:120px;vertical-align:middle;margin:0 8px 0 0"><span id="speed-label">10x</span></div>
+  </section>
+
+  <section>
+    <h2>Cluster state</h2>
+    <div id="stats"></div>
+    <div class="hint" id="agree"></div>
+  </section>
+
+  <section style="grid-column:1/-1">
+    <h2>Event log</h2>
+    <div id="events"></div>
+  </section>
+</main>
+
+<footer>
+  Everything above runs client-side. No server, no API, no cost.
+  The same engine is verified by a deterministic fuzzer that searches fault schedules and
+  machine-checks the resulting histories for linearizability — it found two real bugs in this
+  Raft implementation, both described in the repository.
+</footer>
+
+<script src="bundle.js"></script>
+<script>
+const { SimCluster } = miniRaft.cluster;
+const { HnswIndex } = miniRaft.hnsw;
+
+const DIM = 64;
+const SAMPLES = [
+  'a golden retriever running through a field','a small dog playing fetch in the park',
+  'a cat sleeping on a windowsill','a tabby kitten chasing a ball of yarn',
+  'a red sports car on a mountain road','a vintage motorcycle parked outside a cafe',
+  'freshly baked sourdough bread on a wooden board','a bowl of ramen with a soft boiled egg',
+  'snow covered peaks at sunrise','a long sandy beach at low tide',
+  'a crowded subway platform at rush hour','an empty library reading room',
+  'circuit boards under a microscope','a server rack with blinking status lights',
+  'handwritten notes beside a cup of coffee','a violin resting on sheet music',
+];
+
+/**
+ * A tiny deterministic text embedder: a hashed token histogram projected onto a
+ * fixed random basis. Not semantic in the way a real sentence transformer is —
+ * it matches shared words, not shared meaning — but it is a genuine embedding
+ * function, and everything the demo shows about replication is real.
+ */
+const basisCache = new Map();
+function embed(text) {
+  const out = new Float32Array(DIM);
+  const tokens = String(text).toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  for (const token of tokens) {
+    let basis = basisCache.get(token);
+    if (!basis) {
+      basis = new Float32Array(DIM);
+      let h = 2166136261;
+      for (let i = 0; i < token.length; i++) { h ^= token.charCodeAt(i); h = Math.imul(h, 16777619); }
+      for (let d = 0; d < DIM; d++) { h ^= h << 13; h ^= h >>> 17; h ^= h << 5; basis[d] = ((h >>> 0) / 2147483648) - 1; }
+      basisCache.set(token, basis);
+    }
+    for (let d = 0; d < DIM; d++) out[d] += basis[d];
+  }
+  let n = 0; for (let d = 0; d < DIM; d++) n += out[d] * out[d];
+  n = Math.sqrt(n) || 1;
+  for (let d = 0; d < DIM; d++) out[d] /= n;
+  return out;
+}
+
+const b64 = (v) => {
+  const bytes = new Uint8Array(v.buffer, v.byteOffset, v.byteLength);
+  let s = ''; for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+  return btoa(s);
+};
+
+let cluster = null;
+let indexReady = false;
+const isolated = new Set();
+const crashed = new Set();
+
+function log(message, kind) {
+  const host = document.getElementById('events');
+  const row = document.createElement('div');
+  const at = cluster ? ((cluster.clock.now() - 1700000000000) / 1000).toFixed(1) + 's' : '—';
+  row.innerHTML = `<span class="t">${at}</span><span class="${kind || ''}">${message}</span>`;
+  host.prepend(row);
+  while (host.children.length > 120) host.lastChild.remove();
+}
+
+async function boot() {
+  cluster = new SimCluster({ size: 3, seed: Date.now() & 0xffff, minLatency: 4, maxLatency: 30 });
+  cluster.start({ speed: Number(document.getElementById('speed').value) });
+  log('cluster starting — 3 replicas, quorum 2', 'acc');
+
+  const deadline = Date.now() + 8000;
+  while (!cluster.leader && Date.now() < deadline) await new Promise(r => setTimeout(r, 60));
+  if (!cluster.leader) { log('no leader elected', 'err'); return; }
+  log(`leader elected: ${cluster.leader.node.replicaId}`, 'ok');
+
+  // The index configuration — including its PRNG seed — goes through consensus,
+  // so every replica builds a structurally identical graph.
+  const r = await cluster.leader.node.clientAppend({
+    op: 'index-create', dim: DIM, M: 16, efConstruction: 100, seed: 0xc0ffee,
+  });
+  indexReady = r.committed;
+  log(indexReady ? 'index created through the replicated log' : 'index creation did not commit',
+      indexReady ? 'ok' : 'err');
+}
+
+async function addDoc(text) {
+  if (!cluster || !indexReady) return { error: 'index not ready' };
+  const leader = cluster.leader;
+  if (!leader) return { error: 'no leader — heal the cluster first' };
+  const id = 'doc-' + (docCount++);
+  try {
+    const out = await leader.node.clientAppend({
+      op: 'vector-upsert', id, vector: b64(embed(text)), payload: { text },
+    });
+    return out.committed ? { id, ok: true } : { error: 'not committed — no quorum' };
+  } catch (e) { return { error: e.message }; }
+}
+let docCount = 0;
+
+function render() {
+  if (!cluster) return;
+  const host = document.getElementById('nodes');
+  host.innerHTML = '';
+  const states = cluster.states();
+
+  for (let i = 0; i < 3; i++) {
+    const url = cluster.urls[i];
+    const s = states.find(x => x.url === url);
+    const down = crashed.has(i);
+    const iso = isolated.has(i);
+    const label = down ? 'DOWN' : iso ? 'ISOLATED' : (s ? s.state : 'DOWN');
+    const el = document.createElement('div');
+    el.className = 'node' + (label === 'LEADER' ? ' leader' : '') + (down ? ' down' : '');
+    el.innerHTML = `<div><b>node${i}</b><span class="badge ${label}">${label}</span></div>
+      <div class="meta">term ${s ? s.term : '–'} · log ${s ? s.logLength : '–'} · commit ${s ? s.commitIndex : '–'}<br>
+      graph ${s && s.index ? s.index : '—'}</div>`;
+    host.appendChild(el);
+  }
+
+  const stats = document.getElementById('stats');
+  const leader = cluster.leader;
+  const idx = leader ? leader.node.stateMachine.index : null;
+  stats.innerHTML = `
+    <div class="stat"><span>leader</span><span>${leader ? leader.node.replicaId : 'NONE'}</span></div>
+    <div class="stat"><span>term</span><span>${leader ? leader.node.currentTerm : '–'}</span></div>
+    <div class="stat"><span>documents</span><span>${idx ? idx.size : 0}</span></div>
+    <div class="stat"><span>graph edges</span><span>${idx ? idx.stats().edges : 0}</span></div>
+    <div class="stat"><span>messages delivered</span><span>${cluster.network.stats.delivered}</span></div>
+    <div class="stat"><span>blocked by partition</span><span>${cluster.network.stats.partitioned}</span></div>`;
+
+  const prints = new Set(states.map(s => s.index).filter(Boolean));
+  const agree = document.getElementById('agree');
+  agree.innerHTML = states.length === 0 ? '' :
+    prints.size <= 1
+      ? `<span class="ok">All ${states.length} live replicas hold structurally identical graphs.</span>`
+      : `<span class="warn">${prints.size} distinct graphs — replicas are still catching up.</span>`;
+}
+
+// ── wiring ───────────────────────────────────────────────────────────────────
+document.getElementById('add').onclick = async () => {
+  const input = document.getElementById('doc');
+  const text = input.value.trim();
+  if (!text) return;
+  const out = document.getElementById('add-out');
+  out.textContent = 'committing…';
+  const r = await addDoc(text);
+  out.textContent = r.ok ? `committed as ${r.id}` : `failed: ${r.error}`;
+  log(r.ok ? `added "${text.slice(0, 40)}"` : `add failed: ${r.error}`, r.ok ? 'ok' : 'err');
+  if (r.ok) input.value = '';
+};
+
+document.getElementById('seed-docs').onclick = async () => {
+  const out = document.getElementById('add-out');
+  let n = 0;
+  for (const text of SAMPLES) { const r = await addDoc(text); if (r.ok) n++; out.textContent = `${n}/${SAMPLES.length} committed`; }
+  log(`loaded ${n} sample documents through the log`, 'ok');
+};
+
+document.getElementById('search').onclick = () => {
+  const q = document.getElementById('query').value.trim() || 'a puppy playing outside';
+  const vector = embed(q);
+  const body = document.querySelector('#results tbody');
+  body.innerHTML = '';
+  for (const [url, node] of cluster.nodes) {
+    if (cluster.network.crashed.has(url)) continue;
+    const idx = node.stateMachine.index;
+    const hits = idx ? idx.search(vector, 1) : [];
+    const row = document.createElement('tr');
+    row.innerHTML = `<td>${node.replicaId}</td>
+      <td>${hits[0] ? (hits[0].payload && hits[0].payload.text || hits[0].id) : '—'}</td>
+      <td class="score">${hits[0] ? hits[0].score.toFixed(3) : '—'}</td>`;
+    body.appendChild(row);
+  }
+  log(`searched "${q}" on every replica`, 'acc');
+};
+
+document.getElementById('isolate-leader').onclick = () => {
+  const leader = cluster.leader;
+  if (!leader) return;
+  const i = cluster.urls.indexOf(leader.url);
+  cluster.isolate(i);
+  isolated.clear(); isolated.add(i);
+  log(`isolated node${i} (the leader) — watch the survivors elect a new one`, 'warn');
+};
+
+document.getElementById('crash-leader').onclick = () => {
+  const leader = cluster.leader;
+  if (!leader) return;
+  const i = cluster.urls.indexOf(leader.url);
+  cluster.crash(i); crashed.add(i);
+  log(`crashed node${i} — its durable state survives; it will catch up on restart`, 'err');
+};
+
+document.getElementById('isolate-two').onclick = () => {
+  cluster.partition([[0], [1], [2]]);
+  isolated.clear(); [0,1,2].forEach(i => isolated.add(i));
+  log('every node isolated — no majority, so writes must now fail. That is correct.', 'warn');
+};
+
+document.getElementById('heal').onclick = () => {
+  cluster.heal();
+  for (const i of [...crashed]) { cluster.restart(i); crashed.delete(i); }
+  isolated.clear();
+  log('network healed and crashed nodes restarted', 'ok');
+};
+
+const speed = document.getElementById('speed');
+speed.oninput = () => {
+  document.getElementById('speed-label').textContent = speed.value + 'x';
+  if (cluster) { cluster.stopDriver(); cluster.start({ speed: Number(speed.value) }); }
+};
+
+boot().then(() => setInterval(render, 250));
+</script>
+</body>
+</html>

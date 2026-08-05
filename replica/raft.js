@@ -8,11 +8,25 @@
  *  - nextIndex / matchIndex catch-up
  *  - the Raft §5.4.2 current-term commit rule
  *  - client request deduplication through clientId + seqNo
+ *  - deterministic application into a replicated state machine
+ *
+ * Durability is split across two files. Metadata (term, vote, commit index) is
+ * small and rewritten in place; the log is append-only and lives in its own
+ * file. See log-store.js for why.
+ *
+ * `lastApplied` is deliberately *not* persisted. Recording how far we applied
+ * without also persisting the state that application produced is a silent
+ * data-loss bug: the node restarts, believes it already applied everything,
+ * and serves an empty keyspace. Instead the committed prefix is replayed into
+ * the state machine on boot. Application is deterministic, so replay is exact,
+ * and it is free until the log is large enough to need compaction.
  */
 
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
+const { LogStore } = require('./log-store');
+const { StateMachine } = require('./state-machine');
 
 const STATES = {
     FOLLOWER: 'FOLLOWER',
@@ -20,6 +34,19 @@ const STATES = {
     LEADER: 'LEADER',
 };
 
+/** Wall clock and host timers. Replaced wholesale under simulation. */
+const REAL_CLOCK = {
+    now: () => Date.now(),
+    setTimeout: (fn, ms) => setTimeout(fn, ms),
+    clearTimeout: (handle) => clearTimeout(handle),
+    setInterval: (fn, ms) => setInterval(fn, ms),
+    clearInterval: (handle) => clearInterval(handle),
+};
+
+/**
+ * Small, rewritten-in-place record of the values Raft §5.2 requires on stable
+ * storage before an RPC that depends on them is answered.
+ */
 class StableStateStore {
     constructor(filePath) {
         this.filePath = filePath;
@@ -82,12 +109,36 @@ class RaftNode {
         onCommit,
         onLeaderChange,
         storagePath,
+        logPath,
+        stableStore = null,
+        logStore = null,
+        stateMachine,
         transport = axios,
+        /**
+         * Every read of the clock and every timer goes through here.
+         *
+         * This is the single change that makes the whole engine deterministically
+         * simulatable. With a virtual clock, an entire cluster — elections,
+         * heartbeats, timeouts, lease expiry — runs inside one process with no
+         * real time passing, driven by an event queue. A thousand-operation run
+         * under injected partitions takes milliseconds instead of minutes, and
+         * more importantly it is *reproducible*: the same seed replays the same
+         * interleaving, so a bug found by fuzzing can be debugged instead of
+         * merely observed.
+         *
+         * This is the approach FoundationDB and TigerBeetle use, and it is
+         * strictly stronger than injecting faults into a real network with
+         * `tc netem`, where a failure that appears once may never appear again.
+         */
+        clock = REAL_CLOCK,
         autoStart = true,
         electionTimeoutMin = 500,
         electionTimeoutMax = 800,
         heartbeatInterval = 150,
+        leaseTickInterval = 250,
+        commitTimeoutMs = 2000,
     }) {
+        this._clock = clock;
         this.replicaId = replicaId;
         this.peers = [...peers];
         this.nodeUrl = nodeUrl;
@@ -98,13 +149,34 @@ class RaftNode {
         this.electionTimeoutMin = electionTimeoutMin;
         this.electionTimeoutMax = electionTimeoutMax;
         this.heartbeatInterval = heartbeatInterval;
+        this.leaseTickInterval = leaseTickInterval;
+        this.commitTimeoutMs = commitTimeoutMs;
 
-        const defaultStoragePath = path.join(
-            process.env.DATA_DIR || path.join(process.cwd(), 'data'),
+        this.stateMachine = stateMachine || new StateMachine();
+
+        // Computed lazily. The old version built this path unconditionally,
+        // touching `process.env` and `process.cwd()` even when storage was
+        // disabled — which is wasted work in Node and a hard crash anywhere
+        // `process` does not exist, such as a browser.
+        const defaultStoragePath = () => path.join(
+            (typeof process !== 'undefined' && process.env.DATA_DIR)
+                || path.join(process.cwd(), 'data'),
             `${replicaId}.json`,
         );
-        this.storagePath = storagePath == null ? defaultStoragePath : storagePath;
-        this._store = this.storagePath === false ? null : new StableStateStore(this.storagePath);
+        // Stores can be injected. Under simulation they are memory-backed but
+        // *survive a simulated crash*, which is what makes it possible to test
+        // the actual durability guarantee — that a node which acknowledged a
+        // vote or an entry still remembers it after restarting. A simulation
+        // where restart wipes state would silently pass a Raft implementation
+        // that never persisted anything.
+        this.storagePath = storagePath == null ? defaultStoragePath() : storagePath;
+        this._store = stableStore
+            ?? (this.storagePath === false ? null : new StableStateStore(this.storagePath));
+        this.logPath = this.storagePath === false
+            ? false
+            : logPath || this.storagePath.replace(/\.json$/, '') + '.log';
+        this._logStore = logStore
+            ?? (this.logPath === false ? null : new LogStore(this.logPath));
 
         const stable = this._store ? this._store.load() : {};
 
@@ -112,16 +184,25 @@ class RaftNode {
         // any RPC that depends on them is answered.
         this.currentTerm = Number.isInteger(stable.currentTerm) ? stable.currentTerm : 0;
         this.votedFor = typeof stable.votedFor === 'string' ? stable.votedFor : null;
-        this.log = Array.isArray(stable.log) ? stable.log : [];
+        this.log = this._logStore ? this._logStore.load() : [];
 
-        // The paper classifies these as volatile. Persisting them here makes the
-        // whiteboard replay cleanly after a full cluster restart.
+        // Migration from the single-file format, where the log lived inside the
+        // metadata document. Runs once, then the old copy is dropped.
+        if (this.log.length === 0 && Array.isArray(stable.log) && stable.log.length > 0) {
+            this.log = stable.log;
+            this._logStore.rewrite(this.log);
+            console.log(
+                `[${replicaId}] migrated ${this.log.length} entries out of the metadata file`,
+            );
+        }
+
+        // commitIndex is volatile in the paper. Persisting it is still safe —
+        // it only ever advances, and a committed entry stays committed — and it
+        // lets a restarted node rebuild its state machine without first waiting
+        // to hear from a leader.
         const storedCommit = Number.isInteger(stable.commitIndex) ? stable.commitIndex : -1;
         this.commitIndex = Math.min(storedCommit, this.log.length - 1);
-        const storedApplied = Number.isInteger(stable.lastApplied)
-            ? stable.lastApplied
-            : this.commitIndex;
-        this.lastApplied = Math.min(storedApplied, this.commitIndex);
+        this.lastApplied = -1;
 
         // Leader volatile state, keyed by peer URL.
         this.nextIndex = {};
@@ -136,20 +217,31 @@ class RaftNode {
         this._timersEnabled = autoStart;
         this._electionTimer = null;
         this._heartbeatTimer = null;
+        this._leaseTickTimer = null;
+        // Index of this term's no-op. Null until this node leads.
+        this._noopIndex = null;
+        this._commitBroadcastQueued = false;
+        this._commitWaiters = new Set();
         this._replicating = new Set();
         this.lastQuorumContactAt = 0;
         this.metrics = {
             electionsTotal: 0,
+            replayedEntries: 0,
             commitLatencyCount: 0,
             commitLatencySumMs: 0,
             commitLatencyBuckets: { 10: 0, 25: 0, 50: 0, 100: 0, 250: 0, 500: 0, 1000: 0 },
         };
 
+        // Rebuild the keyspace from the committed prefix before serving anyone.
+        this._applyCommittedEntries({ replay: true });
+        this.metrics.replayedEntries = this.lastApplied + 1;
+
         if (autoStart) this._resetElectionTimer();
 
         console.log(
             `[${this.replicaId}] Raft node ready · term=${this.currentTerm} ` +
-            `log=${this.log.length} commit=${this.commitIndex}`,
+            `log=${this.log.length} commit=${this.commitIndex} ` +
+            `replayed=${this.metrics.replayedEntries} keys=${this.stateMachine.store.size}`,
         );
     }
 
@@ -163,17 +255,45 @@ class RaftNode {
 
     _persistentSnapshot() {
         return {
-            version: 1,
+            version: 2,
             currentTerm: this.currentTerm,
             votedFor: this.votedFor,
-            log: this.log,
             commitIndex: this.commitIndex,
-            lastApplied: this.lastApplied,
         };
     }
 
+    /** Durably records term / vote / commitIndex. Cheap: the file is ~100 bytes. */
     _persistState() {
         if (this._store) this._store.save(this._persistentSnapshot());
+    }
+
+    /**
+     * The single place entries enter the log. Memory and disk are updated
+     * together so the two can never drift.
+     */
+    _appendToLog(entries) {
+        if (entries.length === 0) return;
+        this.log.push(...entries);
+        if (this._logStore) this._logStore.append(entries);
+    }
+
+    /**
+     * Drops the suffix starting at `index`. Truncating at or below commitIndex
+     * would discard an entry that a majority already acknowledged, which is a
+     * direct violation of the State Machine Safety property — if it ever
+     * happens the protocol is broken and crashing is preferable to serving
+     * divergent state.
+     */
+    _truncateLogFrom(index) {
+        if (index <= this.commitIndex) {
+            throw new Error(
+                `[${this.replicaId}] refusing to truncate at ${index} with commitIndex ` +
+                `${this.commitIndex}: committed entries must never be discarded`,
+            );
+        }
+        if (index >= this.log.length) return;
+        this.log = this.log.slice(0, index);
+        if (this._logStore) this._logStore.rewrite(this.log);
     }
 
     _randomTimeout() {
@@ -182,10 +302,10 @@ class RaftNode {
     }
 
     _resetElectionTimer() {
-        if (this._electionTimer) clearTimeout(this._electionTimer);
+        if (this._electionTimer) this._clock.clearTimeout(this._electionTimer);
         if (!this._timersEnabled || this.paused || this.state === STATES.LEADER) return;
 
-        this._electionTimer = setTimeout(() => {
+        this._electionTimer = this._clock.setTimeout(() => {
             this._startElection().catch((error) => {
                 console.error(`[${this.replicaId}] Election failed: ${error.message}`);
                 this._resetElectionTimer();
@@ -196,21 +316,24 @@ class RaftNode {
     _startHeartbeat() {
         this._stopHeartbeat();
         void this._replicateAll();
-        this._heartbeatTimer = setInterval(
+        this._heartbeatTimer = this._clock.setInterval(
             () => void this._replicateAll(),
             this.heartbeatInterval,
         );
     }
 
     _stopHeartbeat() {
-        if (this._heartbeatTimer) clearInterval(this._heartbeatTimer);
+        if (this._heartbeatTimer) this._clock.clearInterval(this._heartbeatTimer);
         this._heartbeatTimer = null;
     }
 
     stop() {
-        if (this._electionTimer) clearTimeout(this._electionTimer);
+        if (this._electionTimer) this._clock.clearTimeout(this._electionTimer);
         this._electionTimer = null;
         this._stopHeartbeat();
+        if (this._leaseTickTimer) this._clock.clearInterval(this._leaseTickTimer);
+        this._leaseTickTimer = null;
+        if (this._logStore) this._logStore.close();
     }
 
     pause() {
@@ -222,6 +345,7 @@ class RaftNode {
             this.leaderId = null;
             this.leaderUrl = null;
         }
+        this._failCommitWaiters();
         console.log(`[${this.replicaId}] *** PAUSED (simulated failure) ***`);
     }
 
@@ -305,9 +429,9 @@ class RaftNode {
         this.leaderId = this.replicaId;
         this.leaderUrl = this.nodeUrl;
         this.votes = 0;
-        if (this.quorumSize === 1) this.lastQuorumContactAt = Date.now();
+        if (this.quorumSize === 1) this.lastQuorumContactAt = this._clock.now();
 
-        if (this._electionTimer) clearTimeout(this._electionTimer);
+        if (this._electionTimer) this._clock.clearTimeout(this._electionTimer);
         this._electionTimer = null;
 
         for (const peerUrl of this.peers) {
@@ -315,11 +439,43 @@ class RaftNode {
             this.matchIndex[peerUrl] = -1;
         }
 
+        /**
+         * The no-op entry Raft §8 requires at the start of every term.
+         *
+         * A newly elected leader knows its log contains every committed entry —
+         * that is what the election restriction guarantees — but it does *not*
+         * know how far its predecessor had committed. `commitIndex` starts from
+         * whatever this node had locally, which may lag reality.
+         *
+         * That gap is invisible for writes and fatal for reads. A ReadIndex read
+         * takes the current commitIndex as its barrier, so a fresh leader whose
+         * commitIndex is behind will answer from a state machine missing writes
+         * that were acknowledged to clients before it took over.
+         *
+         * A linearizability fuzz run found exactly this: a write acknowledged at
+         * t=316 was invisible to a read issued at t=1051, across a leader change,
+         * while every replica's log and committed prefix agreed perfectly. The
+         * bug was not in replication at all.
+         *
+         * Committing one entry from the current term forces commitIndex up to
+         * the true committed frontier — because committing it requires a
+         * majority to have this term's log, which by the log-matching property
+         * carries everything before it.
+         */
+        this._noopIndex = this.log.length;
+        this._appendToLog([{
+            term: this.currentTerm,
+            index: this._noopIndex,
+            ts: this._clock.now(),
+            data: { op: 'noop', leader: this.replicaId },
+        }]);
+
         console.log(`[${this.replicaId}] *** LEADER · term=${this.currentTerm} ***`);
         if (this.onLeaderChange) {
             this.onLeaderChange(this.replicaId, this.nodeUrl);
         }
         this._startHeartbeat();
+        this._syncLeaseTicks();
     }
 
     _becomeFollower(term, leaderId = null, leaderUrl = null) {
@@ -337,6 +493,12 @@ class RaftNode {
         this.leaderId = leaderId;
         this.leaderUrl = leaderUrl;
         this._stopHeartbeat();
+        this._syncLeaseTicks();
+        // Anything this node proposed and had not committed by the time it lost
+        // leadership will never commit under its authority. Waking those
+        // callers with a definite "no" is far better than holding their request
+        // open until the timeout.
+        this._failCommitWaiters();
 
         if (wasLeader) {
             console.log(`[${this.replicaId}] Stepped down · term=${this.currentTerm}`);
@@ -397,7 +559,7 @@ class RaftNode {
         if (leaderChanged && this.onLeaderChange) {
             this.onLeaderChange(leaderId, leaderUrl);
         }
-        this.lastQuorumContactAt = Date.now();
+        this.lastQuorumContactAt = this._clock.now();
 
         if (prevLogIndex >= this.log.length) {
             return {
@@ -426,30 +588,50 @@ class RaftNode {
             };
         }
 
-        let changed = false;
         let offset = 0;
         let insertionIndex = prevLogIndex + 1;
         while (offset < entries.length && insertionIndex < this.log.length) {
             if (this.log[insertionIndex].term !== entries[offset].term) {
-                this.log = this.log.slice(0, insertionIndex);
-                changed = true;
+                this._truncateLogFrom(insertionIndex);
                 break;
             }
             offset += 1;
             insertionIndex += 1;
         }
 
-        if (offset < entries.length) {
-            this.log.push(...entries.slice(offset));
-            changed = true;
-        }
-
-        if (changed) this._persistState();
+        // Entries already present are skipped, so a retried AppendEntries does
+        // not rewrite the log and does not cost an fsync.
+        this._appendToLog(entries.slice(offset));
 
         if (leaderCommit > this.commitIndex) {
-            this.commitIndex = Math.min(leaderCommit, this.log.length - 1);
-            this._persistState();
-            this._applyCommittedEntries();
+            /**
+             * Cap at the last index this RPC actually verified, not at the end
+             * of the local log.
+             *
+             * The obvious `Math.min(leaderCommit, this.log.length - 1)` is
+             * wrong, and a fuzz run caught it as replicas disagreeing on a
+             * *committed* entry — index 18 held term 12 on one node and term 10
+             * on another.
+             *
+             * The sequence: a follower still holds uncommitted entries from a
+             * deposed leader beyond the point this AppendEntries covers. The
+             * new leader's `leaderCommit` refers to *its* log, so taking the
+             * local log length as the bound marks those stale entries committed
+             * — before the leader has caught the follower up and truncated
+             * them. They are then applied, and the next AppendEntries replaces
+             * them with different entries at the same indexes.
+             *
+             * `prevLogIndex + entries.length` is the last index the log-matching
+             * property guarantees is identical to the leader's, so it is the
+             * only safe bound.
+             */
+            const lastVerifiedIndex = prevLogIndex + entries.length;
+            const next = Math.min(leaderCommit, lastVerifiedIndex);
+            if (next > this.commitIndex) {
+                this.commitIndex = next;
+                this._persistState();
+                this._applyCommittedEntries();
+            }
         }
 
         return {
@@ -460,15 +642,41 @@ class RaftNode {
         };
     }
 
-    _applyCommittedEntries() {
+    /**
+     * Applies every newly committed entry, in index order.
+     *
+     * The state machine mutation is synchronous and happens first; only then
+     * are side effects fired. Previously `onCommit` was an async function
+     * invoked without await from inside this loop, so gateway notifications
+     * could interleave and arrive out of order. Ordering is the entire point of
+     * a replicated log — losing it at the last step defeats the exercise.
+     */
+    _applyCommittedEntries({ replay = false } = {}) {
         while (this.lastApplied < this.commitIndex) {
             this.lastApplied += 1;
             const entry = this.log[this.lastApplied];
-            if (entry && this.onCommit) {
-                this.onCommit(entry, { isLeader: this.state === STATES.LEADER });
+            if (!entry) continue;
+
+            const result = this.stateMachine.apply(entry);
+
+            if (this.onCommit) {
+                // Side effects are fire-and-forget by design, but they run
+                // after the deterministic state is already correct, and they
+                // are suppressed during replay so a restart does not
+                // re-broadcast history that clients have already seen.
+                Promise.resolve()
+                    .then(() => this.onCommit(entry, {
+                        isLeader: this.state === STATES.LEADER,
+                        replay,
+                        result,
+                    }))
+                    .catch((error) => {
+                        console.error(
+                            `[${this.replicaId}] commit hook failed at ${entry.index}: ${error.message}`,
+                        );
+                    });
             }
         }
-        this._persistState();
     }
 
     _advanceCommitIndex() {
@@ -488,6 +696,8 @@ class RaftNode {
                 this.commitIndex = index;
                 this._persistState();
                 this._applyCommittedEntries();
+                this._releaseCommitWaiters();
+                this._scheduleCommitBroadcast();
                 console.log(
                     `[${this.replicaId}] Commit advanced · index=${index} ` +
                     `replicas=${replicated}/${this.clusterSize}`,
@@ -495,6 +705,28 @@ class RaftNode {
                 break;
             }
         }
+    }
+
+    /**
+     * Commit is a decision the leader makes alone; followers only learn about
+     * it from the `leaderCommit` field on a later AppendEntries. Left to the
+     * heartbeat that is up to `heartbeatInterval` of pointless staleness on
+     * every follower — which matters here because watches are deliberately
+     * served from followers.
+     *
+     * Pushing the new commit index out immediately closes that gap. It is
+     * deferred to the next tick so it cannot re-enter the replication path that
+     * triggered it, and coalesced so a burst of commits costs one extra round.
+     */
+    _scheduleCommitBroadcast() {
+        if (this._commitBroadcastQueued || this.state !== STATES.LEADER) return;
+        this._commitBroadcastQueued = true;
+        setImmediate(() => {
+            // Index of this term's no-op. Null until this node leads.
+        this._noopIndex = null;
+        this._commitBroadcastQueued = false;
+            if (this.state === STATES.LEADER && !this.paused) void this._replicateAll();
+        });
     }
 
     async _replicateToPeer(peerUrl) {
@@ -577,7 +809,12 @@ class RaftNode {
         const reachable = 1 + results.filter(
             (result) => result.status === 'fulfilled' && result.value === true,
         ).length;
-        if (reachable >= this.quorumSize) this.lastQuorumContactAt = Date.now();
+        if (reachable >= this.quorumSize) this.lastQuorumContactAt = this._clock.now();
+
+        // Also covers the cases where no peer acknowledged on this pass: a
+        // single-node cluster, where the leader alone is the majority, and a
+        // cluster where every peer was mid-request and got skipped.
+        this._advanceCommitIndex();
     }
 
     _findDuplicate(data) {
@@ -591,17 +828,21 @@ class RaftNode {
     }
 
     async clientAppend(data) {
-        const appendStartedAt = Date.now();
+        const appendStartedAt = this._clock.now();
         if (this.state !== STATES.LEADER) {
             throw new Error(`Not the leader. Current leader: ${this.leaderId || 'unknown'}`);
         }
 
         const duplicateIndex = this._findDuplicate(data);
         if (duplicateIndex >= 0) {
-            if (duplicateIndex > this.commitIndex) await this._replicateAll();
+            const committed = await this._awaitCommit(duplicateIndex);
             return {
-                committed: this.commitIndex >= duplicateIndex,
+                committed,
                 entry: this.log[duplicateIndex],
+                // A retried CAS must return the *original* verdict. Replaying
+                // the comparison against current state would report failure for
+                // a swap this very client already won.
+                result: committed ? this.stateMachine.resultFor(duplicateIndex) : null,
                 duplicate: true,
             };
         }
@@ -609,22 +850,121 @@ class RaftNode {
         const entry = {
             term: this.currentTerm,
             index: this.log.length,
+            // The leader's wall clock, stamped once, at append. Every replica
+            // then derives lease expiry from this same number rather than from
+            // its own clock. See the header of state-machine.js.
+            ts: this._clock.now(),
             data,
         };
-        this.log.push(entry);
-        this._persistState();
+        this._appendToLog([entry]);
 
         console.log(`[${this.replicaId}] Entry persisted · index=${entry.index}`);
-        await this._replicateAll();
-        this._advanceCommitIndex();
+        void this._replicateAll();
 
-        const committed = this.commitIndex >= entry.index;
-        if (committed) this._recordCommitLatency(Date.now() - appendStartedAt);
+        const committed = await this._awaitCommit(entry.index);
+        if (committed) this._recordCommitLatency(this._clock.now() - appendStartedAt);
+        this._syncLeaseTicks();
         return {
             committed,
             entry,
+            result: committed ? this.stateMachine.resultFor(entry.index) : null,
             duplicate: false,
         };
+    }
+
+    /**
+     * Resolves once `index` is committed, or false if it has not committed
+     * within the timeout.
+     *
+     * The obvious implementation — fire one round of replication and check
+     * commitIndex — is wrong, and wrong in a way that only shows up on a real
+     * multi-node cluster. `_replicateToPeer` refuses to run while a request to
+     * that peer is already in flight, so a client write that happens to land
+     * during a heartbeat gets zero acknowledgements and is reported as
+     * uncommitted, even though the next heartbeat commits it milliseconds
+     * later. Clients then retry writes that already succeeded.
+     *
+     * Waiting on the commit index itself is the honest condition. Heartbeats
+     * keep driving replication in the background, so the wait resolves as soon
+     * as a majority actually has the entry.
+     */
+    _awaitCommit(index, timeoutMs = this.commitTimeoutMs) {
+        if (this.commitIndex >= index) return Promise.resolve(true);
+        if (this.state !== STATES.LEADER || this.paused) return Promise.resolve(false);
+
+        return new Promise((resolve) => {
+            const waiter = { index, resolve: null, timer: null };
+            const settle = (value) => {
+                if (waiter.resolve === null) return;
+                waiter.resolve = null;
+                this._clock.clearTimeout(waiter.timer);
+                this._commitWaiters.delete(waiter);
+                resolve(value);
+            };
+            waiter.resolve = settle;
+            waiter.timer = this._clock.setTimeout(() => settle(this.commitIndex >= index), timeoutMs);
+            if (waiter.timer && waiter.timer.unref) waiter.timer.unref();
+            this._commitWaiters.add(waiter);
+        });
+    }
+
+    _releaseCommitWaiters() {
+        for (const waiter of [...this._commitWaiters]) {
+            if (this.commitIndex >= waiter.index) waiter.resolve(true);
+        }
+    }
+
+    /** A node that is no longer leader can never commit its pending entries. */
+    _failCommitWaiters() {
+        for (const waiter of [...this._commitWaiters]) {
+            waiter.resolve(this.commitIndex >= waiter.index);
+        }
+    }
+
+    /**
+     * Leases expire against logical time, and logical time only advances when
+     * an entry is appended. A quiet cluster would therefore hold every lease
+     * open forever. The leader appends a no-op `tick` while any lease is
+     * outstanding, and stops the moment the last one is gone — so an idle
+     * cluster with no leases writes nothing at all.
+     */
+    _syncLeaseTicks() {
+        const wanted = this.state === STATES.LEADER
+            && !this.paused
+            && this.stateMachine.activeLeaseCount > 0;
+
+        if (wanted && !this._leaseTickTimer) {
+            this._leaseTickTimer = this._clock.setInterval(() => {
+                void this._appendTick();
+            }, this.leaseTickInterval);
+            if (this._leaseTickTimer && this._leaseTickTimer.unref) this._leaseTickTimer.unref();
+        } else if (!wanted && this._leaseTickTimer) {
+            this._clock.clearInterval(this._leaseTickTimer);
+            this._leaseTickTimer = null;
+        }
+    }
+
+    async _appendTick() {
+        if (this.state !== STATES.LEADER || this.paused) {
+            this._syncLeaseTicks();
+            return;
+        }
+
+        // Only tick when something is actually due. A healthy holder renews,
+        // and its renewal is itself a stamped entry that advances the clock, so
+        // in the common case this appends nothing. Ticks are the mechanism for
+        // noticing a holder that went away.
+        let earliestExpiry = Infinity;
+        for (const lease of this.stateMachine.leases.values()) {
+            if (lease.expiresAt < earliestExpiry) earliestExpiry = lease.expiresAt;
+        }
+        if (this._clock.now() < earliestExpiry) return;
+
+        try {
+            await this.clientAppend({ op: 'tick' });
+        } catch (error) {
+            console.error(`[${this.replicaId}] lease tick failed: ${error.message}`);
+        }
     }
 
     _recordCommitLatency(milliseconds) {
@@ -638,7 +978,7 @@ class RaftNode {
     isReady() {
         if (this.paused || this.state === STATES.CANDIDATE) return false;
         const leaseWindow = this.electionTimeoutMax * 3;
-        return Boolean(this.leaderId) && Date.now() - this.lastQuorumContactAt <= leaseWindow;
+        return Boolean(this.leaderId) && this._clock.now() - this.lastQuorumContactAt <= leaseWindow;
     }
 
     getStatus() {
@@ -663,12 +1003,142 @@ class RaftNode {
             durable: Boolean(this._store),
             ready: this.isReady(),
             electionsTotal: this.metrics.electionsTotal,
+            replayedEntries: this.metrics.replayedEntries,
+            keys: this.stateMachine.store.size,
+            leases: this.stateMachine.activeLeaseCount,
+            revision: this.stateMachine.revision,
+            logicalClock: this.stateMachine.clock,
         };
     }
 
     isLeader() {
         return this.state === STATES.LEADER && !this.paused;
     }
+
+    /**
+     * Linearizable read.
+     *
+     * Serving a read straight from local state is fast and wrong: a leader that
+     * has been partitioned away still believes it leads and will happily return
+     * stale values. Requiring a fresh quorum lease is the cheap correct answer
+     * — no log entry, but a caller only gets data from a node that heard from a
+     * majority inside the last election timeout.
+     */
+    /**
+     * Leader-lease read. Fast, and NOT linearizable — see below.
+     *
+     * ── The bug a fuzz run found here ────────────────────────────────────────
+     * The first version of this used `electionTimeoutMax` as the lease window,
+     * which is unsound, and the linearizability checker caught it: replicas
+     * agreed on every log entry and every committed prefix, yet the
+     * client-visible history admitted no valid sequential explanation. The
+     * violation was entirely in this method.
+     *
+     * A follower may begin an election after `electionTimeoutMin`. A partitioned
+     * leader that last heard from a quorum `electionTimeoutMin` ago therefore
+     * cannot rule out that a new leader has already been elected and has
+     * already committed writes — but with a window of `electionTimeoutMax` it
+     * still believes its lease is live and answers from a log it stopped
+     * receiving. That is a stale read, and it is a real-time-order violation.
+     *
+     * The window is now strictly shorter than the *minimum* election timeout,
+     * with the round trip subtracted, because `lastQuorumContactAt` records
+     * when the response arrived rather than when the peer actually saw it.
+     *
+     * Even correctly sized, a lease read trusts clocks. It is offered because
+     * it is cheap and often acceptable; `readLinearizable` is offered for when
+     * it is not.
+     */
+    read(fn) {
+        if (!this.isLeader()) {
+            throw new Error(`Not the leader. Current leader: ${this.leaderId || 'unknown'}`);
+        }
+        const window = Math.max(0, this.electionTimeoutMin - this.heartbeatInterval);
+        if (this._clock.now() - this.lastQuorumContactAt > window) {
+            throw new Error('Stale leader lease: no recent quorum contact');
+        }
+        return fn(this.stateMachine);
+    }
+
+    /**
+     * ReadIndex — a linearizable read with no assumption about clocks.
+     *
+     *   1. record the current commitIndex
+     *   2. confirm leadership *right now* with a fresh round of heartbeats
+     *   3. wait until this node has applied up to the recorded index
+     *   4. answer from local state
+     *
+     * Step 2 is the whole thing. A leader that has been deposed cannot get a
+     * quorum to acknowledge its current term, so it discovers it is stale
+     * before answering rather than after. Nothing here depends on how much
+     * clock drift there is between machines — which is what makes it correct
+     * where a lease is merely usually-correct.
+     *
+     * The cost is one round trip per read, which is why the lease version still
+     * exists. Batching many concurrent reads behind a single confirmation round
+     * is the standard next optimisation and is not implemented here.
+     */
+    async readLinearizable(fn) {
+        if (!this.isLeader()) {
+            throw new Error(`Not the leader. Current leader: ${this.leaderId || 'unknown'}`);
+        }
+
+        // Until this term's no-op commits, commitIndex may still be behind the
+        // true committed frontier and this node cannot answer safely. Refusing
+        // is correct; the client retries a moment later, or asks another node.
+        if (this._noopIndex !== null && this.commitIndex < this._noopIndex) {
+            throw new Error('Leader has not yet committed its term no-op; read not yet safe');
+        }
+
+        const term = this.currentTerm;
+        const readIndex = this.commitIndex;
+
+        const confirmed = await this._confirmLeadership();
+        if (!confirmed || this.currentTerm !== term || !this.isLeader()) {
+            throw new Error('Leadership lost while confirming a read');
+        }
+
+        // Apply is synchronous on commit, so this holds immediately. The check
+        // stays because it is the actual precondition, and a future change to
+        // asynchronous apply would otherwise break linearizability silently.
+        if (this.lastApplied < readIndex) {
+            throw new Error(`Not yet applied to the read index (${this.lastApplied} < ${readIndex})`);
+        }
+
+        return fn(this.stateMachine);
+    }
+
+    /** One heartbeat round; true if a majority acknowledged this term. */
+    async _confirmLeadership() {
+        if (this.quorumSize === 1) return this.isLeader();
+
+        const term = this.currentTerm;
+        const results = await Promise.allSettled(this.peers.map(async (peerUrl) => {
+            const next = Math.max(0, Math.min(this.nextIndex[peerUrl] ?? this.log.length, this.log.length));
+            const prevLogIndex = next - 1;
+            const response = await this.transport.post(`${peerUrl}/append-entries`, {
+                term,
+                leaderId: this.replicaId,
+                leaderUrl: this.nodeUrl,
+                prevLogIndex,
+                prevLogTerm: prevLogIndex >= 0 ? this.log[prevLogIndex].term : 0,
+                entries: [],
+                leaderCommit: this.commitIndex,
+            }, { timeout: 450 });
+
+            if (response.data.term > this.currentTerm) {
+                this._becomeFollower(response.data.term);
+                return false;
+            }
+            // A rejected consistency check still proves the peer accepts this
+            // node as leader for this term, which is all a read needs.
+            return response.data.term === term;
+        }));
+
+        const acks = 1 + results.filter((r) => r.status === 'fulfilled' && r.value === true).length;
+        if (acks >= this.quorumSize) this.lastQuorumContactAt = this._clock.now();
+        return acks >= this.quorumSize;
+    }
 }
 
-module.exports = { RaftNode, StableStateStore, STATES };
+module.exports = { RaftNode, StableStateStore, STATES, REAL_CLOCK };

@@ -1,0 +1,91 @@
+# KEDA — autoscaling the serving tier on p99 query latency.
+#
+# ── Why not the HorizontalPodAutoscaler ──────────────────────────────────────
+# A stock HPA can only scale on CPU and memory, or on custom metrics if you
+# first stand up a metrics adapter. For an inference workload CPU is actively
+# misleading: it saturates long after latency has degraded, and it barely moves
+# when the bottleneck is memory bandwidth rather than compute. A fleet scaled on
+# CPU sits at 40% utilisation while p99 quietly triples.
+#
+# KEDA queries Prometheus directly, so the thing being scaled on is the thing
+# users actually experience. This is the single most common mistake in
+# autoscaling inference, and being able to say why it is wrong is worth more
+# than the scaling itself.
+#
+# Requires KEDA installed in the cluster:
+#   kubectl apply --server-side -f \
+#     https://github.com/kedacore/keda/releases/download/v2.16.0/keda-2.16.0.yaml
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: embedding
+  namespace: miniraft-serving
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: StatefulSet
+    name: embedding
+
+  # Never below the shard count. Dropping to two would leave a shard with no
+  # reader and queries against it failing outright — scale-to-zero is only safe
+  # for a tier where every pod is interchangeable, and this one is not until
+  # shard assignment moves to leases.
+  minReplicaCount: 3
+  maxReplicaCount: 9
+
+  pollingInterval: 15
+  # Deliberately long. Cold start is tens of seconds once real weights are
+  # involved, so scaling in aggressively means paying that cost again on the
+  # next small traffic bump. Slow to remove, quick to add.
+  cooldownPeriod: 120
+
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleUp:
+          # One pod every 30s. Adding four at once would produce four
+          # simultaneous artifact downloads, and the resulting bandwidth
+          # contention makes every one of them slower than adding them in
+          # sequence would have been.
+          stabilizationWindowSeconds: 0
+          policies:
+            - { type: Pods, value: 1, periodSeconds: 30 }
+        scaleDown:
+          stabilizationWindowSeconds: 300
+          policies:
+            - { type: Pods, value: 1, periodSeconds: 60 }
+
+  triggers:
+    # `name` on the trigger, not `metricName` in metadata. The latter was
+    # deprecated in KEDA 2.10 and removed in 2.12 — supplying it against a
+    # current release fails ScaledObject validation with a message that does
+    # not obviously point at the offending field.
+    - type: prometheus
+      name: p99-latency
+      metadata:
+        serverAddress: http://prometheus.monitoring.svc:9090
+        # Scale so p99 stays under 25ms. With synthetic weights and exact
+        # search this is generous; with a real encoder it would be more like
+        # 250ms and the same query still works.
+        threshold: "25"
+        # Returns NaN before any query has been served, which KEDA treats as an
+        # error and reports as an unhealthy trigger. `or vector(0)` makes an
+        # idle fleet read as zero — genuinely below threshold — instead of
+        # broken.
+        query: |
+          histogram_quantile(0.99, sum(rate(embedding_query_latency_ms_bucket{namespace="miniraft-serving"}[1m])) by (le)) or vector(0)
+
+    # A second trigger on throughput. p99 alone is a lagging signal: it only
+    # rises once pods are already struggling, so by the time it crosses the
+    # threshold users have felt it. Rate rises first and gets the fleet moving
+    # earlier. KEDA takes the maximum of the two, so whichever fires first wins.
+    #
+    # The threshold is per-pod: KEDA divides the query result by it to get a
+    # replica count, so 40 means "one pod per 40 QPS of total traffic".
+    - type: prometheus
+      name: throughput
+      metadata:
+        serverAddress: http://prometheus.monitoring.svc:9090
+        threshold: "40"
+        query: |
+          sum(rate(embedding_queries_total{namespace="miniraft-serving"}[1m])) or vector(0)

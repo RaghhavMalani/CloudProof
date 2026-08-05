@@ -1,0 +1,227 @@
+# Serving tier, local variant.
+#
+# The base manifest (k8s/serving.yaml) targets Fargate and IRSA. Neither exists
+# in kind, so this replaces those two things and changes nothing else:
+#
+#   Fargate profile  ->  ordinary scheduling on the system node
+#   IRSA annotation  ->  static MinIO credentials from a Secret
+#
+# Everything above that boundary — the watch loop, the shadow slot, the pointer
+# swap, the readiness semantics — is byte-identical to what runs on EKS. That is
+# the point of keeping the difference this small: if the local cluster works and
+# the cloud one does not, the fault is in the two things listed above.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: miniraft-serving
+  labels:
+    miniraft.io/tier: serving
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: minio-credentials
+  namespace: miniraft-serving
+stringData:
+  accessKey: miniraft
+  secretKey: miniraft-local-dev
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: embedding
+  namespace: miniraft-serving
+  # No eks.amazonaws.com/role-arn annotation: there is no IAM here. This is the
+  # single biggest thing the local cluster cannot prove.
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: embedding
+  namespace: miniraft-serving
+spec:
+  selector:
+    app.kubernetes.io/name: miniraft
+    app.kubernetes.io/component: embedding
+  ports:
+    - { name: http, port: 7000, targetPort: http }
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: embedding
+  namespace: miniraft-serving
+spec:
+  # A StatefulSet rather than a Deployment, purely so each pod gets a stable
+  # ordinal to derive its SHARD_ID from. On EKS the shard assignment comes from
+  # the lease mechanism instead; here it is hardcoded from the pod name so the
+  # demo works before that wiring lands.
+  serviceName: embedding
+  replicas: 3
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: miniraft
+      app.kubernetes.io/component: embedding
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: miniraft
+        app.kubernetes.io/component: embedding
+        miniraft.io/tier: serving
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /metrics
+        prometheus.io/port: "7000"
+    spec:
+      serviceAccountName: embedding
+      # Serving pods land on the system node because the consensus nodes are
+      # tainted and nothing here tolerates it — the same separation Fargate
+      # enforces in the cloud, achieved differently.
+      nodeSelector:
+        miniraft.io/tier: system
+      terminationGracePeriodSeconds: 20
+      containers:
+        - name: embedding
+          image: miniraft-embedding:local
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -c
+            # Shard from the pod ordinal, wrapped modulo the shard count.
+            #
+            # The obvious `SHARD_ID=$ordinal` breaks the moment KEDA scales past
+            # three: embedding-3 would look for shard-3.bin, which does not
+            # exist, and the pod would crash-loop instead of helping with load.
+            # Wrapping makes extra pods additional readers of existing shards,
+            # which is what "scale out the serving tier" should mean when the
+            # index itself is not being resharded.
+            - 'export SHARD_ID=$(( ${HOSTNAME##*-} % ${SHARD_COUNT} )); exec node serving/index.js'
+          ports:
+            - { name: http, containerPort: 7000 }
+          env:
+            - { name: PORT, value: "7000" }
+            - { name: SHARD_COUNT, value: "3" }
+            - { name: ARTIFACT_BUCKET, value: miniraft-artifacts }
+            - { name: S3_ENDPOINT, value: "http://minio.minio.svc:9000" }
+            - { name: AWS_REGION, value: us-east-1 }
+            - name: POD_ID
+              valueFrom: { fieldRef: { fieldPath: metadata.name } }
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom: { secretKeyRef: { name: minio-credentials, key: accessKey } }
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom: { secretKeyRef: { name: minio-credentials, key: secretKey } }
+            - name: RAFT_REPLICAS_URLS
+              value: "http://raft-0.raft.miniraft.svc:5000,http://raft-1.raft.miniraft.svc:5000,http://raft-2.raft.miniraft.svc:5000"
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet: { path: /readyz, port: http }
+            initialDelaySeconds: 3
+            periodSeconds: 3
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { cpu: 500m, memory: 768Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+# Dashboard, exposed on a NodePort that kind maps to localhost:8080.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dashboard
+  namespace: miniraft-serving
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: dashboard }
+  template:
+    metadata:
+      labels: { app: dashboard, miniraft.io/tier: serving }
+    spec:
+      nodeSelector:
+        miniraft.io/tier: system
+      containers:
+        - name: dashboard
+          image: miniraft-embedding:local
+          imagePullPolicy: IfNotPresent
+          command: ["node", "tools/dashboard.js"]
+          ports:
+            - { name: http, containerPort: 8080 }
+          env:
+            - { name: DASHBOARD_PORT, value: "8080" }
+            - name: RAFT_REPLICAS_URLS
+              value: "http://raft-0.raft.miniraft.svc:5000,http://raft-1.raft.miniraft.svc:5000,http://raft-2.raft.miniraft.svc:5000"
+            - name: SERVING_URLS
+              value: "http://embedding-0.embedding.miniraft-serving.svc:7000,http://embedding-1.embedding.miniraft-serving.svc:7000,http://embedding-2.embedding.miniraft-serving.svc:7000"
+            - { name: ARTIFACT_BUCKET, value: miniraft-artifacts }
+            - { name: S3_ENDPOINT, value: "http://minio.minio.svc:9000" }
+            - { name: AWS_REGION, value: us-east-1 }
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom: { secretKeyRef: { name: minio-credentials, key: accessKey } }
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom: { secretKeyRef: { name: minio-credentials, key: secretKey } }
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { cpu: 300m, memory: 256Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dashboard
+  namespace: miniraft-serving
+spec:
+  type: NodePort
+  selector: { app: dashboard }
+  ports:
+    - { port: 8080, targetPort: http, nodePort: 30080 }
+---
+# Publishes v1 so the pods have something to serve.
+#
+# A manifest rather than `kubectl create job`, because the rollout needs six
+# environment variables and a create-job one-liner silently sets none of them —
+# which surfaces as a Job that exits 1 with "MODEL_VERSION is required" and
+# looks like a code bug rather than a missing flag.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: publish-v1
+  namespace: miniraft-serving
+spec:
+  backoffLimit: 4
+  template:
+    spec:
+      restartPolicy: OnFailure
+      nodeSelector:
+        miniraft.io/tier: system
+      containers:
+        - name: rollout
+          image: miniraft-embedding:local
+          imagePullPolicy: IfNotPresent
+          command: ["node", "serving/rollout-cli.js"]
+          env:
+            - { name: MODEL_VERSION, value: v1 }
+            # Must match the StatefulSet replica count: the controller waits for
+            # exactly this many preload acknowledgements before it flips.
+            - { name: EXPECTED_PODS, value: "3" }
+            - { name: ROLLOUT_TIMEOUT_MS, value: "180000" }
+            - { name: ARTIFACT_BUCKET, value: miniraft-artifacts }
+            - { name: S3_ENDPOINT, value: "http://minio.minio.svc:9000" }
+            - { name: AWS_REGION, value: us-east-1 }
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom: { secretKeyRef: { name: minio-credentials, key: accessKey } }
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom: { secretKeyRef: { name: minio-credentials, key: secretKey } }
+            - name: RAFT_REPLICAS_URLS
+              value: "http://raft-0.raft.miniraft.svc:5000,http://raft-1.raft.miniraft.svc:5000,http://raft-2.raft.miniraft.svc:5000"

@@ -1,0 +1,166 @@
+# Serving tier — stateless embedding pods on Fargate.
+#
+# The namespace and the `miniraft.io/tier: serving` label together match the
+# Fargate profile created by Terraform. A pod that fails to match the selector
+# does not error: it stays Pending forever with no node to schedule onto, which
+# is a confusing failure mode worth knowing about in advance.
+#
+# Nothing here tolerates the consensus taint, so these pods cannot land on the
+# Raft nodes even if a Fargate capacity problem made that tempting.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: miniraft-serving
+  labels:
+    miniraft.io/tier: serving
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: embedding
+  namespace: miniraft-serving
+spec:
+  selector:
+    app.kubernetes.io/name: miniraft
+    app.kubernetes.io/component: embedding
+  ports:
+    - name: http
+      port: 7000
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: embedding
+  namespace: miniraft-serving
+spec:
+  # The floor, not the target. KEDA drives the replica count from p99 query
+  # latency; this value only matters at first apply and after a scale-to-zero.
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: miniraft
+      app.kubernetes.io/component: embedding
+  strategy:
+    rollingUpdate:
+      # Fargate pods start slowly enough that surging without a cap can double
+      # the bill for the duration of a deploy.
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: miniraft
+        app.kubernetes.io/component: embedding
+        miniraft.io/tier: serving
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /metrics
+        prometheus.io/port: "7000"
+    spec:
+      # Created by Terraform and annotated with the IRSA role ARN. On Fargate
+      # there is no node instance profile, so this is the only way the pod gets
+      # AWS credentials at all.
+      serviceAccountName: embedding
+      # Long enough for the drain handler to release the readiness key, which is
+      # what stops a terminating pod from stalling an in-flight rollout.
+      terminationGracePeriodSeconds: 20
+      containers:
+        - name: embedding
+          image: ghcr.io/raghhavmalani/miniraft-embedding:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 7000
+          env:
+            - name: PORT
+              value: "7000"
+            - name: POD_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: RAFT_REPLICAS_URLS
+              value: "http://raft-0.raft.miniraft:5000,http://raft-1.raft.miniraft:5000,http://raft-2.raft.miniraft:5000"
+            - name: ARTIFACT_BUCKET
+              valueFrom:
+                configMapKeyRef:
+                  name: serving-config
+                  key: artifactBucket
+            - name: AWS_REGION
+              valueFrom:
+                configMapKeyRef:
+                  name: serving-config
+                  key: region
+          # Liveness must not depend on having a model. A pod waiting for its
+          # first manifest is healthy and should not be restarted into a loop;
+          # readiness is what keeps it out of the Service.
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 3
+            failureThreshold: 2
+          # Fargate bills the rounded-up sum of requests across the pod, so
+          # requests here are the cost lever, not limits. The values feed
+          # podVcpu/podGb in tools/cost-model.js.
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 1000m
+              memory: 2Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+# A rollout is a Job because it has an end. Modelling it as a Deployment invites
+# two controllers running at once; the rollout/lock lease refuses the second one
+# regardless, but not creating the situation is better than surviving it.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: rollout-v1
+  namespace: miniraft
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: Never
+      serviceAccountName: indexer
+      nodeSelector:
+        miniraft.io/tier: consensus
+      tolerations:
+        - key: miniraft.io/tier
+          operator: Equal
+          value: consensus
+          effect: NoSchedule
+      containers:
+        - name: rollout
+          image: ghcr.io/raghhavmalani/miniraft-embedding:latest
+          command: ["node", "serving/rollout-cli.js"]
+          env:
+            - name: MODEL_VERSION
+              value: v1
+            - name: EXPECTED_PODS
+              value: "2"
+            - name: RAFT_REPLICAS_URLS
+              value: "http://raft-0.raft.miniraft:5000,http://raft-1.raft.miniraft:5000,http://raft-2.raft.miniraft:5000"

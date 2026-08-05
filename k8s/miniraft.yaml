@@ -46,6 +46,29 @@ spec:
         prometheus.io/port: "5000"
     spec:
       terminationGracePeriodSeconds: 15
+      # The consensus tier runs on real nodes, not Fargate. It needs a
+      # persistent volume that outlives the pod, a stable network identity, and
+      # a long-lived process holding election timers — none of which a
+      # serverless runtime provides. The node group is tainted so nothing else
+      # drifts onto this capacity; this toleration is what makes it landable.
+      nodeSelector:
+        miniraft.io/tier: consensus
+      tolerations:
+        - key: miniraft.io/tier
+          operator: Equal
+          value: consensus
+          effect: NoSchedule
+      # Two replicas on one node means one node failure can cost the quorum.
+      # Required, not preferred: scheduling all three on one node would produce
+      # a cluster that looks healthy and cannot survive a single reboot.
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: miniraft
+                  app.kubernetes.io/component: replica
+              topologyKey: kubernetes.io/hostname
       securityContext:
         fsGroup: 1000
         seccompProfile:
@@ -106,6 +129,12 @@ spec:
         name: raft-data
       spec:
         accessModes: ["ReadWriteOnce"]
+        # Named explicitly rather than relying on the cluster default: EKS
+        # ships gp2 as default, and the append-only log is fsync-bound, which
+        # is the case where gp2's size-linked IOPS hurt most. Terraform creates
+        # this class with WaitForFirstConsumer so the volume is provisioned in
+        # whichever AZ the scheduler picks.
+        storageClassName: gp3
         resources:
           requests:
             storage: 1Gi

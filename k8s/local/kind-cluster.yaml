@@ -1,0 +1,95 @@
+# kind cluster for the local demo.
+#
+# Four nodes, not one. A single-node kind cluster would schedule everything
+# everywhere and quietly prove nothing: the taint would be meaningless, the
+# tolerations untested, and the StatefulSet's required pod anti-affinity would
+# be trivially satisfiable. Three separate consensus workers make all three
+# constraints real — if the manifests are wrong, pods sit Pending and you find
+# out on a laptop instead of after the first terraform apply.
+#
+#   kind create cluster --config k8s/local/kind-cluster.yaml
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: miniraft
+
+nodes:
+  # The control plane doubles as the system tier so this is four containers
+  # rather than five. kind leaves the control-plane taint in place once workers
+  # exist, so it is removed explicitly — CoreDNS and the MinIO deployment need
+  # somewhere untainted to land, exactly as they do on EKS.
+  - role: control-plane
+    labels:
+      miniraft.io/tier: system
+    kubeadmConfigPatches:
+      # One patch, not two. kind applies these as strategic merges and two
+      # blocks of the same kind is asking for one to silently win.
+      #
+      # `taints: []` is the whole point: kind leaves the control-plane taint in
+      # place once workers exist, and with the three workers below all tainted
+      # for consensus there would be nowhere untainted for CoreDNS, MinIO,
+      # Prometheus or the serving pods to land. Every one of them would sit
+      # Pending and the cluster would look broken for no visible reason.
+      - |
+        kind: InitConfiguration
+        nodeRegistration:
+          taints: []
+          kubeletExtraArgs:
+            node-labels: "miniraft.io/tier=system"
+    extraPortMappings:
+      # The dashboard, reachable at http://localhost:8080 without a
+      # port-forward that dies whenever the pod restarts.
+      - containerPort: 30080
+        hostPort: 8080
+        protocol: TCP
+      # MinIO's console, for looking at the artifacts the seed job uploaded.
+      - containerPort: 30090
+        hostPort: 9090
+        protocol: TCP
+      # Grafana.
+      - containerPort: 30300
+        hostPort: 3000
+        protocol: TCP
+
+  # Three consensus workers: one per Raft replica, so `requiredDuringScheduling`
+  # anti-affinity has somewhere to place all three. Two would leave the third
+  # pod Pending forever, which is the correct behaviour and a useful thing to
+  # see once on purpose.
+  - role: worker
+    labels:
+      miniraft.io/tier: consensus
+    kubeadmConfigPatches:
+      - |
+        kind: JoinConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "miniraft.io/tier=consensus"
+          taints:
+            - key: "miniraft.io/tier"
+              value: "consensus"
+              effect: "NoSchedule"
+  - role: worker
+    labels:
+      miniraft.io/tier: consensus
+    kubeadmConfigPatches:
+      - |
+        kind: JoinConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "miniraft.io/tier=consensus"
+          taints:
+            - key: "miniraft.io/tier"
+              value: "consensus"
+              effect: "NoSchedule"
+  - role: worker
+    labels:
+      miniraft.io/tier: consensus
+    kubeadmConfigPatches:
+      - |
+        kind: JoinConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "miniraft.io/tier=consensus"
+          taints:
+            - key: "miniraft.io/tier"
+              value: "consensus"
+              effect: "NoSchedule"

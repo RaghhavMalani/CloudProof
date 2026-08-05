@@ -1,0 +1,39 @@
+# Built from the repository root, not from serving/, because three different
+# entrypoints share one image: the embedding service, the dashboard and the
+# artifact seed job. Keeping them in one image means one `kind load` instead of
+# three, and guarantees all three are built from the same commit.
+#
+#   docker build -f Dockerfile.serving -t miniraft-embedding:local .
+#
+# Layout inside the image mirrors the repo, so `require('../serving/...')` from
+# tools/ resolves exactly as it does locally. node_modules sits at /app so Node
+# finds it by walking up from either directory.
+FROM node:20-alpine AS deps
+WORKDIR /app
+COPY serving/package.json ./package.json
+# The AWS SDK is an optionalDependency locally so the file-backed lab does not
+# need it. In the image it is required: this is the build that talks to MinIO
+# and to S3, and a silently-skipped optional install would surface as a
+# confusing runtime "Cannot find module" inside a pod.
+RUN npm install --omit=dev --include=optional --no-audit --no-fund \
+    && npm install @aws-sdk/client-s3 --no-audit --no-fund
+
+FROM node:20-alpine AS runtime
+WORKDIR /app
+ENV NODE_ENV=production
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY serving/package.json ./package.json
+COPY serving/ ./serving/
+COPY tools/ ./tools/
+
+RUN addgroup -g 1000 -S app && adduser -u 1000 -S app -G app
+USER 1000:1000
+
+EXPOSE 7000 8080
+
+# Overridden per workload:
+#   node serving/index.js        the embedding service
+#   node tools/dashboard.js      the dashboard
+#   node tools/seed-artifacts.js the seed job
+CMD ["node", "serving/index.js"]

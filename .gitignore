@@ -10,3 +10,7 @@ coverage/
 dist/
 .DS_Store
 Thumbs.db
+
+# Generated demo state
+artifacts/
+.demo-data/
