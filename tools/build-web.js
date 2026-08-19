@@ -32,9 +32,16 @@ const MODULES = [
     'replica/state-machine.js',
     'replica/log-store.js',
     'replica/raft.js',
+    'packages/protocol/events.js',
+    'packages/simulator/invariants.js',
+    'packages/simulator/flight-recorder.js',
+    'packages/workloads/index.js',
+    'packages/scenario-dsl/index.js',
     'sim/simulator.js',
+    'sim/decision-tape.js',
     'sim/linearizability.js',
     'sim/cluster.js',
+    'sim/bug-museum.js',
 ];
 
 const STUBS = `
@@ -47,6 +54,31 @@ const __stub = (name) => new Proxy({}, {
     throw new Error(\`\${name}.\${String(prop)} is not available in the browser build\`);
   },
 });
+// A pure-JS FNV-1a stand-in for crypto.createHash, used only by
+// HnswIndex#checksum. The browser has SubtleCrypto but it is async, and
+// checksum() is synchronous by design — every caller compares it inline. A
+// 128-bit non-cryptographic digest is the right trade here: this is a
+// divergence detector, not a security primitive, and the property that matters
+// is that two identical graphs hash the same within one process.
+const __syncHash = () => {
+  let bytes = '';
+  return {
+    update(data) { bytes += String(data); return this; },
+    digest() {
+      let out = '';
+      for (let lane = 0; lane < 4; lane += 1) {
+        let h = 2166136261 ^ (lane * 0x9e3779b9);
+        for (let i = lane; i < bytes.length; i += 1) {
+          h ^= bytes.charCodeAt(i);
+          h = Math.imul(h, 16777619);
+        }
+        out += (h >>> 0).toString(16).padStart(8, '0');
+      }
+      return out;
+    },
+  };
+};
+
 const __builtins = {
   fs: __stub('fs'),
   'fs/promises': __stub('fs/promises'),
@@ -54,9 +86,14 @@ const __builtins = {
     join: (...parts) => parts.filter(Boolean).join('/'),
     dirname: (p) => p.split('/').slice(0, -1).join('/') || '.',
   },
-  crypto: __stub('crypto'),
+  crypto: { createHash: __syncHash },
   axios: __stub('axios'),
 };
+
+// Node 18+ allows the node: prefix alongside the bare name. Aliasing both
+// spellings costs one line and avoids a resolution failure that only shows up
+// at page load, long after the build reported success.
+for (const name of Object.keys(__builtins)) __builtins['node:' + name] = __builtins[name];
 `;
 
 function bundle() {
@@ -116,6 +153,12 @@ global.miniRaft = {
   quantize: __require('web/entry.js', 'replica/quantize.js'),
   sparse: __require('web/entry.js', 'replica/sparse.js'),
   stateMachine: __require('web/entry.js', 'replica/state-machine.js'),
+  protocol: __require('web/entry.js', 'packages/protocol/events.js'),
+  recorder: __require('web/entry.js', 'packages/simulator/flight-recorder.js'),
+  workloads: __require('web/entry.js', 'packages/workloads/index.js'),
+  invariants: __require('web/entry.js', 'packages/simulator/invariants.js'),
+  scenario: __require('web/entry.js', 'packages/scenario-dsl/index.js'),
+  bugMuseum: __require('web/entry.js', 'sim/bug-museum.js'),
 };
 })(typeof window !== 'undefined' ? window : globalThis);
 `);
@@ -126,6 +169,29 @@ global.miniRaft = {
 fs.mkdirSync(path.join(ROOT, 'web'), { recursive: true });
 const output = bundle();
 fs.writeFileSync(OUT, output);
+
+const ASSETS = [
+    ['apps/systems/index.html', 'web/index.html'],
+    ['apps/systems/flight-deck.js', 'web/flight-deck.js'],
+    ['apps/lab/bug-museum-ui.js', 'web/bug-museum-ui.js'],
+    ['apps/systems/flight-deck.css', 'web/flight-deck.css'],
+    ['apps/systems/research-artifact.js', 'web/research-artifact.js'],
+    ['apps/systems/research-metrics.json', 'web/research-metrics.json'],
+    ['apps/systems/reality-run.json', 'web/reality-run.json'],
+    ['apps/lab/bug-museum.css', 'web/bug-museum.css'],
+    ['apps/classic/index.html', 'web/classic.html'],
+];
+
+for (const [source, destination] of ASSETS) {
+    fs.copyFileSync(path.join(ROOT, source), path.join(ROOT, destination));
+}
+
+// Keep the authored lab files small and readable while shipping the museum as
+// part of the same zero-dependency page.
+fs.appendFileSync(path.join(ROOT, 'web', 'flight-deck.js'),
+    '\n' + fs.readFileSync(path.join(ROOT, 'apps/lab/bug-museum-ui.js'), 'utf8'));
+fs.appendFileSync(path.join(ROOT, 'web', 'flight-deck.css'),
+    '\n' + fs.readFileSync(path.join(ROOT, 'apps/lab/bug-museum.css'), 'utf8'));
 
 console.log(`wrote ${OUT}`);
 console.log(`  ${MODULES.length} modules · ${(output.length / 1024).toFixed(0)}KB uncompressed`);

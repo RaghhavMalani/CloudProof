@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "kind": "miniraft.research-metrics",
+  "measuredAt": "2026-08-19T06:20:43.736Z",
+  "question": "Can deterministic simulation and automated failure reduction make distributed-system correctness bugs reproducible and understandable?",
+  "environment": {
+    "node": "v24.14.1",
+    "platform": "win32",
+    "arch": "x64",
+    "runs": 20
+  },
+  "measures": {
+    "schedulesExploredPerSecond": 23.054550409177924,
+    "virtualTimePerRealSecond": 321578.7018374592,
+    "uniqueStateTransitionCoverage": {
+      "runs": 20,
+      "target": {
+        "covered": 16,
+        "total": 16,
+        "ratio": 1
+      },
+      "counts": {
+        "client:cas": 70,
+        "client:read": 126,
+        "client:write": 164,
+        "fault:crash": 18,
+        "fault:heal": 20,
+        "fault:isolate": 23,
+        "fault:restart": 14,
+        "invariant:election-safety:pass": 132,
+        "invariant:index-agreement:pass": 58,
+        "invariant:index-agreement:watch": 138,
+        "invariant:log-matching:pass": 20,
+        "invariant:quorum-availability:pass": 99,
+        "invariant:quorum-availability:watch": 1,
+        "invariant:state-machine-safety:pass": 141,
+        "membership:add": 2,
+        "membership:remove": 2,
+        "role:candidate": 6,
+        "role:follower": 151,
+        "role:leader": 87,
+        "rpc:append": 5579,
+        "rpc:blocked:crashed": 93,
+        "rpc:blocked:dropped": 761,
+        "rpc:blocked:partition": 377,
+        "rpc:pre-vote": 2080,
+        "rpc:vote": 610
+      },
+      "missing": []
+    },
+    "bugsDiscovered": {
+      "discovered": 10,
+      "totalSeeded": 10
+    },
+    "shrinkRatio": 0.84,
+    "shrinkExecutionTimeMs": 9.830899999999929,
+    "deterministicReplaySuccessRate": 1,
+    "recorderOverhead": {
+      "recordedMedianMs": 13.401650000000018,
+      "unrecordedMedianMs": 8.614000000000033,
+      "ratio": 1.555798699791034
+    },
+    "invariantCheckingCost": {
+      "totalMs": 4.34559999999999,
+      "checks": 2000,
+      "microsecondsPerCheck": 2.172799999999995
+    },
+    "recoveryTime": {
+      "simulatedMs": 244,
+      "deployedMs": 938,
+      "deployedStatus": "measured"
+    },
+    "userDiagnosisTime": {
+      "status": "not-collected",
+      "reason": "supply equal paired DIAGNOSIS_WITHOUT_MS and DIAGNOSIS_WITH_MS samples"
+    }
+  },
+  "interpretation": {
+    "correctness": "All sampled schedules replayed with the same decision tape and failure signature.",
+    "understandability": "Automated shrink evidence is measured; causal diagnosis-time benefit requires the paired user study and is not inferred from UI features alone."
+  }
+}

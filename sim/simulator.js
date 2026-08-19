@@ -200,6 +200,10 @@ class SimNetwork {
     constructor(clock, rng, options = {}) {
         this.clock = clock;
         this.rng = rng;
+        this.requestDropRng = options.requestDropRng || rng;
+        this.responseDropRng = options.responseDropRng || rng;
+        this.requestLatencyRng = options.requestLatencyRng || rng;
+        this.responseLatencyRng = options.responseLatencyRng || rng;
         this.minLatency = options.minLatency ?? 2;
         this.maxLatency = options.maxLatency ?? 25;
         this.dropRate = options.dropRate ?? 0;
@@ -210,6 +214,29 @@ class SimNetwork {
     }
 
     register(url, handlers) { this.handlers.set(url, handlers); }
+
+    /**
+     * Observe every message: sent, delivered, dropped, blocked by a partition.
+     *
+     * Purely for visualisation. The fuzzer does not care what a partition looks
+     * like, but a person watching does — and the difference between "the
+     * cluster recovered" as a line of text and as three nodes visibly losing
+     * contact and re-electing is the difference between being told and being
+     * shown. Listeners are called outside the delivery path and can never
+     * affect it.
+     */
+    observe(listener) {
+        this._observers = this._observers || new Set();
+        this._observers.add(listener);
+        return () => this._observers.delete(listener);
+    }
+
+    _emit(event) {
+        if (!this._observers) return;
+        for (const listener of this._observers) {
+            try { listener(event); } catch (_) { /* never break delivery */ }
+        }
+    }
 
     /** True when `a` and `b` are on opposite sides of any active partition. */
     _isolated(a, b) {
@@ -250,6 +277,7 @@ class SimNetwork {
 
     post(url, body, options = {}, sender = null) {
         this.stats.sent += 1;
+        const rpcId = `rpc-${this.stats.sent}`;
         const target = new URL(url).origin;
         const route = new URL(url).pathname;
         const from = sender || body.leaderUrl || 'client';
@@ -266,17 +294,28 @@ class SimNetwork {
                 );
             };
 
-            if (this.crashed.has(target)) return fail('ECONNREFUSED');
+            const kind = route === '/pre-vote'
+                ? 'pre-vote'
+                : route === '/request-vote' ? 'vote' : 'append';
+            const decision = { rpcId, from, to: target, kind, route };
+
+            if (this.crashed.has(target)) {
+                this._emit({ type: 'blocked', reason: 'crashed', rpcId, from, to: target, kind, route, request: body, at: this.clock.now() });
+                return fail('ECONNREFUSED');
+            }
             if (this._isolated(from, target)) {
                 this.stats.partitioned += 1;
+                this._emit({ type: 'blocked', reason: 'partition', rpcId, from, to: target, kind, route, request: body, at: this.clock.now() });
                 return fail('EHOSTUNREACH');
             }
-            if (this.rng.chance(this.dropRate)) {
+            if (this.requestDropRng.chance(this.dropRate, 'request-drop', decision)) {
                 this.stats.dropped += 1;
+                this._emit({ type: 'blocked', reason: 'dropped', rpcId, from, to: target, kind, route, request: body, at: this.clock.now() });
                 return fail('ETIMEDOUT');
             }
 
-            const latency = this.rng.range(this.minLatency, this.maxLatency);
+            const latency = this.requestLatencyRng.range(this.minLatency, this.maxLatency, 'request-latency', decision);
+            this._emit({ type: 'send', rpcId, from, to: target, kind, route, latency, request: body, at: this.clock.now() });
             this.clock.setTimeout(() => {
                 const node = this.handlers.get(target);
                 if (!node || this.crashed.has(target)) return reject(new Error('ECONNREFUSED'));
@@ -291,13 +330,15 @@ class SimNetwork {
                 // that produces "the write succeeded but the client saw a
                 // timeout" — precisely the ambiguity the linearizability checker
                 // has to reason about.
-                if (this.rng.chance(this.dropRate)) {
+                if (this.responseDropRng.chance(this.dropRate, 'response-drop', decision)) {
                     this.stats.dropped += 1;
                     return fail('ETIMEDOUT');
                 }
-                const back = this.rng.range(this.minLatency, this.maxLatency);
+                const back = this.responseLatencyRng.range(this.minLatency, this.maxLatency, 'response-latency', decision);
+                this._emit({ type: 'reply', rpcId, from: target, to: from, kind, route, latency: back, response: data, at: this.clock.now() });
                 this.clock.setTimeout(() => {
                     this.stats.delivered += 1;
+                    this._emit({ type: 'delivered', rpcId, from: target, to: from, kind, route, response: data, at: this.clock.now() });
                     resolve({ data });
                 }, back);
             }, latency);

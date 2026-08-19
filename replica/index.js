@@ -60,6 +60,10 @@ const raft = new RaftNode({
 app.post('/request-vote', (req, res) => {
     res.json(raft.handleRequestVote(req.body));
 });
+app.post('/pre-vote', (req, res) => {
+    res.json(raft.handlePreVote(req.body));
+});
+
 
 // Empty entries are heartbeats. The same consistency checks therefore repair a
 // lagging follower and propagate leaderCommit even when no client is drawing.
@@ -391,6 +395,9 @@ app.get('/metrics', (_req, res) => {
     const status = raft.getStatus();
     const labels = `replica="${REPLICA_ID}"`;
     const lines = [
+        '# HELP miniraft_prevotes_total PreVote rounds started by this replica.',
+        '# TYPE miniraft_prevotes_total counter',
+        'miniraft_prevotes_total{' + labels + '} ' + raft.metrics.preVotesTotal,
         '# HELP miniraft_elections_total Elections started by this replica.',
         '# TYPE miniraft_elections_total counter',
         `miniraft_elections_total{${labels}} ${raft.metrics.electionsTotal}`,

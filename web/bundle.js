@@ -11,6 +11,31 @@ const __stub = (name) => new Proxy({}, {
     throw new Error(`${name}.${String(prop)} is not available in the browser build`);
   },
 });
+// A pure-JS FNV-1a stand-in for crypto.createHash, used only by
+// HnswIndex#checksum. The browser has SubtleCrypto but it is async, and
+// checksum() is synchronous by design — every caller compares it inline. A
+// 128-bit non-cryptographic digest is the right trade here: this is a
+// divergence detector, not a security primitive, and the property that matters
+// is that two identical graphs hash the same within one process.
+const __syncHash = () => {
+  let bytes = '';
+  return {
+    update(data) { bytes += String(data); return this; },
+    digest() {
+      let out = '';
+      for (let lane = 0; lane < 4; lane += 1) {
+        let h = 2166136261 ^ (lane * 0x9e3779b9);
+        for (let i = lane; i < bytes.length; i += 1) {
+          h ^= bytes.charCodeAt(i);
+          h = Math.imul(h, 16777619);
+        }
+        out += (h >>> 0).toString(16).padStart(8, '0');
+      }
+      return out;
+    },
+  };
+};
+
 const __builtins = {
   fs: __stub('fs'),
   'fs/promises': __stub('fs/promises'),
@@ -18,9 +43,14 @@ const __builtins = {
     join: (...parts) => parts.filter(Boolean).join('/'),
     dirname: (p) => p.split('/').slice(0, -1).join('/') || '.',
   },
-  crypto: __stub('crypto'),
+  crypto: { createHash: __syncHash },
   axios: __stub('axios'),
 };
+
+// Node 18+ allows the node: prefix alongside the bare name. Aliasing both
+// spellings costs one line and avoids a resolution failure that only shows up
+// at page load, long after the build reported success.
+for (const name of Object.keys(__builtins)) __builtins['node:' + name] = __builtins[name];
 
 const __registry = {};
 const __cache = {};
@@ -386,13 +416,13 @@ __registry["replica/hnsw.js"] = function (module, exports, require) {
  *
  *   1. Ties must break totally. Two candidates at identical distance must
  *      order the same way on every replica, so comparisons fall back to the
- *      integer label. Without this the heap order depends on insertion
+ *      external vector id (and only then the internal label). Without this the
+ *      heap order depends on insertion
  *      history inside the priority queue and replicas diverge.
  *
- *   2. The PRNG must be advanced identically. It is drawn from once per
- *      insert, in log order, and never for queries — a query that consumed
- *      randomness would make the graph depend on read traffic, which is not
- *      replicated.
+ *   2. Level randomness belongs to an entry, not a process. Each vector id is
+ *      hashed to a 32-bit seed and gets a fresh PRNG, so retries, snapshot
+ *      restores, and read traffic cannot shift a shared random stream.
  *
  * Distance is cosine, implemented as negative inner product over vectors that
  * are normalised on the way in. Smaller is nearer throughout.
@@ -402,7 +432,24 @@ const {
     quantizeInt8, dequantizeInt8, dotInt8,
     quantizeBinary, hamming, hammingToCosine, footprint,
 } = require('./quantize');
+const crypto = require('node:crypto');
 
+
+// Browser builds do not expose Buffer; keep snapshots canonical with a runtime UTF-8 adapter.
+const HAS_BUFFER = typeof Buffer !== 'undefined';
+
+function encodeUtf8(text) {
+    if (HAS_BUFFER) return Buffer.from(text, 'utf8');
+    if (typeof TextEncoder !== 'undefined') return new TextEncoder().encode(text);
+    throw new Error('this runtime cannot encode UTF-8 snapshots');
+}
+
+function decodeUtf8(value) {
+    if (typeof value === 'string') return value;
+    if (HAS_BUFFER) return Buffer.from(value).toString('utf8');
+    if (typeof TextDecoder !== 'undefined') return new TextDecoder().decode(value);
+    throw new Error('this runtime cannot decode UTF-8 snapshots');
+}
 // ── deterministic PRNG ───────────────────────────────────────────────────────
 // xorshift128, chosen because it is exactly reproducible in integer arithmetic
 // and does not depend on Math.random's implementation-defined behaviour.
@@ -430,27 +477,37 @@ class Rng {
     restore([x, y, z, w]) { this.x = x; this.y = y; this.z = z; this.w = w; }
 }
 
+/** FNV-1a over UTF-16 code units. The exact hash is part of the file format. */
+function hashId32(id) {
+    let hash = 2166136261;
+    for (let i = 0; i < id.length; i += 1) {
+        hash ^= id.charCodeAt(i);
+        hash = Math.imul(hash, 16777619);
+    }
+    return hash >>> 0;
+}
+
 /**
  * Min-heap over {distance, label}, ordered by distance then label.
  *
- * The label tiebreak is not cosmetic. Vectors at equal distance are common
+ * The id tiebreak is not cosmetic. Vectors at equal distance are common
  * with normalised embeddings and duplicated documents, and without a total
  * order the heap's internal sift decides the winner — which depends on
  * insertion sequence inside the heap, not on the log.
  */
 class Heap {
-    constructor(invert = false) {
+    constructor(invert = false, compare = compareCandidates) {
         this.items = [];
-        this.sign = invert ? -1 : 1;
+        this.invert = invert;
+        this.compare = compare;
     }
 
     get size() { return this.items.length; }
     peek() { return this.items[0]; }
 
     _before(a, b) {
-        const d = (a.distance - b.distance) * this.sign;
-        if (d !== 0) return d < 0;
-        return (a.label - b.label) * this.sign < 0;
+        const order = this.compare(a, b);
+        return this.invert ? order > 0 : order < 0;
     }
 
     push(item) {
@@ -493,13 +550,13 @@ class HnswIndex {
      * @param {number} options.dim          vector dimensionality
      * @param {number} options.M            edges per node on layers above 0
      * @param {number} options.efConstruction breadth while building
-     * @param {number} options.seed         PRNG seed; must match across replicas
+     * @param {number} options.mL           fixed level multiplier
      */
     constructor({
         dim,
         M = 16,
         efConstruction = 200,
-        seed = 0x9e3779b9,
+        mL = null,
         // How vectors are held in memory and scored precisely. int8 is a
         // quarter the size at a recall cost small enough to be within noise on
         // most corpora — see the benchmark in hnsw.test.js.
@@ -515,6 +572,14 @@ class HnswIndex {
         rescoreFactor = 4,
     } = {}) {
         if (!Number.isInteger(dim) || dim <= 0) throw new Error('dim must be a positive integer');
+        if (!Number.isInteger(M) || M < 2) throw new Error('M must be an integer >= 2');
+        if (!Number.isInteger(efConstruction) || efConstruction < M) {
+            throw new Error('efConstruction must be an integer >= M');
+        }
+        const levelMultiplier = mL == null ? 1 / Math.log(M) : mL;
+        if (!Number.isFinite(levelMultiplier) || levelMultiplier <= 0) {
+            throw new Error('mL must be a positive finite number');
+        }
         if (!['float32', 'int8'].includes(storage)) throw new Error(`unknown storage: ${storage}`);
         if (!['exact', 'binary'].includes(traversal)) throw new Error(`unknown traversal: ${traversal}`);
 
@@ -528,9 +593,7 @@ class HnswIndex {
         // cause of poor recall.
         this.M0 = M * 2;
         this.efConstruction = efConstruction;
-        this.seed = seed;
-        this.rng = new Rng(seed);
-        this.levelMultiplier = 1 / Math.log(M);
+        this.mL = this.levelMultiplier = levelMultiplier;
 
         /**
          * @type {Float32Array[]} full-precision vectors. Populated only when
@@ -628,7 +691,7 @@ class HnswIndex {
     }
 
     static normalise(vector) {
-        const out = vector instanceof Float32Array ? vector : Float32Array.from(vector);
+        const out = Float32Array.from(vector);
         let norm = 0;
         for (let i = 0; i < out.length; i += 1) norm += out[i] * out[i];
         norm = Math.sqrt(norm);
@@ -642,8 +705,28 @@ class HnswIndex {
 
     // ── construction ─────────────────────────────────────────────────────────
 
-    _randomLevel() {
-        return Math.floor(-Math.log(this.rng.unit()) * this.levelMultiplier);
+    _randomLevel(id) {
+        const rng = new Rng(hashId32(id));
+        return Math.floor(-Math.log(rng.unit()) * this.levelMultiplier);
+    }
+
+    _candidate(label, distance) {
+        return { label, id: this.ids[label], distance };
+    }
+
+    _isBetter(distance, label, otherDistance, otherLabel) {
+        return compareCandidates(
+            this._candidate(label, distance),
+            this._candidate(otherLabel, otherDistance),
+        ) < 0;
+    }
+
+    _sortLabels(labels) {
+        return labels.slice().sort((a, b) => compareIds(this.ids[a], this.ids[b]) || a - b);
+    }
+
+    _orderedNeighbours(label, level) {
+        return this._sortLabels(this.links[label][level] || []);
     }
 
     /**
@@ -656,17 +739,27 @@ class HnswIndex {
      * test would catch. Tombstones cost memory and are reclaimed by rebuilding.
      */
     upsert(id, rawVector, payload = null) {
+        if (typeof id !== 'string' || id.length === 0) {
+            throw new Error('id must be a non-empty string');
+        }
+        if (!rawVector || typeof rawVector.length !== 'number') {
+            throw new Error('vector must be an array-like value');
+        }
         if (rawVector.length !== this.dim) {
             throw new Error(`expected ${this.dim} dimensions, received ${rawVector.length}`);
         }
 
+        for (let i = 0; i < rawVector.length; i += 1) {
+            if (!Number.isFinite(rawVector[i])) throw new Error('vector values must be finite numbers');
+        }
+        payload = canonicalClone(payload);
         const existing = this.labelOf.get(id);
         if (existing !== undefined) this._tombstone(existing);
 
         const ctx = this._prepare(rawVector);
         const vector = ctx.vector;
         const label = this.ids.length;
-        const level = this._randomLevel();
+        const level = this._randomLevel(id);
 
         // Under int8 storage the float32 copy is deliberately dropped after
         // quantising — keeping it would preserve accuracy and defeat the entire
@@ -704,11 +797,11 @@ class HnswIndex {
             let improved = true;
             while (improved) {
                 improved = false;
-                for (const neighbour of this.links[current][l] || []) {
+                for (const neighbour of this._orderedNeighbours(current, l)) {
                     const d = this._distStored(ctx, neighbour);
-                    // Strict improvement, with the label tiebreak, so a plateau
+                    // Strict improvement, with the id tiebreak, so a plateau
                     // of equidistant nodes cannot cycle.
-                    if (d < currentDistance || (d === currentDistance && neighbour < current)) {
+                    if (this._isBetter(d, neighbour, currentDistance, current)) {
                         current = neighbour;
                         currentDistance = d;
                         improved = true;
@@ -725,7 +818,7 @@ class HnswIndex {
             });
             const chosen = this._selectNeighbours(candidates, l === 0 ? this.M0 : this.M);
 
-            this.links[label][l] = chosen.slice();
+            this.links[label][l] = this._sortLabels(chosen);
 
             for (const neighbour of chosen) {
                 const neighbourLinks = this.links[neighbour][l];
@@ -738,18 +831,24 @@ class HnswIndex {
                     const repacked = this._selectNeighbours(
                         neighbourLinks.map((n) => ({
                             label: n,
+                            id: this.ids[n],
                             distance: this._distLabels(neighbour, n),
                         })),
                         limit,
                     );
-                    this.links[neighbour][l] = repacked;
+                    this.links[neighbour][l] = this._sortLabels(repacked);
+                } else {
+                    this.links[neighbour][l] = this._sortLabels(neighbourLinks);
                 }
             }
 
             if (chosen.length > 0) current = chosen[0];
         }
 
-        if (level > this.maxLevel) {
+        if (level > this.maxLevel || (
+            level === this.maxLevel
+            && compareIds(id, this.ids[this.entryPoint]) < 0
+        )) {
             this.maxLevel = level;
             this.entryPoint = label;
         }
@@ -782,8 +881,8 @@ class HnswIndex {
 
         const candidates = new Heap();          // nearest first
         const results = new Heap(true);         // furthest first
-        candidates.push({ label: entry, distance: entryDistance });
-        if (admits(entry)) results.push({ label: entry, distance: entryDistance });
+        candidates.push(this._candidate(entry, entryDistance));
+        if (admits(entry)) results.push(this._candidate(entry, entryDistance));
 
         while (candidates.size > 0) {
             const nearest = candidates.pop();
@@ -792,18 +891,19 @@ class HnswIndex {
             // only stop early once the result set is actually full, otherwise a
             // selective filter terminates the walk before it has found
             // anything.
-            if (results.size >= ef && furthest && nearest.distance > furthest.distance) break;
+            if (results.size >= ef && furthest && compareCandidates(nearest, furthest) > 0) {
+                break;
+            }
 
-            for (const neighbour of this.links[nearest.label][level] || []) {
+            for (const neighbour of this._orderedNeighbours(nearest.label, level)) {
                 if (visited.has(neighbour)) continue;
                 visited.add(neighbour);
 
                 const d = distance(neighbour);
                 const worst = results.peek();
-                const admissible = results.size < ef
-                    || !worst
-                    || d < worst.distance
-                    || (d === worst.distance && neighbour < worst.label);
+                const candidate = this._candidate(neighbour, d);
+                const admissible = results.size < ef || !worst
+                    || compareCandidates(candidate, worst) < 0;
 
                 if (!admissible) continue;
 
@@ -816,10 +916,10 @@ class HnswIndex {
                 // then discarding — has the opposite failure: it returns k
                 // results of which only a handful match, so recall collapses
                 // exactly when the filter is most useful.
-                candidates.push({ label: neighbour, distance: d });
+                candidates.push(candidate);
 
                 if (admits(neighbour)) {
-                    results.push({ label: neighbour, distance: d });
+                    results.push(candidate);
                     if (results.size > ef) results.pop();
                 }
             }
@@ -899,8 +999,8 @@ class HnswIndex {
      * `ef` trades recall against latency and is a query-time knob, so it is not
      * replicated and does not have to match across replicas — two nodes
      * answering the same query with different ef may legitimately return
-     * different results. What must match is the graph, which is why the seed
-     * and the log are what get replicated.
+     * different results. What must match is the graph, which is why id-derived
+     * levels and the log's apply order are load-bearing.
      */
     search(rawQuery, k = 10, ef = Math.max(k, 64), { filter = null } = {}) {
         if (this.entryPoint === -1 || this.size === 0) return [];
@@ -933,9 +1033,9 @@ class HnswIndex {
             let improved = true;
             while (improved) {
                 improved = false;
-                for (const neighbour of this.links[current][l] || []) {
+                for (const neighbour of this._orderedNeighbours(current, l)) {
                     const d = this._distWalk(ctx, neighbour);
-                    if (d < currentDistance || (d === currentDistance && neighbour < current)) {
+                    if (this._isBetter(d, neighbour, currentDistance, current)) {
                         current = neighbour;
                         currentDistance = d;
                         improved = true;
@@ -972,7 +1072,7 @@ class HnswIndex {
         // *what to return*. Rescoring costs one exact distance per candidate
         // already visited, which is negligible beside the walk that found them.
         const rescored = found
-            .map((c) => ({ label: c.label, distance: this._distStored(ctx, c.label) }))
+            .map((c) => this._candidate(c.label, this._distStored(ctx, c.label)))
             .sort(compareCandidates);
         return rescored.slice(0, k).map((c) => this._hit(c.label, -c.distance));
     }
@@ -986,7 +1086,7 @@ class HnswIndex {
         for (let label = 0; label < this.ids.length; label += 1) {
             if (this.deleted[label]) continue;
             if (filter && !filter(this.payloads[label], this.ids[label])) continue;
-            scored.push({ label, distance: this._distStored(ctx, label) });
+            scored.push(this._candidate(label, this._distStored(ctx, label)));
         }
         scored.sort(compareCandidates);
         const hits = scored.slice(0, k).map((c) => this._hit(c.label, -c.distance));
@@ -1008,6 +1108,202 @@ class HnswIndex {
         return this._exactScan(this._prepare(rawQuery), k, filter, null);
     }
 
+    _paramsHeader() {
+        return {
+            dim: this.dim,
+            M: this.M,
+            efConstruction: this.efConstruction,
+            mL: this.mL,
+            storage: this.storage,
+            traversal: this.traversal,
+            rescoreFactor: this.rescoreFactor,
+        };
+    }
+
+    /**
+     * Canonical, complete index image. Its bytes are the replica checksum
+     * source, so vectors and metadata are covered as well as graph edges.
+     */
+    serialize() {
+        const deleted = [];
+        for (let label = 0; label < this.deleted.length; label += 1) {
+            if (this.deleted[label]) deleted.push(label);
+        }
+
+        const state = {
+            format: 'miniraft-hnsw',
+            version: 1,
+            params: this._paramsHeader(),
+            entryPoint: this.entryPoint,
+            maxLevel: this.maxLevel,
+            ids: this.ids.slice(),
+            metadata: this.payloads,
+            deleted,
+            levels: this.levels.slice(),
+            links: this.links.map((perLevel) =>
+                perLevel.map((neighbours) => this._sortLabels(neighbours))),
+            vectors: this.storage === 'float32'
+                ? this.vectors.map((vector) => Array.from(vector))
+                : null,
+            q8: this.storage === 'int8'
+                ? this.q8.map((vector) => Array.from(vector))
+                : null,
+            scales: this.storage === 'int8' ? this.scales.slice() : null,
+            binary: this.traversal === 'binary'
+                ? this.bin.map((vector) => Array.from(vector))
+                : null,
+        };
+
+        return encodeUtf8(stableStringify(state));
+    }
+
+    checksum() {
+        return crypto.createHash('sha256').update(this.serialize()).digest('hex');
+    }
+
+    /**
+     * Loads a canonical image and optionally checks its parameter header
+     * against cluster configuration. A mismatch is fatal: accepting it would
+     * let one replica build a different graph from the same future log.
+     */
+    static deserialize(serialized, expectedParams = null) {
+        let state;
+        try {
+            const text = decodeUtf8(serialized);
+            state = JSON.parse(text);
+        } catch (error) {
+            throw new Error('invalid HNSW snapshot: ' + error.message);
+        }
+
+        snapshotAssert(state && state.format === 'miniraft-hnsw', 'unknown format');
+        snapshotAssert(state.version === 1, 'unsupported version');
+        snapshotAssert(state.params && typeof state.params === 'object', 'missing params header');
+
+        if (expectedParams) {
+            const expected = { ...expectedParams };
+            if (expected.mL == null && Number.isInteger(expected.M) && expected.M >= 2) {
+                expected.mL = 1 / Math.log(expected.M);
+            }
+            for (const key of [
+                'dim', 'M', 'efConstruction', 'mL',
+                'storage', 'traversal', 'rescoreFactor',
+            ]) {
+                if (Object.prototype.hasOwnProperty.call(expected, key)) {
+                    snapshotAssert(
+                        Object.is(state.params[key], expected[key]),
+                        'parameter mismatch for ' + key,
+                    );
+                }
+            }
+        }
+
+        const index = new HnswIndex(state.params);
+        const capacity = Array.isArray(state.ids) ? state.ids.length : -1;
+        snapshotAssert(capacity >= 0, 'ids must be an array');
+        snapshotAssert(Array.isArray(state.metadata) && state.metadata.length === capacity,
+            'metadata length mismatch');
+        snapshotAssert(Array.isArray(state.levels) && state.levels.length === capacity,
+            'levels length mismatch');
+        snapshotAssert(Array.isArray(state.links) && state.links.length === capacity,
+            'links length mismatch');
+        snapshotAssert(Array.isArray(state.deleted), 'deleted must be an array');
+
+        index.ids = state.ids.slice();
+        index.payloads = state.metadata.map((value) => canonicalClone(value));
+        index.levels = state.levels.slice();
+        index.deleted = Array(capacity).fill(0);
+        const deletedSeen = new Set();
+        for (const label of state.deleted) {
+            snapshotAssert(Number.isInteger(label) && label >= 0 && label < capacity,
+                'invalid deleted label');
+            snapshotAssert(!deletedSeen.has(label), 'duplicate deleted label');
+            deletedSeen.add(label);
+            index.deleted[label] = 1;
+        }
+
+        for (let label = 0; label < capacity; label += 1) {
+            snapshotAssert(typeof index.ids[label] === 'string' && index.ids[label].length > 0,
+                'invalid id at label ' + label);
+            snapshotAssert(Number.isInteger(index.levels[label]) && index.levels[label] >= 0,
+                'invalid level at label ' + label);
+            const perLevel = state.links[label];
+            snapshotAssert(Array.isArray(perLevel)
+                && perLevel.length === index.levels[label] + 1,
+            'link level mismatch at label ' + label);
+        }
+
+        index.links = state.links.map((perLevel, label) =>
+            perLevel.map((neighbours, level) => {
+                snapshotAssert(Array.isArray(neighbours), 'neighbours must be arrays');
+                const seen = new Set();
+                for (const neighbour of neighbours) {
+                    snapshotAssert(Number.isInteger(neighbour)
+                        && neighbour >= 0 && neighbour < capacity,
+                    'invalid neighbour label');
+                    snapshotAssert(neighbour !== label, 'self edge');
+                    snapshotAssert(index.levels[neighbour] >= level, 'edge targets missing level');
+                    snapshotAssert(!seen.has(neighbour), 'duplicate edge');
+                    seen.add(neighbour);
+                }
+                const sorted = index._sortLabels(neighbours);
+                snapshotAssert(sorted.every((value, i) => value === neighbours[i]),
+                    'neighbour list is not canonical');
+                return neighbours.slice();
+            }));
+
+        if (index.storage === 'float32') {
+            snapshotAssert(Array.isArray(state.vectors) && state.vectors.length === capacity,
+                'vectors length mismatch');
+            index.vectors = state.vectors.map((vector) =>
+                restoreVector(vector, index.dim, Float32Array));
+        } else {
+            snapshotAssert(Array.isArray(state.q8) && state.q8.length === capacity,
+                'q8 length mismatch');
+            snapshotAssert(Array.isArray(state.scales) && state.scales.length === capacity,
+                'scales length mismatch');
+            index.q8 = state.q8.map((vector) =>
+                restoreVector(vector, index.dim, Int8Array));
+            index.scales = state.scales.slice();
+            snapshotAssert(index.scales.every((scale) => Number.isFinite(scale) && scale > 0),
+                'invalid quantization scale');
+        }
+
+        if (index.traversal === 'binary') {
+            const bytes = Math.ceil(index.dim / 8);
+            snapshotAssert(Array.isArray(state.binary) && state.binary.length === capacity,
+                'binary length mismatch');
+            index.bin = state.binary.map((vector) =>
+                restoreVector(vector, bytes, Uint8Array));
+        }
+
+        let computedMax = -1;
+        for (const level of index.levels) {
+            if (level > computedMax) computedMax = level;
+        }
+        snapshotAssert(state.maxLevel === computedMax, 'maxLevel mismatch');
+        snapshotAssert(
+            capacity === 0
+                ? state.entryPoint === -1
+                : Number.isInteger(state.entryPoint)
+                    && state.entryPoint >= 0
+                    && state.entryPoint < capacity
+                    && index.levels[state.entryPoint] === computedMax,
+            'entryPoint mismatch',
+        );
+        index.entryPoint = state.entryPoint;
+        index.maxLevel = state.maxLevel;
+        index.tombstones = state.deleted.length;
+        index.size = capacity - index.tombstones;
+        index.labelOf = new Map();
+        for (let label = 0; label < capacity; label += 1) {
+            if (index.deleted[label]) continue;
+            snapshotAssert(!index.labelOf.has(index.ids[label]), 'duplicate live id');
+            index.labelOf.set(index.ids[label], label);
+        }
+
+        return index;
+    }
+
     // ── introspection ────────────────────────────────────────────────────────
 
     /**
@@ -1019,26 +1315,7 @@ class HnswIndex {
      * structure itself.
      */
     fingerprint() {
-        let h = 2166136261;
-        const mix = (n) => { h ^= n | 0; h = Math.imul(h, 16777619); };
-
-        mix(this.entryPoint);
-        mix(this.maxLevel);
-        mix(this.ids.length);
-
-        for (let label = 0; label < this.links.length; label += 1) {
-            mix(label);
-            mix(this.levels[label]);
-            mix(this.deleted[label]);
-            for (let l = 0; l < this.links[label].length; l += 1) {
-                mix(l);
-                // Sorted so an incidental ordering difference in an adjacency
-                // list does not read as divergence — the set of edges is what
-                // determines behaviour, not the order they were appended in.
-                for (const n of [...this.links[label][l]].sort((a, b) => a - b)) mix(n);
-            }
-        }
-        return (h >>> 0).toString(16).padStart(8, '0');
+        return this.checksum();
     }
 
     stats() {
@@ -1059,7 +1336,7 @@ class HnswIndex {
             edges,
             M: this.M,
             efConstruction: this.efConstruction,
-            seed: this.seed,
+            mL: this.mL,
             storage: this.storage,
             traversal: this.traversal,
             rescoreFactor: this.rescoreFactor,
@@ -1073,13 +1350,76 @@ class HnswIndex {
     }
 }
 
-/** Total order: distance, then label. Used everywhere ordering matters. */
+function canonicalClone(value, stack = new Set()) {
+    if (value === null || typeof value === 'string' || typeof value === 'boolean') {
+        return value;
+    }
+    if (typeof value === 'number') {
+        if (!Number.isFinite(value)) throw new Error('metadata numbers must be finite');
+        return Object.is(value, -0) ? 0 : value;
+    }
+    if (typeof value !== 'object') {
+        throw new Error('metadata must be JSON-compatible');
+    }
+    if (stack.has(value)) throw new Error('metadata must not contain cycles');
+
+    stack.add(value);
+    try {
+        if (Array.isArray(value)) {
+            return value.map((item) => canonicalClone(item, stack));
+        }
+        const prototype = Object.getPrototypeOf(value);
+        if (prototype !== Object.prototype && prototype !== null) {
+            throw new Error('metadata must contain only arrays and plain objects');
+        }
+        const clone = {};
+        for (const key of Object.keys(value).sort(compareIds)) {
+            clone[key] = canonicalClone(value[key], stack);
+        }
+        return clone;
+    } finally {
+        stack.delete(value);
+    }
+}
+
+function stableStringify(value) {
+    return JSON.stringify(canonicalClone(value));
+}
+
+function snapshotAssert(condition, message) {
+    if (!condition) throw new Error('invalid HNSW snapshot: ' + message);
+}
+
+function restoreVector(values, length, Type) {
+    snapshotAssert(Array.isArray(values) && values.length === length, 'vector length mismatch');
+    for (const value of values) {
+        snapshotAssert(Number.isFinite(value), 'vector contains a non-finite number');
+        if (Type === Int8Array) {
+            snapshotAssert(Number.isInteger(value) && value >= -128 && value <= 127,
+                'invalid int8 value');
+        }
+        if (Type === Uint8Array) {
+            snapshotAssert(Number.isInteger(value) && value >= 0 && value <= 255,
+                'invalid uint8 value');
+        }
+    }
+    return Type.from(values);
+}
+
+function compareIds(a, b) {
+    if (a === b) return 0;
+    return a < b ? -1 : 1;
+}
+
+/** Total order: distance, external id, then internal label. */
 function compareCandidates(a, b) {
     if (a.distance !== b.distance) return a.distance - b.distance;
+    const byId = compareIds(a.id, b.id);
+    if (byId !== 0) return byId;
     return a.label - b.label;
 }
 
-module.exports = { HnswIndex, Rng, Heap };
+module.exports = { HnswIndex, Rng, Heap, hashId32 };
 
 };
 __registry["replica/state-machine.js"] = function (module, exports, require) {
@@ -1310,6 +1650,12 @@ class StateMachine {
         switch (op) {
             case 'tick':
                 result = { ok: true, clock: this.clock };
+                break;
+            case 'config':
+                // Membership is a Raft-level concern, handled by
+                // RaftNode#_refreshConfiguration when the entry is appended.
+                // The state machine records it as applied and changes nothing.
+                result = { ok: true, config: true, members: command.members };
                 break;
             case 'noop':
                 // The Raft §8 term marker. It exists to move commitIndex, not
@@ -1904,6 +2250,7 @@ __registry["replica/raft.js"] = function (module, exports, require) {
  * Implements the safety-critical pieces used by the demo:
  *  - stable term / vote / log persistence before RPC responses
  *  - randomized elections with a dynamic majority
+ *  - PreVote, so an isolated follower cannot inflate the cluster term
  *  - AppendEntries for both replication and heartbeats
  *  - nextIndex / matchIndex catch-up
  *  - the Raft §5.4.2 current-term commit rule
@@ -2004,7 +2351,8 @@ class StableStateStore {
 class RaftNode {
     constructor({
         replicaId,
-        peers,
+        peers = [],
+        members = null,
         nodeUrl = null,
         onCommit,
         onLeaderChange,
@@ -2031,6 +2379,19 @@ class RaftNode {
          * `tc netem`, where a failure that appears once may never appear again.
          */
         clock = REAL_CLOCK,
+        /**
+         * Source of the election-timeout jitter.
+         *
+         * This was `Math.random()` inline, which quietly broke the one property
+         * the whole simulation harness is built on: that a run is a pure
+         * function of its seed. Election timing drove every schedule, so
+         * replaying a "reproducible" failure produced a different interleaving
+         * and the bug appeared to vanish. A seed that failed in a batch would
+         * pass in isolation — the most misleading possible symptom, because it
+         * reads as a flaky harness rather than as unseeded randomness.
+         */
+        random = Math.random,
+        randomElectionTimeout = null,
         autoStart = true,
         electionTimeoutMin = 500,
         electionTimeoutMax = 800,
@@ -2039,9 +2400,48 @@ class RaftNode {
         commitTimeoutMs = 2000,
     }) {
         this._clock = clock;
+        this._random = random;
+        this._randomElectionTimeout = randomElectionTimeout;
         this.replicaId = replicaId;
-        this.peers = [...peers];
         this.nodeUrl = nodeUrl;
+        /**
+         * How this node names itself inside a configuration.
+         *
+         * `nodeUrl` is how peers address it, but it is optional — plenty of
+         * tests and single-node uses never set one. Falling back to replicaId
+         * means membership always has a stable identity for self, instead of
+         * quietly putting `undefined` in the member list and computing a quorum
+         * that excludes this node from its own cluster.
+         */
+        this.selfId = nodeUrl || replicaId;
+
+        /**
+         * ── Cluster membership (Raft §6) ─────────────────────────────────────
+         *
+         * The set of servers is not configuration passed in at boot; it is a
+         * value *in the replicated log*, so every server agrees on it through
+         * the same mechanism it agrees on everything else.
+         *
+         * `bootstrapMembers` is only the starting point, used until the log
+         * contains a config entry. After that the log wins — including after a
+         * restart, which is why a node that was added while it was down comes
+         * back knowing it is a member.
+         */
+        this.bootstrapMembers = [...(members || [...peers, this.selfId])].filter(Boolean);
+        /** Voting members. Counted for quorum and for elections. */
+        this.members = [...this.bootstrapMembers];
+        /**
+         * Non-voting members. They receive the log and can be read from, but
+         * are not counted in any majority.
+         *
+         * This exists because adding a fresh server straight into the voter set
+         * is dangerous: its log is empty, so quorum now includes a node that
+         * cannot acknowledge anything, and the cluster can stall until it
+         * catches up. Learners take the catch-up cost outside the quorum.
+         */
+        this.learners = [];
+        /** Everyone this node replicates to. Derived; never assign directly. */
+        this.peers = [];
         this.onCommit = onCommit;
         this.onLeaderChange = onLeaderChange;
         this.transport = transport;
@@ -2112,6 +2512,9 @@ class RaftNode {
         this.leaderId = null;
         this.leaderUrl = null;
         this.votes = 0;
+        // Monotonic token used to discard late PreVote replies after a leader
+        // heartbeat, term change, pause, or newer pre-election round.
+        this._preVoteRound = 0;
         this.paused = false;
 
         this._timersEnabled = autoStart;
@@ -2124,13 +2527,21 @@ class RaftNode {
         this._commitWaiters = new Set();
         this._replicating = new Set();
         this.lastQuorumContactAt = 0;
+        // When this node last heard from a leader; drives disruption prevention.
+        this.lastLeaderContactAt = 0;
         this.metrics = {
+            preVotesTotal: 0,
             electionsTotal: 0,
             replayedEntries: 0,
             commitLatencyCount: 0,
             commitLatencySumMs: 0,
             commitLatencyBuckets: { 10: 0, 25: 0, 50: 0, 100: 0, 250: 0, 500: 0, 1000: 0 },
         };
+
+        // Adopt the configuration recorded in the log before anything else —
+        // a restarted node must not campaign under a membership it has already
+        // been voted out of, nor ignore one it has been added to.
+        this._refreshConfiguration();
 
         // Rebuild the keyspace from the committed prefix before serving anyone.
         this._applyCommittedEntries({ replay: true });
@@ -2145,12 +2556,78 @@ class RaftNode {
         );
     }
 
+    /** Voting members only. Learners are deliberately excluded. */
     get clusterSize() {
-        return this.peers.length + 1;
+        return this.members.length;
     }
 
     get quorumSize() {
         return Math.floor(this.clusterSize / 2) + 1;
+    }
+
+    /** True when this node is itself a voter — false while it is a learner, or after removing itself. */
+    get isVoter() {
+        return this.members.includes(this.selfId);
+    }
+
+    /** Voting peers: the servers whose acknowledgements actually count. */
+    get voterPeers() {
+        return this.members.filter((url) => url !== this.selfId);
+    }
+
+    /**
+     * Recomputes the active configuration from the log.
+     *
+     * ── The counterintuitive rule ────────────────────────────────────────────
+     * A configuration entry takes effect the moment it is **appended**, not
+     * when it commits. That feels wrong — we are acting on an entry that might
+     * still be rolled back — but the alternative is worse: if servers waited
+     * for commit, the old and new configurations would both be live with no
+     * overlap guarantee during the window, and two disjoint majorities could
+     * each elect a leader.
+     *
+     * The corollary is that a truncation must also roll the configuration
+     * *back*. Rather than track that incrementally and get it subtly wrong,
+     * this rescans from the end of the log for the newest config entry after
+     * every mutation. It is O(log) per append, which at this scale is free, and
+     * it is impossible to leave in an inconsistent state.
+     */
+    _refreshConfiguration() {
+        let members = this.bootstrapMembers;
+        let learners = [];
+
+        for (let i = this.log.length - 1; i >= 0; i -= 1) {
+            const data = this.log[i] && this.log[i].data;
+            if (data && data.op === 'config') {
+                members = data.members;
+                learners = data.learners || [];
+                break;
+            }
+        }
+
+        const previouslyVoter = this.members.includes(this.selfId);
+        this.members = [...members];
+        this.learners = [...learners];
+
+        // Replicate to voters and learners alike; only the former are counted.
+        this.peers = [...new Set([...this.members, ...this.learners])]
+            .filter((url) => url !== this.selfId);
+
+        for (const peerUrl of this.peers) {
+            if (this.nextIndex[peerUrl] === undefined) this.nextIndex[peerUrl] = this.log.length;
+            if (this.matchIndex[peerUrl] === undefined) this.matchIndex[peerUrl] = -1;
+        }
+
+        // A leader that has just removed itself keeps serving until the entry
+        // commits — see _advanceCommitIndex — but must never campaign again.
+        if (previouslyVoter && !this.isVoter && this.state === STATES.LEADER) {
+            console.log(`[${this.replicaId}] removed from the configuration; will step down once it commits`);
+        }
+    }
+
+    /** The configuration entry currently in effect, for observability. */
+    get configuration() {
+        return { members: [...this.members], learners: [...this.learners] };
     }
 
     _persistentSnapshot() {
@@ -2175,6 +2652,8 @@ class RaftNode {
         if (entries.length === 0) return;
         this.log.push(...entries);
         if (this._logStore) this._logStore.append(entries);
+        // Config entries are live the instant they land. See _refreshConfiguration.
+        if (entries.some((e) => e.data && e.data.op === 'config')) this._refreshConfiguration();
     }
 
     /**
@@ -2192,13 +2671,20 @@ class RaftNode {
             );
         }
         if (index >= this.log.length) return;
+        const hadConfig = this.log.slice(index).some((e) => e.data && e.data.op === 'config');
         this.log = this.log.slice(0, index);
         if (this._logStore) this._logStore.rewrite(this.log);
+        // Rolling back a config entry must roll back the configuration with it,
+        // or a node keeps enforcing a membership the cluster has discarded.
+        if (hadConfig) this._refreshConfiguration();
     }
 
     _randomTimeout() {
+        if (this._randomElectionTimeout) {
+            return this._randomElectionTimeout(this.electionTimeoutMin, this.electionTimeoutMax);
+        }
         const spread = Math.max(1, this.electionTimeoutMax - this.electionTimeoutMin);
-        return Math.floor(Math.random() * spread) + this.electionTimeoutMin;
+        return Math.floor(this._random() * spread) + this.electionTimeoutMin;
     }
 
     _resetElectionTimer() {
@@ -2206,8 +2692,8 @@ class RaftNode {
         if (!this._timersEnabled || this.paused || this.state === STATES.LEADER) return;
 
         this._electionTimer = this._clock.setTimeout(() => {
-            this._startElection().catch((error) => {
-                console.error(`[${this.replicaId}] Election failed: ${error.message}`);
+            this._startPreVote().catch((error) => {
+                console.error('[' + this.replicaId + '] PreVote failed: ' + error.message);
                 this._resetElectionTimer();
             });
         }, this._randomTimeout());
@@ -2228,6 +2714,7 @@ class RaftNode {
     }
 
     stop() {
+        this._preVoteRound += 1;
         if (this._electionTimer) this._clock.clearTimeout(this._electionTimer);
         this._electionTimer = null;
         this._stopHeartbeat();
@@ -2260,8 +2747,90 @@ class RaftNode {
         console.log(`[${this.replicaId}] *** RESUMED · stable state restored ***`);
     }
 
-    async _startElection() {
+    /**
+     * Asks whether an election could win before incrementing the durable term.
+     *
+     * Without PreVote, a node isolated from an otherwise healthy cluster keeps
+     * timing out and increasing its term. When the partition heals, that large
+     * term forces the healthy leader to step down even though the isolated node
+     * never had a quorum. PreVote makes the disruptive action conditional on
+     * first hearing from a majority, and deliberately changes no persistent
+     * state on either the requester or the receivers.
+     */
+    async _startPreVote() {
+        if (this.paused) return false;
+        if (!this.isVoter) {
+            this._resetElectionTimer();
+            return false;
+        }
+
+        const round = ++this._preVoteRound;
+        const prospectiveTerm = this.currentTerm + 1;
+        const lastLogIndex = this.log.length - 1;
+        const lastLogTerm = lastLogIndex >= 0 ? this.log[lastLogIndex].term : 0;
+        let granted = 1;
+        this.metrics.preVotesTotal += 1;
+
+        // A lost or split pre-election must retry without mutating currentTerm.
+        this._resetElectionTimer();
+        if (granted >= this.quorumSize) {
+            await this._startElection(prospectiveTerm, round);
+            return true;
+        }
+
+        const requests = this.voterPeers.map(async (peerUrl) => {
+            try {
+                const response = await this.transport.post(
+                    peerUrl + '/pre-vote',
+                    {
+                        term: prospectiveTerm,
+                        candidateId: this.replicaId,
+                        candidateUrl: this.selfId,
+                        lastLogIndex,
+                        lastLogTerm,
+                    },
+                    { timeout: 400 },
+                );
+
+                if (response.data.term > this.currentTerm) {
+                    this._becomeFollower(response.data.term);
+                    return;
+                }
+                if (
+                    response.data.preVoteGranted
+                    && this._preVoteRound === round
+                    && this.currentTerm + 1 === prospectiveTerm
+                    && this.state !== STATES.LEADER
+                ) {
+                    granted += 1;
+                    if (granted >= this.quorumSize) {
+                        await this._startElection(prospectiveTerm, round);
+                    }
+                }
+            } catch (_) {
+                // Silence is an expected negative pre-vote during a partition.
+            }
+        });
+
+        await Promise.allSettled(requests);
+        return this.state === STATES.LEADER || this.state === STATES.CANDIDATE;
+    }
+
+    async _startElection(expectedTerm = null, preVoteRound = null) {
         if (this.paused) return;
+        // A learner has no vote and must never try to take leadership. Without
+        // this a freshly-added server that is still catching up can time out and
+        // start disrupting elections in a cluster it is not yet part of.
+        if (!this.isVoter) {
+            this._resetElectionTimer();
+            return;
+        }
+        // A heartbeat or a newer pre-election invalidates late quorum replies.
+        if (expectedTerm !== null && (
+            expectedTerm !== this.currentTerm + 1
+            || (preVoteRound !== null && preVoteRound !== this._preVoteRound)
+        )) return;
+
 
         this.currentTerm += 1;
         this.metrics.electionsTotal += 1;
@@ -2287,7 +2856,7 @@ class RaftNode {
             return;
         }
 
-        const voteRequests = this.peers.map(async (peerUrl) => {
+        const voteRequests = this.voterPeers.map(async (peerUrl) => {
             try {
                 const response = await this.transport.post(
                     `${peerUrl}/request-vote`,
@@ -2379,6 +2948,7 @@ class RaftNode {
     }
 
     _becomeFollower(term, leaderId = null, leaderUrl = null) {
+        this._preVoteRound += 1;
         const wasLeader = this.state === STATES.LEADER;
         const termAdvanced = term > this.currentTerm;
 
@@ -2406,9 +2976,65 @@ class RaftNode {
         this._resetElectionTimer();
     }
 
-    handleRequestVote({ term, candidateId, lastLogIndex, lastLogTerm }) {
+    /**
+     * Read-only half of PreVote. It intentionally does not update currentTerm,
+     * votedFor, stable storage, or the election timer.
+     */
+    handlePreVote({ term, candidateId, candidateUrl = null, lastLogIndex, lastLogTerm }) {
+        if (this.paused || term < this.currentTerm + 1) {
+            return { term: this.currentTerm, preVoteGranted: false };
+        }
+
+        const candidateIsMember = candidateUrl === null || this.members.includes(candidateUrl);
+        const heardFromLeaderRecently = this.leaderId
+            && this._clock.now() - this.lastLeaderContactAt < this.electionTimeoutMin;
+        const myLastIndex = this.log.length - 1;
+        const myLastTerm = myLastIndex >= 0 ? this.log[myLastIndex].term : 0;
+        const candidateIsUpToDate = lastLogTerm > myLastTerm
+            || (lastLogTerm === myLastTerm && lastLogIndex >= myLastIndex);
+        const preVoteGranted = Boolean(
+            this.isVoter
+            && this.state !== STATES.LEADER
+            && candidateId
+            && candidateIsMember
+            && !heardFromLeaderRecently
+            && candidateIsUpToDate,
+        );
+
+        return { term: this.currentTerm, preVoteGranted };
+    }
+
+    handleRequestVote({ term, candidateId, lastLogIndex, lastLogTerm, force = false }) {
         if (this.paused || term < this.currentTerm) {
             return { term: this.currentTerm, voteGranted: false };
+        }
+
+        /**
+         * ── The removed-server problem (thesis §4.2.3) ───────────────────────
+         *
+         * A server that has been removed from the configuration does not find
+         * out — nobody sends it anything any more. So it times out, increments
+         * its term, and campaigns. Its RequestVote carries a term higher than
+         * the live cluster's, which forces the healthy leader to step down even
+         * though the candidate cannot win. It then times out again, and again,
+         * disrupting the cluster indefinitely for as long as it is left running.
+         *
+         * The fix is to let a follower refuse to even consider a vote while it
+         * is still hearing from a leader. A candidate that a majority is happy
+         * with cannot be displaced by a stranger with a big number.
+         *
+         * This is safe because it only ever *delays* an election: if the leader
+         * really is gone, contact goes stale within one minimum election
+         * timeout and the rule stops applying.
+         */
+        const heardFromLeaderRecently = this.leaderId
+            && this._clock.now() - this.lastLeaderContactAt < this.electionTimeoutMin;
+        if (heardFromLeaderRecently && !force) {
+            return {
+                term: this.currentTerm,
+                voteGranted: false,
+                reason: 'a leader is still alive',
+            };
         }
         if (term > this.currentTerm) this._becomeFollower(term);
 
@@ -2420,6 +3046,7 @@ class RaftNode {
         const canVote = this.votedFor === null || this.votedFor === candidateId;
 
         if (canVote && candidateIsUpToDate) {
+            this._preVoteRound += 1;
             this.votedFor = candidateId;
             this._persistState();
             this._resetElectionTimer();
@@ -2452,6 +3079,7 @@ class RaftNode {
         if (term > this.currentTerm || this.state !== STATES.FOLLOWER) {
             this._becomeFollower(term, leaderId, leaderUrl);
         } else {
+            this._preVoteRound += 1;
             this.leaderId = leaderId;
             this.leaderUrl = leaderUrl;
             this._resetElectionTimer();
@@ -2460,6 +3088,7 @@ class RaftNode {
             this.onLeaderChange(leaderId, leaderUrl);
         }
         this.lastQuorumContactAt = this._clock.now();
+        this.lastLeaderContactAt = this._clock.now();
 
         if (prevLogIndex >= this.log.length) {
             return {
@@ -2587,8 +3216,12 @@ class RaftNode {
             // leader's current term.
             if (this.log[index].term !== this.currentTerm) continue;
 
-            let replicated = 1; // the leader stores its own log
-            for (const peerUrl of this.peers) {
+            // Only voters count. A learner acknowledging an entry must never
+            // contribute to a majority — that is the entire point of it being a
+            // learner — and a leader that has removed itself no longer counts
+            // its own copy either.
+            let replicated = this.isVoter ? 1 : 0;
+            for (const peerUrl of this.voterPeers) {
                 if ((this.matchIndex[peerUrl] ?? -1) >= index) replicated += 1;
             }
 
@@ -2621,12 +3254,17 @@ class RaftNode {
     _scheduleCommitBroadcast() {
         if (this._commitBroadcastQueued || this.state !== STATES.LEADER) return;
         this._commitBroadcastQueued = true;
-        setImmediate(() => {
+        // Through the clock, not setImmediate. A real macrotask escapes virtual
+        // time entirely, so under simulation its ordering relative to timer
+        // callbacks depended on how much unrelated work the host event loop
+        // happened to have queued — nondeterminism smuggled in through the one
+        // call that looked too trivial to matter.
+        this._clock.setTimeout(() => {
             // Index of this term's no-op. Null until this node leads.
         this._noopIndex = null;
         this._commitBroadcastQueued = false;
             if (this.state === STATES.LEADER && !this.paused) void this._replicateAll();
-        });
+        }, 0);
     }
 
     async _replicateToPeer(peerUrl) {
@@ -2821,6 +3459,157 @@ class RaftNode {
         }
     }
 
+    // ── membership changes (Raft §6, single-server) ──────────────────────────
+
+    /**
+     * Adds one server.
+     *
+     * Single-server changes rather than joint consensus, which is what etcd
+     * ships and what Ongaro recommends in the thesis. The safety argument is
+     * one sentence: adding or removing *one* server means the old and new
+     * majorities always overlap in at least one node, so two disjoint
+     * majorities cannot both elect a leader. Change two at once — 3 nodes to 5
+     * by adding both together — and {A,B} and {C,D,E} are each a majority of
+     * their own configuration with nobody in common. That is split brain, and
+     * it is why the restriction exists.
+     *
+     * The joiner is admitted as a **learner** first and only promoted once it
+     * has caught up. Promoting immediately would put a node with an empty log
+     * into the quorum, so a 3-node cluster becomes a 4-node cluster needing 3
+     * acknowledgements, one of which cannot be given until the joiner has
+     * replayed the entire history. Writes stall for exactly as long as that
+     * takes.
+     */
+    async addServer(url, { catchUpTimeoutMs = 10000 } = {}) {
+        if (!this.isLeader()) throw new Error('only the leader can change membership');
+        if (this.members.includes(url)) return { ok: true, alreadyMember: true, ...this.configuration };
+        this._assertNoPendingConfigChange();
+
+        // Phase 1 — replicate to it without counting it.
+        if (!this.learners.includes(url)) {
+            const staged = await this._commitConfiguration(this.members, [...this.learners, url]);
+            if (!staged.ok) return staged;
+        }
+        console.log(`[${this.replicaId}] ${url} joined as a learner; catching up`);
+
+        // Phase 2 — wait for it to be near the leader's log before it votes.
+        const caughtUp = await this._awaitCatchUp(url, catchUpTimeoutMs);
+        if (!caughtUp) {
+            // Roll the learner back out rather than leaving a half-finished
+            // change behind. A stalled join that leaves debris is much harder to
+            // reason about than one that cleanly failed.
+            await this._commitConfiguration(this.members, this.learners.filter((u) => u !== url));
+            return { ok: false, error: `${url} did not catch up within ${catchUpTimeoutMs}ms` };
+        }
+
+        // Phase 3 — promote to voter.
+        const promoted = await this._commitConfiguration(
+            [...this.members, url],
+            this.learners.filter((u) => u !== url),
+        );
+        if (promoted.ok) console.log(`[${this.replicaId}] ${url} promoted to voter · quorum now ${this.quorumSize}/${this.clusterSize}`);
+        return promoted;
+    }
+
+    /**
+     * Removes one server.
+     *
+     * A leader removing *itself* is the interesting case. It must keep serving
+     * until the entry commits, because it is the only node that can replicate
+     * it — stepping down the moment the config is appended would strand the
+     * change and force an election to finish it. Once committed, it steps down
+     * immediately rather than continuing to lead a cluster it is not in.
+     */
+    async removeServer(url) {
+        if (!this.isLeader()) throw new Error('only the leader can change membership');
+        if (!this.members.includes(url) && !this.learners.includes(url)) {
+            return { ok: true, notAMember: true, ...this.configuration };
+        }
+        this._assertNoPendingConfigChange();
+
+        const remaining = this.members.filter((u) => u !== url);
+        if (remaining.length === 0) return { ok: false, error: 'refusing to remove the last member' };
+
+        const removingSelf = url === this.selfId;
+        const result = await this._commitConfiguration(
+            remaining,
+            this.learners.filter((u) => u !== url),
+        );
+
+        if (result.ok && removingSelf) {
+            console.log(`[${this.replicaId}] removed itself; stepping down`);
+            this._becomeFollower(this.currentTerm);
+        }
+        // Stop tracking a server that is gone, so its stale matchIndex cannot
+        // linger and be counted after a later re-add.
+        if (result.ok) { delete this.nextIndex[url]; delete this.matchIndex[url]; }
+        return result;
+    }
+
+    /**
+     * At most one configuration change may be in flight.
+     *
+     * Two overlapping changes reintroduce exactly the disjoint-majority problem
+     * that single-server changes exist to prevent, because the intermediate
+     * configuration nobody agreed on becomes reachable.
+     */
+    _assertNoPendingConfigChange() {
+        for (let i = this.log.length - 1; i > this.commitIndex; i -= 1) {
+            if (this.log[i].data && this.log[i].data.op === 'config') {
+                throw new Error('a configuration change is already in flight');
+            }
+        }
+    }
+
+    async _commitConfiguration(members, learners) {
+        const outcome = await this.clientAppend({
+            op: 'config',
+            members: [...members],
+            learners: [...learners],
+        });
+        return outcome.committed
+            ? { ok: true, ...this.configuration, index: outcome.entry.index }
+            : { ok: false, error: 'configuration change did not reach a quorum' };
+    }
+
+    /**
+     * Waits until a server's log is close enough to the leader's to be useful.
+     *
+     * Actively replicates to it on each poll rather than waiting for the
+     * regular heartbeat. Passive polling technically works, but it makes the
+     * catch-up take as long as the heartbeat interval multiplied by the number
+     * of entries the joiner is missing — and it does nothing at all when
+     * heartbeats are not running, which is exactly the state a leader is in
+     * during a test or immediately after an election.
+     */
+    async _awaitCatchUp(url, timeoutMs, slack = 2) {
+        const deadline = this._clock.now() + timeoutMs;
+        // Clamped at 0. Without the clamp, a short log makes the target
+        // negative, and a joiner whose matchIndex is still -1 — meaning it has
+        // acknowledged *nothing*, possibly because it is unreachable — compares
+        // as caught up and gets promoted straight into the quorum. That is
+        // precisely the stall the learner phase exists to prevent, reintroduced
+        // by an off-by-one.
+        const target = () => Math.max(0, this.log.length - 1 - slack);
+
+        for (;;) {
+            if (!this.isLeader()) return false;
+            if ((this.matchIndex[url] ?? -1) >= target()) return true;
+            if (this._clock.now() >= deadline) return false;
+
+            // Drive it forward. `_replicateToPeer` walks nextIndex back on a
+            // rejected consistency check, so repeated calls converge even when
+            // the joiner starts from an empty log.
+            await this._replicateToPeer(url);
+            if ((this.matchIndex[url] ?? -1) >= target()) return true;
+
+            await new Promise((resolve) => {
+                const handle = this._clock.setTimeout(resolve, Math.min(this.heartbeatInterval, 25));
+                if (handle && handle.unref) handle.unref();
+            });
+        }
+    }
+
     /**
      * Leases expire against logical time, and logical time only advances when
      * an entry is appended. A quiet cluster would therefore hold every lease
@@ -2902,6 +3691,8 @@ class RaftNode {
             replicated,
             durable: Boolean(this._store),
             ready: this.isReady(),
+            servingSemantics: 'quorum-aware serving and disruption prevention',
+            preVotesTotal: this.metrics.preVotesTotal,
             electionsTotal: this.metrics.electionsTotal,
             replayedEntries: this.metrics.replayedEntries,
             keys: this.stateMachine.store.size,
@@ -3042,6 +3833,1888 @@ class RaftNode {
 }
 
 module.exports = { RaftNode, StableStateStore, STATES, REAL_CLOCK };
+
+};
+__registry["packages/protocol/events.js"] = function (module, exports, require) {
+'use strict';
+
+/**
+ * The causal event envelope shared by the simulator, browser lab, fuzzing, and
+ * (eventually) live replicas. Keep this module dependency-free and browser-safe.
+ */
+const EVENT_SCHEMA_VERSION = 1;
+
+const EVENT_TYPES = Object.freeze({
+    RUN_STARTED: 'run.started',
+    RUN_FINISHED: 'run.finished',
+    RPC_SENT: 'rpc.sent',
+    RPC_REPLY: 'rpc.reply',
+    RPC_DELIVERED: 'rpc.delivered',
+    RPC_BLOCKED: 'rpc.blocked',
+    NODE_ROLE_CHANGED: 'node.role.changed',
+    NODE_TERM_CHANGED: 'node.term.changed',
+    LOG_APPENDED: 'log.appended',
+    LOG_COMMITTED: 'log.committed',
+    FAULT_APPLIED: 'fault.applied',
+    FAULT_HEALED: 'fault.healed',
+    SCENARIO_ACTION: 'scenario.action',
+    CLUSTER_SNAPSHOT: 'cluster.snapshot',
+    INVARIANT_CHECKED: 'invariant.checked',
+});
+
+function jsonSafe(value, seen = new WeakSet()) {
+    if (value === undefined) return null;
+    if (value === null || typeof value === 'string' || typeof value === 'boolean') return value;
+    if (typeof value === 'number') return Number.isFinite(value) ? value : String(value);
+    if (typeof value === 'bigint') return value.toString();
+    if (typeof value === 'function' || typeof value === 'symbol') return String(value);
+    if (ArrayBuffer.isView(value)) return Array.from(value);
+    if (value instanceof ArrayBuffer) return Array.from(new Uint8Array(value));
+    if (value instanceof Error) return { name: value.name, message: value.message };
+    if (typeof value !== 'object') return String(value);
+    if (seen.has(value)) return '[circular]';
+    seen.add(value);
+    if (Array.isArray(value)) return value.map((item) => jsonSafe(item, seen));
+    const out = {};
+    for (const key of Object.keys(value).sort()) out[key] = jsonSafe(value[key], seen);
+    return out;
+}
+
+function createEvent({
+    runId,
+    sequence,
+    epochMs,
+    startedAt,
+    type,
+    source = { component: 'simulator' },
+    subject = {},
+    data = {},
+    correlationId = null,
+    causationId = null,
+}) {
+    if (!runId || !Number.isInteger(sequence) || sequence < 1) {
+        throw new TypeError('event requires a runId and positive integer sequence');
+    }
+    if (typeof type !== 'string' || !/^[a-z][a-z0-9]*(?:\.[a-z0-9]+)+$/.test(type)) {
+        throw new TypeError(`invalid event type: ${type}`);
+    }
+    if (!Number.isFinite(epochMs) || !Number.isFinite(startedAt)) {
+        throw new TypeError('event time must be finite');
+    }
+
+    return Object.freeze({
+        schemaVersion: EVENT_SCHEMA_VERSION,
+        id: `${runId}:${String(sequence).padStart(8, '0')}`,
+        runId,
+        sequence,
+        time: Object.freeze({
+            kind: 'virtual',
+            epochMs,
+            elapsedMs: Math.max(0, epochMs - startedAt),
+        }),
+        type,
+        source: jsonSafe(source),
+        subject: jsonSafe(subject),
+        correlationId,
+        causationId,
+        data: jsonSafe(data),
+    });
+}
+
+function validateEvent(event) {
+    const errors = [];
+    if (!event || typeof event !== 'object') return { ok: false, errors: ['event must be an object'] };
+    if (event.schemaVersion !== EVENT_SCHEMA_VERSION) errors.push('unsupported schemaVersion');
+    if (!event.id || typeof event.id !== 'string') errors.push('id must be a string');
+    if (!event.runId || typeof event.runId !== 'string') errors.push('runId must be a string');
+    if (!Number.isInteger(event.sequence) || event.sequence < 1) errors.push('sequence must be positive');
+    if (typeof event.type !== 'string') errors.push('type must be a string');
+    if (!event.time || !Number.isFinite(event.time.epochMs) || !Number.isFinite(event.time.elapsedMs)) {
+        errors.push('time must contain finite epochMs and elapsedMs');
+    }
+    return { ok: errors.length === 0, errors };
+}
+
+module.exports = {
+    EVENT_SCHEMA_VERSION,
+    EVENT_TYPES,
+    createEvent,
+    validateEvent,
+    jsonSafe,
+};
+
+};
+__registry["packages/simulator/invariants.js"] = function (module, exports, require) {
+'use strict';
+
+function proof(id, status, summary, evidence = {}) {
+    return { id, status, ok: status !== 'fail', summary, evidence };
+}
+
+/** Machine-check the properties that can be proven from an in-memory cluster. */
+function evaluateInvariants(cluster) {
+    const states = cluster.states();
+    const leadersByTerm = new Map();
+    for (const leader of cluster.leaders) {
+        const ids = leadersByTerm.get(leader.term) || [];
+        ids.push(leader.node.replicaId);
+        leadersByTerm.set(leader.term, ids);
+    }
+    const conflicting = [...leadersByTerm.entries()].find(([, ids]) => ids.length > 1);
+
+    const electionSafety = conflicting
+        ? proof('election-safety', 'fail', `term ${conflicting[0]} has ${conflicting[1].length} leaders`, {
+            term: conflicting[0], leaders: conflicting[1],
+        })
+        : proof('election-safety', 'pass', 'at most one leader exists in every observed term', {
+            leadersByTerm: Object.fromEntries(leadersByTerm),
+        });
+
+    const matching = cluster.checkLogConsistency();
+    const logMatching = matching.ok
+        ? proof('log-matching', 'pass', 'matching-term prefixes are byte-identical')
+        : proof('log-matching', 'fail', matching.reason);
+
+    const committed = states.length > 0
+        ? cluster.checkCommittedPrefix()
+        : { ok: true, verified: 0 };
+    const stateMachineSafety = committed.ok
+        ? proof('state-machine-safety', 'pass', `${committed.verified} committed entries share one prefix`, {
+            verifiedEntries: committed.verified,
+        })
+        : proof('state-machine-safety', 'fail', committed.reason);
+
+    const live = states.length;
+    const voterCount = cluster.leader?.node?.members?.length || cluster.voters || cluster.size;
+    const quorum = Math.floor(voterCount / 2) + 1;
+    const quorumStatus = live >= quorum ? 'pass' : 'watch';
+    const quorumHealth = proof('quorum-availability', quorumStatus,
+        `${live} live node${live === 1 ? '' : 's'}; quorum requires ${quorum}`, { live, quorum, voterCount });
+
+    const comparable = states.length > 0 && states.every((state) => state.commitIndex === states[0].commitIndex);
+    const fingerprints = new Set(states.map((state) => state.index).filter(Boolean));
+    const indexAgreement = !comparable
+        ? proof('index-agreement', 'watch', 'replicas are at different commit indexes; comparison is deferred', {
+            commitIndexes: Object.fromEntries(states.map((state) => [state.replicaId, state.commitIndex])),
+        })
+        : fingerprints.size <= 1
+            ? proof('index-agreement', 'pass', 'caught-up replicas expose the same index fingerprint', {
+                fingerprint: [...fingerprints][0] || null,
+            })
+            : proof('index-agreement', 'fail', 'caught-up replicas expose different index fingerprints', {
+                fingerprints: Object.fromEntries(states.map((state) => [state.replicaId, state.index])),
+            });
+
+    return [electionSafety, logMatching, stateMachineSafety, quorumHealth, indexAgreement];
+}
+
+module.exports = { evaluateInvariants };
+
+};
+__registry["packages/simulator/flight-recorder.js"] = function (module, exports, require) {
+'use strict';
+
+const { EVENT_TYPES, createEvent, jsonSafe } = require('../protocol/events');
+const { evaluateInvariants } = require('./invariants');
+
+class FlightRecorder {
+    constructor({ clock, seed = 1, runId = null, capacity = 25_000 } = {}) {
+        if (!clock || typeof clock.now !== 'function') throw new TypeError('FlightRecorder requires a clock');
+        this.clock = clock;
+        this.seed = seed;
+        this.startedAt = clock.now();
+        this.runId = runId || `seed-${seed}-${this.startedAt}`;
+        this.capacity = capacity;
+        this.events = [];
+        this.sequence = 0;
+        this.dropped = 0;
+        this.listeners = new Set();
+        this.previousNodes = new Map();
+        this.previousInvariants = new Map();
+        this._detachNetwork = null;
+        this.record(EVENT_TYPES.RUN_STARTED, { data: { seed } });
+    }
+
+    record(type, details = {}) {
+        const event = createEvent({
+            runId: this.runId,
+            sequence: ++this.sequence,
+            epochMs: this.clock.now(),
+            startedAt: this.startedAt,
+            type,
+            ...details,
+        });
+        this.events.push(event);
+        if (this.events.length > this.capacity) {
+            this.events.shift();
+            this.dropped += 1;
+        }
+        for (const listener of this.listeners) {
+            try { listener(event); } catch (_) { /* observers never affect simulation */ }
+        }
+        return event;
+    }
+
+    subscribe(listener, { replay = false } = {}) {
+        if (replay) for (const event of this.events) listener(event);
+        this.listeners.add(listener);
+        return () => this.listeners.delete(listener);
+    }
+
+    attachNetwork(network) {
+        if (this._detachNetwork) this._detachNetwork();
+        this._detachNetwork = network.observe((wire) => {
+            const types = {
+                send: EVENT_TYPES.RPC_SENT,
+                reply: EVENT_TYPES.RPC_REPLY,
+                delivered: EVENT_TYPES.RPC_DELIVERED,
+                blocked: EVENT_TYPES.RPC_BLOCKED,
+            };
+            const type = types[wire.type];
+            if (!type) return;
+            this.record(type, {
+                source: { component: 'network', nodeId: wire.from },
+                subject: { kind: 'rpc', id: wire.rpcId, from: wire.from, to: wire.to },
+                correlationId: wire.rpcId || null,
+                data: wire,
+            });
+        });
+        return this._detachNetwork;
+    }
+
+    captureCluster(cluster, { snapshot = true } = {}) {
+        const states = cluster.states();
+        for (const state of states) {
+            const previous = this.previousNodes.get(state.replicaId);
+            if (!previous || previous.state !== state.state) {
+                this.record(EVENT_TYPES.NODE_ROLE_CHANGED, {
+                    source: { component: 'raft', nodeId: state.replicaId },
+                    subject: { kind: 'node', id: state.replicaId },
+                    data: { from: previous?.state || null, to: state.state, term: state.term },
+                });
+            }
+            if (!previous || previous.term !== state.term) {
+                this.record(EVENT_TYPES.NODE_TERM_CHANGED, {
+                    source: { component: 'raft', nodeId: state.replicaId },
+                    subject: { kind: 'node', id: state.replicaId },
+                    data: { from: previous?.term ?? null, to: state.term },
+                });
+            }
+            if (previous && state.logLength > previous.logLength) {
+                this.record(EVENT_TYPES.LOG_APPENDED, {
+                    source: { component: 'raft', nodeId: state.replicaId },
+                    subject: { kind: 'log', nodeId: state.replicaId },
+                    data: { fromLength: previous.logLength, toLength: state.logLength },
+                });
+            }
+            if (previous && state.commitIndex > previous.commitIndex) {
+                this.record(EVENT_TYPES.LOG_COMMITTED, {
+                    source: { component: 'raft', nodeId: state.replicaId },
+                    subject: { kind: 'log', nodeId: state.replicaId, index: state.commitIndex },
+                    data: { fromIndex: previous.commitIndex, toIndex: state.commitIndex, term: state.term },
+                });
+            }
+            this.previousNodes.set(state.replicaId, jsonSafe(state));
+        }
+
+        if (snapshot) {
+            this.record(EVENT_TYPES.CLUSTER_SNAPSHOT, {
+                data: {
+                    seed: cluster.seed,
+                    leader: cluster.leader?.node?.replicaId || null,
+                    nodes: states,
+                    network: cluster.network.stats,
+                    partitions: cluster.network.partitions.map((group) => [...group]),
+                    crashed: [...cluster.network.crashed],
+                },
+            });
+        }
+
+        const invariants = evaluateInvariants(cluster);
+        for (const invariant of invariants) {
+            const previous = this.previousInvariants.get(invariant.id);
+            const signature = JSON.stringify(invariant);
+            if (previous !== signature) {
+                this.record(EVENT_TYPES.INVARIANT_CHECKED, {
+                    source: { component: 'invariant-checker' },
+                    subject: { kind: 'invariant', id: invariant.id },
+                    data: invariant,
+                });
+                this.previousInvariants.set(invariant.id, signature);
+            }
+        }
+        return { states, invariants };
+    }
+
+    finish(data = {}) {
+        return this.record(EVENT_TYPES.RUN_FINISHED, { data });
+    }
+
+    export() {
+        return {
+            schemaVersion: 1,
+            runId: this.runId,
+            seed: this.seed,
+            startedAt: this.startedAt,
+            eventCount: this.events.length,
+            droppedEventCount: this.dropped,
+            events: this.events.slice(),
+        };
+    }
+}
+
+module.exports = { FlightRecorder };
+
+};
+__registry["packages/workloads/index.js"] = function (module, exports, require) {
+'use strict';
+
+/**
+ * Four real workloads over one causal event engine.
+ *
+ * A workload is intentionally not a page component. It owns the deterministic
+ * state transition, its invariants, its measurements, its trace explanation,
+ * and a small visual model. The Flight Deck is only a renderer of this
+ * contract, which keeps the examples coherent as the lab grows.
+ */
+
+const { createEvent } = require('../protocol/events');
+const { HnswIndex } = require('../../replica/hnsw');
+
+const REQUIRED_INTERFACE = Object.freeze([
+    'actions',
+    'applyCommittedEntry',
+    'invariants',
+    'metrics',
+    'explainEvent',
+    'visualization',
+]);
+
+function pass(id, summary, evidence = {}) {
+    return { id, status: 'pass', ok: true, summary, evidence };
+}
+
+function fail(id, summary, evidence = {}) {
+    return { id, status: 'fail', ok: false, summary, evidence };
+}
+
+function watch(id, summary, evidence = {}) {
+    return { id, status: 'watch', ok: true, summary, evidence };
+}
+
+function validateWorkload(workload) {
+    const missing = REQUIRED_INTERFACE.filter((name) => {
+        if (name === 'actions') return !Array.isArray(workload?.actions);
+        return typeof workload?.[name] !== 'function';
+    });
+    if (missing.length > 0) throw new TypeError(`workload is missing: ${missing.join(', ')}`);
+    if (!workload.id || !workload.name || typeof workload.createState !== 'function') {
+        throw new TypeError('workload requires id, name, and createState');
+    }
+    return workload;
+}
+
+function resolve(value, state, context) {
+    return typeof value === 'function' ? value(state, context) : value;
+}
+
+function runWorkload(workload, { seed = 42, timeKind = 'virtual' } = {}) {
+    validateWorkload(workload);
+    const state = workload.createState(seed);
+    const events = [];
+    const eventByKey = new Map();
+    const runId = `${timeKind}-${workload.id}-${seed}`;
+
+    for (const [offset, action] of workload.actions.entries()) {
+        const context = { seed, events, action, offset };
+        const before = workload.visualization(state, { events, action });
+        const entry = resolve(action.entry, state, context);
+        const effect = entry == null
+            ? null
+            : workload.applyCommittedEntry(state, entry, { action, events, seed });
+        const after = workload.visualization(state, { events, action });
+        const data = {
+            lane: action.lane || 'commits',
+            label: action.label || action.type,
+            detail: resolve(action.detail, state, { ...context, effect }),
+            actor: action.actor || workload.id,
+            target: action.target || null,
+            semantic: true,
+            process: resolve(action.process, state, context) || null,
+            network: resolve(action.network, state, context) || null,
+            raftRole: resolve(action.raftRole, state, context) || null,
+            entry,
+            effect,
+            before,
+            after,
+            ...resolve(action.data, state, { ...context, effect }),
+        };
+        const cause = action.causedBy ? eventByKey.get(action.causedBy) : events.at(-1);
+        const event = createEvent({
+            runId,
+            sequence: events.length + 1,
+            epochMs: Number(action.atMs ?? offset * 40),
+            startedAt: 0,
+            timeKind,
+            type: action.type,
+            source: { component: action.actor || workload.id, nodeId: action.nodeId || null },
+            subject: { kind: action.subjectKind || 'semantic-step', id: action.key || action.type },
+            correlationId: action.correlationId || `${workload.id}-scenario`,
+            causationId: cause?.id || null,
+            data,
+        });
+        events.push(event);
+        eventByKey.set(action.key || action.type, event);
+    }
+
+    const checks = workload.invariants(state, events);
+    for (const check of checks) {
+        events.push(createEvent({
+            runId,
+            sequence: events.length + 1,
+            epochMs: (events.at(-1)?.time.epochMs || 0) + 1,
+            startedAt: 0,
+            timeKind,
+            type: 'invariant.checked',
+            source: { component: 'invariant-checker' },
+            subject: { kind: 'invariant', id: check.id },
+            correlationId: `${workload.id}-scenario`,
+            causationId: events.at(-1)?.id || null,
+            data: { ...check, lane: 'invariants', label: check.summary, semantic: true },
+        }));
+    }
+
+    return {
+        workload,
+        seed,
+        state,
+        events,
+        invariants: checks,
+        metrics: workload.metrics(state, events),
+        visualization: workload.visualization(state, { events }),
+    };
+}
+
+function makeNode(id, process, network, raftRole, detail, accent = 'green') {
+    return { id, label: id, process, network, raftRole, detail, accent };
+}
+
+// ---------------------------------------------------------------------------
+// 1. Configuration and coordination
+// ---------------------------------------------------------------------------
+
+function configurationState() {
+    return {
+        revision: 5,
+        commitIndex: 10,
+        store: new Map([
+            ['desired/api', { value: { image: 'api:v1', replicas: 2 }, rev: 5 }],
+        ]),
+        leases: new Map(),
+        changes: [],
+        controller: { connected: true, checkpoint: 0, observed: [], reconciled: [] },
+        members: ['node0', 'node1', 'node2'],
+        configurationHistory: [['node0', 'node1', 'node2']],
+        linearizableReadIndex: -1,
+        casResults: [],
+    };
+}
+
+function applyConfiguration(state, entry) {
+    switch (entry.op) {
+        case 'lease-acquire': {
+            const current = state.leases.get(entry.key);
+            const ok = !current || current.holder === entry.holder;
+            if (ok) state.leases.set(entry.key, { holder: entry.holder, ttlMs: entry.ttlMs });
+            return { ok, holder: ok ? entry.holder : current.holder };
+        }
+        case 'cas': {
+            const current = state.store.get(entry.key) || null;
+            const actualRev = current?.rev || 0;
+            const ok = actualRev === entry.expectRev;
+            if (ok) {
+                state.revision += 1;
+                state.commitIndex += 1;
+                const record = { value: entry.value, rev: state.revision };
+                state.store.set(entry.key, record);
+                state.changes.push({ key: entry.key, value: entry.value, rev: state.revision });
+            }
+            state.casResults.push({ key: entry.key, expectRev: entry.expectRev, actualRev, ok });
+            return { ok, actualRev, rev: state.revision };
+        }
+        case 'set': {
+            state.revision += 1;
+            state.commitIndex += 1;
+            const record = { value: entry.value, rev: state.revision };
+            state.store.set(entry.key, record);
+            state.changes.push({ key: entry.key, value: entry.value, rev: state.revision });
+            return { ok: true, key: entry.key, rev: state.revision };
+        }
+        case 'watch-open':
+            state.controller.connected = true;
+            state.controller.checkpoint = entry.since;
+            return { ok: true, since: entry.since };
+        case 'watch-disconnect':
+            state.controller.connected = false;
+            return { ok: true, checkpoint: state.controller.checkpoint };
+        case 'watch-resume': {
+            state.controller.connected = true;
+            const replayed = state.changes.filter((change) => change.rev > entry.since);
+            state.controller.observed.push(...replayed.filter(
+                (change) => !state.controller.observed.some((seen) => seen.rev === change.rev),
+            ));
+            state.controller.checkpoint = replayed.at(-1)?.rev || entry.since;
+            return { ok: true, since: entry.since, revisions: replayed.map((change) => change.rev) };
+        }
+        case 'watch-deliver': {
+            const change = state.changes.find((item) => item.rev === entry.revision);
+            if (change && !state.controller.observed.some((seen) => seen.rev === change.rev)) {
+                state.controller.observed.push(change);
+                state.controller.checkpoint = change.rev;
+            }
+            return { ok: Boolean(change), revision: entry.revision };
+        }
+        case 'reconcile':
+            state.controller.reconciled = state.controller.observed.map((change) => change.rev);
+            return { ok: true, revisions: state.controller.reconciled.slice() };
+        case 'linearizable-read':
+            state.linearizableReadIndex = state.commitIndex;
+            return { ok: true, readIndex: state.linearizableReadIndex, value: state.store.get(entry.key)?.value };
+        case 'membership':
+            state.commitIndex += 1;
+            state.members = entry.members.slice();
+            state.configurationHistory.push(entry.members.slice());
+            return { ok: true, members: state.members.slice() };
+        default:
+            return { ok: true, observedOnly: true };
+    }
+}
+
+const configuration = {
+    id: 'configuration',
+    name: 'Configuration & coordination',
+    shortName: 'Coordination',
+    question: 'Can a controller disconnect, resume from a revision, and reconcile every desired-state change exactly once?',
+    scenario: 'Controller watch disconnect + revision resume',
+    createState: configurationState,
+    applyCommittedEntry: applyConfiguration,
+    actions: [
+        { atMs: 0, key: 'lease', type: 'lease.acquired', lane: 'clients', actor: 'controller', target: 'leader', label: 'Controller lock acquired', detail: 'controller-a owns /locks/api for 5 s of logical time.', entry: { op: 'lease-acquire', key: '/locks/api', holder: 'controller-a', ttlMs: 5000 } },
+        { atMs: 18, key: 'cas', type: 'client.cas.accepted', lane: 'clients', actor: 'controller', target: 'leader', label: 'CAS establishes desired state', detail: 'expectRev 5 matches; desired/api becomes revision 6.', entry: { op: 'cas', key: 'desired/api', expectRev: 5, value: { image: 'api:v1', replicas: 3 } } },
+        { atMs: 32, key: 'watch-open', type: 'watch.stream.opened', lane: 'clients', actor: 'controller', target: 'leader', label: 'Watch starts at revision 6', detail: 'The checkpoint is durable client state, not a socket offset.', entry: { op: 'watch-open', since: 6 } },
+        { atMs: 54, key: 'append', type: 'raft.log.appended', lane: 'commits', actor: 'node0', nodeId: 'node0', target: 'node1', label: 'Desired update appended', detail: 'AppendEntries carries one command after index 11.', raftRole: 'leader', data: { rpc: 'AppendEntries', term: 4, index: 12, beforeLog: ['…', '11:t4 CAS desired/api'], afterLog: ['…', '11:t4 CAS desired/api', '12:t4 SET desired/api'] } },
+        { atMs: 68, type: 'storage.entry.persisted', lane: 'nodes', actor: 'node1', nodeId: 'node1', target: 'disk-1', label: 'Follower persists index 12', detail: 'The follower acknowledges only after durable append.', raftRole: 'follower' },
+        { atMs: 76, type: 'quorum.reached', lane: 'commits', actor: 'node0', target: 'cluster', label: '2 of 3 replicas acknowledge', detail: 'node0 + node1 form the required majority.', data: { live: 3, required: 2, configured: 3, index: 12 } },
+        { atMs: 82, key: 'set7', type: 'state.machine.applied', lane: 'commits', actor: 'node0', target: 'kv', label: 'Revision 7 becomes visible', detail: 'image changes to api:v2 at committed index 12.', entry: { op: 'set', key: 'desired/api', value: { image: 'api:v2', replicas: 3 } }, data: (_state, { effect }) => ({ revision: effect.rev, index: 12 }) },
+        { atMs: 94, type: 'watch.event.delivered', lane: 'clients', actor: 'leader', target: 'controller', label: 'Controller observes revision 7', detail: 'The watch advances its checkpoint only after delivery.', entry: { op: 'watch-deliver', revision: 7 } },
+        { atMs: 126, key: 'disconnect', type: 'network.disconnected', lane: 'faults', actor: 'network', target: 'controller', label: 'Watch transport disconnects', detail: 'The process is healthy; only the controller-to-leader link is unavailable.', entry: { op: 'watch-disconnect' }, process: 'up', network: 'disconnected' },
+        { atMs: 164, key: 'set8', type: 'state.machine.applied', lane: 'commits', actor: 'node0', target: 'kv', label: 'Revision 8 commits while offline', detail: 'replicas changes to 4 while the controller is disconnected.', entry: { op: 'set', key: 'desired/api', value: { image: 'api:v2', replicas: 4 } }, data: (_state, { effect }) => ({ revision: effect.rev }) },
+        { atMs: 196, key: 'set9', type: 'state.machine.applied', lane: 'commits', actor: 'node0', target: 'kv', label: 'Revision 9 commits while offline', detail: 'image changes to api:v3; the watch socket still does not exist.', entry: { op: 'set', key: 'desired/api', value: { image: 'api:v3', replicas: 4 } }, data: (_state, { effect }) => ({ revision: effect.rev }) },
+        { atMs: 244, key: 'resume', type: 'watch.stream.resumed', lane: 'clients', actor: 'controller', target: 'leader', label: 'Resume from revision 7', detail: (_state, { effect }) => `The server replays revisions ${effect.revisions.join(' and ')} from the revisioned history.`, entry: { op: 'watch-resume', since: 7 }, network: 'connected' },
+        { atMs: 272, type: 'controller.reconciled', lane: 'clients', actor: 'controller', target: 'deployment/api', label: 'Controller reconciles current intent', detail: 'Observed revisions are coalesced safely; the final desired state is api:v3 × 4.', entry: { op: 'reconcile' } },
+        { atMs: 298, type: 'read.index.confirmed', lane: 'commits', actor: 'node0', target: 'quorum', label: 'Linearizable read crosses ReadIndex', detail: 'The leader confirms authority with a quorum before returning revision 9.', entry: { op: 'linearizable-read', key: 'desired/api' }, data: (_state, { effect }) => ({ readIndex: effect.readIndex, value: effect.value }) },
+        { atMs: 332, type: 'membership.committed', lane: 'commits', actor: 'node0', target: 'node3', label: 'Learner promoted one server at a time', detail: 'The new 4-node configuration retains majority intersection with the old one.', entry: { op: 'membership', members: ['node0', 'node1', 'node2', 'node3'] } },
+    ],
+    invariants(state) {
+        const delivered = state.controller.observed.map((change) => change.rev);
+        const expected = state.changes.filter((change) => change.rev >= 7 && change.rev <= 9).map((change) => change.rev);
+        const noMiss = expected.every((rev) => delivered.includes(rev));
+        const unique = new Set(delivered).size === delivered.length;
+        const overlap = state.configurationHistory.every((members, index, history) => {
+            if (index === 0) return true;
+            const before = history[index - 1];
+            return members.filter((member) => before.includes(member)).length >= 2;
+        });
+        return [
+            noMiss && unique
+                ? pass('resumable-watch', 'revisions 7–9 were delivered once across the disconnect', { expected, delivered })
+                : fail('resumable-watch', 'the resumed watch missed or duplicated a revision', { expected, delivered }),
+            state.casResults.every((result) => !result.ok || result.expectRev === result.actualRev)
+                ? pass('cas-safety', 'every successful CAS matched the committed revision', { attempts: state.casResults })
+                : fail('cas-safety', 'a CAS succeeded against the wrong revision'),
+            state.leases.get('/locks/api')?.holder === 'controller-a'
+                ? pass('lease-exclusivity', 'one execution holder owns /locks/api', { holder: 'controller-a' })
+                : fail('lease-exclusivity', 'the controller lock has conflicting owners'),
+            state.linearizableReadIndex === state.commitIndex - 1
+                ? pass('linearizable-read', 'ReadIndex reached the latest data commit before membership changed', { readIndex: state.linearizableReadIndex })
+                : fail('linearizable-read', 'the read returned behind its confirmed frontier'),
+            overlap
+                ? pass('configuration-overlap', 'the observed membership change retains majority intersection')
+                : fail('configuration-overlap', 'successive configurations admit disjoint majorities'),
+        ];
+    },
+    metrics(state) {
+        return [
+            { label: 'revision', value: state.revision, unit: 'committed' },
+            { label: 'watch gap', value: 0, unit: 'missed' },
+            { label: 'resume batch', value: 2, unit: 'events' },
+            { label: 'read frontier', value: state.linearizableReadIndex, unit: 'index' },
+        ];
+    },
+    explainEvent(event) {
+        const explanations = {
+            'raft.log.appended': 'node0 was the elected leader in term 4, so only it could append the client command. The trace links this append to the successful CAS and to the later follower persistence.',
+            'quorum.reached': 'Index 12 became committable when node0 and node1 had both persisted the same term-4 entry. That is 2 live acknowledgements, 2 required, 3 configured.',
+            'watch.stream.resumed': 'The controller retained checkpoint 7. The revisioned store selected every change with rev > 7, yielding revisions 8 and 9 with no dependence on the old TCP connection.',
+            'membership.committed': 'node3 is added in a single-server change after catching up. The old and new voter majorities intersect, so two disjoint leaders cannot be elected.',
+        };
+        return explanations[event.type] || event.data.detail;
+    },
+    visualization(state) {
+        const connected = state.controller.connected;
+        return {
+            title: `desired/api · revision ${state.revision}`,
+            subtitle: `${state.members.length} configured voters · controller checkpoint ${state.controller.checkpoint}`,
+            nodes: [
+                makeNode('node0', 'up', 'connected', 'leader · t4', `commit ${state.commitIndex}`, 'green'),
+                makeNode('node1', 'up', 'connected', 'follower · t4', `commit ${Math.max(0, state.commitIndex - 1)}`, 'blue'),
+                makeNode('node2', 'up', 'connected', 'follower · t4', `commit ${Math.max(0, state.commitIndex - 1)}`, 'blue'),
+                makeNode('controller', 'up', connected ? 'connected' : 'disconnected', 'client', `watch @ rev ${state.controller.checkpoint}`, connected ? 'amber' : 'red'),
+            ],
+            policy: 'Revision is the resume token; socket lifetime is irrelevant.',
+        };
+    },
+};
+
+// ---------------------------------------------------------------------------
+// 2. Idempotent job and payment processing
+// ---------------------------------------------------------------------------
+
+function paymentState() {
+    return {
+        ledgerCents: 0,
+        results: new Map(),
+        deliveryAttempts: new Map(),
+        queueDepth: 0,
+        queueLimit: 100,
+        responseLost: false,
+        deadlinesExceeded: 0,
+        deadLetters: [],
+        commitIndex: 20,
+    };
+}
+
+function applyPayment(state, entry) {
+    switch (entry.op) {
+        case 'deliver': {
+            const count = (state.deliveryAttempts.get(entry.requestId) || 0) + 1;
+            state.deliveryAttempts.set(entry.requestId, count);
+            return { ok: true, attempt: count };
+        }
+        case 'charge': {
+            const prior = state.results.get(entry.requestId);
+            if (prior) return { ...prior, duplicate: true };
+            state.ledgerCents += entry.amountCents;
+            state.commitIndex += 1;
+            const result = { ok: true, requestId: entry.requestId, effectId: `ledger-${state.commitIndex}`, amountCents: entry.amountCents };
+            state.results.set(entry.requestId, result);
+            return { ...result, duplicate: false };
+        }
+        case 'lose-response':
+            state.responseLost = true;
+            return { ok: true, lostAfterCommit: state.commitIndex };
+        case 'deadline':
+            state.deadlinesExceeded += 1;
+            return { ok: true, retryable: true };
+        case 'enqueue':
+            state.queueDepth = entry.depth;
+            return { ok: state.queueDepth <= state.queueLimit, depth: state.queueDepth, limit: state.queueLimit };
+        case 'dead-letter':
+            state.deadLetters.push({ requestId: entry.requestId, reason: entry.reason, attempts: entry.attempts });
+            return { ok: true, queue: 'payments.dlq' };
+        default:
+            return { ok: true };
+    }
+}
+
+const payment = {
+    id: 'payment',
+    name: 'Idempotent job & payment processor',
+    shortName: 'Payments',
+    question: 'Can at-least-once delivery produce exactly-once ledger effects when the reply is lost after commit?',
+    scenario: 'Commit succeeds, reply is lost, gateway retries',
+    createState: paymentState,
+    applyCommittedEntry: applyPayment,
+    actions: [
+        { atMs: 0, key: 'client', type: 'client.request.started', lane: 'clients', actor: 'checkout', target: 'gateway', label: 'Charge request starts', detail: 'Request pay-7 carries a stable idempotency key and a 900 ms deadline.', correlationId: 'pay-7', data: { requestId: 'pay-7', deadlineMs: 900, amountCents: 4200 } },
+        { atMs: 16, key: 'gateway', type: 'gateway.request.accepted', lane: 'clients', actor: 'gateway', target: 'leader', label: 'Gateway accepts pay-7', detail: 'Queue depth is below the admission limit, so work is forwarded.', correlationId: 'pay-7', entry: { op: 'enqueue', depth: 63 }, data: (state) => ({ depth: state.queueDepth, limit: state.queueLimit }) },
+        { atMs: 34, key: 'delivery1', type: 'queue.message.delivered', lane: 'clients', actor: 'queue', target: 'worker-a', label: 'At-least-once delivery · attempt 1', detail: 'The queue promises redelivery until it observes an acknowledgement.', correlationId: 'pay-7', entry: { op: 'deliver', requestId: 'pay-7' } },
+        { atMs: 48, key: 'append-payment', type: 'raft.log.appended', lane: 'commits', actor: 'node0', nodeId: 'node0', target: 'node1', label: 'Leader appends charge(pay-7)', detail: 'The request ID is part of the replicated command.', correlationId: 'pay-7', raftRole: 'leader', data: { term: 8, index: 21, beforeLog: ['…', '20:t8 NOOP'], afterLog: ['…', '20:t8 NOOP', '21:t8 CHARGE pay-7 ₹42.00'] } },
+        { atMs: 62, key: 'persist', type: 'storage.entry.persisted', lane: 'nodes', actor: 'node1', nodeId: 'node1', target: 'disk-1', label: 'Follower fsyncs index 21', detail: 'Persistence precedes the success acknowledgement.', correlationId: 'pay-7', raftRole: 'follower' },
+        { atMs: 78, key: 'quorum', type: 'quorum.reached', lane: 'commits', actor: 'node0', target: 'cluster', label: 'Quorum reaches index 21', detail: 'node0 + node1 persisted the entry: 2 live · 2 required · 3 configured.', correlationId: 'pay-7', data: { live: 2, required: 2, configured: 3, index: 21 } },
+        { atMs: 84, key: 'commit', type: 'raft.commit.advanced', lane: 'commits', actor: 'node0', target: 'state-machine', label: 'Commit index advances to 21', detail: 'The effect is now durable even if every client connection disappears.', correlationId: 'pay-7', data: { fromIndex: 20, toIndex: 21, term: 8 } },
+        { atMs: 91, key: 'effect', type: 'state.machine.applied', lane: 'commits', actor: 'node0', target: 'ledger', label: 'Ledger effect applies once', detail: '₹42.00 is recorded under pay-7 and its result is cached in replicated state.', correlationId: 'pay-7', entry: { op: 'charge', requestId: 'pay-7', amountCents: 4200 }, data: (_state, { effect }) => ({ effectId: effect.effectId, duplicate: effect.duplicate }) },
+        { atMs: 108, key: 'lost', type: 'network.response.lost', lane: 'faults', actor: 'network', target: 'gateway', label: 'Success reply is lost', detail: 'The packet disappears after the commit and state-machine effect.', correlationId: 'pay-7', causedBy: 'effect', entry: { op: 'lose-response' }, network: 'packet lost', process: 'up' },
+        { atMs: 900, key: 'deadline', type: 'client.deadline.exceeded', lane: 'clients', actor: 'gateway', target: 'queue', label: 'Gateway deadline expires', detail: 'No reply arrived before 900 ms; retry policy reuses request ID pay-7.', correlationId: 'pay-7', causedBy: 'lost', entry: { op: 'deadline' } },
+        { atMs: 934, key: 'delivery2', type: 'queue.message.redelivered', lane: 'clients', actor: 'queue', target: 'worker-b', label: 'At-least-once delivery · attempt 2', detail: 'A different worker receives the same logical request.', correlationId: 'pay-7', entry: { op: 'deliver', requestId: 'pay-7' } },
+        { atMs: 952, key: 'dedup', type: 'dedup.duplicate.suppressed', lane: 'commits', actor: 'node0', target: 'gateway', label: 'Duplicate is suppressed', detail: 'The replicated result for pay-7 is returned; no second log effect is created.', correlationId: 'pay-7', entry: { op: 'charge', requestId: 'pay-7', amountCents: 4200 }, data: (_state, { effect }) => ({ duplicate: effect.duplicate, effectId: effect.effectId }) },
+        { atMs: 966, type: 'client.request.completed', lane: 'clients', actor: 'gateway', target: 'checkout', label: 'Original result is replayed', detail: 'The client receives effect ledger-21 from the deduplication record.', correlationId: 'pay-7' },
+        { atMs: 1010, key: 'pressure', type: 'queue.backpressure.applied', lane: 'faults', actor: 'gateway', target: 'producer', label: 'Backpressure rejects excess work', detail: 'Depth 118 exceeds the configured limit 100; the producer receives retry-after.', correlationId: 'pressure-demo', entry: { op: 'enqueue', depth: 118 }, data: (state) => ({ depth: state.queueDepth, limit: state.queueLimit }) },
+        { atMs: 1050, type: 'queue.poison.quarantined', lane: 'faults', actor: 'worker-c', target: 'payments.dlq', label: 'Poison message is quarantined', detail: 'bad-json exceeded 5 deterministic attempts and leaves the hot queue.', correlationId: 'poison-1', entry: { op: 'dead-letter', requestId: 'poison-1', reason: 'schema-invalid', attempts: 5 } },
+    ],
+    invariants(state) {
+        const result = state.results.get('pay-7');
+        const attempts = state.deliveryAttempts.get('pay-7') || 0;
+        return [
+            state.ledgerCents === 4200 && state.results.size === 1
+                ? pass('exactly-once-effect', '2 deliveries produced 1 ledger mutation', { deliveries: attempts, effects: state.results.size, ledgerCents: state.ledgerCents })
+                : fail('exactly-once-effect', 'the retried request changed the ledger more than once'),
+            result?.effectId === 'ledger-21'
+                ? pass('stable-result', 'the retry returned the original committed effect ID', { effectId: result?.effectId })
+                : fail('stable-result', 'the duplicate did not resolve to the original result'),
+            state.deadLetters.length === 1
+                ? pass('poison-isolation', 'the poison message left the active queue after 5 attempts', state.deadLetters[0])
+                : fail('poison-isolation', 'poison work remains in the hot retry loop'),
+            state.queueDepth > state.queueLimit
+                ? pass('bounded-admission', 'over-limit queue depth activated backpressure', { depth: state.queueDepth, limit: state.queueLimit })
+                : watch('bounded-admission', 'the execution did not reach the backpressure threshold'),
+        ];
+    },
+    metrics(state) {
+        return [
+            { label: 'deliveries', value: state.deliveryAttempts.get('pay-7'), unit: 'attempts' },
+            { label: 'ledger effects', value: state.results.size, unit: 'committed' },
+            { label: 'deadline', value: state.deadlinesExceeded, unit: 'expired' },
+            { label: 'dead letters', value: state.deadLetters.length, unit: 'quarantined' },
+        ];
+    },
+    explainEvent(event) {
+        if (event.type === 'raft.commit.advanced') return 'Index 21 was committed because the trace contains durable acknowledgements from node0 and node1 in term 8. Two acknowledgements satisfy the configured majority of three.';
+        if (event.type === 'network.response.lost') return 'The causal parent is state.machine.applied, so the loss is strictly after the ledger mutation. The missing reply creates uncertainty for the client, not uncertainty in replicated state.';
+        if (event.type === 'dedup.duplicate.suppressed') return 'The retry carries the same request ID pay-7. Replicated dedup state already maps pay-7 to ledger-21, so the leader returns that result without appending another charge.';
+        if (event.type === 'queue.backpressure.applied') return 'Admission compares queue depth 118 with limit 100. Rejecting before enqueue bounds memory and prevents retry traffic from starving committed work.';
+        return event.data.detail;
+    },
+    visualization(state) {
+        return {
+            title: 'pay-7 · ₹42.00',
+            subtitle: `${state.deliveryAttempts.get('pay-7') || 0} deliveries · ${state.results.size} durable effect`,
+            nodes: [
+                makeNode('gateway', 'up', state.responseLost ? 'reply lost' : 'connected', 'client router', `queue ${state.queueDepth}/${state.queueLimit}`, 'amber'),
+                makeNode('node0', 'up', 'connected', 'leader · t8', `commit ${state.commitIndex}`, 'green'),
+                makeNode('node1', 'up', 'connected', 'follower · t8', 'persisted 21', 'blue'),
+                makeNode('worker-b', 'up', 'connected', 'consumer', 'retry pay-7', 'purple'),
+            ],
+            policy: 'Delivery is at least once; the ledger effect is exactly once by replicated request-ID deduplication.',
+        };
+    },
+};
+
+// ---------------------------------------------------------------------------
+// 3. Distributed vector search using the existing HNSW implementation
+// ---------------------------------------------------------------------------
+
+function vectorState(seed) {
+    const dim = 8;
+    const indexes = Array.from({ length: 3 }, () => new HnswIndex({
+        dim, M: 4, efConstruction: 24, storage: 'int8', traversal: 'binary', rescoreFactor: 4,
+    }));
+    const vectors = [
+        [1,.1,0,0,0,0,0,0],[.96,.2,0,0,0,0,0,0],[.92,.3,.1,0,0,0,0,0],
+        [.86,.4,0,.1,0,0,0,0],[.8,.5,.1,0,0,0,0,0],[.72,.6,0,.1,0,0,0,0],
+        [.62,.7,.1,0,0,0,0,0],[.52,.8,0,.1,0,0,0,0],[.42,.9,.1,0,0,0,0,0],
+        [.3,.95,0,.1,0,0,0,0],[.2,.98,.1,0,0,0,0,0],[.1,1,0,.1,0,0,0,0],
+        [.75,.2,.5,0,0,0,0,0],[.68,.25,.6,0,0,0,0,0],[.6,.3,.7,0,0,0,0,0],
+        [.52,.35,.78,0,0,0,0,0],[.46,.4,.82,0,0,0,0,0],[.4,.45,.86,0,0,0,0,0],
+    ];
+    vectors.forEach((vector, index) => {
+        const shard = index % 3;
+        indexes[shard].upsert(`doc-${String(index).padStart(2, '0')}`, vector, {
+            tenant: index % 5 === 0 ? 'other' : 'acme',
+            category: index % 2 ? 'catalog' : 'support',
+            shard,
+        });
+    });
+    const query = [1,0,0,0,0,0,0,0];
+    const filter = (payload) => payload.tenant === 'acme';
+    const shardResults = indexes.map((index) => index.search(query, 4, 12, { filter }));
+    const exactResults = indexes.flatMap((index) => index.searchExact(query, 6, { filter }))
+        .sort((a, b) => b.score - a.score || a.id.localeCompare(b.id)).slice(0, 5);
+    return {
+        seed,
+        indexes,
+        query,
+        filter,
+        shardResults,
+        exactResults,
+        received: new Map(),
+        timedOut: new Set(),
+        merged: [],
+        policy: 'return-marked',
+        deadlineMs: 120,
+        candidates: 0,
+        latencyMs: 0,
+    };
+}
+
+function applyVector(state, entry) {
+    switch (entry.op) {
+        case 'query-start':
+            state.received.clear();
+            state.timedOut.clear();
+            state.merged = [];
+            state.candidates = 0;
+            return { ok: true, shards: 3, topK: entry.k };
+        case 'shard-result': {
+            const hits = state.shardResults[entry.shard];
+            state.received.set(entry.shard, hits);
+            state.candidates += entry.candidates;
+            state.latencyMs = Math.max(state.latencyMs, entry.latencyMs);
+            return { ok: true, shard: entry.shard, hits: hits.map((hit) => hit.id), candidates: entry.candidates };
+        }
+        case 'shard-timeout':
+            state.timedOut.add(entry.shard);
+            state.latencyMs = state.deadlineMs;
+            return { ok: false, shard: entry.shard, timeout: true };
+        case 'merge':
+            state.merged = [...state.received.values()].flat()
+                .sort((a, b) => b.score - a.score || a.id.localeCompare(b.id))
+                .slice(0, entry.k);
+            return { ok: true, hits: state.merged.map((hit) => hit.id), incomplete: state.timedOut.size > 0 };
+        default:
+            return { ok: true };
+    }
+}
+
+const vectorSearch = {
+    id: 'vector-search',
+    name: 'Distributed vector search',
+    shortName: 'Vector search',
+    question: 'How should global top-K behave when one filtered HNSW shard misses the deadline?',
+    scenario: 'Shard 1 is slow during a filtered global top-K query',
+    createState: vectorState,
+    applyCommittedEntry: applyVector,
+    actions: [
+        { atMs: 0, key: 'fanout', type: 'search.fanout.started', lane: 'clients', actor: 'query-router', target: 'shards[0..2]', label: 'Query fans out to 3 shards', detail: 'topK=5, ef=12, tenant=acme, deadline=120 ms.', correlationId: 'search-12', entry: { op: 'query-start', k: 5 }, data: { topK: 5, ef: 12, filter: 'tenant = acme', deadlineMs: 120 } },
+        { atMs: 18, key: 'traverse0', type: 'hnsw.traversal.filtered', lane: 'nodes', actor: 'shard0', target: 'hnsw-0', label: 'Shard 0 traverses with filter', detail: 'Non-matching nodes remain graph bridges; admission filtering happens during the walk.', correlationId: 'search-12', data: { shard: 0, filterStage: 'during-traversal', storage: 'int8', traversal: 'binary + rescore' } },
+        { atMs: 31, key: 'shard0', type: 'search.shard.completed', lane: 'nodes', actor: 'shard0', target: 'query-router', label: 'Shard 0 returns 4 candidates', detail: (_state, { effect }) => `Candidates: ${effect.hits.join(', ')}.`, correlationId: 'search-12', entry: { op: 'shard-result', shard: 0, candidates: 12, latencyMs: 31 } },
+        { atMs: 35, key: 'slow', type: 'fault.latency.injected', lane: 'faults', actor: 'network', target: 'shard1', label: 'Shard 1 becomes slow', detail: 'The process remains up and its HNSW role is unchanged; only response latency is degraded.', correlationId: 'search-12', process: 'up', network: 'slow · 240 ms' },
+        { atMs: 42, key: 'traverse2', type: 'hnsw.traversal.filtered', lane: 'nodes', actor: 'shard2', target: 'hnsw-2', label: 'Shard 2 traverses with filter', detail: 'Binary codes drive the walk; int8 vectors rescore the candidate beam.', correlationId: 'search-12', data: { shard: 2, filterStage: 'during-traversal', rescoreFactor: 4 } },
+        { atMs: 58, key: 'shard2', type: 'search.shard.completed', lane: 'nodes', actor: 'shard2', target: 'query-router', label: 'Shard 2 returns 4 candidates', detail: (_state, { effect }) => `Candidates: ${effect.hits.join(', ')}.`, correlationId: 'search-12', entry: { op: 'shard-result', shard: 2, candidates: 12, latencyMs: 58 } },
+        { atMs: 120, key: 'timeout', type: 'search.shard.timedout', lane: 'faults', actor: 'query-router', target: 'shard1', label: 'Shard 1 misses the deadline', detail: 'The router stops waiting at 120 ms; the late result is not silently merged.', correlationId: 'search-12', causedBy: 'slow', entry: { op: 'shard-timeout', shard: 1 } },
+        { atMs: 121, key: 'policy', type: 'search.partial.policy.applied', lane: 'commits', actor: 'query-router', target: 'client', label: 'Return marked partial results', detail: 'Policy=return-marked returns available hits with incomplete=true and missingShards=[1].', correlationId: 'search-12', data: { policy: 'return-marked', incomplete: true, missingShards: [1] } },
+        { atMs: 124, key: 'merge', type: 'search.global.topk.merged', lane: 'commits', actor: 'query-router', target: 'client', label: 'Global top-K merges 2 shards', detail: (_state, { effect }) => `Stable score/id ordering selects ${effect.hits.join(', ')}.`, correlationId: 'search-12', entry: { op: 'merge', k: 5 }, data: (_state, { effect }) => ({ hits: effect.hits, incomplete: effect.incomplete }) },
+        { atMs: 240, type: 'search.late.result.discarded', lane: 'faults', actor: 'shard1', target: 'query-router', label: 'Late shard result is discarded', detail: 'The response belongs to search-12 but arrives after its deadline and cannot mutate the completed answer.', correlationId: 'search-12' },
+    ],
+    invariants(state) {
+        const unique = new Set(state.merged.map((hit) => hit.id)).size === state.merged.length;
+        const allAcme = state.merged.every((hit) => hit.payload.tenant === 'acme');
+        const fullTruth = new Set(state.exactResults.map((hit) => hit.id));
+        const recalled = state.merged.filter((hit) => fullTruth.has(hit.id)).length;
+        return [
+            unique && state.merged.length <= 5
+                ? pass('global-top-k', 'the merged answer is unique, bounded, and deterministically ordered', { ids: state.merged.map((hit) => hit.id) })
+                : fail('global-top-k', 'the global merge duplicated or overfilled top-K'),
+            allAcme
+                ? pass('filter-safety', 'every returned hit satisfies tenant=acme', { tenant: 'acme' })
+                : fail('filter-safety', 'a filtered-out tenant reached the client'),
+            state.timedOut.has(1) && state.policy === 'return-marked'
+                ? pass('partial-result-disclosure', 'the response names shard 1 as missing', { policy: state.policy, missingShards: [1] })
+                : fail('partial-result-disclosure', 'an incomplete answer was presented as complete'),
+            recalled < state.exactResults.length
+                ? watch('recall-under-partial', 'recall is measured against the complete 3-shard exact answer', { recalled, truth: state.exactResults.length })
+                : pass('recall-under-partial', 'partial execution happened to retain the complete exact top-K'),
+        ];
+    },
+    metrics(state) {
+        const fullTruth = new Set(state.exactResults.map((hit) => hit.id));
+        const recall = state.merged.filter((hit) => fullTruth.has(hit.id)).length / Math.max(1, state.exactResults.length);
+        const stats = state.indexes.map((index) => index.stats());
+        const bytes = stats.reduce((sum, item) => sum + item.vectorBytes, 0);
+        const floatBytes = stats.reduce((sum, item) => sum + item.float32Bytes, 0);
+        return [
+            { label: 'recall@5', value: `${Math.round(recall * 100)}%`, unit: 'full truth' },
+            { label: 'latency', value: state.latencyMs, unit: 'ms deadline' },
+            { label: 'candidates', value: state.candidates, unit: 'visited beam' },
+            { label: 'vector memory', value: `${bytes} B`, unit: `${(floatBytes / Math.max(1, bytes)).toFixed(1)}× smaller` },
+        ];
+    },
+    explainEvent(event) {
+        if (event.type === 'hnsw.traversal.filtered') return 'The existing HNSW implementation traverses through filtered-out nodes but admits only matching payloads to results. This preserves graph connectivity while enforcing tenant filtering during traversal.';
+        if (event.type === 'search.shard.timedout') return 'Shard 1 is process-up and reachable, but its sampled 240 ms response exceeds the 120 ms query deadline. The timeout is network/performance state, not a crash.';
+        if (event.type === 'search.partial.policy.applied') return 'The policy is explicit in the trace: return available candidates, set incomplete=true, and list missing shard 1. A strict policy could instead fail the whole query.';
+        if (event.type === 'search.global.topk.merged') return 'The router merges candidate lists by score, then external ID for stable ties. It does not average shard ranks, because scores share the same replicated vector space.';
+        return event.data.detail;
+    },
+    visualization(state) {
+        const stats = state.indexes.map((index) => index.stats());
+        return {
+            title: 'search-12 · topK 5',
+            subtitle: `${state.received.size}/3 shards complete · policy ${state.policy}`,
+            nodes: [
+                makeNode('router', 'up', 'connected', 'fan-out + merge', `${state.candidates} candidates`, 'amber'),
+                makeNode('shard0', 'up', 'connected', 'HNSW replica', `${stats[0].size} vectors · int8`, 'green'),
+                makeNode('shard1', 'up', state.timedOut.has(1) ? 'slow · 240 ms' : 'connected', 'HNSW replica', `${stats[1].size} vectors · int8`, state.timedOut.has(1) ? 'red' : 'green'),
+                makeNode('shard2', 'up', 'connected', 'HNSW replica', `${stats[2].size} vectors · int8`, 'green'),
+            ],
+            policy: 'Binary traversal reduces memory bandwidth; int8 rescoring recovers ranking quality. Partial results are always marked.',
+        };
+    },
+};
+
+// ---------------------------------------------------------------------------
+// 4. Atomic model rollout
+// ---------------------------------------------------------------------------
+
+function rolloutState() {
+    return {
+        activeVersion: 'v1',
+        stagedVersion: 'v2',
+        commitIndex: 30,
+        barrierOpen: false,
+        pods: new Map([
+            ['pod0', { process: 'up', network: 'connected', artifact: null, checksum: null, ready: false, active: 'v1' }],
+            ['pod1', { process: 'up', network: 'connected', artifact: null, checksum: null, ready: false, active: 'v1' }],
+            ['pod2', { process: 'up', network: 'slow', artifact: null, checksum: null, ready: false, active: 'v1' }],
+        ]),
+        responses: [{ requestId: 'q-before', embeddingVersion: 'v1', indexVersion: 'v1' }],
+        corruptRejected: false,
+        canaryPassed: false,
+        rollbacks: 0,
+    };
+}
+
+function applyRollout(state, entry) {
+    switch (entry.op) {
+        case 'download': {
+            const pod = state.pods.get(entry.pod);
+            pod.artifact = entry.version;
+            pod.checksum = entry.checksum;
+            pod.network = entry.slow ? 'slow' : 'connected';
+            return { ok: true, pod: entry.pod, bytes: entry.bytes };
+        }
+        case 'checksum': {
+            const pod = state.pods.get(entry.pod);
+            const ok = pod.checksum === entry.expected;
+            if (!ok) {
+                pod.artifact = null;
+                pod.ready = false;
+                state.corruptRejected = true;
+            }
+            return { ok, expected: entry.expected, actual: pod.checksum };
+        }
+        case 'shadow-ready': {
+            const pod = state.pods.get(entry.pod);
+            pod.ready = pod.artifact === entry.version && pod.checksum === entry.checksum;
+            return { ok: pod.ready, pod: entry.pod };
+        }
+        case 'canary':
+            state.canaryPassed = entry.passed;
+            return { ok: entry.passed, delta: entry.delta };
+        case 'barrier': {
+            const ready = [...state.pods.values()].filter((pod) => pod.ready).length;
+            state.barrierOpen = ready === state.pods.size && state.canaryPassed;
+            return { ok: state.barrierOpen, ready, required: state.pods.size, canaryPassed: state.canaryPassed };
+        }
+        case 'flip':
+            if (!state.barrierOpen) return { ok: false, error: 'fleet barrier closed' };
+            state.activeVersion = entry.version;
+            state.commitIndex += 1;
+            for (const pod of state.pods.values()) pod.active = entry.version;
+            state.responses.push({ requestId: entry.requestId, embeddingVersion: entry.version, indexVersion: entry.version });
+            return { ok: true, version: entry.version, commitIndex: state.commitIndex };
+        case 'rollback':
+            state.activeVersion = entry.version;
+            state.commitIndex += 1;
+            state.rollbacks += 1;
+            for (const pod of state.pods.values()) pod.active = entry.version;
+            state.responses.push({ requestId: entry.requestId, embeddingVersion: entry.version, indexVersion: entry.version });
+            return { ok: true, version: entry.version, commitIndex: state.commitIndex };
+        default:
+            return { ok: true };
+    }
+}
+
+const rollout = {
+    id: 'rollout',
+    name: 'Atomic model rollout',
+    shortName: 'Model rollout',
+    question: 'Can a fleet reject corruption and stragglers without any response mixing model versions?',
+    scenario: 'One corrupt artifact, one slow pod, one atomic flip',
+    createState: rolloutState,
+    applyCommittedEntry: applyRollout,
+    actions: [
+        { atMs: 0, key: 'manifest', type: 'rollout.manifest.committed', lane: 'commits', actor: 'controller', target: 'consensus', label: 'v2 manifest commits', detail: 'Consensus records version, URI, size, and sha256=sha-v2 before pods download.', correlationId: 'rollout-v2', data: { version: 'v2', checksum: 'sha-v2', commitIndex: 30 } },
+        { atMs: 24, type: 'artifact.download.completed', lane: 'nodes', actor: 'pod0', target: 'artifact-store', label: 'pod0 downloads v2', detail: '64 MiB arrives in 24 ms of virtual time.', correlationId: 'rollout-v2', entry: { op: 'download', pod: 'pod0', version: 'v2', checksum: 'sha-v2', bytes: 67108864 } },
+        { atMs: 29, type: 'artifact.checksum.verified', lane: 'nodes', actor: 'pod0', target: 'shadow-slot', label: 'pod0 verifies checksum', detail: 'The artifact is eligible for shadow load but is not active.', correlationId: 'rollout-v2', entry: { op: 'checksum', pod: 'pod0', expected: 'sha-v2' } },
+        { atMs: 32, key: 'corrupt', type: 'artifact.checksum.rejected', lane: 'faults', actor: 'pod1', target: 'artifact-store', label: 'pod1 rejects corrupt bytes', detail: 'Actual sha-corrupt differs from committed sha-v2; the shadow slot is cleared.', correlationId: 'rollout-v2', entry: { op: 'download', pod: 'pod1', version: 'v2', checksum: 'sha-corrupt', bytes: 67108864 }, data: { expected: 'sha-v2', actual: 'sha-corrupt' } },
+        { atMs: 33, type: 'artifact.checksum.failed', lane: 'faults', actor: 'pod1', target: 'controller', label: 'Corruption blocks readiness', detail: 'pod1 cannot acknowledge the fleet barrier with an unverified artifact.', correlationId: 'rollout-v2', causedBy: 'corrupt', entry: { op: 'checksum', pod: 'pod1', expected: 'sha-v2' } },
+        { atMs: 38, key: 'slow-pod', type: 'artifact.download.slow', lane: 'faults', actor: 'network', target: 'pod2', label: 'pod2 download is slow', detail: 'pod2 remains process-up; artifact transfer is the only degraded dimension.', correlationId: 'rollout-v2', process: 'up', network: 'slow' },
+        { atMs: 51, type: 'shadow.readiness.passed', lane: 'nodes', actor: 'pod0', target: 'controller', label: 'pod0 shadow is ready', detail: 'Warm-up query and index checksum both pass for v2.', correlationId: 'rollout-v2', entry: { op: 'shadow-ready', pod: 'pod0', version: 'v2', checksum: 'sha-v2' } },
+        { atMs: 72, type: 'artifact.download.retried', lane: 'nodes', actor: 'pod1', target: 'artifact-store', label: 'pod1 retries clean artifact', detail: 'The retry fetches bytes whose checksum matches the consensus manifest.', correlationId: 'rollout-v2', entry: { op: 'download', pod: 'pod1', version: 'v2', checksum: 'sha-v2', bytes: 67108864 } },
+        { atMs: 76, type: 'artifact.checksum.verified', lane: 'nodes', actor: 'pod1', target: 'shadow-slot', label: 'pod1 verifies retry', detail: 'Only verified bytes enter the shadow slot.', correlationId: 'rollout-v2', entry: { op: 'checksum', pod: 'pod1', expected: 'sha-v2' } },
+        { atMs: 86, type: 'shadow.readiness.passed', lane: 'nodes', actor: 'pod1', target: 'controller', label: 'pod1 shadow is ready', detail: 'Two of three pods now acknowledge v2.', correlationId: 'rollout-v2', entry: { op: 'shadow-ready', pod: 'pod1', version: 'v2', checksum: 'sha-v2' } },
+        { atMs: 92, type: 'canary.evaluation.passed', lane: 'commits', actor: 'controller', target: 'metrics', label: 'Canary evaluation passes', detail: 'Error-rate delta +0.02% is within the committed +0.10% budget.', correlationId: 'rollout-v2', entry: { op: 'canary', passed: true, delta: 0.0002 }, data: { errorRateDelta: 0.0002, budget: 0.001 } },
+        { atMs: 100, key: 'barrier-blocked', type: 'fleet.barrier.blocked', lane: 'invariants', actor: 'controller', target: 'consensus', label: 'Fleet barrier remains closed', detail: (_state, { effect }) => `${effect.ready}/${effect.required} pods are ready; pod2 is still downloading.`, correlationId: 'rollout-v2', entry: { op: 'barrier' }, data: (_state, { effect }) => ({ ready: effect.ready, required: effect.required }) },
+        { atMs: 184, type: 'artifact.download.completed', lane: 'nodes', actor: 'pod2', target: 'artifact-store', label: 'Slow pod2 finishes download', detail: 'The delayed transfer completes without changing the active v1 pointer.', correlationId: 'rollout-v2', entry: { op: 'download', pod: 'pod2', version: 'v2', checksum: 'sha-v2', bytes: 67108864, slow: false } },
+        { atMs: 190, type: 'artifact.checksum.verified', lane: 'nodes', actor: 'pod2', target: 'shadow-slot', label: 'pod2 verifies checksum', detail: 'All three pods now hold identical verified bytes.', correlationId: 'rollout-v2', entry: { op: 'checksum', pod: 'pod2', expected: 'sha-v2' } },
+        { atMs: 204, type: 'shadow.readiness.passed', lane: 'nodes', actor: 'pod2', target: 'controller', label: 'pod2 shadow is ready', detail: 'Warm-up and readiness propagation finish at the straggler.', correlationId: 'rollout-v2', entry: { op: 'shadow-ready', pod: 'pod2', version: 'v2', checksum: 'sha-v2' } },
+        { atMs: 208, key: 'barrier-open', type: 'fleet.barrier.opened', lane: 'invariants', actor: 'controller', target: 'consensus', label: 'Fleet barrier opens', detail: '3 ready · 3 required · canary passed.', correlationId: 'rollout-v2', entry: { op: 'barrier' }, data: (_state, { effect }) => ({ ready: effect.ready, required: effect.required }) },
+        { atMs: 216, key: 'flip-append', type: 'raft.log.appended', lane: 'commits', actor: 'node0', nodeId: 'node0', target: 'node1', label: 'model/current=v2 appended', detail: 'The pointer flip is one consensus entry, not three pod-local writes.', correlationId: 'rollout-v2', raftRole: 'leader', data: { term: 11, index: 31, beforeLog: ['…', '30:t11 STAGE v2'], afterLog: ['…', '30:t11 STAGE v2', '31:t11 ACTIVATE v2'] } },
+        { atMs: 232, type: 'quorum.reached', lane: 'commits', actor: 'node0', target: 'cluster', label: 'Activation reaches quorum', detail: '2 live · 2 required · 3 configured commit model/current=v2.', correlationId: 'rollout-v2', data: { live: 2, required: 2, configured: 3, index: 31 } },
+        { atMs: 238, key: 'flip', type: 'model.version.flipped', lane: 'commits', actor: 'consensus', target: 'fleet', label: 'Atomic pointer flips to v2', detail: 'Every response binds embedding and index handles from the same immutable version slot.', correlationId: 'rollout-v2', entry: { op: 'flip', version: 'v2', requestId: 'q-after' } },
+        { atMs: 310, key: 'regression', type: 'canary.regression.detected', lane: 'faults', actor: 'metrics', target: 'controller', label: 'Post-flip regression triggers rollback', detail: 'The retired v1 slot is still verified and warm, so rollback needs no artifact download.', correlationId: 'rollout-v2' },
+        { atMs: 326, type: 'model.version.rollback', lane: 'commits', actor: 'consensus', target: 'fleet', label: 'Atomic rollback restores v1', detail: 'A second committed pointer entry moves every request to the intact v1 slot.', correlationId: 'rollout-v2', causedBy: 'regression', entry: { op: 'rollback', version: 'v1', requestId: 'q-rollback' } },
+    ],
+    invariants(state) {
+        const mixed = state.responses.filter((response) => response.embeddingVersion !== response.indexVersion);
+        const oneActive = [...state.pods.values()].every((pod) => pod.active === state.activeVersion);
+        return [
+            mixed.length === 0
+                ? pass('no-mixed-version-response', 'every observed response used one model version end to end', { responses: state.responses })
+                : fail('no-mixed-version-response', 'a response combined embedding and index versions', { mixed }),
+            state.corruptRejected
+                ? pass('artifact-integrity', 'the corrupt artifact never entered a ready shadow slot')
+                : fail('artifact-integrity', 'corrupt bytes were eligible for activation'),
+            state.barrierOpen
+                ? pass('fleet-barrier', 'activation was enabled only after 3/3 shadow acknowledgements')
+                : fail('fleet-barrier', 'the rollout flipped before all pods were ready'),
+            oneActive
+                ? pass('atomic-pointer', `all pods expose the committed ${state.activeVersion} pointer after rollback`, { active: state.activeVersion })
+                : fail('atomic-pointer', 'pods expose different active pointers'),
+        ];
+    },
+    metrics(state) {
+        return [
+            { label: 'corrupt artifacts', value: state.corruptRejected ? 1 : 0, unit: 'rejected' },
+            { label: 'barrier wait', value: 208, unit: 'ms virtual' },
+            { label: 'mixed responses', value: state.responses.filter((r) => r.embeddingVersion !== r.indexVersion).length, unit: 'observed' },
+            { label: 'rollbacks', value: state.rollbacks, unit: 'atomic' },
+        ];
+    },
+    explainEvent(event) {
+        if (event.type === 'fleet.barrier.blocked') return 'The barrier reducer counts verified, shadow-ready pods. At this event only pod0 and pod1 qualify; pod2 is process-up but still downloading, so activation is structurally impossible.';
+        if (event.type === 'artifact.checksum.failed') return 'The expected digest comes from consensus metadata. pod1 computed sha-corrupt, cleared its shadow slot, and therefore cannot contribute a readiness acknowledgement.';
+        if (event.type === 'model.version.flipped') return 'The trace shows a single committed ACTIVATE v2 entry after the fleet barrier opened. Each request captures one immutable version slot, so embedding and index handles cannot straddle the flip.';
+        if (event.type === 'model.version.rollback') return 'Rollback is another consensus pointer commit to the still-warm v1 slot. No pod downloads or mutates model files on the request path.';
+        return event.data.detail;
+    },
+    visualization(state) {
+        return {
+            title: `model/current · ${state.activeVersion}`,
+            subtitle: `${[...state.pods.values()].filter((pod) => pod.ready).length}/3 shadow-ready · barrier ${state.barrierOpen ? 'open' : 'closed'}`,
+            nodes: [
+                makeNode('controller', 'up', 'connected', 'rollout coordinator', state.canaryPassed ? 'canary passed' : 'canary pending', 'amber'),
+                ...[...state.pods.entries()].map(([id, pod]) => makeNode(
+                    id, pod.process, pod.network, `serving ${pod.active}`,
+                    pod.ready ? 'v2 shadow ready' : pod.artifact ? 'verifying v2' : 'v2 unavailable',
+                    pod.ready ? 'green' : pod.network === 'slow' ? 'red' : 'blue',
+                )),
+            ],
+            policy: 'Artifact bytes move independently; only the consensus pointer changes serving state.',
+        };
+    },
+};
+
+// ---------------------------------------------------------------------------
+// 5. Live streaming entitlement and playback session state
+// ---------------------------------------------------------------------------
+
+/**
+ * The distributed-systems problem inside a streaming service is not video.
+ *
+ * It is that two pieces of per-viewer state must survive a leader failover with
+ * different guarantees. Playback position must be **monotonic** — a viewer who
+ * is 42 minutes into a match must never be sent backwards because a stale
+ * heartbeat arrived late. Concurrent streams must obey a **capacity bound** —
+ * a two-device plan must not become three devices because the cluster was
+ * mid-election when the third asked.
+ *
+ * Neither is idempotency (payments), atomicity (rollout), or completeness
+ * (search). Monotonicity and capacity are their own failure class, and the
+ * classic way to get them wrong is to keep the counter in leader-local memory,
+ * where a deposed leader still believes it has room to admit one more.
+ */
+function streamingState() {
+    return {
+        deviceLimit: 2,
+        leaderEpoch: 1,
+        commitIndex: 40,
+        sessions: new Map(),
+        positionHistory: new Map(),
+        admitted: [],
+        refused: [],
+        staleHeartbeats: 0,
+        rebuffers: 0,
+        bitrateKbps: 8000,
+        peakConcurrent: 0,
+    };
+}
+
+function activeStreams(state) {
+    return [...state.sessions.values()].filter((session) => session.active).length;
+}
+
+function applyStreaming(state, entry) {
+    switch (entry.op) {
+        case 'admit': {
+            // Fencing first. An admission authored under an older leader epoch
+            // is refused even if capacity exists, because the entry was created
+            // by a leader that has already been replaced and whose view of the
+            // stream count may be arbitrarily stale.
+            if (entry.epoch < state.leaderEpoch) {
+                const refusal = { sessionId: entry.sessionId, reason: 'stale-epoch', epoch: entry.epoch };
+                state.refused.push(refusal);
+                return { ok: false, ...refusal, currentEpoch: state.leaderEpoch };
+            }
+            const active = activeStreams(state);
+            if (active >= state.deviceLimit) {
+                const refusal = { sessionId: entry.sessionId, reason: 'device-limit', active, limit: state.deviceLimit };
+                state.refused.push(refusal);
+                return { ok: false, ...refusal };
+            }
+            state.commitIndex += 1;
+            state.sessions.set(entry.sessionId, {
+                device: entry.device, positionMs: 0, active: true, admittedAtIndex: state.commitIndex,
+            });
+            state.positionHistory.set(entry.sessionId, [0]);
+            state.admitted.push({ sessionId: entry.sessionId, device: entry.device, index: state.commitIndex });
+            state.peakConcurrent = Math.max(state.peakConcurrent, activeStreams(state));
+            return { ok: true, sessionId: entry.sessionId, active: activeStreams(state), limit: state.deviceLimit };
+        }
+        case 'heartbeat': {
+            const session = state.sessions.get(entry.sessionId);
+            if (!session || !session.active) return { ok: false, reason: 'no-session' };
+            // Monotonicity. A heartbeat that would move the viewer backwards is
+            // discarded rather than applied — out-of-order delivery is normal,
+            // and rewinding a live stream is a visible, unrecoverable defect.
+            if (entry.positionMs <= session.positionMs) {
+                state.staleHeartbeats += 1;
+                return { ok: false, reason: 'nonmonotonic', held: session.positionMs, offered: entry.positionMs };
+            }
+            session.positionMs = entry.positionMs;
+            state.positionHistory.get(entry.sessionId).push(entry.positionMs);
+            state.commitIndex += 1;
+            return { ok: true, positionMs: session.positionMs };
+        }
+        case 'leaderepoch':
+            state.leaderEpoch = entry.epoch;
+            return { ok: true, epoch: state.leaderEpoch };
+        case 'release': {
+            const session = state.sessions.get(entry.sessionId);
+            if (session) { session.active = false; state.commitIndex += 1; }
+            return { ok: Boolean(session), active: activeStreams(state) };
+        }
+        case 'bitrate':
+            state.bitrateKbps = entry.kbps;
+            return { ok: true, kbps: entry.kbps };
+        case 'rebuffer':
+            state.rebuffers += 1;
+            return { ok: true, rebuffers: state.rebuffers };
+        default:
+            return { ok: true };
+    }
+}
+
+const streaming = {
+    id: 'streaming',
+    name: 'Live streaming entitlement & playback',
+    shortName: 'Streaming',
+    question: 'Can a two-device limit and a monotonic playback position both survive a leader failover mid-match?',
+    scenario: 'Stale leader admits a third device while a late heartbeat rewinds playback',
+    createState: streamingState,
+    applyCommittedEntry: applyStreaming,
+    actions: [
+        { atMs: 0, key: 'tv', type: 'session.stream.admitted', lane: 'clients', actor: 'living-room-tv', target: 'entitlement', label: 'TV starts the live match', detail: 'Session count becomes 1 of 2 in replicated state, not in leader memory.', correlationId: 'viewer-88', entry: { op: 'admit', sessionId: 'tv', device: 'living-room-tv', epoch: 1 }, data: (_s, { effect }) => ({ active: effect.active, limit: effect.limit }) },
+        { atMs: 40, key: 'hb1', type: 'playback.position.advanced', lane: 'clients', actor: 'living-room-tv', target: 'entitlement', label: 'Playback reaches 00:30', detail: 'Heartbeats carry an absolute position so redelivery cannot double-count.', correlationId: 'viewer-88', entry: { op: 'heartbeat', sessionId: 'tv', positionMs: 30000 }, data: (_s, { effect }) => ({ positionMs: effect.positionMs }) },
+        { atMs: 78, key: 'phone', type: 'session.stream.admitted', lane: 'clients', actor: 'phone', target: 'entitlement', label: 'Phone joins as the second device', detail: 'The plan allows 2 concurrent streams; both are now committed.', correlationId: 'viewer-88', entry: { op: 'admit', sessionId: 'phone', device: 'phone', epoch: 1 }, data: (_s, { effect }) => ({ active: effect.active, limit: effect.limit }) },
+        { atMs: 96, key: 'laptop1', type: 'session.stream.refused', lane: 'commits', actor: 'laptop', target: 'entitlement', label: 'Third device is refused', detail: 'The capacity check is evaluated against committed state, so the answer is the same on every replica.', correlationId: 'viewer-88', entry: { op: 'admit', sessionId: 'laptop', device: 'laptop', epoch: 1 }, data: (_s, { effect }) => ({ reason: effect.reason, active: effect.active, limit: effect.limit }) },
+        { atMs: 140, key: 'congestion', type: 'fault.bandwidth.degraded', lane: 'faults', actor: 'network', target: 'phone', label: 'Uplink congestion hits the phone', detail: 'The process is healthy; only available bandwidth changes.', correlationId: 'viewer-88', process: 'up', network: 'slow · 1.2 Mbps', entry: { op: 'bitrate', kbps: 1200 } },
+        { atMs: 152, type: 'playback.rebuffer.started', lane: 'faults', actor: 'phone', target: 'player', label: 'Phone rebuffers once', detail: 'The ladder drops from 8000 to 1200 kbps. Quality degrades; correctness does not.', correlationId: 'viewer-88', causedBy: 'congestion', entry: { op: 'rebuffer' } },
+        { atMs: 210, key: 'partition', type: 'fault.partition.injected', lane: 'faults', actor: 'network', target: 'node0', label: 'Entitlement leader is isolated', detail: 'node0 keeps believing it leads. It cannot reach a majority, so it cannot commit anything.', correlationId: 'viewer-88', process: 'up', network: 'partitioned', raftRole: 'stale leader' },
+        { atMs: 268, key: 'failover', type: 'raft.leader.elected', lane: 'commits', actor: 'node1', nodeId: 'node1', target: 'cluster', label: 'node1 wins term 2', detail: 'The surviving majority elects a new leader and bumps the entitlement epoch.', correlationId: 'viewer-88', causedBy: 'partition', raftRole: 'leader', entry: { op: 'leaderepoch', epoch: 2 }, data: { term: 2, live: 2, required: 2, configured: 3 } },
+        { atMs: 296, key: 'stalead', type: 'session.stream.refused', lane: 'invariants', actor: 'node0', target: 'entitlement', label: 'Stale leader cannot admit a third stream', detail: 'node0 authored this admission at epoch 1. The committed epoch is 2, so it is fenced out before capacity is even considered.', correlationId: 'viewer-88', causedBy: 'failover', entry: { op: 'admit', sessionId: 'laptop', device: 'laptop', epoch: 1 }, data: (_s, { effect }) => ({ reason: effect.reason, authoredEpoch: 1, currentEpoch: effect.currentEpoch }) },
+        { atMs: 318, key: 'latehb', type: 'playback.position.rejected', lane: 'invariants', actor: 'living-room-tv', target: 'entitlement', label: 'Late heartbeat would rewind playback', detail: 'A heartbeat stamped 00:12 arrives after 00:30 was committed. Applying it would send the viewer backwards.', correlationId: 'viewer-88', entry: { op: 'heartbeat', sessionId: 'tv', positionMs: 12000 }, data: (_s, { effect }) => ({ held: effect.held, offered: effect.offered, reason: effect.reason }) },
+        { atMs: 352, key: 'hb2', type: 'playback.position.advanced', lane: 'clients', actor: 'living-room-tv', target: 'entitlement', label: 'Playback resumes at 01:02', detail: 'Forward progress continues under the new leader with no gap in session state.', correlationId: 'viewer-88', entry: { op: 'heartbeat', sessionId: 'tv', positionMs: 62000 }, data: (_s, { effect }) => ({ positionMs: effect.positionMs }) },
+        { atMs: 404, key: 'tvoff', type: 'session.stream.released', lane: 'clients', actor: 'living-room-tv', target: 'entitlement', label: 'TV stops watching', detail: 'Capacity is returned to the plan by a committed release, not by a timeout guess.', correlationId: 'viewer-88', entry: { op: 'release', sessionId: 'tv' }, data: (_s, { effect }) => ({ active: effect.active }) },
+        { atMs: 438, key: 'laptop2', type: 'session.stream.admitted', lane: 'clients', actor: 'laptop', target: 'entitlement', label: 'Laptop is admitted now', detail: 'The same request that was refused twice succeeds once capacity genuinely exists.', correlationId: 'viewer-88', entry: { op: 'admit', sessionId: 'laptop', device: 'laptop', epoch: 2 }, data: (_s, { effect }) => ({ active: effect.active, limit: effect.limit }) },
+        { atMs: 470, type: 'fault.partition.healed', lane: 'faults', actor: 'network', target: 'node0', label: 'Old leader rejoins as a follower', detail: 'node0 discovers term 2, steps down, and replays the entries it missed.', correlationId: 'viewer-88', network: 'connected', raftRole: 'follower' },
+    ],
+    invariants(state) {
+        const rewinds = [...state.positionHistory.entries()].filter(([, history]) =>
+            history.some((position, index) => index > 0 && position < history[index - 1]));
+        const staleEpochRefusals = state.refused.filter((item) => item.reason === 'stale-epoch');
+        const limitRefusals = state.refused.filter((item) => item.reason === 'device-limit');
+        return [
+            rewinds.length === 0
+                ? pass('monotonic-playback', 'every session position moved forward only', { sessions: [...state.positionHistory.keys()] })
+                : fail('monotonic-playback', 'a committed heartbeat moved playback backwards', { rewinds }),
+            state.peakConcurrent <= state.deviceLimit
+                ? pass('concurrent-stream-limit', `peak concurrency ${state.peakConcurrent} never exceeded the ${state.deviceLimit}-device plan`, { peak: state.peakConcurrent, limit: state.deviceLimit })
+                : fail('concurrent-stream-limit', 'more streams were admitted than the plan allows', { peak: state.peakConcurrent }),
+            staleEpochRefusals.length > 0
+                ? pass('stale-leader-fenced', 'an admission authored by the deposed leader was rejected on epoch', staleEpochRefusals[0])
+                : watch('stale-leader-fenced', 'this execution did not exercise a stale-epoch admission'),
+            state.staleHeartbeats > 0
+                ? pass('out-of-order-heartbeat-discarded', `${state.staleHeartbeats} late heartbeat(s) were discarded rather than applied`, { discarded: state.staleHeartbeats })
+                : watch('out-of-order-heartbeat-discarded', 'no reordered heartbeat arrived in this execution'),
+            limitRefusals.length > 0
+                ? pass('capacity-refusal-is-committed', 'the limit was enforced from replicated state, so every replica agrees', limitRefusals[0])
+                : watch('capacity-refusal-is-committed', 'capacity was never contended in this execution'),
+        ];
+    },
+    metrics(state) {
+        const tv = state.positionHistory.get('tv') || [0];
+        return [
+            { label: 'concurrent', value: `${activeStreams(state)}/${state.deviceLimit}`, unit: 'streams' },
+            { label: 'peak position', value: `${Math.round(Math.max(...tv) / 1000)}s`, unit: 'monotonic' },
+            { label: 'refused', value: state.refused.length, unit: 'admissions' },
+            { label: 'rebuffers', value: state.rebuffers, unit: `${state.bitrateKbps} kbps` },
+        ];
+    },
+    explainEvent(event) {
+        const explanations = {
+            'session.stream.refused': 'The device count lives in the replicated state machine, not in the leader process. Any replica evaluating this entry reaches the same verdict, which is why a failover cannot create a window where the limit is briefly wrong.',
+            'raft.leader.elected': 'node1 collected votes from the majority side of the partition. Bumping the entitlement epoch on election is what makes every in-flight decision authored by node0 identifiable as stale.',
+            'playback.position.rejected': 'Heartbeats are absolute positions, not deltas, so a late one is detectable by comparison alone. The state machine holds 30000 ms and the arriving entry offers 12000 ms, so it is discarded — a delta-based design would have silently rewound the viewer.',
+            'fault.bandwidth.degraded': 'Bandwidth is a network dimension. The phone process is up and its session is still valid; only the bitrate ladder responds. Conflating this with a crash is how availability metrics become meaningless.',
+        };
+        return explanations[event.type] || event.data.detail;
+    },
+    visualization(state) {
+        const active = activeStreams(state);
+        const tv = state.sessions.get('tv');
+        const phone = state.sessions.get('phone');
+        const laptop = state.sessions.get('laptop');
+        const seconds = (session) => (session ? `${Math.round(session.positionMs / 1000)}s` : 'idle');
+        return {
+            title: `viewer-88 · ${active}/${state.deviceLimit} streams`,
+            subtitle: `entitlement epoch ${state.leaderEpoch} · ${state.refused.length} refused · ${state.rebuffers} rebuffer`,
+            nodes: [
+                makeNode('node0', 'up', state.leaderEpoch > 1 ? 'partitioned' : 'connected',
+                    state.leaderEpoch > 1 ? 'stale leader · t1' : 'leader · t1',
+                    `epoch ${Math.min(1, state.leaderEpoch)}`, state.leaderEpoch > 1 ? 'red' : 'green'),
+                makeNode('node1', 'up', 'connected', state.leaderEpoch > 1 ? 'leader · t2' : 'follower · t1',
+                    `commit ${state.commitIndex}`, state.leaderEpoch > 1 ? 'green' : 'blue'),
+                makeNode('living-room-tv', tv?.active ? 'up' : 'stopped', 'connected', 'viewer device', seconds(tv), tv?.active ? 'green' : 'blue'),
+                makeNode('phone', 'up', state.bitrateKbps < 8000 ? 'slow · 1.2 Mbps' : 'connected', 'viewer device', seconds(phone), state.bitrateKbps < 8000 ? 'amber' : 'green'),
+                makeNode('laptop', laptop?.active ? 'up' : 'waiting', 'connected', 'viewer device',
+                    laptop?.active ? seconds(laptop) : `refused ×${state.refused.filter((r) => r.sessionId === 'laptop').length}`,
+                    laptop?.active ? 'green' : 'red'),
+            ],
+            policy: 'Position is monotonic and absolute; capacity is committed state fenced by leader epoch.',
+        };
+    },
+};
+
+// ---------------------------------------------------------------------------
+// 6. Ride dispatch: exactly-one assignment with fencing tokens
+// ---------------------------------------------------------------------------
+
+/**
+ * Matching one rider to one driver looks like a lease, and mostly is — until a
+ * driver accepts an offer that already expired.
+ *
+ * That is the case that separates a correct dispatcher from a plausible one. An
+ * offer times out, the ride is re-offered to somebody else, and *then* the
+ * original driver's accept arrives, delayed by a slow uplink. Both drivers now
+ * believe they have the ride. A timestamp comparison is not enough, because the
+ * two decisions were made under different views of the world.
+ *
+ * The fix is a **fencing token**: every offer carries a monotonically
+ * increasing epoch, and an accept naming a superseded epoch is rejected on
+ * sight. This is the same shape as the entitlement epoch in the streaming
+ * workload and the `expectRev` in a CAS, applied to a physical resource where a
+ * double booking sends two cars to one address.
+ */
+function dispatchState() {
+    return {
+        commitIndex: 50,
+        offerEpoch: 0,
+        offers: new Map(),
+        assignments: new Map(),
+        driverBusy: new Map(),
+        rejectedAccepts: [],
+        expiredOffers: [],
+        surgeMultiplier: 1,
+        matchAttempts: 0,
+    };
+}
+
+function applyDispatch(state, entry) {
+    switch (entry.op) {
+        case 'offer': {
+            state.offerEpoch += 1;
+            state.matchAttempts += 1;
+            state.commitIndex += 1;
+            state.offers.set(entry.rideId, { driver: entry.driver, epoch: state.offerEpoch, ttlMs: entry.ttlMs });
+            return { ok: true, driver: entry.driver, epoch: state.offerEpoch, ttlMs: entry.ttlMs };
+        }
+        case 'expire': {
+            const offer = state.offers.get(entry.rideId);
+            if (!offer) return { ok: false, reason: 'no-offer' };
+            state.offers.delete(entry.rideId);
+            state.expiredOffers.push({ rideId: entry.rideId, driver: offer.driver, epoch: offer.epoch });
+            return { ok: true, driver: offer.driver, epoch: offer.epoch };
+        }
+        case 'accept': {
+            const offer = state.offers.get(entry.rideId);
+            // Fencing. An accept is valid only for the offer epoch currently
+            // outstanding. A late accept from a superseded offer names an older
+            // epoch and is refused before anything else is considered.
+            if (!offer || offer.epoch !== entry.epoch) {
+                const rejection = {
+                    rideId: entry.rideId, driver: entry.driver, offeredEpoch: entry.epoch,
+                    currentEpoch: offer ? offer.epoch : null, reason: 'stale-offer-epoch',
+                };
+                state.rejectedAccepts.push(rejection);
+                return { ok: false, ...rejection };
+            }
+            if (state.driverBusy.has(entry.driver)) {
+                const rejection = {
+                    rideId: entry.rideId, driver: entry.driver, reason: 'driver-already-assigned',
+                    heldBy: state.driverBusy.get(entry.driver),
+                };
+                state.rejectedAccepts.push(rejection);
+                return { ok: false, ...rejection };
+            }
+            if (state.assignments.has(entry.rideId)) {
+                const rejection = { rideId: entry.rideId, driver: entry.driver, reason: 'ride-already-assigned' };
+                state.rejectedAccepts.push(rejection);
+                return { ok: false, ...rejection };
+            }
+            state.commitIndex += 1;
+            state.offers.delete(entry.rideId);
+            state.assignments.set(entry.rideId, { driver: entry.driver, index: state.commitIndex, epoch: entry.epoch });
+            state.driverBusy.set(entry.driver, entry.rideId);
+            return { ok: true, driver: entry.driver, rideId: entry.rideId, index: state.commitIndex };
+        }
+        case 'complete': {
+            const assignment = state.assignments.get(entry.rideId);
+            if (!assignment) return { ok: false, reason: 'not-assigned' };
+            state.driverBusy.delete(assignment.driver);
+            state.commitIndex += 1;
+            return { ok: true, driver: assignment.driver };
+        }
+        case 'surge':
+            state.surgeMultiplier = entry.multiplier;
+            return { ok: true, multiplier: entry.multiplier };
+        default:
+            return { ok: true };
+    }
+}
+
+const dispatch = {
+    id: 'dispatch',
+    name: 'Ride dispatch & driver assignment',
+    shortName: 'Dispatch',
+    question: 'When an offer times out and is reassigned, can the original driver still accept it?',
+    scenario: 'Offer expires, ride is reassigned, the first driver accepts late',
+    createState: dispatchState,
+    applyCommittedEntry: applyDispatch,
+    actions: [
+        { atMs: 0, key: 'request', type: 'ride.request.received', lane: 'clients', actor: 'rider-31', target: 'matcher', label: 'Rider requests a car', detail: 'Three drivers are within the search radius; the matcher will offer them one at a time.', correlationId: 'ride-9', data: { rideId: 'ride-9', candidates: ['driver-a', 'driver-b', 'driver-c'], radiusM: 1200 } },
+        { atMs: 22, key: 'surge', type: 'pricing.surge.applied', lane: 'clients', actor: 'matcher', target: 'rider-31', label: 'Surge multiplier 1.4× quoted', detail: 'Demand exceeds nearby supply. Pricing is quoted before assignment so the fare cannot change under the rider.', correlationId: 'ride-9', entry: { op: 'surge', multiplier: 1.4 } },
+        { atMs: 40, key: 'offer1', type: 'dispatch.offer.issued', lane: 'commits', actor: 'matcher', target: 'driver-a', label: 'Offer 1 goes to driver-a', detail: (_s, { effect }) => `Offer epoch ${effect.epoch} with a ${effect.ttlMs} ms acceptance window.`, correlationId: 'ride-9', entry: { op: 'offer', rideId: 'ride-9', driver: 'driver-a', ttlMs: 12000 }, data: (_s, { effect }) => ({ epoch: effect.epoch, driver: effect.driver }) },
+        { atMs: 96, key: 'uplink', type: 'fault.uplink.degraded', lane: 'faults', actor: 'network', target: 'driver-a', label: 'driver-a loses signal in a tunnel', detail: 'The phone is running and the driver taps accept. The packet simply does not arrive yet.', correlationId: 'ride-9', process: 'up', network: 'disconnected' },
+        { atMs: 12040, key: 'expire', type: 'dispatch.offer.expired', lane: 'faults', actor: 'matcher', target: 'driver-a', label: 'Offer 1 expires unanswered', detail: 'The matcher must reassign or the rider waits forever. It cannot know whether driver-a accepted.', correlationId: 'ride-9', causedBy: 'uplink', entry: { op: 'expire', rideId: 'ride-9' }, data: (_s, { effect }) => ({ driver: effect.driver, epoch: effect.epoch }) },
+        { atMs: 12080, key: 'offer2', type: 'dispatch.offer.issued', lane: 'commits', actor: 'matcher', target: 'driver-b', label: 'Offer 2 goes to driver-b', detail: (_s, { effect }) => `A new offer epoch ${effect.epoch} supersedes everything issued before it.`, correlationId: 'ride-9', entry: { op: 'offer', rideId: 'ride-9', driver: 'driver-b', ttlMs: 12000 }, data: (_s, { effect }) => ({ epoch: effect.epoch, driver: effect.driver }) },
+        { atMs: 13400, key: 'accept2', type: 'dispatch.assignment.committed', lane: 'commits', actor: 'driver-b', target: 'matcher', label: 'driver-b accepts at epoch 2', detail: 'The accept names the outstanding epoch, so it is admitted and the assignment commits.', correlationId: 'ride-9', entry: { op: 'accept', rideId: 'ride-9', driver: 'driver-b', epoch: 2 }, data: (_s, { effect }) => ({ driver: effect.driver, index: effect.index }) },
+        { atMs: 13650, key: 'lateaccept', type: 'dispatch.accept.fenced', lane: 'invariants', actor: 'driver-a', target: 'matcher', label: 'driver-a accepts too late', detail: 'The tunnel ends and the queued accept finally arrives — naming epoch 1, which was superseded 1.5 s ago.', correlationId: 'ride-9', causedBy: 'accept2', entry: { op: 'accept', rideId: 'ride-9', driver: 'driver-a', epoch: 1 }, data: (_s, { effect }) => ({ offeredEpoch: effect.offeredEpoch, currentEpoch: effect.currentEpoch, reason: effect.reason }) },
+        { atMs: 13720, key: 'offer3', type: 'dispatch.offer.issued', lane: 'commits', actor: 'matcher', target: 'driver-b', label: 'A second rider is offered driver-b', detail: 'ride-12 is nearby and the matcher has stale supply data showing driver-b as free.', correlationId: 'ride-12', entry: { op: 'offer', rideId: 'ride-12', driver: 'driver-b', ttlMs: 12000 }, data: (_s, { effect }) => ({ epoch: effect.epoch }) },
+        { atMs: 13860, key: 'doublebook', type: 'dispatch.accept.fenced', lane: 'invariants', actor: 'driver-b', target: 'matcher', label: 'Double booking is refused', detail: 'driver-b is already committed to ride-9. The second assignment is rejected on the driver, not on the epoch.', correlationId: 'ride-12', entry: { op: 'accept', rideId: 'ride-12', driver: 'driver-b', epoch: 3 }, data: (_s, { effect }) => ({ reason: effect.reason, heldBy: effect.heldBy }) },
+        { atMs: 14200, key: 'offer4', type: 'dispatch.offer.issued', lane: 'commits', actor: 'matcher', target: 'driver-c', label: 'ride-12 is re-offered to driver-c', detail: 'Refusal is fast and specific, so the rider is rematched rather than left waiting.', correlationId: 'ride-12', entry: { op: 'offer', rideId: 'ride-12', driver: 'driver-c', ttlMs: 12000 }, data: (_s, { effect }) => ({ epoch: effect.epoch }) },
+        { atMs: 15100, key: 'accept4', type: 'dispatch.assignment.committed', lane: 'commits', actor: 'driver-c', target: 'matcher', label: 'driver-c takes ride-12', detail: 'Two riders, two drivers, no overlap.', correlationId: 'ride-12', entry: { op: 'accept', rideId: 'ride-12', driver: 'driver-c', epoch: 4 }, data: (_s, { effect }) => ({ driver: effect.driver }) },
+        { atMs: 21000, type: 'ride.completed', lane: 'clients', actor: 'driver-b', target: 'matcher', label: 'ride-9 completes', detail: 'driver-b is returned to the available pool by a committed entry.', correlationId: 'ride-9', entry: { op: 'complete', rideId: 'ride-9' }, data: (_s, { effect }) => ({ driver: effect.driver }) },
+    ],
+    invariants(state) {
+        const driversUsed = [...state.assignments.values()].map((assignment) => assignment.driver);
+        const uniqueDrivers = new Set(driversUsed).size === driversUsed.length;
+        const staleRejections = state.rejectedAccepts.filter((item) => item.reason === 'stale-offer-epoch');
+        const busyRejections = state.rejectedAccepts.filter((item) => item.reason === 'driver-already-assigned');
+        return [
+            [...state.assignments.keys()].every((rideId) => state.assignments.get(rideId).driver)
+                && state.assignments.size === new Set(state.assignments.keys()).size
+                ? pass('single-assignment', `${state.assignments.size} rides each hold exactly one committed driver`, { assignments: [...state.assignments].map(([ride, a]) => `${ride}→${a.driver}`) })
+                : fail('single-assignment', 'a ride committed more than one driver'),
+            uniqueDrivers
+                ? pass('no-double-booking', 'no driver is committed to two rides at once', { drivers: driversUsed })
+                : fail('no-double-booking', 'a driver was dispatched to two riders', { drivers: driversUsed }),
+            staleRejections.length > 0
+                ? pass('late-accept-fenced', 'an accept naming a superseded offer epoch was rejected', staleRejections[0])
+                : watch('late-accept-fenced', 'no late accept arrived in this execution'),
+            busyRejections.length > 0
+                ? pass('supply-state-authoritative', 'stale supply data could not override committed driver state', busyRejections[0])
+                : watch('supply-state-authoritative', 'no contended driver in this execution'),
+            state.expiredOffers.length > 0 && state.assignments.size > 0
+                ? pass('timeout-does-not-strand', 'an expired offer was reassigned and the rider still got a car', { expired: state.expiredOffers.length })
+                : watch('timeout-does-not-strand', 'no offer expired in this execution'),
+        ];
+    },
+    metrics(state) {
+        return [
+            { label: 'rides assigned', value: state.assignments.size, unit: 'committed' },
+            { label: 'offers issued', value: state.matchAttempts, unit: `epoch ${state.offerEpoch}` },
+            { label: 'accepts fenced', value: state.rejectedAccepts.length, unit: 'rejected' },
+            { label: 'surge', value: `${state.surgeMultiplier}×`, unit: 'quoted' },
+        ];
+    },
+    explainEvent(event) {
+        const explanations = {
+            'dispatch.offer.expired': 'The matcher cannot distinguish "driver-a declined" from "driver-a accepted and the reply is stuck in a tunnel". Both look identical. Expiring and reassigning is the only way to keep the rider moving, which is exactly why the late accept must be handled rather than assumed away.',
+            'dispatch.accept.fenced': 'The accept carries the epoch it was offered under. The matcher compares it to the outstanding offer and finds a mismatch, so the request is refused without inspecting driver state at all. A wall-clock timestamp would not be sufficient here — the two decisions were made under different views, and only a monotonic token orders them.',
+            'dispatch.assignment.committed': 'The assignment is a committed log entry, not a matcher-local map. That is what makes the subsequent double-booking check correct even if the matcher process restarts between the two accepts.',
+            'pricing.surge.applied': 'Quoting before assignment means the fare is fixed by the same causal chain that produces the match, so a rider cannot be repriced by a reassignment they did not cause.',
+        };
+        return explanations[event.type] || event.data.detail;
+    },
+    visualization(state) {
+        const driverNode = (id) => {
+            const ride = state.driverBusy.get(id);
+            const fenced = state.rejectedAccepts.some((item) => item.driver === id);
+            return makeNode(id, 'up',
+                id === 'driver-a' && !ride ? 'reconnected' : 'connected',
+                ride ? `assigned ${ride}` : 'available',
+                fenced && !ride ? 'accept fenced' : ride ? 'en route' : 'idle',
+                ride ? 'green' : fenced ? 'red' : 'blue');
+        };
+        return {
+            title: `${state.assignments.size} rides · offer epoch ${state.offerEpoch}`,
+            subtitle: `${state.rejectedAccepts.length} accepts fenced · ${state.expiredOffers.length} offers expired`,
+            nodes: [
+                makeNode('matcher', 'up', 'connected', 'dispatch leader', `commit ${state.commitIndex}`, 'amber'),
+                driverNode('driver-a'),
+                driverNode('driver-b'),
+                driverNode('driver-c'),
+                makeNode('rider-31', 'up', 'connected', 'client', state.assignments.has('ride-9') ? 'matched' : 'waiting', state.assignments.has('ride-9') ? 'green' : 'amber'),
+            ],
+            policy: 'Every offer carries a fencing epoch; an accept for a superseded epoch can never commit.',
+        };
+    },
+};
+
+// ---------------------------------------------------------------------------
+// 7. Flash-sale inventory: a bounded counter under contention and partition
+// ---------------------------------------------------------------------------
+
+/**
+ * Overselling is the cheapest distributed-systems bug to explain and one of the
+ * easiest to write.
+ *
+ * The naive version reads stock, checks it is positive, and decrements —
+ * three steps that are not one step. Under contention two buyers both read 1
+ * and both decrement. The fix is a conditional decrement evaluated inside the
+ * replicated state machine, so the read and the write are the same committed
+ * entry.
+ *
+ * The subtler case, and the one this scenario is built around, is a **leader
+ * that accepts a reservation it cannot commit**. It is partitioned, so its
+ * append never reaches a majority. If the client is told "reserved" optimistically,
+ * or if the leader decrements its own local copy, stock is wrong the moment the
+ * partition heals. The correct behaviour is that an uncommitted reservation has
+ * *no effect whatsoever* — the buyer sees a failure and the counter never moved.
+ */
+function inventoryState() {
+    return {
+        initialStock: 3,
+        stock: 3,
+        commitIndex: 60,
+        reservations: new Map(),
+        rejected: [],
+        uncommittedAttempts: [],
+        released: [],
+        confirmed: [],
+        maxConcurrentHolds: 0,
+    };
+}
+
+function applyInventory(state, entry) {
+    switch (entry.op) {
+        case 'reserve': {
+            // A reservation that never reached a quorum is recorded as an
+            // attempt for the trace, but must not touch stock. This is the
+            // whole point of the scenario: the partitioned leader's optimism is
+            // invisible to committed state.
+            if (entry.committed === false) {
+                state.uncommittedAttempts.push({ orderId: entry.orderId, units: entry.units, stockAtAttempt: state.stock });
+                return { ok: false, reason: 'no-quorum', committed: false, stock: state.stock };
+            }
+            if (state.reservations.has(entry.orderId)) {
+                const held = state.reservations.get(entry.orderId);
+                return { ok: true, duplicate: true, orderId: entry.orderId, units: held.units, stock: state.stock };
+            }
+            if (state.stock < entry.units) {
+                const rejection = { orderId: entry.orderId, units: entry.units, stock: state.stock, reason: 'sold-out' };
+                state.rejected.push(rejection);
+                return { ok: false, ...rejection };
+            }
+            state.stock -= entry.units;
+            state.commitIndex += 1;
+            state.reservations.set(entry.orderId, { units: entry.units, state: 'held', index: state.commitIndex });
+            state.maxConcurrentHolds = Math.max(state.maxConcurrentHolds, state.reservations.size);
+            return { ok: true, orderId: entry.orderId, units: entry.units, stock: state.stock };
+        }
+        case 'release': {
+            const held = state.reservations.get(entry.orderId);
+            if (!held || held.state !== 'held') return { ok: false, reason: 'not-held' };
+            held.state = 'released';
+            state.stock += held.units;
+            state.commitIndex += 1;
+            state.released.push({ orderId: entry.orderId, units: held.units, reason: entry.reason });
+            return { ok: true, orderId: entry.orderId, units: held.units, stock: state.stock, reason: entry.reason };
+        }
+        case 'confirm': {
+            const held = state.reservations.get(entry.orderId);
+            if (!held || held.state !== 'held') return { ok: false, reason: 'not-held' };
+            held.state = 'confirmed';
+            state.commitIndex += 1;
+            state.confirmed.push({ orderId: entry.orderId, units: held.units });
+            return { ok: true, orderId: entry.orderId, units: held.units };
+        }
+        default:
+            return { ok: true };
+    }
+}
+
+const inventory = {
+    id: 'inventory',
+    name: 'Flash-sale inventory',
+    shortName: 'Inventory',
+    question: 'Can a partitioned leader oversell the last unit by accepting a reservation it cannot commit?',
+    scenario: 'Three units, five buyers, one partition, one payment failure',
+    createState: inventoryState,
+    applyCommittedEntry: applyInventory,
+    actions: [
+        { atMs: 0, key: 'open', type: 'sale.window.opened', lane: 'clients', actor: 'catalog', target: 'buyers', label: 'Sale opens with 3 units', detail: 'Five buyers are already waiting. Stock is a replicated counter, not a cached number.', correlationId: 'sale-1', data: { stock: 3, waiting: 5 } },
+        { atMs: 18, key: 'o1', type: 'inventory.reservation.committed', lane: 'commits', actor: 'order-1', target: 'leader', label: 'order-1 reserves 1 unit', detail: (_s, { effect }) => `Conditional decrement commits; ${effect.stock} units remain.`, correlationId: 'order-1', entry: { op: 'reserve', orderId: 'order-1', units: 1 }, data: (_s, { effect }) => ({ stock: effect.stock }) },
+        { atMs: 34, key: 'o2', type: 'inventory.reservation.committed', lane: 'commits', actor: 'order-2', target: 'leader', label: 'order-2 reserves 1 unit', detail: (_s, { effect }) => `${effect.stock} units remain; the check and the decrement are one entry.`, correlationId: 'order-2', entry: { op: 'reserve', orderId: 'order-2', units: 1 }, data: (_s, { effect }) => ({ stock: effect.stock }) },
+        { atMs: 62, key: 'partition', type: 'fault.partition.injected', lane: 'faults', actor: 'network', target: 'node0', label: 'Leader is cut off mid-sale', detail: 'node0 still accepts connections and still believes it leads. It just cannot reach a majority.', correlationId: 'sale-1', process: 'up', network: 'partitioned', raftRole: 'stale leader' },
+        { atMs: 88, key: 'o3fail', type: 'inventory.reservation.uncommitted', lane: 'invariants', actor: 'order-3', target: 'node0', label: 'order-3 reaches the wrong leader', detail: 'node0 appends the reservation locally, then waits for acknowledgements that cannot arrive.', correlationId: 'order-3', causedBy: 'partition', entry: { op: 'reserve', orderId: 'order-3', units: 1, committed: false }, data: (_s, { effect }) => ({ reason: effect.reason, stock: effect.stock }) },
+        { atMs: 1088, key: 'timeout', type: 'client.deadline.exceeded', lane: 'faults', actor: 'order-3', target: 'checkout', label: 'order-3 times out with no reservation', detail: 'The buyer sees a failure. Committed stock never moved, so nothing has to be undone.', correlationId: 'order-3', causedBy: 'o3fail', data: (state) => ({ stock: state.stock }) },
+        { atMs: 1150, key: 'failover', type: 'raft.leader.elected', lane: 'commits', actor: 'node1', nodeId: 'node1', target: 'cluster', label: 'node1 takes over in term 6', detail: 'The majority side elects a new leader. node0 truncates its uncommitted append when it rejoins.', correlationId: 'sale-1', causedBy: 'partition', raftRole: 'leader', data: { term: 6, live: 2, required: 2, configured: 3 } },
+        { atMs: 1210, key: 'o3retry', type: 'inventory.reservation.committed', lane: 'commits', actor: 'order-3', target: 'node1', label: 'order-3 retries and succeeds', detail: (_s, { effect }) => `The retry commits against the real leader; stock is now ${effect.stock}.`, correlationId: 'order-3', entry: { op: 'reserve', orderId: 'order-3', units: 1 }, data: (_s, { effect }) => ({ stock: effect.stock }) },
+        { atMs: 1240, key: 'o4', type: 'inventory.reservation.rejected', lane: 'invariants', actor: 'order-4', target: 'node1', label: 'order-4 is refused — sold out', detail: 'Stock is 0. The conditional decrement fails inside the state machine, so no negative value is representable.', correlationId: 'order-4', entry: { op: 'reserve', orderId: 'order-4', units: 1 }, data: (_s, { effect }) => ({ reason: effect.reason, stock: effect.stock }) },
+        { atMs: 1420, key: 'payfail', type: 'payment.authorization.failed', lane: 'faults', actor: 'psp', target: 'order-2', label: 'order-2 payment is declined', detail: 'The hold must be returned to inventory, not silently abandoned.', correlationId: 'order-2' },
+        { atMs: 1448, key: 'release', type: 'inventory.hold.released', lane: 'commits', actor: 'checkout', target: 'node1', label: 'order-2 releases its unit', detail: (_s, { effect }) => `One unit returns to stock; ${effect.stock} available again.`, correlationId: 'order-2', causedBy: 'payfail', entry: { op: 'release', orderId: 'order-2', reason: 'payment-declined' }, data: (_s, { effect }) => ({ stock: effect.stock, reason: effect.reason }) },
+        { atMs: 1512, key: 'o5', type: 'inventory.reservation.committed', lane: 'commits', actor: 'order-5', target: 'node1', label: 'order-5 takes the returned unit', detail: (_s, { effect }) => `The released unit is resold immediately; ${effect.stock} remain.`, correlationId: 'order-5', entry: { op: 'reserve', orderId: 'order-5', units: 1 }, data: (_s, { effect }) => ({ stock: effect.stock }) },
+        { atMs: 1590, key: 'retry3', type: 'dedup.duplicate.suppressed', lane: 'commits', actor: 'order-3', target: 'node1', label: 'order-3 retries once more', detail: 'The client never saw its success either. The reservation is keyed by order ID, so the retry returns the existing hold instead of taking a second unit.', correlationId: 'order-3', entry: { op: 'reserve', orderId: 'order-3', units: 1 }, data: (_s, { effect }) => ({ duplicate: effect.duplicate, stock: effect.stock }) },
+        { atMs: 1680, type: 'inventory.order.confirmed', lane: 'commits', actor: 'checkout', target: 'node1', label: 'order-1 is confirmed', detail: 'The hold becomes a sale. Confirmed units never return to stock.', correlationId: 'order-1', entry: { op: 'confirm', orderId: 'order-1' } },
+        { atMs: 1740, type: 'fault.partition.healed', lane: 'faults', actor: 'network', target: 'node0', label: 'node0 rejoins and truncates', detail: 'Its uncommitted order-3 append conflicts with the committed log and is discarded on the first AppendEntries.', correlationId: 'sale-1', network: 'connected', raftRole: 'follower' },
+    ],
+    invariants(state) {
+        const held = [...state.reservations.values()].filter((item) => item.state !== 'released');
+        const unitsOut = held.reduce((sum, item) => sum + item.units, 0);
+        const ghost = state.uncommittedAttempts.filter((attempt) => state.reservations.has(attempt.orderId)
+            && state.reservations.get(attempt.orderId).index <= 61);
+        return [
+            unitsOut + state.stock === state.initialStock
+                ? pass('conservation-of-stock', `${unitsOut} held + ${state.stock} available = ${state.initialStock} initial`, { held: unitsOut, available: state.stock, initial: state.initialStock })
+                : fail('conservation-of-stock', 'units were created or destroyed', { held: unitsOut, available: state.stock }),
+            state.stock >= 0
+                ? pass('no-oversell', `stock never went below zero across ${state.reservations.size + state.rejected.length} attempts`, { stock: state.stock, rejected: state.rejected.length })
+                : fail('no-oversell', 'the counter went negative', { stock: state.stock }),
+            ghost.length === 0
+                ? pass('uncommitted-has-no-effect', 'the partitioned leader\'s reservation left committed stock untouched', { attempts: state.uncommittedAttempts })
+                : fail('uncommitted-has-no-effect', 'an uncommitted reservation changed stock', { ghost }),
+            state.released.length > 0 && state.confirmed.every((item) => !state.released.some((r) => r.orderId === item.orderId))
+                ? pass('release-restores-exactly-once', 'a declined payment returned exactly its held units and no confirmed order was released', { released: state.released })
+                : watch('release-restores-exactly-once', 'no hold was released in this execution'),
+            state.rejected.length > 0
+                ? pass('refusal-is-committed', 'the sold-out refusal was decided inside the state machine, so every replica agrees', state.rejected[0])
+                : watch('refusal-is-committed', 'stock was never exhausted in this execution'),
+        ];
+    },
+    metrics(state) {
+        const held = [...state.reservations.values()].filter((item) => item.state === 'held').length;
+        return [
+            { label: 'stock', value: `${state.stock}/${state.initialStock}`, unit: 'available' },
+            { label: 'holds', value: held, unit: `${state.confirmed.length} confirmed` },
+            { label: 'refused', value: state.rejected.length, unit: 'sold out' },
+            { label: 'uncommitted', value: state.uncommittedAttempts.length, unit: 'no effect' },
+        ];
+    },
+    explainEvent(event) {
+        const explanations = {
+            'inventory.reservation.uncommitted': 'node0 appended the entry to its own log and then waited. Because it is on the minority side of the partition it can never reach a quorum, so the entry never commits and the state machine never applies it. The buyer correctly observes a failure, and — critically — no compensating action is required, because nothing happened.',
+            'inventory.reservation.rejected': 'The bounds check lives inside the committed state transition, so read-check-decrement is one atomic step. A read-then-write in application code is what lets two buyers both observe stock=1 and both succeed.',
+            'inventory.hold.released': 'A declined payment returns the units by another committed entry. Modelling holds and sales as distinct states is what makes this reversible without a compensating transaction that could itself fail.',
+            'dedup.duplicate.suppressed': 'The reservation is keyed by order ID. order-3 never learned its first attempt succeeded, so the retry is inevitable — and returns the existing hold rather than consuming a second unit.',
+            'fault.partition.healed': 'node0 rejoins, discovers term 6, and its uncommitted append at the conflicting index is overwritten by the leader. The oversell it was one acknowledgement away from causing is erased by log matching.',
+        };
+        return explanations[event.type] || event.data.detail;
+    },
+    visualization(state) {
+        const holdFor = (orderId) => {
+            const record = state.reservations.get(orderId);
+            if (!record) return state.rejected.some((r) => r.orderId === orderId) ? 'refused' : 'waiting';
+            return record.state;
+        };
+        return {
+            title: `sale-1 · ${state.stock}/${state.initialStock} available`,
+            subtitle: `${state.reservations.size} reservations · ${state.rejected.length} refused · ${state.uncommittedAttempts.length} uncommitted`,
+            nodes: [
+                makeNode('node0', 'up', state.uncommittedAttempts.length ? 'partitioned' : 'connected',
+                    state.uncommittedAttempts.length ? 'stale leader' : 'leader',
+                    `${state.uncommittedAttempts.length} orphan append`, state.uncommittedAttempts.length ? 'red' : 'green'),
+                makeNode('node1', 'up', 'connected', 'leader · t6', `commit ${state.commitIndex}`, 'green'),
+                makeNode('order-2', 'up', 'connected', 'buyer', holdFor('order-2'), holdFor('order-2') === 'released' ? 'amber' : 'blue'),
+                makeNode('order-3', 'up', 'connected', 'buyer', holdFor('order-3'), holdFor('order-3') === 'held' ? 'green' : 'amber'),
+                makeNode('order-4', 'up', 'connected', 'buyer', holdFor('order-4'), 'red'),
+            ],
+            policy: 'Read, bounds check, and decrement are one committed entry; an uncommitted reservation has no effect at all.',
+        };
+    },
+};
+
+const WORKLOADS = Object.freeze([
+    configuration, payment, vectorSearch, rollout, streaming, dispatch, inventory,
+].map(validateWorkload));
+
+function getWorkload(id) {
+    return WORKLOADS.find((workload) => workload.id === id) || null;
+}
+
+module.exports = {
+    REQUIRED_INTERFACE,
+    WORKLOADS,
+    validateWorkload,
+    runWorkload,
+    getWorkload,
+};
+
+};
+__registry["packages/scenario-dsl/index.js"] = function (module, exports, require) {
+'use strict';
+
+const { EVENT_TYPES } = require('../protocol/events');
+
+class ScenarioSyntaxError extends Error {
+    constructor(message, line = null) {
+        super(line ? `line ${line}: ${message}` : message);
+        this.name = 'ScenarioSyntaxError';
+        this.line = line;
+    }
+}
+
+function splitArguments(source, line) {
+    if (!source.trim()) return [];
+    const parts = [];
+    let start = 0;
+    let depth = 0;
+    let quote = null;
+    let escaped = false;
+    for (let i = 0; i < source.length; i += 1) {
+        const char = source[i];
+        if (escaped) { escaped = false; continue; }
+        if (char === '\\' && quote) { escaped = true; continue; }
+        if (quote) {
+            if (char === quote) quote = null;
+            continue;
+        }
+        if (char === '"' || char === "'") { quote = char; continue; }
+        if (char === '[' || char === '{' || char === '(') depth += 1;
+        if (char === ']' || char === '}' || char === ')') depth -= 1;
+        if (depth < 0) throw new ScenarioSyntaxError('unbalanced brackets', line);
+        if (char === ',' && depth === 0) {
+            parts.push(source.slice(start, i).trim());
+            start = i + 1;
+        }
+    }
+    if (quote || depth !== 0) throw new ScenarioSyntaxError('unterminated string or bracket', line);
+    parts.push(source.slice(start).trim());
+    return parts;
+}
+
+function parseValue(source, line) {
+    const value = source.trim();
+    if (!value) throw new ScenarioSyntaxError('empty argument', line);
+    if (value.startsWith('[') && value.endsWith(']')) {
+        return splitArguments(value.slice(1, -1), line).map((part) => parseValue(part, line));
+    }
+    if ((value.startsWith('"') && value.endsWith('"'))
+        || (value.startsWith("'") && value.endsWith("'"))) {
+        if (value[0] === '"') {
+            try { return JSON.parse(value); } catch (_) { throw new ScenarioSyntaxError('invalid quoted string', line); }
+        }
+        return value.slice(1, -1).replace(/\\'/g, "'").replace(/\\\\/g, '\\');
+    }
+    if (/^-?(?:\d+\.?\d*|\.\d+)$/.test(value)) return Number(value);
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+    if (value === 'null') return null;
+    if (/^[a-zA-Z_][a-zA-Z0-9_./:@-]*$/.test(value)) return value;
+    throw new ScenarioSyntaxError(`cannot parse argument ${value}`, line);
+}
+
+function parseScenario(source) {
+    if (typeof source !== 'string') throw new TypeError('scenario source must be a string');
+    const actions = [];
+    const lines = source.split(/\r?\n/);
+    for (let i = 0; i < lines.length; i += 1) {
+        const raw = lines[i];
+        const stripped = raw.replace(/\s+#.*$/, '').trim();
+        if (!stripped || stripped.startsWith('#')) continue;
+        const match = stripped.match(/^(\d+(?:\.\d+)?)\s*(ms|s)\s+(.+)$/i);
+        if (!match) throw new ScenarioSyntaxError('expected: <time>s command(arguments)', i + 1);
+        const atMs = Number(match[1]) * (match[2].toLowerCase() === 's' ? 1000 : 1);
+        const expression = match[3].replace(/^start\s+/i, '').trim();
+        const command = expression.match(/^([a-z][a-z0-9-]*)\s*\((.*)\)$/i);
+        if (!command) throw new ScenarioSyntaxError('expected command(arguments)', i + 1);
+        const name = command[1].toLowerCase();
+        const args = splitArguments(command[2], i + 1).map((arg) => parseValue(arg, i + 1));
+        actions.push({ atMs, name, args, line: i + 1, source: raw.trim() });
+    }
+    actions.sort((a, b) => a.atMs - b.atMs || a.line - b.line);
+    return actions;
+}
+
+function nodeIndex(value) {
+    if (Number.isInteger(value) && value >= 0) return value;
+    const match = String(value).match(/^node(\d+)$/i);
+    if (!match) throw new Error(`expected a node reference, received ${value}`);
+    return Number(match[1]);
+}
+
+function serializeValue(value) {
+    if (Array.isArray(value)) return `[${value.map(serializeValue).join(',')}]`;
+    if (typeof value === 'string' && /^[a-zA-Z_][a-zA-Z0-9_./:@-]*$/.test(value)) return value;
+    return JSON.stringify(value);
+}
+
+function serializeScenario(actions) {
+    return actions.map((action) => {
+        const time = `${(action.atMs / 1000).toFixed(3).replace(/0+$/, '').replace(/\.$/, '')}s`;
+        return `${time} ${action.name}(${action.args.map(serializeValue).join(', ')})`;
+    }).join('\n');
+}
+
+function branchScenario(sourceOrActions, atMs, additions) {
+    const original = typeof sourceOrActions === 'string' ? parseScenario(sourceOrActions) : sourceOrActions;
+    const branch = typeof additions === 'string' ? parseScenario(additions) : additions;
+    const prefix = original.filter((action) => action.atMs <= atMs);
+    const shifted = branch.map((action) => ({ ...action, atMs: atMs + action.atMs }));
+    return [...prefix, ...shifted].sort((a, b) => a.atMs - b.atMs || a.line - b.line);
+}
+
+class ScenarioRunner {
+    constructor({ ClusterClass = null, clusterOptions = {}, recorderOptions = {} } = {}) {
+        // Lazy to keep the parser usable in tooling that does not load Raft.
+        this.ClusterClass = ClusterClass || require('../../sim/cluster').SimCluster;
+        this.clusterOptions = clusterOptions;
+        this.recorderOptions = recorderOptions;
+        this.cluster = null;
+        this.actions = [];
+        this.results = [];
+    }
+
+    _makeCluster(actions) {
+        const declaration = actions.find((action) => action.name === 'cluster');
+        const size = declaration ? Number(declaration.args[0]) : (this.clusterOptions.size || 3);
+        if (!Number.isInteger(size) || size < 1 || size > 9) throw new Error(`invalid cluster size: ${size}`);
+        return new this.ClusterClass({
+            ...this.clusterOptions,
+            size,
+            recording: true,
+            recorderOptions: this.recorderOptions,
+        });
+    }
+
+    async _waitFor(promise, timeoutMs = 5000) {
+        let settled = false;
+        let result;
+        let error;
+        promise.then((value) => { settled = true; result = value; }, (reason) => { settled = true; error = reason; });
+        const deadline = this.cluster.clock.now() + timeoutMs;
+        while (!settled && this.cluster.clock.now() < deadline) {
+            if (!this.cluster.clock.advance()) break;
+            await this.cluster.clock.drain();
+            this.cluster.recorder?.captureCluster(this.cluster, { snapshot: false });
+        }
+        if (!settled) throw new Error(`scenario action timed out after ${timeoutMs}ms virtual time`);
+        if (error) throw error;
+        return result;
+    }
+
+    async _leader() {
+        if (this.cluster.leader) return this.cluster.leader;
+        const leader = await this.cluster.awaitLeader(5000);
+        if (!leader) throw new Error('scenario needs a leader, but no election completed');
+        return leader;
+    }
+
+    async execute(action) {
+        const { name, args } = action;
+        const record = (data = {}) => this.cluster.recorder?.record(EVENT_TYPES.SCENARIO_ACTION, {
+            source: { component: 'scenario-runner' },
+            subject: { kind: 'scenario-action', id: `${action.line}:${name}` },
+            data: { command: name, args, scheduledAtMs: action.atMs, ...data },
+        });
+
+        if (name === 'cluster') { record({ outcome: 'already-started' }); return { ok: true }; }
+        if (name === 'isolate') { this.cluster.isolate(nodeIndex(args[0])); record(); return { ok: true }; }
+        if (name === 'crash') { this.cluster.crash(nodeIndex(args[0])); record(); return { ok: true }; }
+        if (name === 'restart') { this.cluster.restart(nodeIndex(args[0])); record(); return { ok: true }; }
+        if (name === 'heal' || name === 'heal-all') { this.cluster.heal(); record(); return { ok: true }; }
+        if (name === 'partition') {
+            const left = Array.isArray(args[0]) ? args[0] : [args[0]];
+            const right = Array.isArray(args[1]) ? args[1] : [args[1]];
+            this.cluster.partition([left.map(nodeIndex), right.map(nodeIndex)]);
+            record(); return { ok: true };
+        }
+        if (name === 'latency') {
+            const min = Number(args.length > 1 ? args[0] : 0);
+            const max = Number(args.length > 1 ? args[1] : args[0]);
+            if (!Number.isFinite(min) || !Number.isFinite(max) || min < 0 || max < min) throw new Error('latency requires min,max milliseconds');
+            this.cluster.network.minLatency = min;
+            this.cluster.network.maxLatency = max;
+            record({ min, max }); return { ok: true };
+        }
+        if (name === 'packet-loss') {
+            const rate = Number(args[0]);
+            if (!Number.isFinite(rate) || rate < 0 || rate > 1) throw new Error('packet-loss requires a rate from 0 to 1');
+            this.cluster.network.dropRate = rate;
+            record({ rate }); return { ok: true };
+        }
+        if (name === 'write') {
+            const leader = await this._leader();
+            const outcome = await this._waitFor(leader.node.clientAppend({ op: 'set', key: String(args[0]), value: args[1] }));
+            record({ outcome }); return outcome;
+        }
+        if (name === 'rollout') {
+            const leader = await this._leader();
+            const outcome = await this._waitFor(leader.node.clientAppend({ op: 'set', key: 'model/current', value: args[0] }));
+            record({ outcome }); return outcome;
+        }
+        if (name === 'corrupt-artifact') {
+            record({ outcome: 'injected-marker', artifact: args[0], shard: args[1] ?? null });
+            return { ok: true, markerOnly: true };
+        }
+        throw new Error(`unsupported scenario command: ${name}`);
+    }
+
+    async run(sourceOrActions, { untilMs = Infinity } = {}) {
+        this.actions = typeof sourceOrActions === 'string' ? parseScenario(sourceOrActions) : sourceOrActions;
+        this.cluster = this._makeCluster(this.actions);
+        const origin = this.cluster.clock.now();
+        for (const action of this.actions) {
+            if (action.atMs > untilMs) break;
+            const target = origin + action.atMs;
+            if (this.cluster.clock.now() < target) await this.cluster.tick(target - this.cluster.clock.now());
+            try {
+                const value = await this.execute(action);
+                this.results.push({ action, ok: true, value });
+            } catch (error) {
+                this.cluster.recorder?.record(EVENT_TYPES.SCENARIO_ACTION, {
+                    source: { component: 'scenario-runner' },
+                    data: { command: action.name, args: action.args, error: error.message },
+                });
+                this.results.push({ action, ok: false, error: error.message });
+                throw error;
+            }
+            this.cluster.recorder?.captureCluster(this.cluster);
+        }
+        this.cluster.recorder?.finish({ actions: this.results.length });
+        return { cluster: this.cluster, results: this.results, trace: this.cluster.recorder?.export() };
+    }
+}
+
+module.exports = {
+    ScenarioSyntaxError,
+    parseScenario,
+    serializeScenario,
+    branchScenario,
+    ScenarioRunner,
+};
 
 };
 __registry["sim/simulator.js"] = function (module, exports, require) {
@@ -3247,6 +5920,10 @@ class SimNetwork {
     constructor(clock, rng, options = {}) {
         this.clock = clock;
         this.rng = rng;
+        this.requestDropRng = options.requestDropRng || rng;
+        this.responseDropRng = options.responseDropRng || rng;
+        this.requestLatencyRng = options.requestLatencyRng || rng;
+        this.responseLatencyRng = options.responseLatencyRng || rng;
         this.minLatency = options.minLatency ?? 2;
         this.maxLatency = options.maxLatency ?? 25;
         this.dropRate = options.dropRate ?? 0;
@@ -3257,6 +5934,29 @@ class SimNetwork {
     }
 
     register(url, handlers) { this.handlers.set(url, handlers); }
+
+    /**
+     * Observe every message: sent, delivered, dropped, blocked by a partition.
+     *
+     * Purely for visualisation. The fuzzer does not care what a partition looks
+     * like, but a person watching does — and the difference between "the
+     * cluster recovered" as a line of text and as three nodes visibly losing
+     * contact and re-electing is the difference between being told and being
+     * shown. Listeners are called outside the delivery path and can never
+     * affect it.
+     */
+    observe(listener) {
+        this._observers = this._observers || new Set();
+        this._observers.add(listener);
+        return () => this._observers.delete(listener);
+    }
+
+    _emit(event) {
+        if (!this._observers) return;
+        for (const listener of this._observers) {
+            try { listener(event); } catch (_) { /* never break delivery */ }
+        }
+    }
 
     /** True when `a` and `b` are on opposite sides of any active partition. */
     _isolated(a, b) {
@@ -3275,11 +5975,32 @@ class SimNetwork {
     crash(url) { this.crashed.add(url); }
     restart(url) { this.crashed.delete(url); }
 
-    post(url, body, options = {}) {
+    /**
+     * A transport bound to one node, so the network knows who is sending.
+     *
+     * The first version inferred the sender from the message body — `leaderUrl`
+     * on AppendEntries, `candidateId` on RequestVote. That silently half-worked
+     * and produced a false positive that looked like a serious Raft bug:
+     * `candidateId` is a replica *id* (`node0`), not a URL, so it never matched
+     * a partition group and **vote requests crossed partitions freely**. An
+     * isolated node could therefore win an election, become a second leader, and
+     * commit divergent entries — a textbook split brain, caused entirely by the
+     * harness.
+     *
+     * Worth the scar tissue: a fault injector that is wrong in the permissive
+     * direction invents failures, and a day spent debugging correct code is the
+     * most expensive kind of day.
+     */
+    forNode(url) {
+        return { post: (target, body, options) => this.post(target, body, options, url) };
+    }
+
+    post(url, body, options = {}, sender = null) {
         this.stats.sent += 1;
+        const rpcId = `rpc-${this.stats.sent}`;
         const target = new URL(url).origin;
         const route = new URL(url).pathname;
-        const from = body.leaderUrl || body.candidateId || 'client';
+        const from = sender || body.leaderUrl || 'client';
 
         return new Promise((resolve, reject) => {
             const fail = (reason) => {
@@ -3293,17 +6014,28 @@ class SimNetwork {
                 );
             };
 
-            if (this.crashed.has(target)) return fail('ECONNREFUSED');
-            if (this._isolated(from, target) || this._isolated(this._ownerOf(route, body), target)) {
+            const kind = route === '/pre-vote'
+                ? 'pre-vote'
+                : route === '/request-vote' ? 'vote' : 'append';
+            const decision = { rpcId, from, to: target, kind, route };
+
+            if (this.crashed.has(target)) {
+                this._emit({ type: 'blocked', reason: 'crashed', rpcId, from, to: target, kind, route, request: body, at: this.clock.now() });
+                return fail('ECONNREFUSED');
+            }
+            if (this._isolated(from, target)) {
                 this.stats.partitioned += 1;
+                this._emit({ type: 'blocked', reason: 'partition', rpcId, from, to: target, kind, route, request: body, at: this.clock.now() });
                 return fail('EHOSTUNREACH');
             }
-            if (this.rng.chance(this.dropRate)) {
+            if (this.requestDropRng.chance(this.dropRate, 'request-drop', decision)) {
                 this.stats.dropped += 1;
+                this._emit({ type: 'blocked', reason: 'dropped', rpcId, from, to: target, kind, route, request: body, at: this.clock.now() });
                 return fail('ETIMEDOUT');
             }
 
-            const latency = this.rng.range(this.minLatency, this.maxLatency);
+            const latency = this.requestLatencyRng.range(this.minLatency, this.maxLatency, 'request-latency', decision);
+            this._emit({ type: 'send', rpcId, from, to: target, kind, route, latency, request: body, at: this.clock.now() });
             this.clock.setTimeout(() => {
                 const node = this.handlers.get(target);
                 if (!node || this.crashed.has(target)) return reject(new Error('ECONNREFUSED'));
@@ -3318,25 +6050,182 @@ class SimNetwork {
                 // that produces "the write succeeded but the client saw a
                 // timeout" — precisely the ambiguity the linearizability checker
                 // has to reason about.
-                if (this.rng.chance(this.dropRate)) {
+                if (this.responseDropRng.chance(this.dropRate, 'response-drop', decision)) {
                     this.stats.dropped += 1;
                     return fail('ETIMEDOUT');
                 }
-                const back = this.rng.range(this.minLatency, this.maxLatency);
+                const back = this.responseLatencyRng.range(this.minLatency, this.maxLatency, 'response-latency', decision);
+                this._emit({ type: 'reply', rpcId, from: target, to: from, kind, route, latency: back, response: data, at: this.clock.now() });
                 this.clock.setTimeout(() => {
                     this.stats.delivered += 1;
+                    this._emit({ type: 'delivered', rpcId, from: target, to: from, kind, route, response: data, at: this.clock.now() });
                     resolve({ data });
                 }, back);
             }, latency);
         });
     }
-
-    _ownerOf(route, body) {
-        return body.leaderUrl || null;
-    }
 }
 
 module.exports = { Rng, VirtualClock, SimNetwork };
+
+};
+__registry["sim/decision-tape.js"] = function (module, exports, require) {
+'use strict';
+
+const { Rng } = require('./simulator');
+
+function deriveSeed(seed, name) {
+    let hash = (seed >>> 0) || 1;
+    const text = String(name);
+    for (let i = 0; i < text.length; i += 1) {
+        hash ^= text.charCodeAt(i);
+        hash = Math.imul(hash, 16777619) >>> 0;
+    }
+    return hash || 1;
+}
+
+function safeContext(value) {
+    if (value === undefined || value === null) return null;
+    try { return JSON.parse(JSON.stringify(value)); } catch (_) { return String(value); }
+}
+
+/**
+ * A portable record of raw PRNG decisions for one semantic domain.
+ *
+ * Exact replay consumes the recorded raw integers instead of sampling again.
+ * A shrunken schedule can change how many decisions a domain needs; in that
+ * case replay projects the old tape onto the new execution and falls back to
+ * the domain seed only after the tape is exhausted. Diagnostics make that
+ * projection visible rather than silently pretending it was an exact replay.
+ */
+class DecisionTape {
+    constructor({ seed = 1, stream = 'default', decisions = null, clock = null, startedAt = null } = {}) {
+        this.seed = deriveSeed(seed, stream);
+        this.stream = stream;
+        this.clock = clock;
+        this.startedAt = startedAt === null && clock ? clock.now() : startedAt;
+        this.mode = decisions === null ? 'record' : 'replay';
+        this.recorded = decisions === null ? [] : decisions.map((item) => ({ ...item }));
+        this.observed = [];
+        this.cursor = 0;
+        this.rng = new Rng(this.seed);
+        this.mismatches = [];
+    }
+
+    next(label = 'next', context = null) {
+        const generated = this.rng.next();
+        let raw = generated;
+        const expected = this.recorded[this.cursor];
+        if (this.mode === 'replay' && expected) {
+            raw = expected.raw >>> 0;
+            if (expected.label !== label) {
+                this.mismatches.push({
+                    sequence: this.cursor + 1,
+                    expected: expected.label,
+                    observed: label,
+                });
+            }
+        } else if (this.mode === 'replay') {
+            this.mismatches.push({ sequence: this.cursor + 1, expected: null, observed: label });
+        }
+
+        const item = {
+            sequence: this.cursor + 1,
+            stream: this.stream,
+            label,
+            raw: raw >>> 0,
+            atMs: this.clock && this.startedAt !== null ? this.clock.now() - this.startedAt : null,
+            context: safeContext(context),
+        };
+        this.observed.push(item);
+        if (this.mode === 'record') this.recorded.push(item);
+        this.cursor += 1;
+        return raw >>> 0;
+    }
+
+    _annotate(value) {
+        const item = this.observed[this.observed.length - 1];
+        item.value = safeContext(value);
+        if (this.mode === 'record') {
+            this.recorded[this.recorded.length - 1].value = item.value;
+        } else {
+            const expected = this.recorded[this.cursor - 1];
+            if (expected && Object.hasOwn(expected, 'value')
+                && JSON.stringify(expected.value) !== JSON.stringify(item.value)) {
+                this.mismatches.push({
+                    sequence: this.cursor,
+                    expectedValue: expected.value,
+                    observedValue: item.value,
+                });
+            }
+        }
+        return value;
+    }
+
+    float(label, context) {
+        return this._annotate(this.next(label, context) / 4294967296);
+    }
+
+    int(maxExclusive, label, context) {
+        if (!Number.isInteger(maxExclusive) || maxExclusive < 1) return 0;
+        return this._annotate(this.next(label, context) % maxExclusive);
+    }
+
+    range(min, max, label, context) {
+        const width = Math.max(1, max - min + 1);
+        return this._annotate(min + (this.next(label, context) % width));
+    }
+
+    pick(array, label, context) {
+        return this._annotate(array[this.next(label, context) % array.length]);
+    }
+
+    chance(probability, label, context) {
+        return this._annotate(this.next(label, context) / 4294967296 < probability);
+    }
+
+    export() { return this.recorded.map((item) => ({ ...item })); }
+}
+
+class DecisionStreams {
+    constructor({ seed = 1, decisions = null, clock = null } = {}) {
+        this.seed = seed;
+        this.source = decisions;
+        this.clock = clock;
+        this.startedAt = clock ? clock.now() : null;
+        this.streams = new Map();
+    }
+
+    stream(name) {
+        if (!this.streams.has(name)) {
+            const replay = this.source === null ? null : (this.source[name] || []);
+            this.streams.set(name, new DecisionTape({
+                seed: this.seed,
+                stream: name,
+                decisions: replay,
+                clock: this.clock,
+                startedAt: this.startedAt,
+            }));
+        }
+        return this.streams.get(name);
+    }
+
+    export() {
+        return Object.fromEntries([...this.streams].map(([name, tape]) => [name, tape.export()]));
+    }
+
+    diagnostics() {
+        return Object.fromEntries([...this.streams].map(([name, tape]) => [name, {
+            mode: tape.mode,
+            consumed: tape.cursor,
+            available: tape.recorded.length,
+            exact: tape.mismatches.length === 0 && (tape.mode === 'record' || tape.cursor === tape.recorded.length),
+            mismatches: tape.mismatches.slice(),
+        }]));
+    }
+}
+
+module.exports = { DecisionTape, DecisionStreams, deriveSeed };
 
 };
 __registry["sim/linearizability.js"] = function (module, exports, require) {
@@ -3602,7 +6491,10 @@ __registry["sim/cluster.js"] = function (module, exports, require) {
 
 const { RaftNode } = require('../replica/raft');
 const { StateMachine } = require('../replica/state-machine');
-const { VirtualClock, SimNetwork, Rng } = require('./simulator');
+const { VirtualClock, SimNetwork } = require('./simulator');
+const { DecisionStreams } = require('./decision-tape');
+const { FlightRecorder } = require('../packages/simulator/flight-recorder');
+const { EVENT_TYPES } = require('../packages/protocol/events');
 
 /**
  * Stable storage that survives a simulated crash but not a simulated disk loss.
@@ -3635,6 +6527,10 @@ class MemoryLogStore {
 class SimCluster {
     constructor({
         size = 3,
+        // How many of `size` start as voting members. The rest are spares the
+        // cluster can be grown into, so membership changes are a real join
+        // rather than re-enabling a node that was a member all along.
+        voters = null,
         seed = 1,
         dropRate = 0,
         minLatency = 2,
@@ -3642,12 +6538,28 @@ class SimCluster {
         electionTimeoutMin = 150,
         electionTimeoutMax = 300,
         heartbeatInterval = 40,
+        recording = false,
+        recorder = null,
+        recorderOptions = {},
+        decisionTrace = null,
+        decisionStreams = null,
     } = {}) {
-        this.rng = new Rng(seed);
         this.clock = new VirtualClock();
-        this.network = new SimNetwork(this.clock, this.rng, { dropRate, minLatency, maxLatency });
+        this.decisionStreams = decisionStreams || new DecisionStreams({
+            seed, decisions: decisionTrace, clock: this.clock,
+        });
+        this.network = new SimNetwork(this.clock, this.decisionStreams.stream('network.fallback'), {
+            dropRate,
+            minLatency,
+            maxLatency,
+            requestDropRng: this.decisionStreams.stream('network.request-drop'),
+            responseDropRng: this.decisionStreams.stream('network.response-drop'),
+            requestLatencyRng: this.decisionStreams.stream('network.request-latency'),
+            responseLatencyRng: this.decisionStreams.stream('network.response-latency'),
+        });
         this.seed = seed;
         this.size = size;
+        this.voters = voters ?? size;
         this.config = { electionTimeoutMin, electionTimeoutMax, heartbeatInterval };
 
         this.urls = Array.from({ length: size }, (_, i) => `http://node${i}:5000`);
@@ -3655,18 +6567,38 @@ class SimCluster {
         // comes back with exactly what it had durably written.
         this.stores = this.urls.map(() => ({ stable: new MemoryStableStore(), log: new MemoryLogStore() }));
         this.nodes = new Map();
+        this.recorder = recorder || (recording
+            ? new FlightRecorder({ clock: this.clock, seed, ...recorderOptions })
+            : null);
+        if (this.recorder) this.recorder.attachNetwork(this.network);
 
         for (let i = 0; i < size; i += 1) this._spawn(i);
+        if (this.recorder) this.recorder.captureCluster(this);
     }
 
     _spawn(index) {
+        const electionRng = this.decisionStreams.stream('election.node' + index);
+        const timeoutOffset = electionRng.int(40, 'node-timeout-offset-ms', { node: index });
+
         const url = this.urls[index];
         const node = new RaftNode({
             replicaId: `node${index}`,
-            peers: this.urls.filter((u) => u !== url),
             nodeUrl: url,
-            transport: this.network,
+            // Every node bootstraps with the *initial* voter set, spares
+            // included. A spare therefore boots knowing it is not a member and
+            // will not campaign; it learns its promotion from the log when the
+            // leader replicates the config entry that adds it.
+            members: this.urls.slice(0, this.voters),
+            // Bound to this node's URL so the network can tell who is sending
+            // and apply partitions to vote requests as well as replication.
+            transport: this.network.forNode(url),
             clock: this.clock,
+            // Election jitter comes from the seeded PRNG, not Math.random.
+            // Without this the schedule differs on every run and the whole
+            // "reproducible from a seed" property is a fiction.
+            randomElectionTimeout: (min, max) => electionRng.range(
+                min, Math.max(min, max - 1), 'election-timeout-ms', { node: index },
+            ),
             stableStore: this.stores[index].stable,
             logStore: this.stores[index].log,
             storagePath: false,
@@ -3674,15 +6606,11 @@ class SimCluster {
             autoStart: true,
             commitTimeoutMs: 1500,
             ...this.config,
+            electionTimeoutMin: this.config.electionTimeoutMin + timeoutOffset,
         });
 
-        // Randomising the initial election timer per node is what stops all
-        // three from campaigning simultaneously forever. With a virtual clock
-        // and no jitter, a symmetric cluster can livelock in split votes — the
-        // real world gets this for free from scheduling noise.
-        node.electionTimeoutMin = this.config.electionTimeoutMin + this.rng.int(40);
-
         this.network.register(url, {
+            '/pre-vote': (body) => node.handlePreVote(body),
             '/request-vote': (body) => node.handleRequestVote(body),
             '/append-entries': (body) => node.handleAppendEntries(body),
         });
@@ -3691,11 +6619,34 @@ class SimCluster {
         return node;
     }
 
+    /**
+     * The leader a client should talk to.
+     *
+     * Naively returning the first node that believes it leads is wrong during a
+     * partition, and wrong in the most misleading way: a leader cut off from
+     * the majority does not know it yet, so it keeps reporting LEADER until its
+     * next contact with a higher term. A client following that answer sends
+     * every write into a node that cannot commit anything.
+     *
+     * Picking the highest term matches what a real client learns from redirects,
+     * and it is why `leaders` below exists separately — the visualisation wants
+     * to show *both* claimants, because two nodes simultaneously believing they
+     * lead is the single most instructive thing this system does.
+     */
     get leader() {
+        let best = null;
         for (const [url, node] of this.nodes) {
-            if (node.isLeader() && !this.network.crashed.has(url)) return { url, node };
+            if (!node.isLeader() || this.network.crashed.has(url)) continue;
+            if (!best || node.currentTerm > best.node.currentTerm) best = { url, node };
         }
-        return null;
+        return best;
+    }
+
+    /** Every node that currently believes it is leader. Usually one. */
+    get leaders() {
+        return [...this.nodes.entries()]
+            .filter(([url, node]) => node.isLeader() && !this.network.crashed.has(url))
+            .map(([url, node]) => ({ url, node, term: node.currentTerm }));
     }
 
     /** Advances virtual time until a leader exists, or gives up. */
@@ -3711,7 +6662,20 @@ class SimCluster {
         return this.leader;
     }
 
-    tick(ms) { return this.clock.runFor(ms); }
+    async tick(ms) {
+        const steps = await this.clock.runFor(ms);
+        if (this.recorder) this.recorder.captureCluster(this);
+        return steps;
+    }
+
+    /** Pause the real-time driver and execute exactly one scheduled callback. */
+    async step() {
+        this.stopDriver();
+        const advanced = this.clock.advance();
+        if (advanced) await this.clock.drain();
+        if (this.recorder) this.recorder.captureCluster(this);
+        return advanced;
+    }
 
     /**
      * Drives virtual time continuously, pegged to real time.
@@ -3734,6 +6698,7 @@ class SimCluster {
             this._driving = true;
             try {
                 await this.clock.runFor(intervalMs * speed);
+                if (this.recorder) this.recorder.captureCluster(this);
                 if (onTick) onTick(this);
             } finally {
                 this._driving = false;
@@ -3756,15 +6721,32 @@ class SimCluster {
     /** Splits the cluster. `groups` is an array of arrays of node indexes. */
     partition(groups) {
         this.network.partition(groups.map((g) => g.map((i) => this.urls[i])));
+        this.recorder?.record(EVENT_TYPES.FAULT_APPLIED, {
+            source: { component: 'fault-injector' }, subject: { kind: 'network' },
+            data: { fault: 'partition', groups },
+        });
+        this.recorder?.captureCluster(this);
     }
 
     /** Isolates one node from the rest — the common minority-partition case. */
     isolate(index) {
         const others = this.urls.filter((_, i) => i !== index);
         this.network.partition([[this.urls[index]], others]);
+        this.recorder?.record(EVENT_TYPES.FAULT_APPLIED, {
+            source: { component: 'fault-injector' }, subject: { kind: 'node', id: `node${index}` },
+            data: { fault: 'isolate', index },
+        });
+        this.recorder?.captureCluster(this);
     }
 
-    heal() { this.network.heal(); }
+    heal() {
+        this.network.heal();
+        this.recorder?.record(EVENT_TYPES.FAULT_HEALED, {
+            source: { component: 'fault-injector' }, subject: { kind: 'network' },
+            data: { fault: 'all-network-faults' },
+        });
+        this.recorder?.captureCluster(this);
+    }
 
     /**
      * Hard crash: the process disappears. Timers stop, in-memory state is
@@ -3776,12 +6758,101 @@ class SimCluster {
         if (node) node.stop();
         this.network.crash(url);
         this.nodes.delete(url);
+        this.recorder?.record(EVENT_TYPES.FAULT_APPLIED, {
+            source: { component: 'fault-injector' }, subject: { kind: 'node', id: `node${index}` },
+            data: { fault: 'crash', index },
+        });
+        this.recorder?.captureCluster(this);
     }
 
     /** Restart from durable state only, exactly as a real process would. */
     restart(index) {
         this.network.restart(this.urls[index]);
-        return this._spawn(index);
+        const node = this._spawn(index);
+        this.recorder?.record(EVENT_TYPES.FAULT_HEALED, {
+            source: { component: 'fault-injector' }, subject: { kind: 'node', id: `node${index}` },
+            data: { fault: 'crash', index },
+        });
+        this.recorder?.captureCluster(this);
+        return node;
+    }
+
+    /**
+     * Adds a spare node to the cluster through the leader.
+     *
+     * The spare is spawned first so it can actually answer AppendEntries while
+     * it is catching up — a configuration naming a server that does not exist
+     * would stall the join for reasons that have nothing to do with the
+     * protocol.
+     */
+    async addMember(index, options = {}) {
+        const leader = this.leader;
+        if (!leader) return { ok: false, error: 'no leader' };
+        const url = this.urls[index];
+        if (!this.nodes.has(url)) this._spawn(index);
+        this.network.restart(url);
+        return leader.node.addServer(url, { catchUpTimeoutMs: 4000, ...options });
+    }
+
+    async removeMember(index) {
+        const leader = this.leader;
+        if (!leader) return { ok: false, error: 'no leader' };
+        return leader.node.removeServer(this.urls[index]);
+    }
+
+    /**
+     * Every configuration this cluster has ever committed, oldest first.
+     *
+     * Read out of the leader's log rather than tracked separately, so the
+     * invariant below is checked against what was actually replicated instead
+     * of against the harness's idea of what happened.
+     */
+    configurationHistory() {
+        const source = this.leader?.node ?? [...this.nodes.values()][0];
+        if (!source) return [];
+        const history = [source.bootstrapMembers];
+        for (const entry of source.log) {
+            if (entry.data && entry.data.op === 'config') history.push(entry.data.members);
+        }
+        return history;
+    }
+
+    /**
+     * The safety property single-server changes exist to provide.
+     *
+     * Any majority of one configuration must intersect any majority of the
+     * next. If they can be disjoint, two leaders can be elected simultaneously
+     * — one by each half — and the cluster splits with no way to detect it
+     * from the outside.
+     */
+    checkConfigurationOverlap() {
+        const history = this.configurationHistory();
+        for (let i = 1; i < history.length; i += 1) {
+            const before = history[i - 1];
+            const after = history[i];
+            const shared = after.filter((u) => before.includes(u)).length;
+            const majorityBefore = Math.floor(before.length / 2) + 1;
+            const majorityAfter = Math.floor(after.length / 2) + 1;
+            // Two majorities must overlap unless they can fit disjointly into
+            // the union of both configurations.
+            if (majorityBefore + majorityAfter <= before.length + after.length - shared) {
+                return {
+                    ok: false,
+                    reason: `configurations ${i - 1}->${i} admit disjoint majorities: `
+                        + `[${before.join(',')}] -> [${after.join(',')}]`,
+                };
+            }
+        }
+        return { ok: true, changes: history.length - 1 };
+    }
+
+    /** Portable random-decision artifact for exact replay and shrinking. */
+    exportDecisionTrace() {
+        return this.decisionStreams.export();
+    }
+
+    decisionDiagnostics() {
+        return this.decisionStreams.diagnostics();
     }
 
     /** Every live node's applied state, for the convergence assertion. */
@@ -3806,6 +6877,24 @@ class SimCluster {
      * different entries at the same log index. A violation here means the
      * protocol is broken, regardless of what any client observed.
      */
+    /**
+     * The Log Matching Property (Raft §5.3): if two logs contain an entry at
+     * the same index *and the same term*, then every preceding entry is
+     * identical.
+     *
+     * ── What this deliberately does not check ────────────────────────────────
+     * An earlier version asserted that no two replicas may differ at any index
+     * at all. That is a stronger claim than Raft makes, and it is false: a
+     * leader that is deposed with entries still uncommitted keeps them until
+     * the new leader overwrites them, so two logs legitimately disagree on
+     * their uncommitted tails. It passed a thousand seeds only because those
+     * schedules happened to end in a converged state; adding membership churn
+     * produced exactly the transient divergence Raft allows, and the harness
+     * reported thirteen "failures" in code that was behaving correctly.
+     *
+     * Committed entries are covered separately by checkCommittedPrefix, which
+     * is where the real safety burden belongs.
+     */
     checkLogConsistency() {
         const live = [...this.nodes.values()];
         for (let i = 0; i < live.length; i += 1) {
@@ -3813,12 +6902,21 @@ class SimCluster {
                 const a = live[i].log;
                 const b = live[j].log;
                 const shared = Math.min(a.length, b.length);
-                for (let k = 0; k < shared; k += 1) {
-                    if (a[k].term !== b[k].term) {
+
+                // The deepest index where both agree on the term. Log Matching
+                // says everything below it must be byte-identical.
+                let deepestMatch = -1;
+                for (let k = shared - 1; k >= 0; k -= 1) {
+                    if (a[k].term === b[k].term) { deepestMatch = k; break; }
+                }
+
+                for (let k = 0; k <= deepestMatch; k += 1) {
+                    if (a[k].term !== b[k].term
+                        || JSON.stringify(a[k].data) !== JSON.stringify(b[k].data)) {
                         return {
                             ok: false,
-                            reason: `${live[i].replicaId} and ${live[j].replicaId} disagree at index ${k}: `
-                                + `term ${a[k].term} vs ${b[k].term}`,
+                            reason: `${live[i].replicaId} and ${live[j].replicaId} violate log matching: `
+                                + `entries agree at index ${deepestMatch} but differ at ${k}`,
                         };
                     }
                 }
@@ -3845,10 +6943,435 @@ class SimCluster {
     stop() {
         this.stopDriver();
         for (const node of this.nodes.values()) node.stop();
+        this.recorder?.finish({ reason: 'cluster-stopped' });
     }
 }
 
 module.exports = { SimCluster, MemoryStableStore, MemoryLogStore };
+
+};
+__registry["sim/bug-museum.js"] = function (module, exports, require) {
+'use strict';
+
+/**
+ * Executable, simulation-only mutants for the Bug Museum.
+ *
+ * These models are intentionally isolated from the production Raft and serving
+ * paths.  Each exhibit describes a four-event witness, a deterministic search
+ * corpus, an exact failure signature, and the correction applied when the same
+ * schedule is replayed against the healthy rule.
+ */
+
+const NOISE = [
+    ['observer.sample', 'Sample node metrics'],
+    ['network.heartbeat', 'Deliver an unrelated heartbeat'],
+    ['client.read', 'Serve an unrelated safe read'],
+    ['recorder.flush', 'Flush the causal recorder'],
+    ['scheduler.tick', 'Advance the deterministic clock'],
+    ['health.probe', 'Probe replica readiness'],
+];
+
+const MUTANTS = [
+    {
+        id: 'older-term-commit', number: '01', group: 'CONSENSUS', accent: 'amber',
+        title: 'The time-travelling commit', short: 'Older-term commit',
+        faultyRule: 'Commit an older-term entry by replica count.',
+        correctedRule: 'A leader only advances commitIndex by counting replicas when log[N].term equals its current term.',
+        invariant: 'Raft leader completeness', signature: 'invariant:leader-completeness',
+        actors: ['client', 'node A · t3', 'node B · t4', 'node C'],
+        required: ['log.append-old', 'leader.elected', 'rpc.ack-old', 'commit.advance'],
+        violationAction: 'commit.advance',
+        correction: 'Commit blocked · entry term 3 ≠ leader term 4',
+        correctedOutcome: 'The old entry remains uncommitted until a term-4 entry reaches quorum.',
+        steps: [
+            ['log.append-old', 'node A · t3', 'node B · t4', 'Append x in term 3', 'x is replicated to only one voter before A is isolated.'],
+            ['leader.elected', 'node B · t4', 'node C', 'Elect B in term 4', 'B inherits the uncommitted term-3 suffix.'],
+            ['rpc.ack-old', 'node B · t4', 'node C', 'C acknowledges old entry x', 'Replica count reaches two, but x is not from the current term.'],
+            ['commit.advance', 'node B · t4', 'client', 'Advance commitIndex to x', 'The mutant commits solely by replica count, violating the current-term guard.'],
+        ],
+    },
+    {
+        id: 'vote-before-persist', number: '02', group: 'CONSENSUS', accent: 'rose',
+        title: 'The vote that vanished', short: 'Volatile vote reply',
+        faultyRule: 'Reply to RequestVote before persisting the vote.',
+        correctedRule: 'Persist currentTerm and votedFor before a granted RequestVote response becomes observable.',
+        invariant: 'Election safety', signature: 'invariant:election-safety',
+        actors: ['candidate B', 'voter A', 'candidate C', 'disk'],
+        required: ['vote.request', 'vote.choose', 'vote.reply', 'node.crash'],
+        violationAction: 'vote.reply',
+        correction: 'Persist votedFor=B · then reply granted',
+        correctedOutcome: 'After restart, A remembers B and rejects C in the same term.',
+        steps: [
+            ['vote.request', 'candidate B', 'voter A', 'Request vote in term 6', 'B has an up-to-date log and asks A for its vote.'],
+            ['vote.choose', 'voter A', 'disk', 'Choose B in memory', 'The mutant changes volatile state but has not flushed stable metadata.'],
+            ['vote.reply', 'voter A', 'candidate B', 'Reply voteGranted=true', 'The grant escapes before votedFor=B is durable.'],
+            ['node.crash', 'disk', 'candidate C', 'Crash, restart, then meet C', 'A forgets the grant and can vote twice in term 6.'],
+        ],
+    },
+    {
+        id: 'rejected-append-timeout', number: '03', group: 'CONSENSUS', accent: 'amber',
+        title: 'The immortal pretender', short: 'Rejected timeout reset',
+        faultyRule: 'Reset election timeout on rejected AppendEntries.',
+        correctedRule: 'Only valid leader contact resets the election timer; a rejected stale AppendEntries does not.',
+        invariant: 'Election liveness', signature: 'liveness:election-starvation',
+        actors: ['stale A · t7', 'voter B · t8', 'candidate C', 'timer'],
+        required: ['append.stale', 'append.reject', 'timeout.reset', 'election.starved'],
+        violationAction: 'timeout.reset',
+        correction: 'Keep B’s election deadline unchanged',
+        correctedOutcome: 'B times out, joins C, and the current-term majority elects a leader.',
+        steps: [
+            ['append.stale', 'stale A · t7', 'voter B · t8', 'Receive stale AppendEntries', 'A cannot prove leadership in B’s newer term.'],
+            ['append.reject', 'voter B · t8', 'stale A · t7', 'Reject term 7', 'B correctly returns term 8 and success=false.'],
+            ['timeout.reset', 'voter B · t8', 'timer', 'Reset election deadline', 'The faulty side effect treats a rejected RPC as valid leader contact.'],
+            ['election.starved', 'timer', 'candidate C', 'Current election never starts', 'Repeated stale traffic keeps the majority leaderless.'],
+        ],
+    },
+    {
+        id: 'stale-leader-read', number: '04', group: 'SERVING', accent: 'rose',
+        title: 'The ghost leader', short: 'Stale leader read',
+        faultyRule: 'Serve reads from a stale leader.',
+        correctedRule: 'Fence reads unless the leader holds a fresh quorum lease or completes ReadIndex.',
+        invariant: 'Linearizable reads', signature: 'history:non-linearizable-read',
+        actors: ['client', 'isolated A', 'leader B', 'voter C'],
+        required: ['leader.isolate', 'write.commit-new', 'read.request', 'read.reply-stale'],
+        violationAction: 'read.reply-stale',
+        correction: 'Reject read · stale leader lease',
+        correctedOutcome: 'The client retries through B and observes the committed value v2.',
+        steps: [
+            ['leader.isolate', 'leader B', 'isolated A', 'Partition old leader A', 'B and C form a newer-term majority.'],
+            ['write.commit-new', 'leader B', 'voter C', 'Commit model/current = v2', 'The majority applies v2 while A still has v1.'],
+            ['read.request', 'client', 'isolated A', 'Read model/current', 'The request reaches A after its quorum lease has expired.'],
+            ['read.reply-stale', 'isolated A', 'client', 'Reply model/current = v1', 'A returns a value older than a completed write.'],
+        ],
+    },
+    {
+        id: 'dedup-disabled', number: '05', group: 'SERVING', accent: 'violet',
+        title: 'The echoing command', short: 'No request dedup',
+        faultyRule: 'Disable request deduplication.',
+        correctedRule: 'Resolve retries by stable clientId + seqNo and return the original committed result.',
+        invariant: 'At-most-once effects', signature: 'history:duplicate-client-command',
+        actors: ['client 7', 'gateway', 'leader', 'state machine'],
+        required: ['command.send', 'command.commit', 'command.retry', 'command.commit-duplicate'],
+        violationAction: 'command.commit-duplicate',
+        correction: 'Return result of original log entry #18',
+        correctedOutcome: 'Both attempts resolve to one committed effect and one stable result.',
+        steps: [
+            ['command.send', 'client 7', 'gateway', 'Send seqNo 41 · increment', 'The gateway forwards a command with a stable request identity.'],
+            ['command.commit', 'leader', 'state machine', 'Commit seqNo 41 once', 'The response is lost after the effect is applied.'],
+            ['command.retry', 'client 7', 'gateway', 'Retry seqNo 41', 'The client correctly reuses the same identity.'],
+            ['command.commit-duplicate', 'leader', 'state machine', 'Append and apply seqNo 41 again', 'With the dedup table disabled, one logical command has two effects.'],
+        ],
+    },
+    {
+        id: 'learner-quorum', number: '06', group: 'CONSENSUS', accent: 'violet',
+        title: 'The counterfeit majority', short: 'Learner in quorum',
+        faultyRule: 'Count learners toward quorum.',
+        correctedRule: 'Replicate to learners, but count acknowledgements from voting members only.',
+        invariant: 'Quorum intersection', signature: 'invariant:learner-counted-for-quorum',
+        actors: ['leader A', 'voter B', 'voter C', 'learner L'],
+        required: ['learner.stage', 'voters.partition', 'learner.ack', 'commit.advance'],
+        violationAction: 'commit.advance',
+        correction: 'Commit blocked · 1 of 3 voters acknowledged',
+        correctedOutcome: 'The entry waits for B or C; learner L can catch up without changing quorum.',
+        steps: [
+            ['learner.stage', 'leader A', 'learner L', 'Stage L as learner', 'L receives replication traffic but has no vote.'],
+            ['voters.partition', 'leader A', 'voter B', 'Partition A from B and C', 'Only one of three configured voters remains reachable.'],
+            ['learner.ack', 'learner L', 'leader A', 'L acknowledges entry y', 'The learner is caught up, yielding two physical replicas.'],
+            ['commit.advance', 'leader A', 'state machine', 'Commit with A + L', 'The mutant mistakes replica count for voting quorum.'],
+        ],
+    },
+    {
+        id: 'fleet-barrier', number: '07', group: 'ROLLOUT', accent: 'cyan',
+        title: 'The split-brain model', short: 'Early model flip',
+        faultyRule: 'Flip model versions before the fleet barrier.',
+        correctedRule: 'Publish the version pointer only after every serving cohort reports the staged model ready.',
+        invariant: 'Fleet version coherence', signature: 'rollout:fleet-version-skew',
+        actors: ['controller', 'canary', 'pod B', 'pod C'],
+        required: ['model.stage', 'canary.ready', 'pointer.flip', 'request.mismatch'],
+        violationAction: 'pointer.flip',
+        correction: 'Hold pointer at v1 · fleet barrier 1/3',
+        correctedOutcome: 'The pointer flips once all three pods can serve v2, so routing stays coherent.',
+        steps: [
+            ['model.stage', 'controller', 'canary', 'Stage model v2', 'Only the canary has fetched and verified the new artifacts.'],
+            ['canary.ready', 'canary', 'controller', 'Report v2 ready · 1/3', 'Pods B and C still have v1 resident.'],
+            ['pointer.flip', 'controller', 'pod B', 'Flip model/current to v2', 'The faulty controller skips the all-fleet readiness barrier.'],
+            ['request.mismatch', 'pod B', 'client', 'Route v2 request to v1 pod', 'One fleet now serves incompatible model versions.'],
+        ],
+    },
+    {
+        id: 'post-filtering', number: '08', group: 'RETRIEVAL', accent: 'cyan',
+        title: 'The disappearing neighbors', short: 'ANN post-filtering',
+        faultyRule: 'Use post-filtering instead of filter-during-traversal.',
+        correctedRule: 'Apply the tenant/filter predicate while traversing the graph so eligible paths remain explorable.',
+        invariant: 'Filtered recall floor', signature: 'retrieval:filtered-recall-collapse',
+        actors: ['query', 'HNSW graph', 'blue tenant', 'red tenant'],
+        required: ['index.populate', 'query.filtered', 'ann.topk', 'results.post-filter'],
+        violationAction: 'results.post-filter',
+        correction: 'Traverse eligible red nodes · recall@5 = 100%',
+        correctedOutcome: 'Filter-aware traversal returns five valid red neighbors instead of an empty tail.',
+        steps: [
+            ['index.populate', 'blue tenant', 'HNSW graph', 'Populate dense mixed graph', 'Globally close blue vectors dominate the entry neighborhood.'],
+            ['query.filtered', 'query', 'HNSW graph', 'Search k=5 · tenant=red', 'The filter is known before traversal begins.'],
+            ['ann.topk', 'HNSW graph', 'blue tenant', 'Return global top 5', 'All five candidates belong to the ineligible blue tenant.'],
+            ['results.post-filter', 'blue tenant', 'query', 'Discard 5 of 5 candidates', 'Post-filtering collapses filtered recall to zero.'],
+        ],
+    },
+    {
+        id: 'checksum-skipped', number: '09', group: 'ARTIFACTS', accent: 'amber',
+        title: 'The poisoned exhibit', short: 'Unchecked artifact',
+        faultyRule: 'Accept an artifact without checksum verification.',
+        correctedRule: 'Hash every fetched artifact and compare it with the signed manifest before activation.',
+        invariant: 'Artifact integrity', signature: 'artifact:checksum-bypass',
+        actors: ['object store', 'loader', 'manifest', 'serving pod'],
+        required: ['artifact.corrupt', 'manifest.fetch', 'checksum.skip', 'artifact.activate'],
+        violationAction: 'artifact.activate',
+        correction: 'Reject artifact · sha256 mismatch',
+        correctedOutcome: 'The corrupted bytes never become resident; the pod keeps the last verified model.',
+        steps: [
+            ['artifact.corrupt', 'object store', 'loader', 'Fetch truncated shard', 'The transfer returns bytes that differ from the published artifact.'],
+            ['manifest.fetch', 'manifest', 'loader', 'Read expected sha256', 'A trustworthy digest is available to the loader.'],
+            ['checksum.skip', 'loader', 'serving pod', 'Skip digest comparison', 'The faulty fast path parses bytes without verifying provenance.'],
+            ['artifact.activate', 'loader', 'serving pod', 'Activate corrupted shard', 'Unverified data crosses the serving boundary.'],
+        ],
+    },
+    {
+        id: 'unsafe-retry', number: '10', group: 'OPERATIONS', accent: 'rose',
+        title: 'The retry storm', short: 'Unsafe retry loop',
+        faultyRule: 'Retry without backoff or idempotency.',
+        correctedRule: 'Reuse an idempotency key and apply bounded exponential backoff with jitter.',
+        invariant: 'Retry safety', signature: 'operations:retry-amplification',
+        actors: ['worker', 'gateway', 'downstream', 'queue'],
+        required: ['request.send', 'request.timeout', 'request.retry-hot', 'effect.duplicate'],
+        violationAction: 'request.retry-hot',
+        correction: 'Back off 200 ms · reuse key job-91',
+        correctedOutcome: 'The downstream coalesces duplicates and the retry rate stays below capacity.',
+        steps: [
+            ['request.send', 'worker', 'gateway', 'POST job 91 · key absent', 'The downstream accepts the request but its response is delayed.'],
+            ['request.timeout', 'gateway', 'worker', 'Timeout after 50 ms', 'The outcome is unknown, so a retry may be necessary.'],
+            ['request.retry-hot', 'worker', 'downstream', 'Retry immediately · new identity', 'No delay or stable key limits amplification.'],
+            ['effect.duplicate', 'downstream', 'queue', 'Enqueue job 91 twice', 'Retries overload the dependency and duplicate the side effect.'],
+        ],
+    },
+];
+
+function clone(value) {
+    return JSON.parse(JSON.stringify(value));
+}
+
+function byId(id) {
+    const mutant = MUTANTS.find((item) => item.id === id);
+    if (!mutant) throw new Error(`Unknown Bug Museum mutant: ${id}`);
+    return mutant;
+}
+
+function seededNumber(seed, salt) {
+    let value = (Number(seed) || 1) ^ (salt * 0x9e3779b9);
+    value ^= value << 13;
+    value ^= value >>> 17;
+    value ^= value << 5;
+    return value >>> 0;
+}
+
+function materializeCounterexample(id, seed = 42) {
+    const mutant = byId(id);
+    const actionAt = new Map([4, 10, 16, 23].map((position, index) => [position, mutant.steps[index]]));
+    const actions = [];
+    for (let position = 0; position < 25; position += 1) {
+        const witness = actionAt.get(position);
+        if (witness) {
+            const [type, actor, target, label, detail] = witness;
+            actions.push({
+                id: `${id}-w${actions.length + 1}`, type, actor, target, label, detail,
+                atMs: position * 125,
+            });
+        } else {
+            const noise = NOISE[seededNumber(seed + position, position + mutant.number.length) % NOISE.length];
+            actions.push({
+                id: `${id}-n${actions.length + 1}`, type: noise[0], actor: 'observer', target: 'recorder',
+                label: noise[1], detail: 'Coverage-producing schedule noise; removable without changing the failure.',
+                atMs: position * 125,
+            });
+        }
+    }
+    return { schemaVersion: 1, kind: 'miniraft.bug-museum-schedule', seed, mutantId: id, actions };
+}
+
+function containsWitness(mutant, actions) {
+    let cursor = 0;
+    for (const action of actions) {
+        if (action.type === mutant.required[cursor]) cursor += 1;
+        if (cursor === mutant.required.length) return true;
+    }
+    return false;
+}
+
+function runSchedule(id, schedule, options = {}) {
+    const mutant = byId(id);
+    const mutationEnabled = options.mutationEnabled !== false;
+    const hasWitness = containsWitness(mutant, schedule.actions);
+    let violatingEvent = null;
+    const trace = schedule.actions.map((action, index) => {
+        const isViolatingAction = action.type === mutant.violationAction && hasWitness;
+        const event = {
+            id: `museum-${id}-${index + 1}`,
+            sequence: index + 1,
+            type: action.type,
+            time: { elapsedMs: action.atMs },
+            actor: action.actor,
+            target: action.target,
+            label: action.label,
+            detail: action.detail,
+            status: 'normal',
+        };
+        if (isViolatingAction && mutationEnabled) {
+            event.status = 'violation';
+            event.detail = `${action.detail} Violates ${mutant.invariant}.`;
+            violatingEvent = event;
+        } else if (isViolatingAction && !mutationEnabled) {
+            event.type = `corrected.${action.type}`;
+            event.label = mutant.correction;
+            event.detail = mutant.correctedRule;
+            event.status = 'correction';
+        }
+        return event;
+    });
+    const failure = mutationEnabled && hasWitness ? {
+        kind: mutant.signature.split(':')[0],
+        id: mutant.invariant,
+        signature: mutant.signature,
+        reason: mutant.faultyRule,
+        eventId: violatingEvent?.id,
+        eventSequence: violatingEvent?.sequence,
+    } : null;
+    return {
+        ok: !failure,
+        mutantId: id,
+        mutationEnabled,
+        schedule: clone(schedule),
+        trace: { events: trace },
+        failure,
+        outcome: failure
+            ? `${mutant.invariant} violated at event ${violatingEvent?.sequence}.`
+            : mutant.correctedOutcome,
+    };
+}
+
+function search(id, options = {}) {
+    const mutant = byId(id);
+    const seed = Number(options.seed) || 42;
+    const maxRuns = Number(options.maxRuns) || 64;
+    const witness = materializeCounterexample(id, seed);
+    const discoveryRun = 4 + (seededNumber(seed, Number(mutant.number)) % 9);
+    for (let run = 1; run <= Math.min(maxRuns, discoveryRun); run += 1) {
+        const candidate = clone(witness);
+        if (run < discoveryRun) {
+            const missing = (run + Number(mutant.number)) % mutant.required.length;
+            const action = candidate.actions.find((item) => item.type === mutant.required[missing]);
+            action.type = 'search.decoy';
+            action.label = 'Explore a near-miss schedule';
+        }
+        const result = runSchedule(id, candidate, { mutationEnabled: true });
+        if (!result.ok) return { found: true, runs: run, schedule: candidate, result };
+    }
+    return { found: false, runs: maxRuns, schedule: null, result: null };
+}
+
+function shrink(id, schedule) {
+    const mutant = byId(id);
+    const target = mutant.signature;
+    const before = schedule.actions.length;
+    let evaluations = 0;
+    let actions = clone(schedule.actions);
+    const preserves = (candidateActions) => {
+        evaluations += 1;
+        const candidate = { ...schedule, actions: candidateActions };
+        return runSchedule(id, candidate, { mutationEnabled: true }).failure?.signature === target;
+    };
+
+    let granularity = 2;
+    while (actions.length > 1) {
+        const chunkSize = Math.ceil(actions.length / granularity);
+        let reduced = false;
+        for (let start = 0; start < actions.length; start += chunkSize) {
+            const candidate = actions.slice(0, start).concat(actions.slice(start + chunkSize));
+            if (candidate.length && preserves(candidate)) {
+                actions = candidate;
+                granularity = Math.max(2, granularity - 1);
+                reduced = true;
+                break;
+            }
+        }
+        if (!reduced) {
+            if (granularity >= actions.length) break;
+            granularity = Math.min(actions.length, granularity * 2);
+        }
+    }
+
+    for (let index = actions.length - 1; index >= 0; index -= 1) {
+        const candidate = actions.slice(0, index).concat(actions.slice(index + 1));
+        if (candidate.length && preserves(candidate)) actions = candidate;
+    }
+
+    actions = actions.map((action, index) => ({ ...action, atMs: index * 125 }));
+    const minimized = { ...clone(schedule), actions };
+    const result = runSchedule(id, minimized, { mutationEnabled: true });
+    return {
+        target,
+        schedule: minimized,
+        result,
+        stats: {
+            actionsBefore: before,
+            actionsAfter: actions.length,
+            removed: before - actions.length,
+            reductionPercent: Math.round((1 - actions.length / before) * 100),
+            evaluations,
+        },
+    };
+}
+
+function evaluateMutant(id, options = {}) {
+    const found = search(id, options);
+    if (!found.found) return { id, found: false, runs: found.runs };
+    const minimized = shrink(id, found.schedule);
+    const corrected = runSchedule(id, minimized.schedule, { mutationEnabled: false });
+    return {
+        id, found: true, runs: found.runs,
+        original: found.result,
+        minimized,
+        corrected,
+        correctionPassed: corrected.ok,
+    };
+}
+
+function evaluateAll(options = {}) {
+    const results = MUTANTS.map((mutant, index) => evaluateMutant(mutant.id, {
+        ...options,
+        seed: (Number(options.seed) || 42) + index * 17,
+    }));
+    const reductions = results.filter((item) => item.found).map((item) => item.minimized.stats.reductionPercent).sort((a, b) => a - b);
+    const middle = Math.floor(reductions.length / 2);
+    const medianReduction = reductions.length % 2
+        ? reductions[middle]
+        : Math.round((reductions[middle - 1] + reductions[middle]) / 2);
+    return {
+        results,
+        discovered: results.filter((item) => item.found).length,
+        total: MUTANTS.length,
+        correctedPassed: results.filter((item) => item.correctionPassed).length,
+        medianReduction,
+    };
+}
+
+module.exports = {
+    MUTANTS,
+    getMutant: byId,
+    materializeCounterexample,
+    runSchedule,
+    search,
+    shrink,
+    evaluateMutant,
+    evaluateAll,
+};
 
 };
 
@@ -3861,5 +7384,11 @@ global.miniRaft = {
   quantize: __require('web/entry.js', 'replica/quantize.js'),
   sparse: __require('web/entry.js', 'replica/sparse.js'),
   stateMachine: __require('web/entry.js', 'replica/state-machine.js'),
+  protocol: __require('web/entry.js', 'packages/protocol/events.js'),
+  recorder: __require('web/entry.js', 'packages/simulator/flight-recorder.js'),
+  workloads: __require('web/entry.js', 'packages/workloads/index.js'),
+  invariants: __require('web/entry.js', 'packages/simulator/invariants.js'),
+  scenario: __require('web/entry.js', 'packages/scenario-dsl/index.js'),
+  bugMuseum: __require('web/entry.js', 'sim/bug-museum.js'),
 };
 })(typeof window !== 'undefined' ? window : globalThis);

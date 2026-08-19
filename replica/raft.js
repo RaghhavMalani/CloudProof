@@ -4,6 +4,7 @@
  * Implements the safety-critical pieces used by the demo:
  *  - stable term / vote / log persistence before RPC responses
  *  - randomized elections with a dynamic majority
+ *  - PreVote, so an isolated follower cannot inflate the cluster term
  *  - AppendEntries for both replication and heartbeats
  *  - nextIndex / matchIndex catch-up
  *  - the Raft §5.4.2 current-term commit rule
@@ -104,7 +105,8 @@ class StableStateStore {
 class RaftNode {
     constructor({
         replicaId,
-        peers,
+        peers = [],
+        members = null,
         nodeUrl = null,
         onCommit,
         onLeaderChange,
@@ -131,6 +133,19 @@ class RaftNode {
          * `tc netem`, where a failure that appears once may never appear again.
          */
         clock = REAL_CLOCK,
+        /**
+         * Source of the election-timeout jitter.
+         *
+         * This was `Math.random()` inline, which quietly broke the one property
+         * the whole simulation harness is built on: that a run is a pure
+         * function of its seed. Election timing drove every schedule, so
+         * replaying a "reproducible" failure produced a different interleaving
+         * and the bug appeared to vanish. A seed that failed in a batch would
+         * pass in isolation — the most misleading possible symptom, because it
+         * reads as a flaky harness rather than as unseeded randomness.
+         */
+        random = Math.random,
+        randomElectionTimeout = null,
         autoStart = true,
         electionTimeoutMin = 500,
         electionTimeoutMax = 800,
@@ -139,9 +154,48 @@ class RaftNode {
         commitTimeoutMs = 2000,
     }) {
         this._clock = clock;
+        this._random = random;
+        this._randomElectionTimeout = randomElectionTimeout;
         this.replicaId = replicaId;
-        this.peers = [...peers];
         this.nodeUrl = nodeUrl;
+        /**
+         * How this node names itself inside a configuration.
+         *
+         * `nodeUrl` is how peers address it, but it is optional — plenty of
+         * tests and single-node uses never set one. Falling back to replicaId
+         * means membership always has a stable identity for self, instead of
+         * quietly putting `undefined` in the member list and computing a quorum
+         * that excludes this node from its own cluster.
+         */
+        this.selfId = nodeUrl || replicaId;
+
+        /**
+         * ── Cluster membership (Raft §6) ─────────────────────────────────────
+         *
+         * The set of servers is not configuration passed in at boot; it is a
+         * value *in the replicated log*, so every server agrees on it through
+         * the same mechanism it agrees on everything else.
+         *
+         * `bootstrapMembers` is only the starting point, used until the log
+         * contains a config entry. After that the log wins — including after a
+         * restart, which is why a node that was added while it was down comes
+         * back knowing it is a member.
+         */
+        this.bootstrapMembers = [...(members || [...peers, this.selfId])].filter(Boolean);
+        /** Voting members. Counted for quorum and for elections. */
+        this.members = [...this.bootstrapMembers];
+        /**
+         * Non-voting members. They receive the log and can be read from, but
+         * are not counted in any majority.
+         *
+         * This exists because adding a fresh server straight into the voter set
+         * is dangerous: its log is empty, so quorum now includes a node that
+         * cannot acknowledge anything, and the cluster can stall until it
+         * catches up. Learners take the catch-up cost outside the quorum.
+         */
+        this.learners = [];
+        /** Everyone this node replicates to. Derived; never assign directly. */
+        this.peers = [];
         this.onCommit = onCommit;
         this.onLeaderChange = onLeaderChange;
         this.transport = transport;
@@ -212,6 +266,9 @@ class RaftNode {
         this.leaderId = null;
         this.leaderUrl = null;
         this.votes = 0;
+        // Monotonic token used to discard late PreVote replies after a leader
+        // heartbeat, term change, pause, or newer pre-election round.
+        this._preVoteRound = 0;
         this.paused = false;
 
         this._timersEnabled = autoStart;
@@ -224,13 +281,21 @@ class RaftNode {
         this._commitWaiters = new Set();
         this._replicating = new Set();
         this.lastQuorumContactAt = 0;
+        // When this node last heard from a leader; drives disruption prevention.
+        this.lastLeaderContactAt = 0;
         this.metrics = {
+            preVotesTotal: 0,
             electionsTotal: 0,
             replayedEntries: 0,
             commitLatencyCount: 0,
             commitLatencySumMs: 0,
             commitLatencyBuckets: { 10: 0, 25: 0, 50: 0, 100: 0, 250: 0, 500: 0, 1000: 0 },
         };
+
+        // Adopt the configuration recorded in the log before anything else —
+        // a restarted node must not campaign under a membership it has already
+        // been voted out of, nor ignore one it has been added to.
+        this._refreshConfiguration();
 
         // Rebuild the keyspace from the committed prefix before serving anyone.
         this._applyCommittedEntries({ replay: true });
@@ -245,12 +310,78 @@ class RaftNode {
         );
     }
 
+    /** Voting members only. Learners are deliberately excluded. */
     get clusterSize() {
-        return this.peers.length + 1;
+        return this.members.length;
     }
 
     get quorumSize() {
         return Math.floor(this.clusterSize / 2) + 1;
+    }
+
+    /** True when this node is itself a voter — false while it is a learner, or after removing itself. */
+    get isVoter() {
+        return this.members.includes(this.selfId);
+    }
+
+    /** Voting peers: the servers whose acknowledgements actually count. */
+    get voterPeers() {
+        return this.members.filter((url) => url !== this.selfId);
+    }
+
+    /**
+     * Recomputes the active configuration from the log.
+     *
+     * ── The counterintuitive rule ────────────────────────────────────────────
+     * A configuration entry takes effect the moment it is **appended**, not
+     * when it commits. That feels wrong — we are acting on an entry that might
+     * still be rolled back — but the alternative is worse: if servers waited
+     * for commit, the old and new configurations would both be live with no
+     * overlap guarantee during the window, and two disjoint majorities could
+     * each elect a leader.
+     *
+     * The corollary is that a truncation must also roll the configuration
+     * *back*. Rather than track that incrementally and get it subtly wrong,
+     * this rescans from the end of the log for the newest config entry after
+     * every mutation. It is O(log) per append, which at this scale is free, and
+     * it is impossible to leave in an inconsistent state.
+     */
+    _refreshConfiguration() {
+        let members = this.bootstrapMembers;
+        let learners = [];
+
+        for (let i = this.log.length - 1; i >= 0; i -= 1) {
+            const data = this.log[i] && this.log[i].data;
+            if (data && data.op === 'config') {
+                members = data.members;
+                learners = data.learners || [];
+                break;
+            }
+        }
+
+        const previouslyVoter = this.members.includes(this.selfId);
+        this.members = [...members];
+        this.learners = [...learners];
+
+        // Replicate to voters and learners alike; only the former are counted.
+        this.peers = [...new Set([...this.members, ...this.learners])]
+            .filter((url) => url !== this.selfId);
+
+        for (const peerUrl of this.peers) {
+            if (this.nextIndex[peerUrl] === undefined) this.nextIndex[peerUrl] = this.log.length;
+            if (this.matchIndex[peerUrl] === undefined) this.matchIndex[peerUrl] = -1;
+        }
+
+        // A leader that has just removed itself keeps serving until the entry
+        // commits — see _advanceCommitIndex — but must never campaign again.
+        if (previouslyVoter && !this.isVoter && this.state === STATES.LEADER) {
+            console.log(`[${this.replicaId}] removed from the configuration; will step down once it commits`);
+        }
+    }
+
+    /** The configuration entry currently in effect, for observability. */
+    get configuration() {
+        return { members: [...this.members], learners: [...this.learners] };
     }
 
     _persistentSnapshot() {
@@ -275,6 +406,8 @@ class RaftNode {
         if (entries.length === 0) return;
         this.log.push(...entries);
         if (this._logStore) this._logStore.append(entries);
+        // Config entries are live the instant they land. See _refreshConfiguration.
+        if (entries.some((e) => e.data && e.data.op === 'config')) this._refreshConfiguration();
     }
 
     /**
@@ -292,13 +425,20 @@ class RaftNode {
             );
         }
         if (index >= this.log.length) return;
+        const hadConfig = this.log.slice(index).some((e) => e.data && e.data.op === 'config');
         this.log = this.log.slice(0, index);
         if (this._logStore) this._logStore.rewrite(this.log);
+        // Rolling back a config entry must roll back the configuration with it,
+        // or a node keeps enforcing a membership the cluster has discarded.
+        if (hadConfig) this._refreshConfiguration();
     }
 
     _randomTimeout() {
+        if (this._randomElectionTimeout) {
+            return this._randomElectionTimeout(this.electionTimeoutMin, this.electionTimeoutMax);
+        }
         const spread = Math.max(1, this.electionTimeoutMax - this.electionTimeoutMin);
-        return Math.floor(Math.random() * spread) + this.electionTimeoutMin;
+        return Math.floor(this._random() * spread) + this.electionTimeoutMin;
     }
 
     _resetElectionTimer() {
@@ -306,8 +446,8 @@ class RaftNode {
         if (!this._timersEnabled || this.paused || this.state === STATES.LEADER) return;
 
         this._electionTimer = this._clock.setTimeout(() => {
-            this._startElection().catch((error) => {
-                console.error(`[${this.replicaId}] Election failed: ${error.message}`);
+            this._startPreVote().catch((error) => {
+                console.error('[' + this.replicaId + '] PreVote failed: ' + error.message);
                 this._resetElectionTimer();
             });
         }, this._randomTimeout());
@@ -328,6 +468,7 @@ class RaftNode {
     }
 
     stop() {
+        this._preVoteRound += 1;
         if (this._electionTimer) this._clock.clearTimeout(this._electionTimer);
         this._electionTimer = null;
         this._stopHeartbeat();
@@ -360,8 +501,90 @@ class RaftNode {
         console.log(`[${this.replicaId}] *** RESUMED · stable state restored ***`);
     }
 
-    async _startElection() {
+    /**
+     * Asks whether an election could win before incrementing the durable term.
+     *
+     * Without PreVote, a node isolated from an otherwise healthy cluster keeps
+     * timing out and increasing its term. When the partition heals, that large
+     * term forces the healthy leader to step down even though the isolated node
+     * never had a quorum. PreVote makes the disruptive action conditional on
+     * first hearing from a majority, and deliberately changes no persistent
+     * state on either the requester or the receivers.
+     */
+    async _startPreVote() {
+        if (this.paused) return false;
+        if (!this.isVoter) {
+            this._resetElectionTimer();
+            return false;
+        }
+
+        const round = ++this._preVoteRound;
+        const prospectiveTerm = this.currentTerm + 1;
+        const lastLogIndex = this.log.length - 1;
+        const lastLogTerm = lastLogIndex >= 0 ? this.log[lastLogIndex].term : 0;
+        let granted = 1;
+        this.metrics.preVotesTotal += 1;
+
+        // A lost or split pre-election must retry without mutating currentTerm.
+        this._resetElectionTimer();
+        if (granted >= this.quorumSize) {
+            await this._startElection(prospectiveTerm, round);
+            return true;
+        }
+
+        const requests = this.voterPeers.map(async (peerUrl) => {
+            try {
+                const response = await this.transport.post(
+                    peerUrl + '/pre-vote',
+                    {
+                        term: prospectiveTerm,
+                        candidateId: this.replicaId,
+                        candidateUrl: this.selfId,
+                        lastLogIndex,
+                        lastLogTerm,
+                    },
+                    { timeout: 400 },
+                );
+
+                if (response.data.term > this.currentTerm) {
+                    this._becomeFollower(response.data.term);
+                    return;
+                }
+                if (
+                    response.data.preVoteGranted
+                    && this._preVoteRound === round
+                    && this.currentTerm + 1 === prospectiveTerm
+                    && this.state !== STATES.LEADER
+                ) {
+                    granted += 1;
+                    if (granted >= this.quorumSize) {
+                        await this._startElection(prospectiveTerm, round);
+                    }
+                }
+            } catch (_) {
+                // Silence is an expected negative pre-vote during a partition.
+            }
+        });
+
+        await Promise.allSettled(requests);
+        return this.state === STATES.LEADER || this.state === STATES.CANDIDATE;
+    }
+
+    async _startElection(expectedTerm = null, preVoteRound = null) {
         if (this.paused) return;
+        // A learner has no vote and must never try to take leadership. Without
+        // this a freshly-added server that is still catching up can time out and
+        // start disrupting elections in a cluster it is not yet part of.
+        if (!this.isVoter) {
+            this._resetElectionTimer();
+            return;
+        }
+        // A heartbeat or a newer pre-election invalidates late quorum replies.
+        if (expectedTerm !== null && (
+            expectedTerm !== this.currentTerm + 1
+            || (preVoteRound !== null && preVoteRound !== this._preVoteRound)
+        )) return;
+
 
         this.currentTerm += 1;
         this.metrics.electionsTotal += 1;
@@ -387,7 +610,7 @@ class RaftNode {
             return;
         }
 
-        const voteRequests = this.peers.map(async (peerUrl) => {
+        const voteRequests = this.voterPeers.map(async (peerUrl) => {
             try {
                 const response = await this.transport.post(
                     `${peerUrl}/request-vote`,
@@ -479,6 +702,7 @@ class RaftNode {
     }
 
     _becomeFollower(term, leaderId = null, leaderUrl = null) {
+        this._preVoteRound += 1;
         const wasLeader = this.state === STATES.LEADER;
         const termAdvanced = term > this.currentTerm;
 
@@ -506,9 +730,65 @@ class RaftNode {
         this._resetElectionTimer();
     }
 
-    handleRequestVote({ term, candidateId, lastLogIndex, lastLogTerm }) {
+    /**
+     * Read-only half of PreVote. It intentionally does not update currentTerm,
+     * votedFor, stable storage, or the election timer.
+     */
+    handlePreVote({ term, candidateId, candidateUrl = null, lastLogIndex, lastLogTerm }) {
+        if (this.paused || term < this.currentTerm + 1) {
+            return { term: this.currentTerm, preVoteGranted: false };
+        }
+
+        const candidateIsMember = candidateUrl === null || this.members.includes(candidateUrl);
+        const heardFromLeaderRecently = this.leaderId
+            && this._clock.now() - this.lastLeaderContactAt < this.electionTimeoutMin;
+        const myLastIndex = this.log.length - 1;
+        const myLastTerm = myLastIndex >= 0 ? this.log[myLastIndex].term : 0;
+        const candidateIsUpToDate = lastLogTerm > myLastTerm
+            || (lastLogTerm === myLastTerm && lastLogIndex >= myLastIndex);
+        const preVoteGranted = Boolean(
+            this.isVoter
+            && this.state !== STATES.LEADER
+            && candidateId
+            && candidateIsMember
+            && !heardFromLeaderRecently
+            && candidateIsUpToDate,
+        );
+
+        return { term: this.currentTerm, preVoteGranted };
+    }
+
+    handleRequestVote({ term, candidateId, lastLogIndex, lastLogTerm, force = false }) {
         if (this.paused || term < this.currentTerm) {
             return { term: this.currentTerm, voteGranted: false };
+        }
+
+        /**
+         * ── The removed-server problem (thesis §4.2.3) ───────────────────────
+         *
+         * A server that has been removed from the configuration does not find
+         * out — nobody sends it anything any more. So it times out, increments
+         * its term, and campaigns. Its RequestVote carries a term higher than
+         * the live cluster's, which forces the healthy leader to step down even
+         * though the candidate cannot win. It then times out again, and again,
+         * disrupting the cluster indefinitely for as long as it is left running.
+         *
+         * The fix is to let a follower refuse to even consider a vote while it
+         * is still hearing from a leader. A candidate that a majority is happy
+         * with cannot be displaced by a stranger with a big number.
+         *
+         * This is safe because it only ever *delays* an election: if the leader
+         * really is gone, contact goes stale within one minimum election
+         * timeout and the rule stops applying.
+         */
+        const heardFromLeaderRecently = this.leaderId
+            && this._clock.now() - this.lastLeaderContactAt < this.electionTimeoutMin;
+        if (heardFromLeaderRecently && !force) {
+            return {
+                term: this.currentTerm,
+                voteGranted: false,
+                reason: 'a leader is still alive',
+            };
         }
         if (term > this.currentTerm) this._becomeFollower(term);
 
@@ -520,6 +800,7 @@ class RaftNode {
         const canVote = this.votedFor === null || this.votedFor === candidateId;
 
         if (canVote && candidateIsUpToDate) {
+            this._preVoteRound += 1;
             this.votedFor = candidateId;
             this._persistState();
             this._resetElectionTimer();
@@ -552,6 +833,7 @@ class RaftNode {
         if (term > this.currentTerm || this.state !== STATES.FOLLOWER) {
             this._becomeFollower(term, leaderId, leaderUrl);
         } else {
+            this._preVoteRound += 1;
             this.leaderId = leaderId;
             this.leaderUrl = leaderUrl;
             this._resetElectionTimer();
@@ -560,6 +842,7 @@ class RaftNode {
             this.onLeaderChange(leaderId, leaderUrl);
         }
         this.lastQuorumContactAt = this._clock.now();
+        this.lastLeaderContactAt = this._clock.now();
 
         if (prevLogIndex >= this.log.length) {
             return {
@@ -687,8 +970,12 @@ class RaftNode {
             // leader's current term.
             if (this.log[index].term !== this.currentTerm) continue;
 
-            let replicated = 1; // the leader stores its own log
-            for (const peerUrl of this.peers) {
+            // Only voters count. A learner acknowledging an entry must never
+            // contribute to a majority — that is the entire point of it being a
+            // learner — and a leader that has removed itself no longer counts
+            // its own copy either.
+            let replicated = this.isVoter ? 1 : 0;
+            for (const peerUrl of this.voterPeers) {
                 if ((this.matchIndex[peerUrl] ?? -1) >= index) replicated += 1;
             }
 
@@ -721,12 +1008,17 @@ class RaftNode {
     _scheduleCommitBroadcast() {
         if (this._commitBroadcastQueued || this.state !== STATES.LEADER) return;
         this._commitBroadcastQueued = true;
-        setImmediate(() => {
+        // Through the clock, not setImmediate. A real macrotask escapes virtual
+        // time entirely, so under simulation its ordering relative to timer
+        // callbacks depended on how much unrelated work the host event loop
+        // happened to have queued — nondeterminism smuggled in through the one
+        // call that looked too trivial to matter.
+        this._clock.setTimeout(() => {
             // Index of this term's no-op. Null until this node leads.
         this._noopIndex = null;
         this._commitBroadcastQueued = false;
             if (this.state === STATES.LEADER && !this.paused) void this._replicateAll();
-        });
+        }, 0);
     }
 
     async _replicateToPeer(peerUrl) {
@@ -921,6 +1213,157 @@ class RaftNode {
         }
     }
 
+    // ── membership changes (Raft §6, single-server) ──────────────────────────
+
+    /**
+     * Adds one server.
+     *
+     * Single-server changes rather than joint consensus, which is what etcd
+     * ships and what Ongaro recommends in the thesis. The safety argument is
+     * one sentence: adding or removing *one* server means the old and new
+     * majorities always overlap in at least one node, so two disjoint
+     * majorities cannot both elect a leader. Change two at once — 3 nodes to 5
+     * by adding both together — and {A,B} and {C,D,E} are each a majority of
+     * their own configuration with nobody in common. That is split brain, and
+     * it is why the restriction exists.
+     *
+     * The joiner is admitted as a **learner** first and only promoted once it
+     * has caught up. Promoting immediately would put a node with an empty log
+     * into the quorum, so a 3-node cluster becomes a 4-node cluster needing 3
+     * acknowledgements, one of which cannot be given until the joiner has
+     * replayed the entire history. Writes stall for exactly as long as that
+     * takes.
+     */
+    async addServer(url, { catchUpTimeoutMs = 10000 } = {}) {
+        if (!this.isLeader()) throw new Error('only the leader can change membership');
+        if (this.members.includes(url)) return { ok: true, alreadyMember: true, ...this.configuration };
+        this._assertNoPendingConfigChange();
+
+        // Phase 1 — replicate to it without counting it.
+        if (!this.learners.includes(url)) {
+            const staged = await this._commitConfiguration(this.members, [...this.learners, url]);
+            if (!staged.ok) return staged;
+        }
+        console.log(`[${this.replicaId}] ${url} joined as a learner; catching up`);
+
+        // Phase 2 — wait for it to be near the leader's log before it votes.
+        const caughtUp = await this._awaitCatchUp(url, catchUpTimeoutMs);
+        if (!caughtUp) {
+            // Roll the learner back out rather than leaving a half-finished
+            // change behind. A stalled join that leaves debris is much harder to
+            // reason about than one that cleanly failed.
+            await this._commitConfiguration(this.members, this.learners.filter((u) => u !== url));
+            return { ok: false, error: `${url} did not catch up within ${catchUpTimeoutMs}ms` };
+        }
+
+        // Phase 3 — promote to voter.
+        const promoted = await this._commitConfiguration(
+            [...this.members, url],
+            this.learners.filter((u) => u !== url),
+        );
+        if (promoted.ok) console.log(`[${this.replicaId}] ${url} promoted to voter · quorum now ${this.quorumSize}/${this.clusterSize}`);
+        return promoted;
+    }
+
+    /**
+     * Removes one server.
+     *
+     * A leader removing *itself* is the interesting case. It must keep serving
+     * until the entry commits, because it is the only node that can replicate
+     * it — stepping down the moment the config is appended would strand the
+     * change and force an election to finish it. Once committed, it steps down
+     * immediately rather than continuing to lead a cluster it is not in.
+     */
+    async removeServer(url) {
+        if (!this.isLeader()) throw new Error('only the leader can change membership');
+        if (!this.members.includes(url) && !this.learners.includes(url)) {
+            return { ok: true, notAMember: true, ...this.configuration };
+        }
+        this._assertNoPendingConfigChange();
+
+        const remaining = this.members.filter((u) => u !== url);
+        if (remaining.length === 0) return { ok: false, error: 'refusing to remove the last member' };
+
+        const removingSelf = url === this.selfId;
+        const result = await this._commitConfiguration(
+            remaining,
+            this.learners.filter((u) => u !== url),
+        );
+
+        if (result.ok && removingSelf) {
+            console.log(`[${this.replicaId}] removed itself; stepping down`);
+            this._becomeFollower(this.currentTerm);
+        }
+        // Stop tracking a server that is gone, so its stale matchIndex cannot
+        // linger and be counted after a later re-add.
+        if (result.ok) { delete this.nextIndex[url]; delete this.matchIndex[url]; }
+        return result;
+    }
+
+    /**
+     * At most one configuration change may be in flight.
+     *
+     * Two overlapping changes reintroduce exactly the disjoint-majority problem
+     * that single-server changes exist to prevent, because the intermediate
+     * configuration nobody agreed on becomes reachable.
+     */
+    _assertNoPendingConfigChange() {
+        for (let i = this.log.length - 1; i > this.commitIndex; i -= 1) {
+            if (this.log[i].data && this.log[i].data.op === 'config') {
+                throw new Error('a configuration change is already in flight');
+            }
+        }
+    }
+
+    async _commitConfiguration(members, learners) {
+        const outcome = await this.clientAppend({
+            op: 'config',
+            members: [...members],
+            learners: [...learners],
+        });
+        return outcome.committed
+            ? { ok: true, ...this.configuration, index: outcome.entry.index }
+            : { ok: false, error: 'configuration change did not reach a quorum' };
+    }
+
+    /**
+     * Waits until a server's log is close enough to the leader's to be useful.
+     *
+     * Actively replicates to it on each poll rather than waiting for the
+     * regular heartbeat. Passive polling technically works, but it makes the
+     * catch-up take as long as the heartbeat interval multiplied by the number
+     * of entries the joiner is missing — and it does nothing at all when
+     * heartbeats are not running, which is exactly the state a leader is in
+     * during a test or immediately after an election.
+     */
+    async _awaitCatchUp(url, timeoutMs, slack = 2) {
+        const deadline = this._clock.now() + timeoutMs;
+        // Clamped at 0. Without the clamp, a short log makes the target
+        // negative, and a joiner whose matchIndex is still -1 — meaning it has
+        // acknowledged *nothing*, possibly because it is unreachable — compares
+        // as caught up and gets promoted straight into the quorum. That is
+        // precisely the stall the learner phase exists to prevent, reintroduced
+        // by an off-by-one.
+        const target = () => Math.max(0, this.log.length - 1 - slack);
+
+        for (;;) {
+            if (!this.isLeader()) return false;
+            if ((this.matchIndex[url] ?? -1) >= target()) return true;
+            if (this._clock.now() >= deadline) return false;
+
+            // Drive it forward. `_replicateToPeer` walks nextIndex back on a
+            // rejected consistency check, so repeated calls converge even when
+            // the joiner starts from an empty log.
+            await this._replicateToPeer(url);
+            if ((this.matchIndex[url] ?? -1) >= target()) return true;
+
+            await new Promise((resolve) => {
+                const handle = this._clock.setTimeout(resolve, Math.min(this.heartbeatInterval, 25));
+                if (handle && handle.unref) handle.unref();
+            });
+        }
+    }
+
     /**
      * Leases expire against logical time, and logical time only advances when
      * an entry is appended. A quiet cluster would therefore hold every lease
@@ -1002,6 +1445,8 @@ class RaftNode {
             replicated,
             durable: Boolean(this._store),
             ready: this.isReady(),
+            servingSemantics: 'quorum-aware serving and disruption prevention',
+            preVotesTotal: this.metrics.preVotesTotal,
             electionsTotal: this.metrics.electionsTotal,
             replayedEntries: this.metrics.replayedEntries,
             keys: this.stateMachine.store.size,

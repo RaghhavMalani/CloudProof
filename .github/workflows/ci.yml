@@ -23,14 +23,27 @@ jobs:
         working-directory: replica
       - run: npm test
         working-directory: replica
+      - name: deterministic simulator and flight-recorder tests
+        run: node --test sim/*.test.js packages/*/*.test.js
+      - name: materialized schedule search campaign
+        run: node sim/search.js --runs 100 --no-shrink
       # Every source file, found rather than listed. The previous version named
       # raft.js and index.js explicitly, so log-store.js and state-machine.js
       # were never checked once they were split out — the same class of omission
       # that left them out of the Docker image.
       - name: syntax check every module
         run: |
-          find replica serving tools -name '*.js' -not -path '*/node_modules/*' -print0 \
+          find replica serving tools sim packages apps -name '*.js' -not -path '*/node_modules/*' -print0 \
             | xargs -0 -n1 node --check
+      - name: generated web assets are current
+        run: |
+          node tools/build-web.js
+          if [ -n "$(git status --porcelain -- web)" ]; then
+            echo "::error::Generated web assets are out of date. Run node tools/build-web.js and commit the result."
+            git status --short -- web
+            git diff -- web
+            exit 1
+          fi
       # The serving tier and tools require modules across directories. A build
       # of the image is the only thing that proves those paths resolve, but this
       # catches a missing dependency before waiting on a container build.

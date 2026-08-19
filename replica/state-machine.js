@@ -226,6 +226,12 @@ class StateMachine {
             case 'tick':
                 result = { ok: true, clock: this.clock };
                 break;
+            case 'config':
+                // Membership is a Raft-level concern, handled by
+                // RaftNode#_refreshConfiguration when the entry is appended.
+                // The state machine records it as applied and changes nothing.
+                result = { ok: true, config: true, members: command.members };
+                break;
             case 'noop':
                 // The Raft §8 term marker. It exists to move commitIndex, not
                 // to change state, so applying it must do nothing at all.

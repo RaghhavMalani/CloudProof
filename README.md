@@ -8,7 +8,7 @@ The browser is deliberately more than a whiteboard: it exposes the current term,
 
 | Concern | Implementation |
 |---|---|
-| Crash safety | `currentTerm`, `votedFor`, log, commit index, and applied index are fsynced to per-node storage before dependent RPC responses |
+| Crash safety | Term, vote, append-only log, and commit index are durable; applied state is rebuilt deterministically from the committed prefix on restart |
 | Correct commit rule | A leader advances to the highest `N` replicated on a majority only when `log[N].term === currentTerm` |
 | Dynamic quorum | Majority is `Math.floor(clusterSize / 2) + 1`; the engine is not hard-coded to three nodes |
 | Log repair | `nextIndex` / `matchIndex` backtracking repairs divergent or lagging followers |
@@ -17,6 +17,8 @@ The browser is deliberately more than a whiteboard: it exposes the current term,
 | Failure visibility | The UI can pause/restore replicas and visualizes elections, term changes, catch-up, quorum loss, and recovery |
 | Cloud operation | Kubernetes uses a StatefulSet, headless-service DNS, one PVC per replica, liveness/readiness probes, two gateways, and Redis commit fan-out |
 | Observability | Every replica exports Prometheus election, term, log, commit, readiness, and commit-latency metrics |
+| Election stability | PreVote requires a prospective candidate to reach a majority before it can increase the durable term |
+| Serving semantics | Quorum-aware serving and disruption prevention: stale leaders stop safe reads and writes, but do not self-demote solely on quorum loss |
 
 ## Architecture
 
@@ -91,6 +93,54 @@ They verify:
 - replica count alone cannot commit an older-term entry;
 - an empty AppendEntries heartbeat rejects divergence and advances follower commit state.
 
+## Search, shrink, explain
+
+The flagship verification loop searches concrete schedules rather than hoping
+that a real-time fault happens twice in the same way:
+
+1. A seed generates client operations, faults, membership changes, and timing.
+2. The generator materializes those choices as a portable JSON schedule.
+3. A coverage tracker returns unseen workload, fault, RPC, role, and invariant
+   features to the next generator while keeping each output schedule concrete.
+4. Domain-separated decision tapes record every election, packet-drop, and
+   latency draw used by the deterministic runner.
+5. Invariant and linearizability checkers classify an exact failure predicate.
+6. Delta-debugging passes remove chunks and individual actions, reduce clients,
+   writes, partitions, loss, membership churn, payloads, node names, and gaps.
+7. The minimized trace carries a causal explanation and a generated regression test.
+
+Search a bounded schedule space:
+
+    node sim/search.js --runs 100
+
+Replay one seed verbosely, materialize its runtime decisions, and shrink any
+violation:
+
+    node sim/search.js --seed 1337 --verbose
+
+Replay a saved failure artifact without sampling new randomness:
+
+    node sim/search.js --replay artifacts/failures/seed-1337.json
+
+The shrink predicate is intentionally exact. A log-matching failure must remain
+a log-matching failure; a non-linearizable history must remain
+non-linearizable; rollout skew must remain rollout skew. A smaller schedule that
+fails for a different reason is rejected.
+
+### CheckQuorum: the important distinction
+
+miniRaft does not claim full CheckQuorum semantics. An isolated leader retains
+its LEADER role until it sees a higher term. Quorum-aware readiness, leader
+leases, ReadIndex, and commit rules still prevent it from safely serving reads
+or committing writes after majority contact is lost. PreVote and the recent-
+leader vote rule prevent isolated or removed followers from needlessly
+disrupting a healthy term.
+
+That behavior is safe for the interfaces exposed here, but it is observably
+different from an implementation that automatically demotes a leader after a
+quorum timeout. The status API labels it accurately as quorum-aware serving and
+disruption prevention.
+
 ## Kubernetes
 
 The checked-in manifest expects the two images produced by the GitHub Actions workflow:
@@ -123,6 +173,7 @@ Each replica exposes Prometheus text format at `/metrics`:
 
 ```text
 miniraft_elections_total
+miniraft_prevotes_total
 miniraft_current_term
 miniraft_log_length
 miniraft_commit_index
@@ -141,6 +192,7 @@ Useful endpoints:
 | `GET /health` | Process liveness |
 | `GET /ready` | Fresh leader/quorum lease |
 | `GET /metrics` | Prometheus metrics |
+| `POST /pre-vote` | Read-only Raft PreVote RPC; never changes durable term or vote |
 | `POST /request-vote` | Raft RequestVote RPC |
 | `POST /append-entries` | Replication, catch-up, heartbeat, and commit propagation |
 
@@ -178,8 +230,9 @@ miniRaft/
 This is a defensible educational Raft implementation, not a replacement for etcd:
 
 - it does not yet implement snapshots or log compaction;
-- membership is static while a node is running;
-- durable state uses one fsynced JSON file rather than an embedded WAL/database;
-- the included failure controls pause processes, while network-partition and linearizability testing remain the next major validation layer.
+- membership uses learner promotion and one-server-at-a-time changes, not joint consensus;
+- durable metadata is rewritten in place and the log is append-only rather than using an embedded database;
+- quorum loss fences safe serving but does not implement automatic CheckQuorum leader demotion;
+- deterministic faults cover partitions, packet loss, crashes, restarts, and membership churn, while the browser remains an educational lab rather than a production operator console.
 
 Those boundaries are explicit so every claim in the repository maps to code you can explain.

@@ -1,0 +1,321 @@
+{
+  "schemaVersion": 1,
+  "kind": "miniraft.reality-run",
+  "runId": "docker-watch-1787120431330",
+  "workload": "configuration",
+  "recordedAt": "2026-08-19T06:20:32.271Z",
+  "source": "docker-compose-processes",
+  "events": [
+    {
+      "schemaVersion": 1,
+      "id": "docker-watch-1787120431330:00000001",
+      "runId": "docker-watch-1787120431330",
+      "sequence": 1,
+      "time": {
+        "kind": "wall",
+        "epochMs": 1787120432061,
+        "elapsedMs": 731
+      },
+      "type": "node.role.observed",
+      "source": {
+        "component": "replica1"
+      },
+      "subject": {
+        "id": "node.role.observed",
+        "kind": "semantic-step"
+      },
+      "correlationId": "watch-reality",
+      "causationId": null,
+      "data": {
+        "actor": "replica1",
+        "detail": "Docker DNS resolved the replica and /status reported term 3.",
+        "label": "replica1 observed as leader",
+        "lane": "nodes",
+        "semantic": true,
+        "target": "reality-harness",
+        "term": 3
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "id": "docker-watch-1787120431330:00000002",
+      "runId": "docker-watch-1787120431330",
+      "sequence": 2,
+      "time": {
+        "kind": "wall",
+        "epochMs": 1787120432076,
+        "elapsedMs": 746
+      },
+      "type": "watch.stream.opened",
+      "source": {
+        "component": "controller"
+      },
+      "subject": {
+        "id": "watch.stream.opened",
+        "kind": "semantic-step"
+      },
+      "correlationId": "watch-reality",
+      "causationId": "docker-watch-1787120431330:00000001",
+      "data": {
+        "actor": "controller",
+        "detail": "The client now disconnects; no long-poll remains open.",
+        "label": "Watch checkpoint 1 captured",
+        "lane": "clients",
+        "revision": 1,
+        "semantic": true,
+        "target": "replica1"
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "id": "docker-watch-1787120431330:00000003",
+      "runId": "docker-watch-1787120431330",
+      "sequence": 3,
+      "time": {
+        "kind": "wall",
+        "epochMs": 1787120432076,
+        "elapsedMs": 746
+      },
+      "type": "network.disconnected",
+      "source": {
+        "component": "network"
+      },
+      "subject": {
+        "id": "network.disconnected",
+        "kind": "semantic-step"
+      },
+      "correlationId": "watch-reality",
+      "causationId": "docker-watch-1787120431330:00000002",
+      "data": {
+        "actor": "network",
+        "detail": "The controller process remains healthy while the socket is absent.",
+        "label": "Controller watch transport closed",
+        "lane": "faults",
+        "network": "disconnected",
+        "process": "up",
+        "semantic": true,
+        "target": "controller"
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "id": "docker-watch-1787120431330:00000004",
+      "runId": "docker-watch-1787120431330",
+      "sequence": 4,
+      "time": {
+        "kind": "wall",
+        "epochMs": 1787120432246,
+        "elapsedMs": 916
+      },
+      "type": "state.machine.applied",
+      "source": {
+        "component": "replica1"
+      },
+      "subject": {
+        "id": "state.machine.applied",
+        "kind": "semantic-step"
+      },
+      "correlationId": "watch-reality",
+      "causationId": "docker-watch-1787120431330:00000003",
+      "data": {
+        "actor": "replica1",
+        "detail": "Docker replicas applied api:v2.",
+        "index": 3,
+        "label": "Revision 2 committed while disconnected",
+        "lane": "commits",
+        "propagationMs": 9,
+        "revision": 2,
+        "semantic": true,
+        "target": "kv"
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "id": "docker-watch-1787120431330:00000005",
+      "runId": "docker-watch-1787120431330",
+      "sequence": 5,
+      "time": {
+        "kind": "wall",
+        "epochMs": 1787120432264,
+        "elapsedMs": 934
+      },
+      "type": "state.machine.applied",
+      "source": {
+        "component": "replica1"
+      },
+      "subject": {
+        "id": "state.machine.applied",
+        "kind": "semantic-step"
+      },
+      "correlationId": "watch-reality",
+      "causationId": "docker-watch-1787120431330:00000004",
+      "data": {
+        "actor": "replica1",
+        "detail": "Docker replicas applied api:v3 × 4.",
+        "index": 4,
+        "label": "Revision 3 committed while disconnected",
+        "lane": "commits",
+        "propagationMs": 7,
+        "revision": 3,
+        "semantic": true,
+        "target": "kv"
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "id": "docker-watch-1787120431330:00000006",
+      "runId": "docker-watch-1787120431330",
+      "sequence": 6,
+      "time": {
+        "kind": "wall",
+        "epochMs": 1787120432268,
+        "elapsedMs": 938
+      },
+      "type": "watch.stream.resumed",
+      "source": {
+        "component": "controller"
+      },
+      "subject": {
+        "id": "watch.stream.resumed",
+        "kind": "semantic-step"
+      },
+      "correlationId": "watch-reality",
+      "causationId": "docker-watch-1787120431330:00000005",
+      "data": {
+        "actor": "controller",
+        "detail": "A follower served every event newer than the durable checkpoint.",
+        "label": "Watch replayed revisions 2, 3",
+        "lane": "clients",
+        "resumeMs": 4,
+        "revisions": [
+          2,
+          3
+        ],
+        "semantic": true,
+        "since": 1,
+        "target": "http://replica2:5002"
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "id": "docker-watch-1787120431330:00000007",
+      "runId": "docker-watch-1787120431330",
+      "sequence": 7,
+      "time": {
+        "kind": "wall",
+        "epochMs": 1787120432268,
+        "elapsedMs": 938
+      },
+      "type": "controller.reconciled",
+      "source": {
+        "component": "controller"
+      },
+      "subject": {
+        "id": "controller.reconciled",
+        "kind": "semantic-step"
+      },
+      "correlationId": "watch-reality",
+      "causationId": "docker-watch-1787120431330:00000006",
+      "data": {
+        "actor": "controller",
+        "detail": "The final desired state includes both updates made during disconnect.",
+        "label": "Controller reconciled api:v3 × 4",
+        "lane": "clients",
+        "revisions": [
+          2,
+          3
+        ],
+        "semantic": true,
+        "target": "reality/controller-1787120432062"
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "id": "docker-watch-1787120431330:00000008",
+      "runId": "docker-watch-1787120431330",
+      "sequence": 8,
+      "time": {
+        "kind": "wall",
+        "epochMs": 1787120432271,
+        "elapsedMs": 941
+      },
+      "type": "read.index.confirmed",
+      "source": {
+        "component": "replica1"
+      },
+      "subject": {
+        "id": "read.index.confirmed",
+        "kind": "semantic-step"
+      },
+      "correlationId": "watch-reality",
+      "causationId": "docker-watch-1787120431330:00000007",
+      "data": {
+        "actor": "replica1",
+        "detail": "The deployed leader confirmed authority before serving the value.",
+        "label": "Linearizable read returned the latest desired state",
+        "lane": "commits",
+        "readMs": 3,
+        "revision": 3,
+        "semantic": true,
+        "target": "controller",
+        "value": {
+          "image": "api:v3",
+          "replicas": 4
+        }
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "id": "docker-watch-1787120431330:00000009",
+      "runId": "docker-watch-1787120431330",
+      "sequence": 9,
+      "time": {
+        "kind": "wall",
+        "epochMs": 1787120432271,
+        "elapsedMs": 941
+      },
+      "type": "invariant.checked",
+      "source": {
+        "component": "invariant-checker"
+      },
+      "subject": {
+        "id": "invariant.checked",
+        "kind": "semantic-step"
+      },
+      "correlationId": "watch-reality",
+      "causationId": "docker-watch-1787120431330:00000008",
+      "data": {
+        "actor": "invariant-checker",
+        "expected": [
+          2,
+          3
+        ],
+        "id": "resumable-watch",
+        "label": "PASS FOR THIS EXECUTION · resumable watch",
+        "lane": "invariants",
+        "observed": [
+          2,
+          3
+        ],
+        "semantic": true,
+        "status": "pass",
+        "target": "watch-history"
+      }
+    }
+  ],
+  "metrics": {
+    "recoveryMs": 938,
+    "watchResumeMs": 4,
+    "readinessPropagationMs": 9,
+    "replayedRevisions": 2,
+    "invariantPassed": true
+  },
+  "varianceSources": [
+    "kernel-scheduling",
+    "network-timing",
+    "fsync-latency",
+    "container-start",
+    "dns",
+    "readiness-propagation"
+  ]
+}

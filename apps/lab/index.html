@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#07100f">
+  <title>miniRaft · Consensus Flight Deck</title>
+  <link rel="stylesheet" href="flight-deck.css">
+</head>
+<body>
+  <div class="noise"></div>
+  <header class="topbar">
+    <div class="brand"><span class="mark">mR</span><div><strong>Consensus Flight Deck</strong><small>miniRaft deterministic systems lab</small></div></div>
+    <div class="telemetry" id="telemetry">
+      <div><small>leader</small><b id="metric-leader">—</b></div><div><small>term</small><b id="metric-term">0</b></div>
+      <div><small>quorum</small><b id="metric-quorum">2 / 3</b></div><div><small>commit</small><b id="metric-commit">—</b></div>
+      <div><small>events</small><b id="metric-events">0</b></div><div><small>invariants</small><b class="safe" id="metric-safe">checking</b></div>
+    </div>
+    <div class="mode"><button class="active">ENGINEER</button><button disabled>LEARN</button><button disabled>CHALLENGE</button></div>
+  </header>
+
+  <main class="deck">
+    <aside class="rail faults">
+      <div class="section-title"><span>01</span> Fault palette</div>
+      <p>Inject faults into the real engine. Every action is written to the causal trace.</p>
+      <button data-fault="isolate"><i class="fault-icon">╱╱</i><span>Isolate leader<small>minority partition</small></span></button>
+      <button data-fault="crash"><i class="fault-icon">×</i><span>Crash leader<small>durable state survives</small></span></button>
+      <button data-fault="split"><i class="fault-icon">↔</i><span>Split 1 | 2<small>block cross-cut RPCs</small></span></button>
+      <button data-fault="latency"><i class="fault-icon">≈</i><span>Latency spike<small>180–260 ms</small></span></button>
+      <button data-fault="loss"><i class="fault-icon">⋯</i><span>Packet loss<small>30% deterministic drop</small></span></button>
+      <button class="heal" data-fault="heal"><i class="fault-icon">↻</i><span>Heal all<small>restart + reconnect</small></span></button>
+      <div class="seed-card"><small>DETERMINISTIC SEED</small><div><code id="seed-value">—</code><button id="copy-seed" title="Copy replay URL">COPY URL</button></div></div>
+    </aside>
+
+    <section class="stage-panel">
+      <div class="panel-head"><div><small>LIVE TOPOLOGY</small><strong id="run-state">RUNNING · 1×</strong></div><div class="legend"><span class="leader-dot">leader</span><span class="follower-dot">follower</span><span class="packet-dot">RPC</span></div></div>
+      <div class="stage" id="stage">
+        <svg id="topology" viewBox="0 0 900 500" role="img" aria-label="Raft topology">
+          <defs><filter id="node-glow"><feGaussianBlur stdDeviation="9" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+          <g id="edges"></g><g id="packets"></g><g id="nodes"></g>
+        </svg>
+        <div class="stage-grid"></div>
+        <div class="empty-copy"><span>CAUSAL EVENT STREAM</span><small>Select a packet or timeline mark to inspect it</small></div>
+      </div>
+      <div class="event-strip" id="event-strip"></div>
+    </section>
+
+    <aside class="rail inspector">
+      <div class="section-title"><span>02</span> Protocol X-ray</div>
+      <div class="inspect-empty" id="inspect-empty"><b>NO EVENT SELECTED</b><span>Click a flying RPC, trace row, or timeline mark.</span></div>
+      <div class="inspect-content" id="inspect-content" hidden>
+        <div class="event-name" id="event-name"></div><div class="event-route" id="event-route"></div>
+        <dl id="event-fields"></dl><pre id="event-raw"></pre>
+      </div>
+      <div class="section-title proof-title"><span>03</span> Invariant HUD</div>
+      <div id="invariants" class="invariants"></div>
+    </aside>
+
+    <section class="composer">
+      <div class="section-title"><span>04</span> Scenario composer</div>
+      <div class="preset-row"><button data-preset="stale">STALE LEADER</button><button data-preset="quorum">QUORUM LOSS</button><button data-preset="repair">FOLLOWER REPAIR</button></div>
+      <textarea id="scenario" spellcheck="false">0.0s start cluster(3)
+0.8s write("model/current", v1)
+1.4s isolate(node0)
+2.4s write("model/current", v2)
+3.2s heal-all()</textarea>
+      <div class="composer-actions"><button class="primary" id="run-scenario">RUN SCENARIO</button><button id="fork-here">FORK HERE + CRASH</button><span id="scenario-status">ready</span></div>
+    </section>
+
+    <section class="timeline-panel">
+      <div class="transport"><button id="rewind" title="Replay from seed">↶</button><button id="play-pause" class="primary">Ⅱ</button><button id="step" title="Step one scheduled callback">›</button></div>
+      <div class="timeline-wrap"><div class="timeline-labels"><span id="clock-label">T+0.000s</span><span id="cursor-label">LIVE</span></div><div class="timeline" id="timeline"><div id="timeline-marks"></div><input id="scrubber" type="range" min="0" max="0" value="0"></div></div>
+      <button id="export-trace">EXPORT TRACE</button>
+      <button id="import-trace">IMPORT FAILURE</button>
+      <input id="trace-file" type="file" accept="application/json,.json" hidden>
+    </section>
+  </main>
+  <div class="toast" id="toast"></div>
+  <script src="bundle.js"></script>
+  <script src="flight-deck.js"></script>
+</body>
+</html>

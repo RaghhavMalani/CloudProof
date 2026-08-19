@@ -89,6 +89,25 @@ services:
     stop_grace_period: 10s
 
 
+  reality-harness:
+    profiles: ["research"]
+    build:
+      context: .
+      dockerfile: Dockerfile.reality
+    environment:
+      RAFT_REPLICAS_URLS: http://replica1:5001,http://replica2:5002,http://replica3:5003
+      REALITY_OUTPUT: /workspace/web/reality-run.json
+    volumes:
+      - ./web:/workspace/web
+    depends_on:
+      - replica1
+      - replica2
+      - replica3
+    networks:
+      - raft-net
+    security_opt:
+      - no-new-privileges:true
+    restart: "no"
   redis:
     image: redis:7-alpine
     command: ["redis-server", "--save", "", "--appendonly", "no"]

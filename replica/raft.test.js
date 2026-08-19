@@ -330,3 +330,85 @@ test('empty AppendEntries heartbeat performs consistency checks and advances com
     assert.equal(node.commitIndex, 1);
     assert.equal(node.lastApplied, 1);
 });
+
+test('PreVote does not increase the term when an isolated node cannot reach a quorum', async () => {
+    const node = new RaftNode({
+        replicaId: 'replica1',
+        peers: ['http://p2', 'http://p3'],
+        storagePath: false,
+        autoStart: false,
+        transport: { post: async () => { throw new Error('partitioned'); } },
+    });
+
+    await node._startPreVote();
+    await node._startPreVote();
+
+    assert.equal(node.currentTerm, 0);
+    assert.equal(node.state, STATES.FOLLOWER);
+    assert.equal(node.metrics.preVotesTotal, 2);
+    assert.equal(node.metrics.electionsTotal, 0);
+    node.stop();
+});
+
+test('PreVote reaches a real election only after a majority grants it', async () => {
+    const node = new RaftNode({
+        replicaId: 'replica1',
+        peers: ['http://p2', 'http://p3'],
+        storagePath: false,
+        autoStart: false,
+        transport: {
+            post: async (url, body) => {
+                if (url.endsWith('/pre-vote')) {
+                    return { data: { term: 0, preVoteGranted: true } };
+                }
+                if (url.endsWith('/request-vote')) {
+                    return { data: { term: body.term, voteGranted: true } };
+                }
+                const matchIndex = body.prevLogIndex + body.entries.length;
+                return { data: { term: body.term, success: true, matchIndex } };
+            },
+        },
+    });
+
+    await node._startPreVote();
+
+    assert.equal(node.currentTerm, 1);
+    assert.equal(node.state, STATES.LEADER);
+    assert.equal(node.metrics.preVotesTotal, 1);
+    assert.equal(node.metrics.electionsTotal, 1);
+    node.stop();
+});
+
+test('granting a PreVote is read-only and rejects a candidate while a leader is fresh', () => {
+    const node = new RaftNode({
+        replicaId: 'replica2',
+        nodeUrl: 'http://p2',
+        peers: ['http://p1', 'http://p3'],
+        storagePath: false,
+        autoStart: false,
+    });
+    const before = { term: node.currentTerm, votedFor: node.votedFor };
+
+    const granted = node.handlePreVote({
+        term: 1,
+        candidateId: 'replica1',
+        candidateUrl: 'http://p1',
+        lastLogIndex: -1,
+        lastLogTerm: 0,
+    });
+    assert.equal(granted.preVoteGranted, true);
+    assert.deepEqual({ term: node.currentTerm, votedFor: node.votedFor }, before);
+
+    node.leaderId = 'replica3';
+    node.lastLeaderContactAt = node._clock.now();
+    const rejected = node.handlePreVote({
+        term: 1,
+        candidateId: 'replica1',
+        candidateUrl: 'http://p1',
+        lastLogIndex: -1,
+        lastLogTerm: 0,
+    });
+    assert.equal(rejected.preVoteGranted, false);
+    assert.deepEqual({ term: node.currentTerm, votedFor: node.votedFor }, before);
+    node.stop();
+});

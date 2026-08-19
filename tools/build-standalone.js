@@ -41,10 +41,13 @@ const html = fs.readFileSync(path.join(ROOT, 'web', 'index.html'), 'utf8');
 
 // The external script tag becomes an inline one. Nothing else about the page
 // changes, so what ships is what was tested.
-const standalone = html.replace(
+let standalone = html.replace(
     '<script src="bundle.js"></script>',
     `<script>\n${bundle}\n</script>`,
 );
+// Comment stripping can leave indentation on otherwise empty lines.
+standalone = standalone.replace(/[ \t]+$/gm, '');
+
 
 if (standalone === html) {
     console.error('could not find the bundle script tag — did index.html change?');

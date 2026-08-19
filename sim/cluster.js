@@ -9,7 +9,10 @@
 
 const { RaftNode } = require('../replica/raft');
 const { StateMachine } = require('../replica/state-machine');
-const { VirtualClock, SimNetwork, Rng } = require('./simulator');
+const { VirtualClock, SimNetwork } = require('./simulator');
+const { DecisionStreams } = require('./decision-tape');
+const { FlightRecorder } = require('../packages/simulator/flight-recorder');
+const { EVENT_TYPES } = require('../packages/protocol/events');
 
 /**
  * Stable storage that survives a simulated crash but not a simulated disk loss.
@@ -42,6 +45,10 @@ class MemoryLogStore {
 class SimCluster {
     constructor({
         size = 3,
+        // How many of `size` start as voting members. The rest are spares the
+        // cluster can be grown into, so membership changes are a real join
+        // rather than re-enabling a node that was a member all along.
+        voters = null,
         seed = 1,
         dropRate = 0,
         minLatency = 2,
@@ -49,12 +56,28 @@ class SimCluster {
         electionTimeoutMin = 150,
         electionTimeoutMax = 300,
         heartbeatInterval = 40,
+        recording = false,
+        recorder = null,
+        recorderOptions = {},
+        decisionTrace = null,
+        decisionStreams = null,
     } = {}) {
-        this.rng = new Rng(seed);
         this.clock = new VirtualClock();
-        this.network = new SimNetwork(this.clock, this.rng, { dropRate, minLatency, maxLatency });
+        this.decisionStreams = decisionStreams || new DecisionStreams({
+            seed, decisions: decisionTrace, clock: this.clock,
+        });
+        this.network = new SimNetwork(this.clock, this.decisionStreams.stream('network.fallback'), {
+            dropRate,
+            minLatency,
+            maxLatency,
+            requestDropRng: this.decisionStreams.stream('network.request-drop'),
+            responseDropRng: this.decisionStreams.stream('network.response-drop'),
+            requestLatencyRng: this.decisionStreams.stream('network.request-latency'),
+            responseLatencyRng: this.decisionStreams.stream('network.response-latency'),
+        });
         this.seed = seed;
         this.size = size;
+        this.voters = voters ?? size;
         this.config = { electionTimeoutMin, electionTimeoutMax, heartbeatInterval };
 
         this.urls = Array.from({ length: size }, (_, i) => `http://node${i}:5000`);
@@ -62,20 +85,38 @@ class SimCluster {
         // comes back with exactly what it had durably written.
         this.stores = this.urls.map(() => ({ stable: new MemoryStableStore(), log: new MemoryLogStore() }));
         this.nodes = new Map();
+        this.recorder = recorder || (recording
+            ? new FlightRecorder({ clock: this.clock, seed, ...recorderOptions })
+            : null);
+        if (this.recorder) this.recorder.attachNetwork(this.network);
 
         for (let i = 0; i < size; i += 1) this._spawn(i);
+        if (this.recorder) this.recorder.captureCluster(this);
     }
 
     _spawn(index) {
+        const electionRng = this.decisionStreams.stream('election.node' + index);
+        const timeoutOffset = electionRng.int(40, 'node-timeout-offset-ms', { node: index });
+
         const url = this.urls[index];
         const node = new RaftNode({
             replicaId: `node${index}`,
-            peers: this.urls.filter((u) => u !== url),
             nodeUrl: url,
+            // Every node bootstraps with the *initial* voter set, spares
+            // included. A spare therefore boots knowing it is not a member and
+            // will not campaign; it learns its promotion from the log when the
+            // leader replicates the config entry that adds it.
+            members: this.urls.slice(0, this.voters),
             // Bound to this node's URL so the network can tell who is sending
             // and apply partitions to vote requests as well as replication.
             transport: this.network.forNode(url),
             clock: this.clock,
+            // Election jitter comes from the seeded PRNG, not Math.random.
+            // Without this the schedule differs on every run and the whole
+            // "reproducible from a seed" property is a fiction.
+            randomElectionTimeout: (min, max) => electionRng.range(
+                min, Math.max(min, max - 1), 'election-timeout-ms', { node: index },
+            ),
             stableStore: this.stores[index].stable,
             logStore: this.stores[index].log,
             storagePath: false,
@@ -83,15 +124,11 @@ class SimCluster {
             autoStart: true,
             commitTimeoutMs: 1500,
             ...this.config,
+            electionTimeoutMin: this.config.electionTimeoutMin + timeoutOffset,
         });
 
-        // Randomising the initial election timer per node is what stops all
-        // three from campaigning simultaneously forever. With a virtual clock
-        // and no jitter, a symmetric cluster can livelock in split votes — the
-        // real world gets this for free from scheduling noise.
-        node.electionTimeoutMin = this.config.electionTimeoutMin + this.rng.int(40);
-
         this.network.register(url, {
+            '/pre-vote': (body) => node.handlePreVote(body),
             '/request-vote': (body) => node.handleRequestVote(body),
             '/append-entries': (body) => node.handleAppendEntries(body),
         });
@@ -100,11 +137,34 @@ class SimCluster {
         return node;
     }
 
+    /**
+     * The leader a client should talk to.
+     *
+     * Naively returning the first node that believes it leads is wrong during a
+     * partition, and wrong in the most misleading way: a leader cut off from
+     * the majority does not know it yet, so it keeps reporting LEADER until its
+     * next contact with a higher term. A client following that answer sends
+     * every write into a node that cannot commit anything.
+     *
+     * Picking the highest term matches what a real client learns from redirects,
+     * and it is why `leaders` below exists separately — the visualisation wants
+     * to show *both* claimants, because two nodes simultaneously believing they
+     * lead is the single most instructive thing this system does.
+     */
     get leader() {
+        let best = null;
         for (const [url, node] of this.nodes) {
-            if (node.isLeader() && !this.network.crashed.has(url)) return { url, node };
+            if (!node.isLeader() || this.network.crashed.has(url)) continue;
+            if (!best || node.currentTerm > best.node.currentTerm) best = { url, node };
         }
-        return null;
+        return best;
+    }
+
+    /** Every node that currently believes it is leader. Usually one. */
+    get leaders() {
+        return [...this.nodes.entries()]
+            .filter(([url, node]) => node.isLeader() && !this.network.crashed.has(url))
+            .map(([url, node]) => ({ url, node, term: node.currentTerm }));
     }
 
     /** Advances virtual time until a leader exists, or gives up. */
@@ -120,7 +180,20 @@ class SimCluster {
         return this.leader;
     }
 
-    tick(ms) { return this.clock.runFor(ms); }
+    async tick(ms) {
+        const steps = await this.clock.runFor(ms);
+        if (this.recorder) this.recorder.captureCluster(this);
+        return steps;
+    }
+
+    /** Pause the real-time driver and execute exactly one scheduled callback. */
+    async step() {
+        this.stopDriver();
+        const advanced = this.clock.advance();
+        if (advanced) await this.clock.drain();
+        if (this.recorder) this.recorder.captureCluster(this);
+        return advanced;
+    }
 
     /**
      * Drives virtual time continuously, pegged to real time.
@@ -143,6 +216,7 @@ class SimCluster {
             this._driving = true;
             try {
                 await this.clock.runFor(intervalMs * speed);
+                if (this.recorder) this.recorder.captureCluster(this);
                 if (onTick) onTick(this);
             } finally {
                 this._driving = false;
@@ -165,15 +239,32 @@ class SimCluster {
     /** Splits the cluster. `groups` is an array of arrays of node indexes. */
     partition(groups) {
         this.network.partition(groups.map((g) => g.map((i) => this.urls[i])));
+        this.recorder?.record(EVENT_TYPES.FAULT_APPLIED, {
+            source: { component: 'fault-injector' }, subject: { kind: 'network' },
+            data: { fault: 'partition', groups },
+        });
+        this.recorder?.captureCluster(this);
     }
 
     /** Isolates one node from the rest — the common minority-partition case. */
     isolate(index) {
         const others = this.urls.filter((_, i) => i !== index);
         this.network.partition([[this.urls[index]], others]);
+        this.recorder?.record(EVENT_TYPES.FAULT_APPLIED, {
+            source: { component: 'fault-injector' }, subject: { kind: 'node', id: `node${index}` },
+            data: { fault: 'isolate', index },
+        });
+        this.recorder?.captureCluster(this);
     }
 
-    heal() { this.network.heal(); }
+    heal() {
+        this.network.heal();
+        this.recorder?.record(EVENT_TYPES.FAULT_HEALED, {
+            source: { component: 'fault-injector' }, subject: { kind: 'network' },
+            data: { fault: 'all-network-faults' },
+        });
+        this.recorder?.captureCluster(this);
+    }
 
     /**
      * Hard crash: the process disappears. Timers stop, in-memory state is
@@ -185,12 +276,101 @@ class SimCluster {
         if (node) node.stop();
         this.network.crash(url);
         this.nodes.delete(url);
+        this.recorder?.record(EVENT_TYPES.FAULT_APPLIED, {
+            source: { component: 'fault-injector' }, subject: { kind: 'node', id: `node${index}` },
+            data: { fault: 'crash', index },
+        });
+        this.recorder?.captureCluster(this);
     }
 
     /** Restart from durable state only, exactly as a real process would. */
     restart(index) {
         this.network.restart(this.urls[index]);
-        return this._spawn(index);
+        const node = this._spawn(index);
+        this.recorder?.record(EVENT_TYPES.FAULT_HEALED, {
+            source: { component: 'fault-injector' }, subject: { kind: 'node', id: `node${index}` },
+            data: { fault: 'crash', index },
+        });
+        this.recorder?.captureCluster(this);
+        return node;
+    }
+
+    /**
+     * Adds a spare node to the cluster through the leader.
+     *
+     * The spare is spawned first so it can actually answer AppendEntries while
+     * it is catching up — a configuration naming a server that does not exist
+     * would stall the join for reasons that have nothing to do with the
+     * protocol.
+     */
+    async addMember(index, options = {}) {
+        const leader = this.leader;
+        if (!leader) return { ok: false, error: 'no leader' };
+        const url = this.urls[index];
+        if (!this.nodes.has(url)) this._spawn(index);
+        this.network.restart(url);
+        return leader.node.addServer(url, { catchUpTimeoutMs: 4000, ...options });
+    }
+
+    async removeMember(index) {
+        const leader = this.leader;
+        if (!leader) return { ok: false, error: 'no leader' };
+        return leader.node.removeServer(this.urls[index]);
+    }
+
+    /**
+     * Every configuration this cluster has ever committed, oldest first.
+     *
+     * Read out of the leader's log rather than tracked separately, so the
+     * invariant below is checked against what was actually replicated instead
+     * of against the harness's idea of what happened.
+     */
+    configurationHistory() {
+        const source = this.leader?.node ?? [...this.nodes.values()][0];
+        if (!source) return [];
+        const history = [source.bootstrapMembers];
+        for (const entry of source.log) {
+            if (entry.data && entry.data.op === 'config') history.push(entry.data.members);
+        }
+        return history;
+    }
+
+    /**
+     * The safety property single-server changes exist to provide.
+     *
+     * Any majority of one configuration must intersect any majority of the
+     * next. If they can be disjoint, two leaders can be elected simultaneously
+     * — one by each half — and the cluster splits with no way to detect it
+     * from the outside.
+     */
+    checkConfigurationOverlap() {
+        const history = this.configurationHistory();
+        for (let i = 1; i < history.length; i += 1) {
+            const before = history[i - 1];
+            const after = history[i];
+            const shared = after.filter((u) => before.includes(u)).length;
+            const majorityBefore = Math.floor(before.length / 2) + 1;
+            const majorityAfter = Math.floor(after.length / 2) + 1;
+            // Two majorities must overlap unless they can fit disjointly into
+            // the union of both configurations.
+            if (majorityBefore + majorityAfter <= before.length + after.length - shared) {
+                return {
+                    ok: false,
+                    reason: `configurations ${i - 1}->${i} admit disjoint majorities: `
+                        + `[${before.join(',')}] -> [${after.join(',')}]`,
+                };
+            }
+        }
+        return { ok: true, changes: history.length - 1 };
+    }
+
+    /** Portable random-decision artifact for exact replay and shrinking. */
+    exportDecisionTrace() {
+        return this.decisionStreams.export();
+    }
+
+    decisionDiagnostics() {
+        return this.decisionStreams.diagnostics();
     }
 
     /** Every live node's applied state, for the convergence assertion. */
@@ -215,6 +395,24 @@ class SimCluster {
      * different entries at the same log index. A violation here means the
      * protocol is broken, regardless of what any client observed.
      */
+    /**
+     * The Log Matching Property (Raft §5.3): if two logs contain an entry at
+     * the same index *and the same term*, then every preceding entry is
+     * identical.
+     *
+     * ── What this deliberately does not check ────────────────────────────────
+     * An earlier version asserted that no two replicas may differ at any index
+     * at all. That is a stronger claim than Raft makes, and it is false: a
+     * leader that is deposed with entries still uncommitted keeps them until
+     * the new leader overwrites them, so two logs legitimately disagree on
+     * their uncommitted tails. It passed a thousand seeds only because those
+     * schedules happened to end in a converged state; adding membership churn
+     * produced exactly the transient divergence Raft allows, and the harness
+     * reported thirteen "failures" in code that was behaving correctly.
+     *
+     * Committed entries are covered separately by checkCommittedPrefix, which
+     * is where the real safety burden belongs.
+     */
     checkLogConsistency() {
         const live = [...this.nodes.values()];
         for (let i = 0; i < live.length; i += 1) {
@@ -222,12 +420,21 @@ class SimCluster {
                 const a = live[i].log;
                 const b = live[j].log;
                 const shared = Math.min(a.length, b.length);
-                for (let k = 0; k < shared; k += 1) {
-                    if (a[k].term !== b[k].term) {
+
+                // The deepest index where both agree on the term. Log Matching
+                // says everything below it must be byte-identical.
+                let deepestMatch = -1;
+                for (let k = shared - 1; k >= 0; k -= 1) {
+                    if (a[k].term === b[k].term) { deepestMatch = k; break; }
+                }
+
+                for (let k = 0; k <= deepestMatch; k += 1) {
+                    if (a[k].term !== b[k].term
+                        || JSON.stringify(a[k].data) !== JSON.stringify(b[k].data)) {
                         return {
                             ok: false,
-                            reason: `${live[i].replicaId} and ${live[j].replicaId} disagree at index ${k}: `
-                                + `term ${a[k].term} vs ${b[k].term}`,
+                            reason: `${live[i].replicaId} and ${live[j].replicaId} violate log matching: `
+                                + `entries agree at index ${deepestMatch} but differ at ${k}`,
                         };
                     }
                 }
@@ -254,6 +461,7 @@ class SimCluster {
     stop() {
         this.stopDriver();
         for (const node of this.nodes.values()) node.stop();
+        this.recorder?.finish({ reason: 'cluster-stopped' });
     }
 }
 

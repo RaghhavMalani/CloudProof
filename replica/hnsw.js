@@ -44,6 +44,22 @@ const {
 } = require('./quantize');
 const crypto = require('node:crypto');
 
+
+// Browser builds do not expose Buffer; keep snapshots canonical with a runtime UTF-8 adapter.
+const HAS_BUFFER = typeof Buffer !== 'undefined';
+
+function encodeUtf8(text) {
+    if (HAS_BUFFER) return Buffer.from(text, 'utf8');
+    if (typeof TextEncoder !== 'undefined') return new TextEncoder().encode(text);
+    throw new Error('this runtime cannot encode UTF-8 snapshots');
+}
+
+function decodeUtf8(value) {
+    if (typeof value === 'string') return value;
+    if (HAS_BUFFER) return Buffer.from(value).toString('utf8');
+    if (typeof TextDecoder !== 'undefined') return new TextDecoder().decode(value);
+    throw new Error('this runtime cannot decode UTF-8 snapshots');
+}
 // ── deterministic PRNG ───────────────────────────────────────────────────────
 // xorshift128, chosen because it is exactly reproducible in integer arithmetic
 // and does not depend on Math.random's implementation-defined behaviour.
@@ -748,7 +764,7 @@ class HnswIndex {
                 : null,
         };
 
-        return Buffer.from(stableStringify(state), 'utf8');
+        return encodeUtf8(stableStringify(state));
     }
 
     checksum() {
@@ -763,9 +779,7 @@ class HnswIndex {
     static deserialize(serialized, expectedParams = null) {
         let state;
         try {
-            const text = typeof serialized === 'string'
-                ? serialized
-                : Buffer.from(serialized).toString('utf8');
+            const text = decodeUtf8(serialized);
             state = JSON.parse(text);
         } catch (error) {
             throw new Error('invalid HNSW snapshot: ' + error.message);
