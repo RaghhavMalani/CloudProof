@@ -20,6 +20,23 @@ The browser is deliberately more than a whiteboard: it exposes the current term,
 | Election stability | PreVote requires a prospective candidate to reach a majority before it can increase the durable term |
 | Serving semantics | Quorum-aware serving and disruption prevention: stale leaders stop safe reads and writes, but do not self-demote solely on quorum loss |
 
+## Executable workload lab
+
+The Flight Deck runs ten deterministic scenarios through one causal event interface. Each workload owns its state transition, trace explanation, measurements, visualization, and execution-scoped invariants.
+
+| Workload | Correctness argument exercised |
+|---|---|
+| Configuration coordination | Resumable watches, CAS, leases, ReadIndex, and membership overlap |
+| Idempotent payments | At-least-once delivery with exactly-once ledger effect |
+| Vector search | Deadline-bounded partial results with tenant-filter safety |
+| Model rollout | Artifact integrity and version-coherent serving |
+| Live streaming | Monotonic playback plus a fenced device-capacity bound |
+| Ride dispatch | Offer fencing and authoritative driver assignment |
+| Flash-sale inventory | Atomic bounded decrement and no effect before quorum commit |
+| Feed fan-out | Read-your-writes over an asynchronously maintained timeline |
+| Collaborative editing | Leaderless CRDT convergence under reordering and duplication |
+| Two-ledger settlement | Two-phase commit recovery after coordinator failure |
+
 ## Architecture
 
 ```text

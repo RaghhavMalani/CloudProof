@@ -6,9 +6,10 @@ const { REQUIRED_INTERFACE, WORKLOADS, validateWorkload, runWorkload } = require
 const { validateEvent } = require('../protocol/events');
 
 test('every workload implements the same executable interface', () => {
-    assert.equal(WORKLOADS.length, 7);
+    assert.equal(WORKLOADS.length, 10);
     assert.deepEqual(WORKLOADS.map((workload) => workload.id).sort(), [
-        'configuration', 'dispatch', 'inventory', 'payment', 'rollout', 'streaming', 'vector-search',
+        'collaboration', 'configuration', 'dispatch', 'feed', 'inventory', 'payment', 'rollout',
+        'settlement', 'streaming', 'vector-search',
     ]);
     for (const workload of WORKLOADS) {
         assert.equal(validateWorkload(workload), workload);

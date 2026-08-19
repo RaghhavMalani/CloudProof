@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Four real workloads over one causal event engine.
+ * Ten real workloads over one causal event engine.
  *
  * A workload is intentionally not a page component. It owns the deterministic
  * state transition, its invariants, its measurements, its trace explanation,
@@ -11,6 +11,7 @@
 
 const { createEvent } = require('../protocol/events');
 const { HnswIndex } = require('../../replica/hnsw');
+const { createExtendedWorkloads } = require('./extended');
 
 const REQUIRED_INTERFACE = Object.freeze([
     'actions',
@@ -1287,8 +1288,10 @@ const inventory = {
     },
 };
 
+const EXTENDED_WORKLOADS = createExtendedWorkloads({ pass, fail, watch, makeNode });
+
 const WORKLOADS = Object.freeze([
-    configuration, payment, vectorSearch, rollout, streaming, dispatch, inventory,
+    configuration, payment, vectorSearch, rollout, streaming, dispatch, inventory, ...EXTENDED_WORKLOADS,
 ].map(validateWorkload));
 
 function getWorkload(id) {

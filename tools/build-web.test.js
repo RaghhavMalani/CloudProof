@@ -15,7 +15,7 @@ test('browser bundle exposes every runnable workload', () => {
     // Kept in step with packages/workloads deliberately: the browser bundle
     // silently shipping fewer workloads than the source defines is exactly the
     // drift this test exists to catch.
-    assert.equal(browser.miniRaft.workloads.WORKLOADS.length, 7);
+    assert.equal(browser.miniRaft.workloads.WORKLOADS.length, 10);
     for (const workload of browser.miniRaft.workloads.WORKLOADS) {
         const result = browser.miniRaft.workloads.runWorkload(workload, { seed: 42 });
         assert.ok(result.events.length > 0, `${workload.id} should produce a trace`);
@@ -104,6 +104,9 @@ test('Flight Deck boots, explains a payment, and wires its primary controls', ()
 
     assert.equal(get('workload-name').textContent, 'Idempotent job & payment processor');
     assert.match(get('workload-tabs').innerHTML, /Payments/);
+    assert.match(get('workload-tabs').innerHTML, /Feed/);
+    assert.match(get('workload-tabs').innerHTML, /CRDT editing/);
+    assert.match(get('workload-tabs').innerHTML, /Settlement/);
     assert.match(get('plain-step-copy').textContent, /stable request ID pay-7/);
     assert.notEqual(get('metric-events').textContent, '0');
     assert.match(get('system-nodes').innerHTML, /system-node/);

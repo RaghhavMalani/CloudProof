@@ -35,6 +35,7 @@ const MODULES = [
     'packages/protocol/events.js',
     'packages/simulator/invariants.js',
     'packages/simulator/flight-recorder.js',
+    'packages/workloads/extended.js',
     'packages/workloads/index.js',
     'packages/scenario-dsl/index.js',
     'sim/simulator.js',

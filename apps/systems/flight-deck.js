@@ -46,7 +46,27 @@
     payment: 'At-least-once delivery is allowed, but pay-7 must change the ledger exactly once.',
     'vector-search': 'A partial result must disclose the missing shard and must still obey the tenant filter.',
     rollout: 'Traffic may use v1 or v2, but one response must never combine both versions.',
+    streaming: 'Playback may only advance, and no failover may exceed the viewer\'s device limit.',
+    dispatch: 'Only the current offer epoch may assign a ride, and one driver may hold at most one ride.',
+    inventory: 'Committed holds plus available stock must always equal the initial stock.',
+    feed: 'An author reload must include every post in that session\'s committed write frontier.',
+    collaboration: 'Replicas receiving the same CRDT operations must converge regardless of delivery order.',
+    settlement: 'Every participant must reach the one durable 2PC outcome without duplicating money.',
   };
+
+  const SCENARIO_COPY = {
+    configuration: 'A controller loses its watch transport while two desired-state revisions commit, then resumes from its last checkpoint.',
+    payment: 'The commit survives the packet. The retry must discover the original result, not create a second effect.',
+    'vector-search': 'The router must choose between completeness and deadline while preserving filter safety and disclosing missing shards.',
+    rollout: 'Corrupt bytes and a straggler hold the barrier closed while traffic remains on one coherent model version.',
+    streaming: 'Two devices occupy the plan while a deposed leader and a late heartbeat try to violate different viewer-state rules.',
+    dispatch: 'An expired offer is reassigned before the first driver\'s delayed accept emerges from a tunnel.',
+    inventory: 'A minority leader accepts a reservation it cannot commit while five buyers contend for three units.',
+    feed: 'A post is durable before asynchronous fan-out reaches the edge cache, and the author reloads immediately.',
+    collaboration: 'Two editors work offline, then exchange concurrent and causally reordered operations without a leader.',
+    settlement: 'Both ledgers prepare and the coordinator records COMMIT, then crashes before either participant is notified.',
+  };
+
   const THEME_META = { emirates: '#65101b', qatar: '#5c0632', american: '#0b304e' };
 
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -101,7 +121,7 @@
   function renderTabs() {
     $('workload-tabs').innerHTML = api.WORKLOADS.map((workload, index) => `
       <button class="workload-tab ${workload.id === state.workloadId ? 'active' : ''}" data-workload="${workload.id}" aria-pressed="${workload.id === state.workloadId}">
-        <span>0${index + 1}</span><div><b>${escapeHtml(workload.shortName)}</b><small>${escapeHtml(workload.scenario)}</small></div><i></i>
+        <span>${String(index + 1).padStart(2, '0')}</span><div><b>${escapeHtml(workload.shortName)}</b><small>${escapeHtml(workload.scenario)}</small></div><i></i>
       </button>`).join('');
     document.querySelectorAll('[data-workload]').forEach((button) => {
       button.onclick = () => selectWorkload(button.dataset.workload);
@@ -113,13 +133,7 @@
     $('workload-name').textContent = workload.name;
     $('workload-question').textContent = workload.question;
     $('scenario-name').textContent = workload.scenario;
-    $('scenario-summary').textContent = workload.id === 'payment'
-      ? 'The commit survives the packet. The retry must discover the original result, not create a second effect.'
-      : workload.id === 'configuration'
-        ? 'A controller loses its watch transport while two desired-state revisions commit, then resumes from its last checkpoint.'
-        : workload.id === 'vector-search'
-          ? 'The router must choose between completeness and deadline while preserving filter safety and disclosing missing shards.'
-          : 'Corrupt bytes and a straggler must hold the barrier closed while traffic remains on one coherent model version.';
+    $('scenario-summary').textContent = SCENARIO_COPY[workload.id];
     $('workload-metrics').innerHTML = metrics.map((metric) => `
       <div class="metric"><small>${escapeHtml(metric.label)}</small><b>${escapeHtml(metric.value)}</b><span>${escapeHtml(metric.unit)}</span></div>`).join('');
   }

@@ -60,4 +60,6 @@ button:hover{border-color:var(--green);color:var(--green)}
 .plain-step.fault-step{box-shadow:inset 5px 0 var(--red)}
 .plain-step.fault-step .step-index b,.plain-step.fault-step .step-impact b{color:var(--red)}
 body.museum-open .workload-tabs,body.museum-open .quick-start{display:none}
+.workload-tabs{grid-template-columns:repeat(10,minmax(170px,1fr));overflow-x:auto;scrollbar-width:thin}
+@media(max-width:1020px){.workload-tabs{display:flex;height:72px}.workload-tab{min-width:190px;height:72px}}
 

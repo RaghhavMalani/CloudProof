@@ -46,7 +46,7 @@ let standalone = html.replace(
     `<script>\n${bundle}\n</script>`,
 );
 // Comment stripping can leave indentation on otherwise empty lines.
-standalone = standalone.replace(/[ \t]+$/gm, '');
+standalone = standalone.replace(/\r/g, '').replace(/[ \t]+$/gm, '');
 
 
 if (standalone === html) {
