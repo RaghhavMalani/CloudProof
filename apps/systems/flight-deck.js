@@ -77,7 +77,7 @@
     const host = document.createElement('section');
     host.className = 'boot-error';
     host.innerHTML = `<h2>The scenario stopped before take-off.</h2><p>${escapeHtml(error.message)}</p><pre>${escapeHtml(error.stack || '')}</pre>`;
-    document.querySelector('.quick-start')?.after(host);
+    document.querySelector('.operations-launchpad')?.after(host);
   }
 
   function toast(message) {
@@ -114,14 +114,10 @@
     else dialog.setAttribute('open', '');
   }
 
-  function hideQuickStart() {
-    $('quick-start')?.classList.add('is-hidden');
-  }
-
   function renderTabs() {
     $('workload-tabs').innerHTML = api.WORKLOADS.map((workload, index) => `
       <button class="workload-tab ${workload.id === state.workloadId ? 'active' : ''}" data-workload="${workload.id}" aria-pressed="${workload.id === state.workloadId}">
-        <span>${String(index + 1).padStart(2, '0')}</span><div><b>${escapeHtml(workload.shortName)}</b><small>${escapeHtml(workload.scenario)}</small></div><i></i>
+        <span>${String(index + 1).padStart(2, '0')}</span><div><b>${escapeHtml(workload.shortName)}</b></div><i></i>
       </button>`).join('');
     document.querySelectorAll('[data-workload]').forEach((button) => {
       button.onclick = () => selectWorkload(button.dataset.workload);
@@ -276,7 +272,6 @@
 
   function playGuidedExample() {
     stopPlayback();
-    hideQuickStart();
     selectWorkload('payment');
     const indices = state.result.events
       .map((event, index) => ({ event, index }))
@@ -362,6 +357,27 @@
       <div class="research-metric ${pending ? 'pending' : ''}"><small>${escapeHtml(label)}</small><b>${escapeHtml(value)}</b></div>`).join('');
   }
 
+  async function probeDocker() {
+    const status = $('docker-live-status');
+    const detail = $('docker-live-detail');
+    try {
+      const current = new URL(location.href);
+      await fetch('http://localhost:4000/health', {
+        cache: 'no-store',
+        mode: current.port === '4000' ? 'same-origin' : 'no-cors',
+      });
+      status.textContent = 'LIVE CLUSTER DETECTED';
+      status.classList.remove('is-checking');
+      status.classList.add('is-live');
+      detail.textContent = 'The real gateway answered on localhost:4000. Open it to inspect the three Raft processes, kill a leader, and watch the persistent cluster recover.';
+    } catch (_) {
+      status.textContent = 'NOT RUNNING';
+      status.classList.remove('is-checking');
+      status.classList.add('is-offline');
+      detail.textContent = 'No gateway answered on localhost:4000. Start the actual three-replica cluster with the command below.';
+    }
+  }
+
   function renderComparison() {
     const configuration = api.runWorkload(api.getWorkload('configuration'), { seed });
     const core = configuration.events;
@@ -379,7 +395,10 @@
       }).join('');
       $('real-recovery').textContent = `${capture.metrics?.recoveryMs ?? '—'} ms`;
       $('real-recovery').nextElementSibling.textContent = capture.runId || 'captured run';
-    }).catch(() => {});
+      const recorded = capture.recordedAt ? new Date(capture.recordedAt).toLocaleString() : 'timestamp unavailable';
+      $('capture-state').textContent = `RECORDED DOCKER CAPTURE · ${recorded}`;
+      $('capture-source').textContent = `${capture.source || 'docker-compose-processes'} · ${capture.runId || 'captured run'} · refresh it with the reality harness command.`;
+    }).catch(() => { $('capture-state').textContent = 'NO RECORDED DOCKER CAPTURE'; });
   }
 
   $('first').onclick = () => { stopPlayback(); selectEvent(0); };
@@ -397,6 +416,18 @@
     try { await navigator.clipboard.writeText(location.href); toast('Replay URL copied'); }
     catch (_) { toast('Replay URL is in the address bar'); }
   };
+  document.querySelectorAll('[data-copy-command]').forEach((button) => {
+    button.onclick = async () => {
+      try { await navigator.clipboard.writeText(button.dataset.copyCommand); toast('Command copied'); }
+      catch (_) { toast(button.dataset.copyCommand); }
+    };
+  });
+  $('toggle-inspector').onclick = () => {
+    const deck = document.querySelector('.systems-deck');
+    const collapsed = deck.classList.toggle('inspector-collapsed');
+    $('toggle-inspector').textContent = collapsed ? 'SHOW PROTOCOL X-RAY' : 'HIDE PROTOCOL X-RAY';
+    $('toggle-inspector').setAttribute('aria-expanded', String(!collapsed));
+  };
   addEventListener('keydown', (event) => {
     if (event.key === 'ArrowRight') $('next').click();
     if (event.key === 'ArrowLeft') $('previous').click();
@@ -407,6 +438,7 @@
     setTheme(state.theme, false);
     selectWorkload(api.getWorkload(state.workloadId) ? state.workloadId : 'payment');
     renderComparison();
+    probeDocker();
   } catch (error) {
     console.error(error);
     showRuntimeError(error);
@@ -416,7 +448,6 @@
   $('run-example').onclick = playGuidedExample;
   $('guide-run-example').onclick = () => setTimeout(playGuidedExample, 0);
   $('dismiss-intro').onclick = () => {
-    hideQuickStart();
     document.querySelector('.flight')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 

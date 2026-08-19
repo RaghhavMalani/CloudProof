@@ -139,6 +139,19 @@ spec:
           requests:
             storage: 1Gi
 ---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: raft-quorum
+  namespace: miniraft
+spec:
+  # Voluntary maintenance must leave the two members required for quorum.
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: miniraft
+      app.kubernetes.io/component: replica
+---
 apiVersion: v1
 kind: Service
 metadata:
@@ -279,3 +292,15 @@ spec:
             runAsUser: 1000
             capabilities:
               drop: ["ALL"]
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: gateway-availability
+  namespace: miniraft
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: miniraft
+      app.kubernetes.io/component: gateway

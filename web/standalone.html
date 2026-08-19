@@ -10,7 +10,7 @@
 <body data-theme="emirates">
   <div class="noise" aria-hidden="true"></div>
   <header class="topbar">
-    <div class="brand"><span class="mark">mR</span><div><strong>Distributed Systems Flight Deck</strong><small>server failure simulator · ten real workloads</small></div></div>
+    <div class="brand"><span class="mark">mR</span><div><strong>miniRaft Systems Lab</strong><small>simulate · run in Docker · deploy to Kubernetes</small></div></div>
     <div class="telemetry" aria-label="Execution telemetry">
       <div><small>execution</small><b id="metric-execution">SIM · SEED 42</b></div>
       <div><small>quorum</small><b id="metric-quorum">3 live · 2 required · 3 configured</b></div>
@@ -20,24 +20,43 @@
     <div class="header-actions"><label class="theme-picker"><span>LIVERY</span><select id="theme-select" aria-label="Airline-inspired colour theme"><option value="emirates">Emirates</option><option value="qatar">Qatar Airways</option><option value="american">American Airlines</option></select></label><button class="tour-open" id="open-guide">WHAT IS THIS?</button><div class="mode"><button class="active">ENGINEER</button><button>BUG MUSEUM</button></div></div>
   </header>
 
-  <nav class="workload-tabs" id="workload-tabs" aria-label="Workloads"></nav>
-  <section class="quick-start" id="quick-start" aria-labelledby="quick-start-title">
-    <div class="quick-copy">
-      <span class="eyebrow">START HERE · 60 SECOND EXAMPLE</span>
-      <h1 id="quick-start-title">Watch one payment survive a lost reply.</h1>
-      <p>This is a simulator for groups of servers, not an aircraft simulator. It shows a failure one meaningful step at a time and checks whether the system stays safe.</p>
-      <div class="quick-actions"><button class="primary" id="run-example">RUN THE PAYMENT EXAMPLE</button><button class="secondary" id="dismiss-intro">EXPLORE ON MY OWN</button></div>
+  <section class="quick-start operations-launchpad" id="quick-start" aria-labelledby="quick-start-title">
+    <header class="launchpad-copy">
+      <div>
+        <span class="eyebrow">START HERE · THREE DIFFERENT RUNTIMES</span>
+        <h1 id="quick-start-title">Learn the invariant here. Prove the process failure in Docker. Prove the placement failure in Kubernetes.</h1>
+      </div>
+      <p>The browser lab is deterministic teaching software. Docker runs the actual gateway, Redis, and three persistent Raft processes. Kubernetes adds stable pod identity, volumes, readiness, anti-affinity, and disruption budgets.</p>
+    </header>
+    <div class="runtime-cards">
+      <article class="runtime-card simulator-runtime">
+        <div class="runtime-title"><span>01</span><div><small>BROWSER LAB</small><h2>Deterministic simulator</h2></div><b class="runtime-status is-ready">RUNNING HERE</b></div>
+        <p>Replay ten workload failures event by event. Use this to understand the safety rule and reproduce a seed—not to claim a container ran.</p>
+        <ul><li>virtual clock + simulated wire</li><li>semantic timeline + invariant checks</li><li>no Docker or cluster required</li></ul>
+        <div class="runtime-actions"><button class="primary" id="run-example">RUN 60-SECOND EXAMPLE</button><button class="secondary" id="dismiss-intro">JUMP TO LAB</button></div>
+      </article>
+      <article class="runtime-card docker-runtime">
+        <div class="runtime-title"><span>02</span><div><small>LIVE LOCAL SYSTEM</small><h2>Docker Compose cluster</h2></div><b class="runtime-status is-checking" id="docker-live-status">CHECKING :4000</b></div>
+        <p id="docker-live-detail">Probing the real gateway. Compose starts three replicas with named volumes, one gateway, and Redis on an isolated network.</p>
+        <div class="runtime-topology"><span>GATEWAY :4000</span><i>→</i><span>RAFT ×3</span><i>+</i><span>REDIS</span></div>
+        <code>docker compose up --build -d</code>
+        <div class="runtime-actions"><a class="primary button-link" href="http://localhost:4000" target="_blank" rel="noreferrer">OPEN LIVE UI</a><button class="secondary" data-copy-command="docker compose up --build -d">COPY START COMMAND</button></div>
+      </article>
+      <article class="runtime-card kubernetes-runtime">
+        <div class="runtime-title"><span>03</span><div><small>ORCHESTRATED SYSTEM</small><h2>Local kind / production Kubernetes</h2></div><b class="runtime-status is-manifest">MANIFEST + SCRIPT</b></div>
+        <p>The local script creates a four-node kind cluster and loads locally built images. The production manifest targets dedicated consensus nodes and gp3 volumes.</p>
+        <ul><li>StatefulSet + stable DNS + PVC per replica</li><li>required pod anti-affinity + quorum PDB</li><li>two gateways behind one Service</li></ul>
+        <code>bash tools/kind-up.sh</code>
+        <div class="runtime-actions"><button class="primary" data-copy-command="bash tools/kind-up.sh">COPY LOCAL CLUSTER COMMAND</button><button class="secondary" data-copy-command="kubectl apply -f k8s/miniraft.yaml">COPY PRODUCTION APPLY</button></div>
+      </article>
     </div>
-    <ol class="example-route" aria-label="Payment example route">
-      <li><b>1</b><span>Charge is saved</span></li>
-      <li><b>2</b><span>Reply is lost</span></li>
-      <li><b>3</b><span>Client retries</span></li>
-      <li><b>4</b><span>Duplicate is suppressed</span></li>
-      <li class="route-result"><b>✓</b><span>One ledger effect</span></li>
-    </ol>
+    <footer class="launchpad-foot"><b>WHY ALL THREE?</b><span>Simulation makes correctness reproducible. Compose exposes process, network, and persistence behavior. Kubernetes exposes scheduling, identity, readiness, storage, and safe disruption behavior.</span></footer>
   </section>
 
-  <main class="deck systems-deck">
+  <div class="workload-nav-label"><span>DETERMINISTIC WORKLOAD LAB</span><b>Choose one of ten invariant classes</b></div>
+  <nav class="workload-tabs" id="workload-tabs" aria-label="Workloads"></nav>
+
+  <main class="deck systems-deck inspector-collapsed">
     <aside class="briefing panel">
       <div class="eyebrow">RESEARCH QUESTION</div>
       <h1 id="workload-name">—</h1>
@@ -57,7 +76,7 @@
     <section class="flight panel">
       <header class="panel-head">
         <div><small>SINGLE REQUEST JOURNEY</small><b id="journey-title">—</b></div>
-        <div class="head-actions"><span class="heartbeat-group">HEARTBEATS ×18 · COLLAPSED</span><button id="restart">REPLAY</button></div>
+        <div class="head-actions"><span class="heartbeat-group">HEARTBEATS ×18 · COLLAPSED</span><button id="toggle-inspector">SHOW PROTOCOL X-RAY</button><button id="restart">REPLAY</button></div>
       </header>
       <div class="plain-step" id="plain-step">
         <div class="step-index">STEP <b id="plain-step-number">1</b></div>
@@ -103,7 +122,7 @@
 
     <section class="research panel">
       <header class="research-head">
-        <div><small>SIMULATOR ↔ REALITY</small><h2>Same causal envelope. Different variance.</h2></div>
+        <div><small>SIMULATOR ↔ RECORDED DOCKER RUN</small><h2>Same causal envelope. Different variance.</h2><span class="capture-state" id="capture-state">RECORDED CAPTURE · CHECKING</span></div>
         <div class="research-answer"><small>QUESTION</small><b>Can deterministic simulation + failure reduction make correctness bugs reproducible and understandable?</b></div>
       </header>
       <div class="comparison-track">
@@ -117,6 +136,7 @@
       <div class="variance-row" aria-label="Reality variance sources">
         <span>KERNEL SCHEDULING</span><span>NETWORK TIMING</span><span>FSYNC LATENCY</span><span>CONTAINER RESTART</span><span>DNS</span><span>READINESS PROPAGATION</span>
       </div>
+      <div class="capture-note"><span id="capture-source">This row is a saved artifact, not a live Docker stream.</span><button class="secondary" data-copy-command="docker compose --profile research run --rm reality-harness">COPY CAPTURE COMMAND</button></div>
       <div class="research-metrics" id="research-metrics"></div>
     </section>
   </main>

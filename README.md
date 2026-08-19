@@ -160,6 +160,20 @@ disruption prevention.
 
 ## Kubernetes
 
+For a complete local Kubernetes deployment, use the checked-in kind harness:
+
+```bash
+bash tools/kind-up.sh
+```
+
+It builds and side-loads local images, creates three consensus worker nodes,
+adapts the production storage class, deploys the system, and waits for the
+StatefulSets and Deployments. It requires Docker, `kind`, `kubectl`, and Bash.
+This is the easiest way to see stable pod identities, PVC recovery, required
+anti-affinity, readiness gating, and quorum-safe PodDisruptionBudgets working
+without a cloud account. See [README-DEPLOY.md](README-DEPLOY.md) for the exact
+difference between the browser simulator, Compose cluster, and Kubernetes.
+
 The checked-in manifest expects the two images produced by the GitHub Actions workflow:
 
 - `ghcr.io/raghhavmalani/miniraft-replica:latest`
@@ -180,6 +194,7 @@ The replica StatefulSet provides:
 - a dedicated 1 Gi PVC per node;
 - `/health` liveness and `/ready` quorum-lease readiness probes;
 - Prometheus scrape annotations on `/metrics`;
+- a PodDisruptionBudget that preserves the two-member quorum during voluntary maintenance;
 - non-root containers with dropped Linux capabilities and read-only root filesystems.
 
 The gateway deployment runs two replicas behind one Service. Redis pub/sub fans committed entries across both WebSocket client sets.

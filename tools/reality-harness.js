@@ -71,11 +71,11 @@ async function discoverLeader(deadlineMs = 20000) {
     throw new Error(`no leader discovered at ${URLS.join(', ')}`);
 }
 
-async function write(leaderUrl, key, value, seqNo) {
+async function write(leaderUrl, key, value, clientId, seqNo) {
     const { response, body } = await json(`${leaderUrl}/kv/${encodeURIComponent(key)}`, {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ value, clientId: 'reality-harness', seqNo }),
+        body: JSON.stringify({ value, clientId, seqNo }),
     });
     if (!response.ok) throw new Error(`write ${key} failed: ${response.status} ${JSON.stringify(body)}`);
     return body;
@@ -108,7 +108,10 @@ async function deployedRun() {
     }, { actor: leader.status.replicaId, target: 'reality-harness' });
 
     const key = `reality/controller-${Date.now()}`;
-    const initial = await write(leader.url, key, { image: 'api:v1', replicas: 3 }, 1);
+    // Idempotency identities must be unique per harness run. Reusing seqNo 1–3
+    // with a constant client ID makes a persistent cluster replay an older
+    // run's results and leaves this run's unique key unwritten.
+    const initial = await write(leader.url, key, { image: 'api:v1', replicas: 3 }, recorder.runId, 1);
     const checkpoint = initial.rev;
     recorder.record('watch.stream.opened', {
         lane: 'clients', label: `Watch checkpoint ${checkpoint} captured`,
@@ -119,14 +122,14 @@ async function deployedRun() {
         detail: 'The controller process remains healthy while the socket is absent.', process: 'up', network: 'disconnected',
     }, { actor: 'network', target: 'controller' });
 
-    const second = await write(leader.url, key, { image: 'api:v2', replicas: 3 }, 2);
+    const second = await write(leader.url, key, { image: 'api:v2', replicas: 3 }, recorder.runId, 2);
     const secondQuorum = await followerCaughtUp(second.index);
     recorder.record('state.machine.applied', {
         label: `Revision ${second.rev} committed while disconnected`, detail: 'Docker replicas applied api:v2.',
         revision: second.rev, index: second.index, propagationMs: secondQuorum.propagationMs,
     }, { actor: leader.status.replicaId, target: 'kv' });
 
-    const third = await write(leader.url, key, { image: 'api:v3', replicas: 4 }, 3);
+    const third = await write(leader.url, key, { image: 'api:v3', replicas: 4 }, recorder.runId, 3);
     const thirdQuorum = await followerCaughtUp(third.index);
     recorder.record('state.machine.applied', {
         label: `Revision ${third.rev} committed while disconnected`, detail: 'Docker replicas applied api:v3 × 4.',

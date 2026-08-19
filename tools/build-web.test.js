@@ -23,6 +23,30 @@ test('browser bundle exposes every runnable workload', () => {
     }
 });
 
+test('browser entry point distinguishes simulation, Docker, and Kubernetes', () => {
+    const html = fs.readFileSync(path.join(__dirname, '..', 'apps', 'systems', 'index.html'), 'utf8');
+    assert.match(html, /Deterministic simulator/);
+    assert.match(html, /Docker Compose cluster/);
+    assert.match(html, /Local kind \/ production Kubernetes/);
+    assert.match(html, /http:\/\/localhost:4000/);
+    assert.match(html, /bash tools\/kind-up\.sh/);
+    assert.match(html, /saved artifact, not a live Docker stream/);
+});
+
+test('Kubernetes manifest protects consensus and gateway availability', () => {
+    const manifest = fs.readFileSync(path.join(__dirname, '..', 'k8s', 'miniraft.yaml'), 'utf8');
+    assert.match(manifest, /kind: StatefulSet/);
+    assert.match(manifest, /volumeClaimTemplates:/);
+    assert.match(manifest, /name: raft-quorum[\s\S]*minAvailable: 2/);
+    assert.match(manifest, /name: gateway-availability[\s\S]*minAvailable: 1/);
+});
+
+test('reality harness scopes idempotency to one persistent-cluster run', () => {
+    const harness = fs.readFileSync(path.join(__dirname, 'reality-harness.js'), 'utf8');
+    assert.doesNotMatch(harness, /clientId: 'reality-harness'/);
+    assert.match(harness, /write\([^\n]+recorder\.runId, 1\)/);
+});
+
 test('Flight Deck boots, explains a payment, and wires its primary controls', () => {
     class FakeClassList {
         constructor() { this.values = new Set(); }
@@ -73,6 +97,8 @@ test('Flight Deck boots, explains a payment, and wires its primary controls', ()
             if (selector === 'meta[name="theme-color"]') return get('theme-meta');
             if (selector === '.flight') return get('flight');
             if (selector === '.quick-start') return get('quick-start');
+            if (selector === '.operations-launchpad') return get('quick-start');
+            if (selector === '.systems-deck') return get('systems-deck');
             if (selector === '.journey-step.active') return null;
             return get(`selector:${selector}`);
         },
@@ -119,5 +145,7 @@ test('Flight Deck boots, explains a payment, and wires its primary controls', ()
     assert.equal(get('plain-step-number').textContent, 2);
     get('run-example').onclick();
     assert.equal(get('play-pause').textContent, 'PAUSE EXAMPLE');
-    assert.equal(get('quick-start').classList.contains('is-hidden'), true);
+    get('toggle-inspector').onclick();
+    assert.equal(get('systems-deck').classList.contains('inspector-collapsed'), true);
+    assert.equal(get('toggle-inspector').textContent, 'SHOW PROTOCOL X-RAY');
 });
