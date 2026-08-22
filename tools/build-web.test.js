@@ -88,6 +88,15 @@ test('Flight Deck boots, explains a payment, and wires its primary controls', ()
         if (!elements.has(id)) elements.set(id, new FakeElement(id));
         return elements.get(id);
     };
+    const tabButtons = new Map();
+    const tabFor = (workloadId) => {
+        if (!tabButtons.has(workloadId)) {
+            const button = new FakeElement(`tab:${workloadId}`);
+            button.dataset.workload = workloadId;
+            tabButtons.set(workloadId, button);
+        }
+        return tabButtons.get(workloadId);
+    };
     const body = get('body');
     const document = {
         body,
@@ -102,7 +111,13 @@ test('Flight Deck boots, explains a payment, and wires its primary controls', ()
             if (selector === '.journey-step.active') return null;
             return get(`selector:${selector}`);
         },
-        querySelectorAll: () => [],
+        querySelectorAll(selector) {
+            // renderTabs wires its click handlers through this selector. Returning
+            // [] here (as this fake used to) meant the test could never switch
+            // workloads, so every assertion below only ever saw the payment tab.
+            if (selector === '[data-workload]') return [...tabButtons.values()];
+            return [];
+        },
     };
     const browser = {};
     const context = {
@@ -126,6 +141,9 @@ test('Flight Deck boots, explains a payment, and wires its primary controls', ()
     const bundle = fs.readFileSync(path.join(__dirname, '..', 'web', 'bundle.js'), 'utf8');
     const deck = fs.readFileSync(path.join(__dirname, '..', 'apps', 'systems', 'flight-deck.js'), 'utf8');
     vm.runInNewContext(bundle, context, { filename: 'bundle.js' });
+    // The tab buttons must exist before the deck boots, because renderTabs wires
+    // its handlers once through querySelectorAll('[data-workload]').
+    for (const workload of browser.miniRaft.workloads.WORKLOADS) tabFor(workload.id);
     vm.runInNewContext(deck, context, { filename: 'flight-deck.js' });
 
     assert.equal(get('workload-name').textContent, 'Idempotent job & payment processor');
@@ -133,9 +151,17 @@ test('Flight Deck boots, explains a payment, and wires its primary controls', ()
     assert.match(get('workload-tabs').innerHTML, /Feed/);
     assert.match(get('workload-tabs').innerHTML, /CRDT editing/);
     assert.match(get('workload-tabs').innerHTML, /Settlement/);
-    assert.match(get('plain-step-copy').textContent, /stable request ID pay-7/);
     assert.notEqual(get('metric-events').textContent, '0');
     assert.match(get('system-nodes').innerHTML, /system-node/);
+
+    // The briefing panel leads with the failure a reader would recognise, not
+    // with the formal question. Asserted against the module rather than a
+    // pinned phrase so rewording the copy is not a test failure.
+    const brief = browser.miniRaft.plainEnglish.briefFor('payment');
+    assert.equal(get('workload-headline').textContent, brief.headline);
+    assert.equal(get('workload-symptom').textContent, brief.symptom);
+    assert.equal(get('workload-rule').textContent, brief.rule);
+    assert.equal(get('plain-step-safety').textContent, brief.rule);
 
     get('theme-select').onchange({ target: { value: 'qatar', selectedOptions: [{ text: 'Qatar Airways' }] } });
     assert.equal(body.dataset.theme, 'qatar');
@@ -148,4 +174,34 @@ test('Flight Deck boots, explains a payment, and wires its primary controls', ()
     get('toggle-inspector').onclick();
     assert.equal(get('systems-deck').classList.contains('inspector-collapsed'), true);
     assert.equal(get('toggle-inspector').textContent, 'SHOW PROTOCOL X-RAY');
+
+    // The real regression this guards: the deck used to fall back to the raw
+    // engineering detail string whenever plain copy was missing, so nine of the
+    // ten workloads silently rendered jargon inside a box headed "IN PLAIN
+    // ENGLISH". Walk every event of every workload through the actual UI code
+    // path and require a sentence at each step.
+    for (const workload of browser.miniRaft.workloads.WORKLOADS) {
+        tabFor(workload.id).onclick();
+
+        const workloadBrief = browser.miniRaft.plainEnglish.briefFor(workload.id);
+        assert.equal(get('workload-headline').textContent, workloadBrief.headline,
+            `${workload.id} did not render its brief`);
+
+        // Walk the journey to its end. The bound is the step counter rather than
+        // metric-events, which also counts invariant checks and so overruns.
+        let steps = 0;
+        let previous = -1;
+        while (Number(get('plain-step-number').textContent) !== previous && steps < 60) {
+            previous = Number(get('plain-step-number').textContent);
+            const copy = get('plain-step-copy').textContent;
+            assert.ok(typeof copy === 'string' && copy.length > 20,
+                `${workload.id} step ${previous} has no plain-English explanation`);
+            assert.doesNotMatch(copy, /\bdeterministic step\b/,
+                `${workload.id} step ${previous} fell back to filler copy`);
+            get('next').onclick();
+            steps += 1;
+        }
+        assert.ok(steps >= 9, `${workload.id} only walked ${steps} steps`);
+    }
+
 });

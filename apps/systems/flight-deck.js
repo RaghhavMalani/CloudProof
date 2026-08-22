@@ -3,7 +3,8 @@
 
   const $ = (id) => document.getElementById(id);
   const api = window.miniRaft?.workloads;
-  if (!api) {
+  const plain = window.miniRaft?.plainEnglish;
+  if (!api || !plain) {
     const error = document.createElement('section');
     error.className = 'boot-error';
     error.innerHTML = '<h2>The simulator could not start.</h2><p>The browser engine did not load. Rebuild with <code>node tools/build-web.js</code>, then refresh.</p>';
@@ -26,33 +27,6 @@
     ['clients', 'clients'], ['nodes', 'nodes'], ['faults', 'faults'],
     ['commits', 'commits'], ['invariants', 'invariants'],
   ];
-
-  const PLAIN_EVENT_COPY = {
-    'client.request.started': 'Checkout asks to charge ₹42. It attaches the stable request ID pay-7 so any retry can be recognised.',
-    'gateway.request.accepted': 'The gateway has capacity, accepts pay-7, and forwards it to the replicated payment service.',
-    'queue.message.delivered': 'A worker receives the job. The queue may deliver it again until it sees an acknowledgement.',
-    'raft.log.appended': 'The leader writes the command into its log. It is proposed, but it is not safe to apply yet.',
-    'raft.entry.persisted': 'A follower saves the same command. The operation now survives losing one server.',
-    'raft.quorum.reached': 'Two of the three servers have saved the command. That majority is the quorum.',
-    'raft.commit.advanced': 'The leader marks the command committed because a quorum has persisted it.',
-    'state.machine.applied': 'The committed charge changes the ledger once and caches its result under pay-7.',
-    'network.response.dropped': 'The charge succeeded, but the reply packet disappears. Checkout cannot tell whether it worked.',
-    'client.request.retried': 'Checkout reaches its retry timer and sends pay-7 again with the same request ID.',
-    'dedupe.hit': 'The processor finds pay-7 in its result cache and returns the original answer without charging again.',
-    'client.response.completed': 'Checkout finally receives the successful result. The ledger still contains only one charge.',
-  };
-  const SAFETY_COPY = {
-    configuration: 'No desired-state revision may be missed when the controller reconnects.',
-    payment: 'At-least-once delivery is allowed, but pay-7 must change the ledger exactly once.',
-    'vector-search': 'A partial result must disclose the missing shard and must still obey the tenant filter.',
-    rollout: 'Traffic may use v1 or v2, but one response must never combine both versions.',
-    streaming: 'Playback may only advance, and no failover may exceed the viewer\'s device limit.',
-    dispatch: 'Only the current offer epoch may assign a ride, and one driver may hold at most one ride.',
-    inventory: 'Committed holds plus available stock must always equal the initial stock.',
-    feed: 'An author reload must include every post in that session\'s committed write frontier.',
-    collaboration: 'Replicas receiving the same CRDT operations must converge regardless of delivery order.',
-    settlement: 'Every participant must reach the one durable 2PC outcome without duplicating money.',
-  };
 
   const SCENARIO_COPY = {
     configuration: 'A controller loses its watch transport while two desired-state revisions commit, then resumes from its last checkpoint.',
@@ -116,8 +90,8 @@
 
   function renderTabs() {
     $('workload-tabs').innerHTML = api.WORKLOADS.map((workload, index) => `
-      <button class="workload-tab ${workload.id === state.workloadId ? 'active' : ''}" data-workload="${workload.id}" aria-pressed="${workload.id === state.workloadId}">
-        <span>${String(index + 1).padStart(2, '0')}</span><div><b>${escapeHtml(workload.shortName)}</b></div><i></i>
+      <button class="workload-tab ${workload.id === state.workloadId ? 'active' : ''}" data-workload="${workload.id}" aria-pressed="${workload.id === state.workloadId}" title="${escapeHtml(plain.briefFor(workload.id).headline)}">
+        <span>${String(index + 1).padStart(2, '0')}</span><div><b>${escapeHtml(workload.shortName)}</b><em>${escapeHtml(plain.briefFor(workload.id).headline)}</em></div><i></i>
       </button>`).join('');
     document.querySelectorAll('[data-workload]').forEach((button) => {
       button.onclick = () => selectWorkload(button.dataset.workload);
@@ -126,6 +100,16 @@
 
   function renderBriefing() {
     const { workload, metrics } = state.result;
+    // The brief leads. The formal statement is still here, one click away, for
+    // the reader who wants it — but it is no longer the first thing on screen,
+    // because "can at-least-once delivery produce exactly-once effects" tells a
+    // first-time reader nothing at all.
+    const brief = plain.briefFor(workload.id);
+    $('workload-headline').textContent = brief.headline;
+    $('workload-symptom').textContent = brief.symptom;
+    $('workload-who').textContent = brief.whoHitsThis;
+    $('workload-naive').textContent = brief.naive;
+    $('workload-rule').textContent = brief.rule;
     $('workload-name').textContent = workload.name;
     $('workload-question').textContent = workload.question;
     $('scenario-name').textContent = workload.scenario;
@@ -192,13 +176,16 @@
   }
 
   function renderPlainStep(event) {
-    const copy = PLAIN_EVENT_COPY[event.type] || event.data.detail || event.data.summary || 'The system advances one deterministic step.';
+    // No fallback to event.data.detail. That fallback is what made nine of the
+    // ten workloads read as engineering shorthand in a box labelled "in plain
+    // English"; plain-english.test.js now proves every event is covered.
+    const copy = plain.stepCopy(state.workloadId, event.data.label);
     $('plain-step-number').textContent = state.cursor + 1;
     $('plain-step-title').textContent = event.data.lane === 'faults'
       ? `Failure injected: ${event.data.label}`
       : event.data.label || event.type;
     $('plain-step-copy').textContent = copy;
-    $('plain-step-safety').textContent = SAFETY_COPY[state.workloadId];
+    $('plain-step-safety').textContent = plain.briefFor(state.workloadId).rule;
     $('plain-step').classList.toggle('fault-step', event.data.lane === 'faults');
   }
 
@@ -234,10 +221,11 @@
   }
 
   function renderCursor() {
+    const walkable = journeyEvents().length;
     const event = state.result.events[state.cursor];
-    $('scrubber').max = state.result.events.length - 1;
+    $('scrubber').max = walkable - 1;
     $('scrubber').value = state.cursor;
-    $('cursor-label').textContent = `EVENT ${state.cursor + 1} / ${state.result.events.length}`;
+    $('cursor-label').textContent = `EVENT ${state.cursor + 1} / ${walkable}`;
     $('clock-label').textContent = `T+${event?.time.elapsedMs || 0} ms`;
     renderSystem(eventSnapshot(state.cursor));
     renderJourney();
@@ -246,7 +234,7 @@
   }
 
   function selectEvent(index) {
-    state.cursor = Math.max(0, Math.min(state.result.events.length - 1, index));
+    state.cursor = Math.max(0, Math.min(journeyEvents().length - 1, index));
     renderCursor();
   }
 
@@ -260,13 +248,13 @@
 
   function togglePlayback() {
     if (state.playing) return stopPlayback();
-    if (state.cursor >= state.result.events.length - 1) state.cursor = -1;
+    if (state.cursor >= journeyEvents().length - 1) state.cursor = -1;
     state.playing = true;
     $('play-pause').textContent = 'PAUSE';
     state.timer = setInterval(() => {
       state.cursor += 1;
       renderCursor();
-      if (state.cursor >= state.result.events.length - 1) stopPlayback();
+      if (state.cursor >= journeyEvents().length - 1) stopPlayback();
     }, 760);
   }
 
@@ -360,19 +348,27 @@
   async function probeDocker() {
     const status = $('docker-live-status');
     const detail = $('docker-live-detail');
+    const current = new URL(location.href);
+    const isLocalPreview = ['localhost', '127.0.0.1', '[::1]'].includes(current.hostname);
+    if (!isLocalPreview) {
+      status.textContent = 'LOCAL CLUSTER OPTION';
+      status.classList.remove('checking', 'is-checking', 'is-offline');
+      status.classList.add('manifest');
+      detail.textContent = 'The hosted simulator is fully interactive. Clone the repository to run the real three-replica Docker cluster.';
+      return;
+    }
     try {
-      const current = new URL(location.href);
       await fetch('http://localhost:4000/health', {
         cache: 'no-store',
         mode: current.port === '4000' ? 'same-origin' : 'no-cors',
       });
       status.textContent = 'LIVE CLUSTER DETECTED';
-      status.classList.remove('is-checking');
+      status.classList.remove('checking', 'is-checking', 'is-offline', 'manifest');
       status.classList.add('is-live');
       detail.textContent = 'The real gateway answered on localhost:4000. Open it to inspect the three Raft processes, kill a leader, and watch the persistent cluster recover.';
     } catch (_) {
       status.textContent = 'NOT RUNNING';
-      status.classList.remove('is-checking');
+      status.classList.remove('checking', 'is-checking', 'is-live', 'manifest');
       status.classList.add('is-offline');
       detail.textContent = 'No gateway answered on localhost:4000. Start the actual three-replica cluster with the command below.';
     }
@@ -451,4 +447,94 @@
     document.querySelector('.flight')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
+})();
+
+(() => {
+  'use strict';
+  const host = document.querySelector('[data-hero-sim]');
+  const trigger = document.getElementById('hero-chaos');
+  const triggerTitle = trigger?.querySelector('b');
+  const triggerCaption = trigger?.querySelector('small');
+  if (!host || !trigger || !triggerTitle || !triggerCaption) return;
+  const $ = (id) => document.getElementById(id);
+  const phases = [
+    {
+      key: 'stable', term: '07', quorum: '3 / 3', clock: 'T+0.000s | CLUSTER HEALTHY',
+      event: 'Leader holds a fresh quorum lease', client: 'waiting for commit',
+      roles: ['LEADER', 'FOLLOWER', 'FOLLOWER'], states: ['HEALTHY', 'HEALTHY', 'HEALTHY'], delay: 650,
+    },
+    {
+      key: 'crash', term: '07', quorum: '2 / 3', clock: 'T+0.018s | FAILURE INJECTED',
+      event: 'raft-01 disappears before replying', client: 'connection lost | retrying',
+      roles: ['OFFLINE', 'FOLLOWER', 'FOLLOWER'], states: ['SIGKILL', 'TIMEOUT', 'TIMEOUT'], delay: 1200,
+    },
+    {
+      key: 'election', term: '08', quorum: '2 / 3', clock: 'T+0.642s | PREVOTE -> ELECTION',
+      event: 'raft-02 wins two votes in term 8', client: 'request ID preserved',
+      roles: ['OFFLINE', 'CANDIDATE', 'VOTING'], states: ['UNREACHABLE', 'REQUEST VOTE', 'VOTE GRANTED'], delay: 1400,
+    },
+    {
+      key: 'commit', term: '08', quorum: '2 / 3', clock: 'T+0.811s | MAJORITY ACKNOWLEDGED',
+      event: 'New leader commits order/42 exactly once', client: '200 OK | index 185',
+      roles: ['OFFLINE', 'LEADER', 'FOLLOWER'], states: ['UNREACHABLE', 'COMMIT 185', 'MATCH 185'], delay: 1450,
+    },
+    {
+      key: 'recover', term: '08', quorum: '3 / 3', clock: 'T+1.204s | REPLICA CAUGHT UP',
+      event: 'Old leader rejoins as a follower - no split brain', client: 'safe result returned',
+      roles: ['FOLLOWER', 'LEADER', 'FOLLOWER'], states: ['MATCH 185', 'HEALTHY', 'HEALTHY'], delay: 1800,
+    },
+  ];
+  const roleIds = ['hero-role-one', 'hero-role-two', 'hero-role-three'];
+  const stateIds = ['hero-state-one', 'hero-state-two', 'hero-state-three'];
+  let timers = [];
+
+  function clearTimers() {
+    timers.forEach(clearTimeout);
+    timers = [];
+  }
+
+  function renderPhase(index) {
+    const phase = phases[index];
+    host.dataset.phase = phase.key;
+    $('hero-term').textContent = phase.term;
+    $('hero-quorum').textContent = phase.quorum;
+    $('hero-clock').textContent = phase.clock;
+    $('hero-event').textContent = phase.event;
+    $('hero-client-state').textContent = phase.client;
+    roleIds.forEach((id, nodeIndex) => { $(id).textContent = phase.roles[nodeIndex]; });
+    stateIds.forEach((id, nodeIndex) => { $(id).textContent = phase.states[nodeIndex]; });
+    document.querySelectorAll('[data-hero-step]').forEach((step, stepIndex) => {
+      step.classList.toggle('active', stepIndex === index);
+      step.classList.toggle('complete', stepIndex < index);
+    });
+  }
+
+  function finish() {
+    trigger.disabled = false;
+    trigger.classList.remove('running');
+    triggerTitle.textContent = 'BREAK IT AGAIN';
+    triggerCaption.textContent = 'same seed | same recovery';
+  }
+
+  function runSequence() {
+    clearTimers();
+    trigger.disabled = true;
+    trigger.classList.add('running');
+    triggerTitle.textContent = 'FAILURE IN PROGRESS';
+    triggerCaption.textContent = 'watch the term and quorum';
+    renderPhase(0);
+    let elapsed = phases[0].delay;
+    for (let index = 1; index < phases.length; index += 1) {
+      timers.push(setTimeout(() => renderPhase(index), elapsed));
+      elapsed += phases[index].delay;
+    }
+    timers.push(setTimeout(finish, elapsed));
+  }
+
+  trigger.onclick = runSequence;
+  renderPhase(0);
+  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    timers.push(setTimeout(runSequence, 1100));
+  }
+  addEventListener('pagehide', clearTimers, { once: true });
 })();

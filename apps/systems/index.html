@@ -20,24 +20,95 @@
     <div class="header-actions"><label class="theme-picker"><span>LIVERY</span><select id="theme-select" aria-label="Airline-inspired colour theme"><option value="emirates">Emirates</option><option value="qatar">Qatar Airways</option><option value="american">American Airlines</option></select></label><button class="tour-open" id="open-guide">WHAT IS THIS?</button><div class="mode"><button class="active">ENGINEER</button><button>BUG MUSEUM</button></div></div>
   </header>
 
-  <section class="quick-start operations-launchpad" id="quick-start" aria-labelledby="quick-start-title">
+  <section class="quick-start operations-launchpad impact-hero" id="quick-start" aria-labelledby="quick-start-title">
+    <div class="hero-aurora" aria-hidden="true"></div>
+    <div class="hero-copy">
+      <div class="hero-kicker"><span></span> DETERMINISTIC DISTRIBUTED-SYSTEMS LAB <b>SEED 42</b></div>
+      <h1 id="quick-start-title">Break the leader.<br><em>Watch consensus heal itself.</em></h1>
+      <p>Crash a Raft leader, watch a new term form, and follow one write until it is safe. Then replay nine more failures&mdash;from double charges to split-brain inventory&mdash;event by event.</p>
+      <div class="hero-actions">
+        <button class="hero-chaos" id="hero-chaos"><span class="chaos-icon">&times;</span><span><b>KILL THE LEADER</b><small>run the 6-second failure sequence</small></span></button>
+        <button class="hero-explore" id="dismiss-intro"><b>EXPLORE THE LAB</b><span>&darr;</span></button>
+      </div>
+      <div class="hero-proof" aria-label="Project proof points">
+        <div><strong>10<span>/10</span></strong><small>FAILURES<br>REDISCOVERED</small></div>
+        <div><strong>84<span>%</span></strong><small>MEDIAN TRACE<br>REDUCTION</small></div>
+        <div><strong>100<span>%</span></strong><small>DETERMINISTIC<br>REPLAY</small></div>
+      </div>
+      <button class="hero-payment" id="run-example">SEE WHY A RETRY DOESN'T CHARGE TWICE <span>&nearr;</span></button>
+    </div>
+    <div class="hero-console" data-hero-sim data-phase="stable" aria-label="Interactive three-node Raft cluster simulation">
+      <header class="console-bar">
+        <div><span class="console-live"></span><b>CONSENSUS / FLIGHT RECORDER</b></div>
+        <div><span>TERM <b id="hero-term">07</b></span><span>QUORUM <b id="hero-quorum">3 / 3</b></span><i>SIMULATION</i></div>
+      </header>
+      <div class="console-stage">
+        <div class="stage-grid" aria-hidden="true"></div>
+        <svg class="cluster-links" viewBox="0 0 800 460" preserveAspectRatio="none" aria-hidden="true">
+          <path class="link link-client" d="M52 228 C140 228 166 148 255 146"></path>
+          <path class="link link-12" d="M330 146 C420 118 482 118 565 146"></path>
+          <path class="link link-13" d="M314 190 C362 276 410 310 497 338"></path>
+          <path class="link link-23" d="M585 190 C558 267 544 296 522 338"></path>
+          <circle class="packet packet-client" r="4"><animateMotion dur="1.6s" repeatCount="indefinite" path="M52 228 C140 228 166 148 255 146"></animateMotion></circle>
+          <circle class="packet packet-12" r="4"><animateMotion dur="1.25s" repeatCount="indefinite" path="M330 146 C420 118 482 118 565 146"></animateMotion></circle>
+          <circle class="packet packet-13" r="4"><animateMotion dur="1.45s" repeatCount="indefinite" path="M314 190 C362 276 410 310 497 338"></animateMotion></circle>
+          <circle class="packet packet-23" r="4"><animateMotion dur="1.1s" repeatCount="indefinite" path="M585 190 C558 267 544 296 522 338"></animateMotion></circle>
+        </svg>
+        <div class="client-request"><span>CLIENT</span><b>PUT /order/42</b><small id="hero-client-state">waiting for commit</small></div>
+        <article class="hero-node node-one">
+          <div class="node-orbit"><i></i><span>01</span></div>
+          <header><span>RAFT-01</span><b id="hero-role-one">LEADER</b></header>
+          <div class="hero-log"><i></i><i></i><i></i><i class="pending"></i></div>
+          <footer><span id="hero-state-one">HEALTHY</span><b>COMMIT 184</b></footer>
+        </article>
+        <article class="hero-node node-two">
+          <div class="node-orbit"><i></i><span>02</span></div>
+          <header><span>RAFT-02</span><b id="hero-role-two">FOLLOWER</b></header>
+          <div class="hero-log"><i></i><i></i><i></i><i class="pending"></i></div>
+          <footer><span id="hero-state-two">HEALTHY</span><b>COMMIT 184</b></footer>
+        </article>
+        <article class="hero-node node-three">
+          <div class="node-orbit"><i></i><span>03</span></div>
+          <header><span>RAFT-03</span><b id="hero-role-three">FOLLOWER</b></header>
+          <div class="hero-log"><i></i><i></i><i></i><i class="pending"></i></div>
+          <footer><span id="hero-state-three">HEALTHY</span><b>COMMIT 184</b></footer>
+        </article>
+        <div class="failure-burst" aria-hidden="true">&times;</div>
+        <div class="commit-stamp" aria-hidden="true"><span>QUORUM</span><b>COMMITTED</b></div>
+      </div>
+      <footer class="console-tape">
+        <div class="tape-copy"><small id="hero-clock">T+0.000s &middot; CLUSTER HEALTHY</small><strong id="hero-event">Leader holds a fresh quorum lease</strong></div>
+        <ol aria-label="Failure sequence progress">
+          <li class="active" data-hero-step="0"><span>01</span><b>HEALTHY</b></li>
+          <li data-hero-step="1"><span>02</span><b>CRASH</b></li>
+          <li data-hero-step="2"><span>03</span><b>ELECT</b></li>
+          <li data-hero-step="3"><span>04</span><b>COMMIT</b></li>
+          <li data-hero-step="4"><span>05</span><b>RECOVER</b></li>
+        </ol>
+      </footer>
+    </div>
+    <div class="runtime-rail" aria-label="Three execution environments">
+      <article><span class="runtime-number">01</span><div><small>IN THIS BROWSER</small><b>Deterministic simulator</b></div><em>RUNNING</em></article>
+      <article><span class="runtime-number">02</span><div><small>REAL PROCESSES</small><b>Docker Compose &times; 3 replicas</b><p id="docker-live-detail">Probing the gateway on :4000.</p></div><em class="checking" id="docker-live-status">CHECKING :4000</em><button data-copy-command="docker compose up --build -d">COPY COMMAND</button></article>
+      <article><span class="runtime-number">03</span><div><small>ORCHESTRATED</small><b>Kubernetes StatefulSet</b></div><em class="manifest">MANIFEST READY</em><button data-copy-command="bash tools/kind-up.sh">COPY KIND SCRIPT</button></article>
+    </div>
     <header class="launchpad-copy">
       <div>
         <span class="eyebrow">START HERE · THREE DIFFERENT RUNTIMES</span>
-        <h1 id="quick-start-title">Learn the invariant here. Prove the process failure in Docker. Prove the placement failure in Kubernetes.</h1>
+        <h1>Ten failures that cost real companies real money. Watch each one happen, then see the rule that stops it.</h1>
       </div>
-      <p>The browser lab is deterministic teaching software. Docker runs the actual gateway, Redis, and three persistent Raft processes. Kubernetes adds stable pod identity, volumes, readiness, anti-affinity, and disruption budgets.</p>
+      <p>Double-charged cards. Two drivers sent to one rider. A show that jumps backwards mid-match. Each is reproducible here from a seed, step by step — and then runnable for real in Docker and Kubernetes.</p>
     </header>
     <div class="runtime-cards">
       <article class="runtime-card simulator-runtime">
         <div class="runtime-title"><span>01</span><div><small>BROWSER LAB</small><h2>Deterministic simulator</h2></div><b class="runtime-status is-ready">RUNNING HERE</b></div>
-        <p>Replay ten workload failures event by event. Use this to understand the safety rule and reproduce a seed—not to claim a container ran.</p>
+        <p>Replay ten real-world failures one step at a time, in plain English. Same seed, same run, every time — but a simulation, not a claim that a container ran.</p>
         <ul><li>virtual clock + simulated wire</li><li>semantic timeline + invariant checks</li><li>no Docker or cluster required</li></ul>
-        <div class="runtime-actions"><button class="primary" id="run-example">RUN 60-SECOND EXAMPLE</button><button class="secondary" id="dismiss-intro">JUMP TO LAB</button></div>
+        <div class="runtime-actions"><button class="primary">RUN 60-SECOND EXAMPLE</button><button class="secondary">JUMP TO LAB</button></div>
       </article>
       <article class="runtime-card docker-runtime">
-        <div class="runtime-title"><span>02</span><div><small>LIVE LOCAL SYSTEM</small><h2>Docker Compose cluster</h2></div><b class="runtime-status is-checking" id="docker-live-status">CHECKING :4000</b></div>
-        <p id="docker-live-detail">Probing the real gateway. Compose starts three replicas with named volumes, one gateway, and Redis on an isolated network.</p>
+        <div class="runtime-title"><span>02</span><div><small>LIVE LOCAL SYSTEM</small><h2>Docker Compose cluster</h2></div><b class="runtime-status is-checking">CHECKING :4000</b></div>
+        <p>Probing the real gateway. Compose starts three replicas with named volumes, one gateway, and Redis on an isolated network.</p>
         <div class="runtime-topology"><span>GATEWAY :4000</span><i>→</i><span>RAFT ×3</span><i>+</i><span>REDIS</span></div>
         <code>docker compose up --build -d</code>
         <div class="runtime-actions"><a class="primary button-link" href="http://localhost:4000" target="_blank" rel="noreferrer">OPEN LIVE UI</a><button class="secondary" data-copy-command="docker compose up --build -d">COPY START COMMAND</button></div>
@@ -53,15 +124,25 @@
     <footer class="launchpad-foot"><b>WHY ALL THREE?</b><span>Simulation makes correctness reproducible. Compose exposes process, network, and persistence behavior. Kubernetes exposes scheduling, identity, readiness, storage, and safe disruption behavior.</span></footer>
   </section>
 
-  <div class="workload-nav-label"><span>DETERMINISTIC WORKLOAD LAB</span><b>Choose one of ten invariant classes</b></div>
+  <div class="workload-nav-label"><span>DETERMINISTIC WORKLOAD LAB</span><b>Ten ways a real system breaks. Pick one and watch it happen.</b></div>
   <nav class="workload-tabs" id="workload-tabs" aria-label="Workloads"></nav>
 
   <main class="deck systems-deck inspector-collapsed">
     <aside class="briefing panel">
-      <div class="eyebrow">RESEARCH QUESTION</div>
-      <h1 id="workload-name">—</h1>
-      <p class="question" id="workload-question"></p>
-      <div class="scenario-card"><small>SCENARIO UNDER TEST</small><b id="scenario-name"></b><p id="scenario-summary"></p></div>
+      <div class="eyebrow">WHAT GOES WRONG</div>
+      <h1 id="workload-headline">—</h1>
+      <p class="symptom" id="workload-symptom"></p>
+      <div class="brief-card">
+        <div class="brief-row"><small>WHO HITS THIS</small><p id="workload-who"></p></div>
+        <div class="brief-row naive"><small>THE OBVIOUS IMPLEMENTATION</small><p id="workload-naive"></p></div>
+        <div class="brief-row rule"><small>THE RULE THAT PREVENTS IT</small><p id="workload-rule"></p></div>
+      </div>
+      <details class="precise">
+        <summary>State that precisely</summary>
+        <p class="workload-name" id="workload-name">—</p>
+        <p class="question" id="workload-question"></p>
+        <div class="scenario-card"><small>SCENARIO UNDER TEST</small><b id="scenario-name"></b><p id="scenario-summary"></p></div>
+      </details>
       <div class="section-heading"><span>Execution metrics</span><i>measured now</i></div>
       <div class="metric-grid" id="workload-metrics"></div>
       <div class="section-heading"><span>State dimensions</span><i>never conflated</i></div>
