@@ -4,16 +4,18 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#5b1019">
-  <title>miniRaft · Distributed Systems Flight Deck</title>
+  <title>miniRaft · Agent Reliability Lab</title>
+  <meta name="description" content="Deterministic fault testing for autonomous AI agents: replay crashes, reconcile ambiguous tool effects, and detect semantic snapshot drift.">
   <link rel="stylesheet" href="flight-deck.css">
 </head>
 <body data-theme="emirates">
+  <a class="skip-link" href="#agent-lab">Skip to agent reliability lab</a>
   <div class="noise" aria-hidden="true"></div>
   <header class="topbar">
-    <div class="brand"><span class="mark">mR</span><div><strong>miniRaft Systems Lab</strong><small>simulate · run in Docker · deploy to Kubernetes</small></div></div>
+    <div class="brand"><span class="mark">mR</span><div><strong>miniRaft Agent Reliability Lab</strong><small>find the schedule where your agent does the wrong thing</small></div></div>
     <div class="telemetry" aria-label="Execution telemetry">
       <div><small>execution</small><b id="metric-execution">SIM · SEED 42</b></div>
-      <div><small>quorum</small><b id="metric-quorum">3 live · 2 required · 3 configured</b></div>
+      <div><small>runtime</small><b id="metric-quorum">snapshot pinned · effect ledger durable</b></div>
       <div><small>semantic events</small><b id="metric-events">0</b></div>
       <div><small>invariants</small><b class="safe" id="metric-safe">CHECKING</b></div>
     </div>
@@ -23,24 +25,24 @@
   <section class="quick-start operations-launchpad impact-hero" id="quick-start" aria-labelledby="quick-start-title">
     <div class="hero-aurora" aria-hidden="true"></div>
     <div class="hero-copy">
-      <div class="hero-kicker"><span></span> DETERMINISTIC DISTRIBUTED-SYSTEMS LAB <b>SEED 42</b></div>
-      <h1 id="quick-start-title">Break the leader.<br><em>Watch consensus heal itself.</em></h1>
-      <p>Crash a Raft leader, watch a new term form, and follow one write until it is safe. Then replay nine more failures&mdash;from double charges to split-brain inventory&mdash;event by event.</p>
+      <div class="hero-kicker"><span></span> VERIFIABLE RUNTIME FOR AUTONOMOUS AGENTS <b>SEED 42</b></div>
+      <h1 id="quick-start-title">Find the schedule where<br><em>your agent does the wrong thing.</em></h1>
+      <p>Lose a payment reply, crash the worker, deploy a new policy, and race a second agent. miniRaft replays the failure under one semantic snapshot and proves the refund happened once.</p>
       <div class="hero-actions">
-        <button class="hero-chaos" id="hero-chaos"><span class="chaos-icon">&times;</span><span><b>KILL THE LEADER</b><small>run the 6-second failure sequence</small></span></button>
+        <button class="hero-chaos" id="hero-chaos"><span class="chaos-icon">&times;</span><span><b>LOSE THE TOOL RESPONSE</b><small>run the agent failure sequence</small></span></button>
         <button class="hero-explore" id="dismiss-intro"><b>EXPLORE THE LAB</b><span>&darr;</span></button>
       </div>
       <div class="hero-proof" aria-label="Project proof points">
-        <div><strong>10<span>/10</span></strong><small>FAILURES<br>REDISCOVERED</small></div>
-        <div><strong>84<span>%</span></strong><small>MEDIAN TRACE<br>REDUCTION</small></div>
-        <div><strong>100<span>%</span></strong><small>DETERMINISTIC<br>REPLAY</small></div>
+        <div><strong>1<span>&times;</span></strong><small>OBSERVABLE<br>REFUND EFFECT</small></div>
+        <div><strong>2<span>&times;</span></strong><small>WORKER CRASHES<br>RECOVERED</small></div>
+        <div><strong>1<span>&times;</span></strong><small>SEMANTIC DRIFT<br>FENCED</small></div>
       </div>
-      <button class="hero-payment" id="run-example">SEE WHY A RETRY DOESN'T CHARGE TWICE <span>&nearr;</span></button>
+      <button class="hero-payment" id="run-example">RUN THE AUTONOMOUS REFUND TRACE <span>&nearr;</span></button>
     </div>
-    <div class="hero-console" data-hero-sim data-phase="stable" aria-label="Interactive three-node Raft cluster simulation">
+    <div class="hero-console" data-hero-sim data-phase="stable" aria-label="Interactive durable refund-agent failure simulation">
       <header class="console-bar">
-        <div><span class="console-live"></span><b>CONSENSUS / FLIGHT RECORDER</b></div>
-        <div><span>TERM <b id="hero-term">07</b></span><span>QUORUM <b id="hero-quorum">3 / 3</b></span><i>SIMULATION</i></div>
+        <div><span class="console-live"></span><b>AGENT TRANSACTION / FLIGHT RECORDER</b></div>
+        <div><span>SNAPSHOT <b id="hero-term">V4</b></span><span>EFFECTS <b id="hero-quorum">0 / 3</b></span><i>SIMULATION</i></div>
       </header>
       <div class="console-stage">
         <div class="stage-grid" aria-hidden="true"></div>
@@ -54,48 +56,48 @@
           <circle class="packet packet-13" r="4"><animateMotion dur="1.45s" repeatCount="indefinite" path="M314 190 C362 276 410 310 497 338"></animateMotion></circle>
           <circle class="packet packet-23" r="4"><animateMotion dur="1.1s" repeatCount="indefinite" path="M585 190 C558 267 544 296 522 338"></animateMotion></circle>
         </svg>
-        <div class="client-request"><span>CLIENT</span><b>PUT /order/42</b><small id="hero-client-state">waiting for commit</small></div>
+        <div class="client-request"><span>AGENT INTENT</span><b>REFUND #4821</b><small id="hero-client-state">snapshot pinned</small></div>
         <article class="hero-node node-one">
           <div class="node-orbit"><i></i><span>01</span></div>
-          <header><span>RAFT-01</span><b id="hero-role-one">LEADER</b></header>
+          <header><span>AGENT WORKER</span><b id="hero-role-one">RUNNING</b></header>
           <div class="hero-log"><i></i><i></i><i></i><i class="pending"></i></div>
-          <footer><span id="hero-state-one">HEALTHY</span><b>COMMIT 184</b></footer>
+          <footer><span id="hero-state-one">STEP 03</span><b>CKPT READY</b></footer>
         </article>
         <article class="hero-node node-two">
           <div class="node-orbit"><i></i><span>02</span></div>
-          <header><span>RAFT-02</span><b id="hero-role-two">FOLLOWER</b></header>
+          <header><span>EFFECT LEDGER</span><b id="hero-role-two">DURABLE</b></header>
           <div class="hero-log"><i></i><i></i><i></i><i class="pending"></i></div>
-          <footer><span id="hero-state-two">HEALTHY</span><b>COMMIT 184</b></footer>
+          <footer><span id="hero-state-two">EMPTY</span><b>EFFECT 0 / 1</b></footer>
         </article>
         <article class="hero-node node-three">
           <div class="node-orbit"><i></i><span>03</span></div>
-          <header><span>RAFT-03</span><b id="hero-role-three">FOLLOWER</b></header>
+          <header><span>PAYMENT API</span><b id="hero-role-three">TOOL V2</b></header>
           <div class="hero-log"><i></i><i></i><i></i><i class="pending"></i></div>
-          <footer><span id="hero-state-three">HEALTHY</span><b>COMMIT 184</b></footer>
+          <footer><span id="hero-state-three">IDLE</span><b>REFUND 0 / 1</b></footer>
         </article>
         <div class="failure-burst" aria-hidden="true">&times;</div>
-        <div class="commit-stamp" aria-hidden="true"><span>QUORUM</span><b>COMMITTED</b></div>
+        <div class="commit-stamp" aria-hidden="true"><span>EFFECT</span><b>COMMITTED</b></div>
       </div>
       <footer class="console-tape">
-        <div class="tape-copy"><small id="hero-clock">T+0.000s &middot; CLUSTER HEALTHY</small><strong id="hero-event">Leader holds a fresh quorum lease</strong></div>
+        <div class="tape-copy"><small id="hero-clock">T+0.000s &middot; SEMANTIC SNAPSHOT PINNED</small><strong id="hero-event">Refund intent is durable before the payment call</strong></div>
         <ol aria-label="Failure sequence progress">
-          <li class="active" data-hero-step="0"><span>01</span><b>HEALTHY</b></li>
-          <li data-hero-step="1"><span>02</span><b>CRASH</b></li>
-          <li data-hero-step="2"><span>03</span><b>ELECT</b></li>
-          <li data-hero-step="3"><span>04</span><b>COMMIT</b></li>
-          <li data-hero-step="4"><span>05</span><b>RECOVER</b></li>
+          <li class="active" data-hero-step="0"><span>01</span><b>SNAPSHOT</b></li>
+          <li data-hero-step="1"><span>02</span><b>LOST REPLY</b></li>
+          <li data-hero-step="2"><span>03</span><b>CONFLICT</b></li>
+          <li data-hero-step="3"><span>04</span><b>RECONCILE</b></li>
+          <li data-hero-step="4"><span>05</span><b>RESUME</b></li>
         </ol>
       </footer>
     </div>
     <div class="runtime-rail" aria-label="Three execution environments">
-      <article><span class="runtime-number">01</span><div><small>IN THIS BROWSER</small><b>Deterministic simulator</b></div><em>RUNNING</em></article>
+      <article><span class="runtime-number">01</span><div><small>IN THIS BROWSER</small><b>Deterministic agent chaos simulator</b></div><em>RUNNING</em></article>
       <article><span class="runtime-number">02</span><div><small>REAL PROCESSES</small><b>Docker Compose &times; 3 replicas</b><p id="docker-live-detail">Probing the gateway on :4000.</p></div><em class="checking" id="docker-live-status">CHECKING :4000</em><button data-copy-command="docker compose up --build -d">COPY COMMAND</button></article>
       <article><span class="runtime-number">03</span><div><small>ORCHESTRATED</small><b>Kubernetes StatefulSet</b></div><em class="manifest">MANIFEST READY</em><button data-copy-command="bash tools/kind-up.sh">COPY KIND SCRIPT</button></article>
     </div>
     <header class="launchpad-copy">
       <div>
         <span class="eyebrow">START HERE · THREE DIFFERENT RUNTIMES</span>
-        <h1>Ten failures that cost real companies real money. Watch each one happen, then see the rule that stops it.</h1>
+        <h1>Eleven deterministic failure stories, led by one autonomous refund agent that must survive real side-effect ambiguity.</h1>
       </div>
       <p>Double-charged cards. Two drivers sent to one rider. A show that jumps backwards mid-match. Each is reproducible here from a seed, step by step — and then runnable for real in Docker and Kubernetes.</p>
     </header>
@@ -124,10 +126,10 @@
     <footer class="launchpad-foot"><b>WHY ALL THREE?</b><span>Simulation makes correctness reproducible. Compose exposes process, network, and persistence behavior. Kubernetes exposes scheduling, identity, readiness, storage, and safe disruption behavior.</span></footer>
   </section>
 
-  <div class="workload-nav-label"><span>DETERMINISTIC WORKLOAD LAB</span><b>Ten ways a real system breaks. Pick one and watch it happen.</b></div>
+  <div class="workload-nav-label"><span>AGENT RELIABILITY + DISTRIBUTED SYSTEMS LAB</span><b>Eleven reproducible failure stories. Start with the autonomous refund agent.</b></div>
   <nav class="workload-tabs" id="workload-tabs" aria-label="Workloads"></nav>
 
-  <main class="deck systems-deck inspector-collapsed">
+  <main class="deck systems-deck inspector-collapsed" id="agent-lab">
     <aside class="briefing panel">
       <div class="eyebrow">WHAT GOES WRONG</div>
       <h1 id="workload-headline">—</h1>
@@ -226,7 +228,7 @@
   <dialog class="guide-dialog" id="guide-dialog" aria-labelledby="guide-title">
     <form method="dialog" class="guide-shell">
       <header><div><span class="eyebrow">FLIGHT DECK ORIENTATION</span><h2 id="guide-title">What does this actually do?</h2></div><button class="dialog-close" aria-label="Close guide">×</button></header>
-      <p class="guide-lead">It runs repeatable stories about servers failing, retrying, and recovering. You move through the story event by event; the right side explains why each event happened and whether a correctness rule still holds.</p>
+      <p class="guide-lead">It runs repeatable stories about agents and distributed systems failing, retrying, and recovering. Move event by event to see why each action happened and whether every safety rule still holds.</p>
       <div class="guide-terms">
         <div><b>WORKLOAD</b><span>A real-world story, such as a payment or model rollout.</span></div>
         <div><b>EVENT</b><span>One meaningful action: append, persist, timeout, retry, or commit.</span></div>
@@ -234,9 +236,9 @@
         <div><b>INVARIANT</b><span>A rule that must never break, such as “charge only once.”</span></div>
       </div>
       <section class="guide-example">
-        <span class="eyebrow">EXAMPLE · RESPONSE LOST AFTER COMMIT</span>
-        <div class="guide-flow"><span>Checkout sends <b>pay-7</b></span><i>→</i><span>2 of 3 servers persist it</span><i>→</i><span>Reply packet disappears</span><i>→</i><span>Checkout retries <b>pay-7</b></span><i>→</i><span>Saved result is returned</span></div>
-        <p>The request ID is stored with the charge. On retry, the processor finds that ID and returns the first result instead of charging again.</p>
+        <span class="eyebrow">EXAMPLE · REFUND RESPONSE LOST AFTER REMOTE COMMIT</span>
+        <div class="guide-flow"><span>Agent records <b>effect intent</b></span><i>→</i><span>Provider refunds ₹8,999</span><i>→</i><span>Reply disappears</span><i>→</i><span>Worker crashes</span><i>→</i><span>Runtime reconciles by effect ID</span></div>
+        <p>The effect identity, semantic snapshot, and workflow cursor survive together. Recovery queries the existing outcome instead of issuing a second refund.</p>
       </section>
       <div class="guide-actions"><button value="close" class="secondary">CLOSE</button><button value="close" class="primary" id="guide-run-example">SHOW ME THIS EXAMPLE</button></div>
     </form>

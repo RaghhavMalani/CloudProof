@@ -1289,9 +1289,10 @@ const inventory = {
 };
 
 const EXTENDED_WORKLOADS = createExtendedWorkloads({ pass, fail, watch, makeNode });
+const AGENT_REFUND_WORKLOAD = require('./agent-refund');
 
 const WORKLOADS = Object.freeze([
-    configuration, payment, vectorSearch, rollout, streaming, dispatch, inventory, ...EXTENDED_WORKLOADS,
+    AGENT_REFUND_WORKLOAD, configuration, payment, vectorSearch, rollout, streaming, dispatch, inventory, ...EXTENDED_WORKLOADS,
 ].map(validateWorkload));
 
 function getWorkload(id) {

@@ -15,7 +15,7 @@
   const seed = Number(params.get('seed')) || 42;
   const THEMES = ['emirates', 'qatar', 'american'];
   const state = {
-    workloadId: params.get('workload') || 'payment',
+    workloadId: params.get('workload') || 'agent-refund',
     theme: THEMES.includes(params.get('theme')) ? params.get('theme') : 'emirates',
     result: null,
     cursor: 0,
@@ -29,6 +29,7 @@
   ];
 
   const SCENARIO_COPY = {
+    'agent-refund': 'A refund commits remotely, its reply is lost, policy changes during recovery, and a second worker races the first.',
     configuration: 'A controller loses its watch transport while two desired-state revisions commit, then resumes from its last checkpoint.',
     payment: 'The commit survives the packet. The retry must discover the original result, not create a second effect.',
     'vector-search': 'The router must choose between completeness and deadline while preserving filter safety and disclosing missing shards.',
@@ -260,10 +261,10 @@
 
   function playGuidedExample() {
     stopPlayback();
-    selectWorkload('payment');
+    selectWorkload('agent-refund');
     const indices = state.result.events
       .map((event, index) => ({ event, index }))
-      .filter(({ event }) => event.correlationId === 'pay-7' && event.type !== 'invariant.checked')
+      .filter(({ event }) => event.correlationId === 'support-ticket-4821' && event.type !== 'invariant.checked')
       .map(({ index }) => index);
     let position = 0;
     state.guided = true;
@@ -276,7 +277,7 @@
       if (position >= indices.length) {
         stopPlayback();
         $('why-trigger').click();
-        toast('Example complete: one charge, one saved result, one suppressed duplicate');
+        toast('Trace complete: one refund, two recoveries, one fenced duplicate');
         return;
       }
       selectEvent(indices[position]);
@@ -325,7 +326,7 @@
       return JSON.stringify(first) === JSON.stringify(second);
     });
 
-    const discovered = '10/10 · RECORDED';
+    const discovered = '11/11 · RECORDED';
     const shrink = '84% · RECORDED';
     const shrinkMs = '9.8 ms';
 
@@ -432,7 +433,7 @@
 
   try {
     setTheme(state.theme, false);
-    selectWorkload(api.getWorkload(state.workloadId) ? state.workloadId : 'payment');
+    selectWorkload(api.getWorkload(state.workloadId) ? state.workloadId : 'agent-refund');
     renderComparison();
     probeDocker();
   } catch (error) {
@@ -459,29 +460,29 @@
   const $ = (id) => document.getElementById(id);
   const phases = [
     {
-      key: 'stable', term: '07', quorum: '3 / 3', clock: 'T+0.000s | CLUSTER HEALTHY',
-      event: 'Leader holds a fresh quorum lease', client: 'waiting for commit',
-      roles: ['LEADER', 'FOLLOWER', 'FOLLOWER'], states: ['HEALTHY', 'HEALTHY', 'HEALTHY'], delay: 650,
+      key: 'stable', term: 'V4', quorum: '0 / 3', clock: 'T+0.000s | SEMANTIC SNAPSHOT PINNED',
+      event: 'Refund intent is durable before the payment call', client: 'effect intent recorded',
+      roles: ['RUNNING', 'DURABLE', 'TOOL V2'], states: ['STEP 03', 'INTENT READY', 'IDLE'], delay: 650,
     },
     {
-      key: 'crash', term: '07', quorum: '2 / 3', clock: 'T+0.018s | FAILURE INJECTED',
-      event: 'raft-01 disappears before replying', client: 'connection lost | retrying',
-      roles: ['OFFLINE', 'FOLLOWER', 'FOLLOWER'], states: ['SIGKILL', 'TIMEOUT', 'TIMEOUT'], delay: 1200,
+      key: 'crash', term: 'V4', quorum: '1 / 3', clock: 'T+0.047s | TOOL REPLY LOST',
+      event: 'Provider commits refund; worker crashes without the reply', client: 'outcome ambiguous',
+      roles: ['OFFLINE', 'RECONCILE', 'COMMITTED'], states: ['WORKER CRASH', 'OUTCOME UNKNOWN', 'RF_4821_01'], delay: 1200,
     },
     {
-      key: 'election', term: '08', quorum: '2 / 3', clock: 'T+0.642s | PREVOTE -> ELECTION',
-      event: 'raft-02 wins two votes in term 8', client: 'request ID preserved',
-      roles: ['OFFLINE', 'CANDIDATE', 'VOTING'], states: ['UNREACHABLE', 'REQUEST VOTE', 'VOTE GRANTED'], delay: 1400,
+      key: 'election', term: 'V4 → V5', quorum: '1 / 3', clock: 'T+0.414s | SEMANTIC DRIFT DETECTED',
+      event: 'Policy v5 conflicts with reasoning checkpointed under v4', client: 'revalidation required',
+      roles: ['BLOCKED', 'FENCE ACTIVE', 'NO RETRY'], states: ['AWAIT APPROVAL', 'INTENT PRESERVED', 'ONE REFUND'], delay: 1400,
     },
     {
-      key: 'commit', term: '08', quorum: '2 / 3', clock: 'T+0.811s | MAJORITY ACKNOWLEDGED',
-      event: 'New leader commits order/42 exactly once', client: '200 OK | index 185',
-      roles: ['OFFLINE', 'LEADER', 'FOLLOWER'], states: ['UNREACHABLE', 'COMMIT 185', 'MATCH 185'], delay: 1450,
+      key: 'commit', term: 'V5', quorum: '2 / 3', clock: 'T+0.548s | EFFECT RECONCILED',
+      event: 'Provider lookup imports the original refund result', client: 'recorded result returned',
+      roles: ['RESUMED', 'COMMITTED', 'STABLE'], states: ['STEP 05', 'EFFECT 1 / 1', 'NO SECOND CALL'], delay: 1450,
     },
     {
-      key: 'recover', term: '08', quorum: '3 / 3', clock: 'T+1.204s | REPLICA CAUGHT UP',
-      event: 'Old leader rejoins as a follower - no split brain', client: 'safe result returned',
-      roles: ['FOLLOWER', 'LEADER', 'FOLLOWER'], states: ['MATCH 185', 'HEALTHY', 'HEALTHY'], delay: 1800,
+      key: 'recover', term: 'V5', quorum: '3 / 3', clock: 'T+0.760s | AGENT TRANSACTION COMPLETE',
+      event: 'Second crash resumes at notification; every effect stays singular', client: 'one refund | one email',
+      roles: ['COMPLETED', 'DURABLE', 'TOOL V2'], states: ['STEP 08', 'THREE EFFECTS', 'RF_4821_01'], delay: 1800,
     },
   ];
   const roleIds = ['hero-role-one', 'hero-role-two', 'hero-role-three'];
@@ -512,16 +513,16 @@
   function finish() {
     trigger.disabled = false;
     trigger.classList.remove('running');
-    triggerTitle.textContent = 'BREAK IT AGAIN';
-    triggerCaption.textContent = 'same seed | same recovery';
+    triggerTitle.textContent = 'INJECT IT AGAIN';
+    triggerCaption.textContent = 'same seed | same outcome';
   }
 
   function runSequence() {
     clearTimers();
     trigger.disabled = true;
     trigger.classList.add('running');
-    triggerTitle.textContent = 'FAILURE IN PROGRESS';
-    triggerCaption.textContent = 'watch the term and quorum';
+    triggerTitle.textContent = 'FAULT SEQUENCE RUNNING';
+    triggerCaption.textContent = 'watch snapshot and effects';
     renderPhase(0);
     let elapsed = phases[0].delay;
     for (let index = 1; index < phases.length; index += 1) {

@@ -1,13 +1,30 @@
-# miniRaft
+# miniRaft Agent Reliability Lab
 
-**An interactive distributed-consensus lab.** Draw on a shared canvas, kill the leader, and watch a three-node Raft cluster elect, replicate, commit, and recover in real time.
+**Jepsen-style fault testing for autonomous AI agents.** Find the schedule where an agent performs the wrong side effect, replay it deterministically, explain the causal chain, and turn it into a regression test.
 
-The browser is deliberately more than a whiteboard: it exposes the current term, leader, quorum, per-node log/applied indexes, commit latency, AppendEntries traffic, and a live event stream. The implementation is small enough to whiteboard in an interview, while preserving the safety-critical Raft rules that toy implementations usually skip.
+The thesis is simple: **AI agents are distributed systems with nondeterministic participants.** Saving chat history is not enough when an agent can refund money, update a CRM, send email, deploy code, or change infrastructure. Recovery must preserve the workflow cursor, tool-effect identity, and the semantic assumptions under which the agent reasoned.
+
+The first vertical slice is an autonomous refund agent. The deterministic lab injects a lost payment response, two worker crashes, a policy deployment, and a racing worker. The safe execution produces one ₹8,999 refund, detects semantic drift before resuming, reconciles the ambiguous payment instead of retrying it, updates CRM, and sends one confirmation.
+
+## Implemented agent-runtime primitives
+
+- `AgentExecution`: portable checkpoints containing the workflow cursor, state, semantic snapshot, history, and effect ledger.
+- `EffectLedger`: stable effect identities and explicit `INTENT_RECORDED`, `RECONCILIATION_REQUIRED`, `RESULT_RECORDED`, and `EFFECT_COMMITTED` states.
+- Semantic snapshots: versioned model, prompt, policy, retrieval index, and tool-schema resources with configurable resume decisions.
+- Deterministic refund workload: one causal trace with execution-scoped invariants and plain-English replay.
+- Decision tapes, fault schedules, invariant checking, causal flight recording, and trace shrinking from the existing miniRaft lab.
+
+> **Current boundary:** the agent runtime is an executable deterministic-lab vertical slice. Its checkpoints are portable data structures, but they are not yet persisted through the live Raft replicas. The live cluster remains the proven durability substrate and the next integration target.
 
 ## What this project proves
 
 | Concern | Implementation |
 |---|---|
+| Agent checkpoint recovery | Two crashes restore the exact workflow step, semantic snapshot, history, and effect ledger |
+| Exactly-once observable refund | An ambiguous remote commit is reconciled by stable effect ID; a racing worker receives the recorded result |
+| Semantic snapshot isolation | A v4 checkpoint cannot silently continue after refund-policy-v5 is deployed; the workflow requires revalidation |
+| Causal effect ordering | Payment confirmation precedes CRM mutation, notification, and workflow completion |
+| Effect authorization | Every committed tool effect is attributable to an explicitly authorized semantic snapshot |
 | Crash safety | Term, vote, append-only log, and commit index are durable; applied state is rebuilt deterministically from the committed prefix on restart |
 | Correct commit rule | A leader advances to the highest `N` replicated on a majority only when `log[N].term === currentTerm` |
 | Dynamic quorum | Majority is `Math.floor(clusterSize / 2) + 1`; the engine is not hard-coded to three nodes |
@@ -22,10 +39,11 @@ The browser is deliberately more than a whiteboard: it exposes the current term,
 
 ## Executable workload lab
 
-The Flight Deck runs ten deterministic scenarios through one causal event interface. Each workload owns its state transition, trace explanation, measurements, visualization, and execution-scoped invariants.
+The Flight Deck runs eleven deterministic scenarios through one causal event interface. Each workload owns its state transition, trace explanation, measurements, visualization, and execution-scoped invariants.
 
 | Workload | Correctness argument exercised |
 |---|---|
+| Autonomous refund agent | Durable resumption, ambiguous-effect reconciliation, semantic snapshot isolation, and a concurrent-worker fence |
 | Configuration coordination | Resumable watches, CAS, leases, ReadIndex, and membership overlap |
 | Idempotent payments | At-least-once delivery with exactly-once ledger effect |
 | Vector search | Deadline-bounded partial results with tenant-filter safety |
@@ -38,6 +56,28 @@ The Flight Deck runs ten deterministic scenarios through one causal event interf
 | Two-ledger settlement | Two-phase commit recovery after coordinator failure |
 
 ## Architecture
+
+```text
+Autonomous agent / recorded decision tape
+                 │ logical action intent
+                 ▼
+       miniRaft agent runtime
+          │              │
+          ▼              ▼
+ semantic snapshot    effect ledger
+ model · prompt       intent · result
+ policy · retrieval  reconciliation · commit
+ tools · schemas          │
+          └──────┬────────┘
+                 ▼
+ durable checkpoint boundary
+                 │
+        deterministic fault lab
+                 │
+     invariants · replay · shrink
+```
+
+The existing live Raft system is the durability and consensus substrate:
 
 ```text
 Browser clients
@@ -81,15 +121,16 @@ To stop the stack without deleting its durable state:
 docker compose down
 ```
 
-## Try the failure demo
+## Try the flagship refund-agent demo
 
-1. Draw several strokes and confirm the three applied indexes converge.
-2. Click **Kill node** on the current leader.
-3. Watch the event stream advance the term and elect a replacement.
-4. Keep drawing after quorum returns.
-5. Click **Restore** on the failed node and watch its log catch up through AppendEntries.
+1. Open the browser lab; **Autonomous refund agent** is selected by default.
+2. Click **Lose the tool response** to watch the five-phase overview.
+3. Run the full trace and stop at **Provider response is lost**. The remote refund exists, while the local ledger explicitly requires reconciliation.
+4. Continue through the worker crash and policy-v5 deployment. The runtime emits `SEMANTIC_SNAPSHOT_CONFLICT` instead of mixing v4 reasoning with v5 policy.
+5. Continue to reconciliation. The payment provider is queried by stable effect ID; no second refund call occurs.
+6. Inspect the invariant HUD: refund-at-most-once, semantic isolation, authorization, causal ordering, and durable resumption all pass.
 
-With only one healthy node, the UI reports quorum loss and writes cannot commit. Restoring a second node re-establishes the majority.
+The scenario is deterministic. With the same seed, every semantic event, failure boundary, and invariant result replays identically.
 
 ## Correctness tests
 
