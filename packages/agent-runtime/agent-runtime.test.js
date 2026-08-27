@@ -58,7 +58,27 @@ test('an ambiguous remote effect requires reconciliation after restart', () => {
 
     const resumed = AgentExecution.resume(execution.checkpoint());
     assert.equal(resumed.step, 1);
+    assert.equal(resumed.version, 2);
+    assert.equal(resumed.semanticConflict, null);
     assert.equal(resumed.ledger.resolve(intent.record.effectId).action, 'reconcile');
+});
+
+test('resume preserves Raft checkpoint version and semantic-conflict evidence', () => {
+    const execution = AgentExecution.resume({
+        executionId: 'refund-4821',
+        workflow: 'refund-agent-v7',
+        snapshot: makeSemanticSnapshot(context),
+        step: 4,
+        version: 12,
+        state: { authorized: true },
+        status: 'PAUSED_SEMANTIC_CONFLICT',
+        semanticConflict: { decision: 'require-approval', changed: ['policy'] },
+        history: [],
+        effects: [],
+    });
+
+    assert.equal(execution.checkpoint().version, 12);
+    assert.deepEqual(execution.checkpoint().semanticConflict.changed, ['policy']);
 });
 
 test('semantic snapshot changes force the configured resume policy', () => {

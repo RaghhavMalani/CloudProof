@@ -69,6 +69,10 @@ The refund-agent scenario checks:
 - Causal browser trace, invariant HUD, and guided replay.
 - Existing decision tapes, simulator, schedule search, failure artifacts, and shrinker.
 - Live three-node Raft substrate with crash-safe log and state-machine recovery.
+- Deterministic AgentState reducer applied exclusively from committed Raft commands.
+- Optimistic `expectedStep` fencing and consensus-backed semantic approvals.
+- Separate durable refund provider with response-loss injection and effect-ID lookup.
+- Automatic three-node Compose campaign covering external-effect boundaries A-E.
 
 ## Roadmap
 
@@ -77,7 +81,7 @@ The refund-agent scenario checks:
 | 1 | Portable durable agent checkpoint and effect-ledger model | implemented in deterministic runtime |
 | 2 | Autonomous refund workflow with ambiguous-effect reconciliation | implemented |
 | 3 | Semantic snapshot comparison and configurable resume policy | implemented |
-| 4 | Persist agent checkpoints and ledger entries through the live Raft state machine | next |
+| 4 | Persist agent checkpoints and ledger entries through the live Raft state machine | implemented |
 | 5 | Materialize agent faults in schedule generation and trace shrinking | next |
 | 6 | Multi-agent resource fencing and logical race detection | planned |
 | 7 | Freeze cognition with recorded model/tool decision tapes while varying schedules | planned |
@@ -85,8 +89,8 @@ The refund-agent scenario checks:
 
 ## Honest boundaries
 
-- The current refund provider, CRM, and mail tools are deterministic workload models, not production integrations.
+- The live refund provider is an external idempotent test service; CRM and mail remain deterministic workflow state, not production integrations.
 - A stable effect identity alone cannot make an arbitrary third-party API exactly once. The provider must accept that identity idempotently or expose a trustworthy reconciliation lookup.
 - Semantic compatibility is policy supplied by the application; the runtime detects change and enforces the configured disposition but cannot infer business compatibility on its own.
-- Live Raft persistence of agent checkpoints is not implemented yet. The browser/Node lab proves the state transitions and failure semantics before that storage integration.
+- Stage 4 is documented in `AGENT-RAFT-PERSISTENCE.md`; Stage 5 should now attack it with generated and shrunk fault schedules.
 - Decision tapes already freeze simulator choices; model-response capture is the next extension required to separate cognition failures from schedule failures.

@@ -29,6 +29,7 @@ const MODULES = [
     'replica/quantize.js',
     'replica/sparse.js',
     'replica/hnsw.js',
+    'replica/agent-state.js',
     'replica/state-machine.js',
     'replica/log-store.js',
     'replica/raft.js',

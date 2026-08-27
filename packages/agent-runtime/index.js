@@ -168,6 +168,8 @@ class AgentExecution {
         this.workflow = workflow;
         this.snapshot = snapshot.id ? snapshot : makeSemanticSnapshot(snapshot);
         this.ledger = ledger || new EffectLedger(checkpoint?.effects || []);
+        this.version = checkpoint?.version ?? 1;
+        this.semanticConflict = clone(checkpoint?.semanticConflict || null);
         this.step = checkpoint?.step || 0;
         this.state = clone(checkpoint?.state || {});
         this.status = checkpoint?.status || 'RUNNING';
@@ -176,6 +178,7 @@ class AgentExecution {
 
     advance(label, patch = {}) {
         this.step += 1;
+        this.version += 1;
         Object.assign(this.state, clone(patch));
         this.history.push({ step: this.step, label, patch: clone(patch) });
         return this.step;
@@ -187,6 +190,8 @@ class AgentExecution {
             workflow: this.workflow,
             snapshot: this.snapshot,
             step: this.step,
+            version: this.version,
+            semanticConflict: this.semanticConflict,
             state: this.state,
             status: this.status,
             history: this.history,

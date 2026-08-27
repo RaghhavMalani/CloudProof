@@ -30,6 +30,7 @@
 
 const { HnswIndex } = require('./hnsw');
 const { BM25Index, reciprocalRankFusion } = require('./sparse');
+const { AgentState } = require('./agent-state');
 
 const EVENT_BUFFER_LIMIT = 1024;
 const RESULT_CACHE_LIMIT = 4096;
@@ -123,6 +124,11 @@ class StateMachine {
          */
         this.sparse = new BM25Index();
 
+        // AgentExecution and EffectLedger live here, not in a side database.
+        // Their only mutation path is AgentState#apply from committed log
+        // entries, so boot replay reconstructs them with the keyspace/index.
+        this.agent = new AgentState();
+
         this.events = [];
         this.eventsDropped = 0;
         this._results = new Map();
@@ -167,6 +173,14 @@ class StateMachine {
 
     resultFor(index) {
         return this._results.get(index) ?? null;
+    }
+
+    agentExecution(executionId) {
+        return this.agent.get(executionId);
+    }
+
+    agentExecutions() {
+        return this.agent.list();
     }
 
     // ── event plumbing ───────────────────────────────────────────────────────
@@ -264,6 +278,18 @@ class StateMachine {
             case 'vector-delete':
                 result = this._applyVectorDelete(command, entry);
                 break;
+            case 'agent.execution.create':
+            case 'agent.execution.advance':
+            case 'agent.execution.complete':
+            case 'agent.effect.intent':
+            case 'agent.effect.dispatch':
+            case 'agent.effect.reconciliation-required':
+            case 'agent.effect.result':
+            case 'agent.effect.commit':
+            case 'agent.semantic-conflict.detect':
+            case 'agent.snapshot.transition':
+                result = this._applyAgent(command, entry);
+                break;
             case 'append':
                 // Legacy path: the whiteboard appends opaque strokes with no
                 // key. They are ordered and durable but not addressable.
@@ -274,6 +300,23 @@ class StateMachine {
         }
 
         return this._rememberResult(entry.index, result);
+    }
+
+    _applyAgent(command, entry) {
+        const outcome = this.agent.apply(command, { index: entry.index });
+        const { mutated, ...result } = outcome;
+        if (!mutated) return result;
+
+        this.revision += 1;
+        this._emit({
+            type: command.op,
+            key: `agent/${command.executionId}`,
+            value: this.agent.get(command.executionId),
+            rev: this.revision,
+            index: entry.index,
+            clock: this.clock,
+        });
+        return { ...result, rev: this.revision };
     }
 
     _expireLeases(index) {
@@ -610,6 +653,7 @@ class StateMachine {
             // is a far stronger statement than agreeing on a few queries.
             index: this.index ? this.index.stats() : null,
             sparse: this.sparse.stats(),
+            agent: this.agent.snapshot(),
         };
     }
 }

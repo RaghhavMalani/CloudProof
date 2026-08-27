@@ -14,7 +14,9 @@ The first vertical slice is an autonomous refund agent. The deterministic lab in
 - Deterministic refund workload: one causal trace with execution-scoped invariants and plain-English replay.
 - Decision tapes, fault schedules, invariant checking, causal flight recording, and trace shrinking from the existing miniRaft lab.
 
-> **Current boundary:** the agent runtime is an executable deterministic-lab vertical slice. Its checkpoints are portable data structures, but they are not yet persisted through the live Raft replicas. The live cluster remains the proven durability substrate and the next integration target.
+> **Current milestone:** workflow checkpoints, effect transitions, optimistic
+> step fencing, and semantic approvals are now committed through the live Raft
+> state machine. See [AGENT-RAFT-PERSISTENCE.md](AGENT-RAFT-PERSISTENCE.md).
 
 ## What this project proves
 
@@ -119,6 +121,12 @@ To stop the stack without deleting its durable state:
 
 ```bash
 docker compose down
+```
+
+Run the complete Stage 4 crash-boundary and restart acceptance campaign:
+
+```bash
+node tools/agent-raft-compose-test.js
 ```
 
 ## Try the flagship refund-agent demo
