@@ -28,7 +28,8 @@ COPY serving/ ./serving/
 COPY tools/ ./tools/
 
 # The upstream Node tag can briefly lag fixed Alpine security packages.
-RUN apk upgrade --no-cache
+RUN apk upgrade --no-cache \
+    && rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 USER 1000:1000
 
 EXPOSE 7000 8080
