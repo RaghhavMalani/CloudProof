@@ -7,7 +7,9 @@ FROM node:24-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 
-RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
+# The upstream Node tag can briefly lag fixed Alpine security packages.
+RUN apk upgrade --no-cache \
+    && rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 
 COPY --from=dependencies --chown=node:node /app/node_modules ./node_modules
 COPY --chown=node:node gateway/package.json gateway/index.js ./

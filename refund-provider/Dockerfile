@@ -3,7 +3,9 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV DATA_FILE=/data/refunds.json
 
-RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx \
+# The upstream Node tag can briefly lag fixed Alpine security packages.
+RUN apk upgrade --no-cache \
+    && rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx \
     && mkdir -p /data \
     && chown node:node /data
 
