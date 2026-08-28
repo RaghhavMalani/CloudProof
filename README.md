@@ -14,9 +14,10 @@ The first vertical slice is an autonomous refund agent. The deterministic lab in
 - Deterministic refund workload: one causal trace with execution-scoped invariants and plain-English replay.
 - Decision tapes, fault schedules, invariant checking, causal flight recording, and trace shrinking from the existing miniRaft lab.
 
-> **Current milestone:** workflow checkpoints, effect transitions, optimistic
-> step fencing, and semantic approvals are now committed through the live Raft
-> state machine. See [AGENT-RAFT-PERSISTENCE.md](AGENT-RAFT-PERSISTENCE.md).
+> **Current milestone:** miniRaft now generates agent fault schedules, searches
+> five deliberately broken runtimes, preserves exact failure fingerprints while
+> shrinking, and emits byte-identical replay artifacts plus regression tests.
+> See [AGENT-COUNTEREXAMPLE-SEARCH.md](AGENT-COUNTEREXAMPLE-SEARCH.md).
 
 ## What this project proves
 
@@ -27,6 +28,7 @@ The first vertical slice is an autonomous refund agent. The deterministic lab in
 | Semantic snapshot isolation | A v4 checkpoint cannot silently continue after refund-policy-v5 is deployed; the workflow requires revalidation |
 | Causal effect ordering | Payment confirmation precedes CRM mutation, notification, and workflow completion |
 | Effect authorization | Every committed tool effect is attributable to an explicitly authorized semantic snapshot |
+| Counterexample discovery | Generated schedules automatically kill and classify five agent-runtime mutants while the correct runtime remains violation-free |
 | Crash safety | Term, vote, append-only log, and commit index are durable; applied state is rebuilt deterministically from the committed prefix on restart |
 | Correct commit rule | A leader advances to the highest `N` replicated on a majority only when `log[N].term === currentTerm` |
 | Dynamic quorum | Majority is `Math.floor(clusterSize / 2) + 1`; the engine is not hard-coded to three nodes |
@@ -123,7 +125,7 @@ To stop the stack without deleting its durable state:
 docker compose down
 ```
 
-Run the complete Stage 4 crash-boundary and restart acceptance campaign:
+Run the Stage 4 crash-boundary campaign plus the promoted Stage 5 counterexample:
 
 ```bash
 node tools/agent-raft-compose-test.js
@@ -192,6 +194,26 @@ The shrink predicate is intentionally exact. A log-matching failure must remain
 a log-matching failure; a non-linearizable history must remain
 non-linearizable; rollout skew must remain rollout skew. A smaller schedule that
 fails for a different reason is rejected.
+
+### Autonomous agent counterexample search
+
+Stage 5 searches the agent action/fault space separately from the consensus
+schedule search above. A seed first becomes a concrete schedule; replay and
+shrinking never sample new choices.
+
+```bash
+node sim/agent-search.js --workflow refund --runs 10000 --seed 1337
+node sim/agent-search.js --workflow refund --runs 10000 --seed 1337 --mutant blind-retry
+node sim/agent-search.js --benchmark --runs 100 --seed 1337
+node sim/agent-search.js --replay artifacts/failures/refund-1337.json
+```
+
+The benchmark requires all five injected mutants to be discovered, correctly
+classified, deterministically replayed, and minimized. CI also searches the
+correct Stage 4 runtime and requires zero violations with all 15 action/fault
+types covered. See
+[AGENT-COUNTEREXAMPLE-SEARCH.md](AGENT-COUNTEREXAMPLE-SEARCH.md) for the action
+language, invariant fingerprints, measured results, and artifact schema.
 
 ### CheckQuorum: the important distinction
 
@@ -279,7 +301,7 @@ Useful endpoints:
 
 ## Production containers and CI
 
-Both images:
+All production images:
 
 - install with `npm ci --omit=dev`;
 - run as the non-root `node` user;
@@ -287,7 +309,7 @@ Both images:
 - include container health checks;
 - are built and scanned for high/critical vulnerabilities in GitHub Actions.
 
-On pushes to `main`, CI runs the Raft tests, builds both images, scans them with Trivy, and publishes commit-pinned plus `latest` tags to GHCR.
+On pushes to `main`, CI runs the Raft and autonomous-search gates, builds every image, scans them with Trivy, and publishes commit-pinned plus `latest` tags to GHCR.
 
 ## Project layout
 
