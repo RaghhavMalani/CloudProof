@@ -1422,6 +1422,444 @@ function compareCandidates(a, b) {
 module.exports = { HnswIndex, Rng, Heap, hashId32 };
 
 };
+__registry["replica/agent-state.js"] = function (module, exports, require) {
+'use strict';
+
+/**
+ * Deterministic reducer for Raft-backed agent executions.
+ *
+ * This module deliberately contains no clocks, randomness, I/O, or provider
+ * calls. Every mutation is a pure consequence of the committed command and
+ * its log index, so replaying a committed prefix reconstructs byte-equivalent
+ * execution checkpoints on every replica.
+ */
+
+const EFFECT_STATUS = Object.freeze({
+    INTENT_RECORDED: 'INTENT_RECORDED',
+    RECONCILIATION_REQUIRED: 'RECONCILIATION_REQUIRED',
+    RESULT_RECORDED: 'RESULT_RECORDED',
+    EFFECT_COMMITTED: 'EFFECT_COMMITTED',
+});
+
+const EXECUTION_STATUS = Object.freeze({
+    RUNNING: 'RUNNING',
+    PAUSED_SEMANTIC_CONFLICT: 'PAUSED_SEMANTIC_CONFLICT',
+    COMPLETE: 'COMPLETE',
+});
+
+function stable(value) {
+    if (Array.isArray(value)) return value.map(stable);
+    if (value && typeof value === 'object') {
+        return Object.fromEntries(Object.keys(value).sort().map((key) => [key, stable(value[key])]));
+    }
+    return value;
+}
+
+function clone(value) {
+    return value === undefined ? undefined : JSON.parse(JSON.stringify(stable(value)));
+}
+
+function same(left, right) {
+    return JSON.stringify(stable(left)) === JSON.stringify(stable(right));
+}
+
+function fail(error, details = {}) {
+    return { ok: false, error, mutated: false, ...details };
+}
+
+function requireText(value, field) {
+    return typeof value === 'string' && value.length > 0
+        ? null
+        : fail('INVALID_AGENT_COMMAND', { message: `${field} must be a non-empty string` });
+}
+
+class AgentState {
+    constructor() {
+        this.executions = new Map();
+    }
+
+    get(executionId) {
+        const execution = this.executions.get(executionId);
+        return execution ? clone(execution) : null;
+    }
+
+    list() {
+        return [...this.executions.keys()].sort().map((executionId) => this.get(executionId));
+    }
+
+    snapshot() {
+        return { executions: this.list() };
+    }
+
+    apply(command, { index = -1 } = {}) {
+        switch (command.op) {
+            case 'agent.execution.create':
+                return this._create(command, index);
+            case 'agent.execution.advance':
+                return this._advance(command, index);
+            case 'agent.execution.complete':
+                return this._complete(command, index);
+            case 'agent.effect.intent':
+                return this._intent(command, index);
+            case 'agent.effect.dispatch':
+                return this._dispatch(command, index);
+            case 'agent.effect.reconciliation-required':
+                return this._requireReconciliation(command, index);
+            case 'agent.effect.result':
+                return this._recordResult(command, index);
+            case 'agent.effect.commit':
+                return this._commitEffect(command, index);
+            case 'agent.semantic-conflict.detect':
+                return this._detectSemanticConflict(command, index);
+            case 'agent.snapshot.transition':
+                return this._transitionSnapshot(command, index);
+            default:
+                return fail('UNKNOWN_AGENT_COMMAND', { message: `unknown op: ${command.op}` });
+        }
+    }
+
+    _execution(command) {
+        const invalid = requireText(command.executionId, 'executionId');
+        if (invalid) return invalid;
+        const execution = this.executions.get(command.executionId);
+        return execution || fail('EXECUTION_NOT_FOUND', { executionId: command.executionId });
+    }
+
+    _effect(command) {
+        const execution = this._execution(command);
+        if (execution.ok === false) return execution;
+        const invalid = requireText(command.effectId, 'effectId');
+        if (invalid) return invalid;
+        const effect = execution.effects.find((candidate) => candidate.effectId === command.effectId);
+        return effect
+            ? { execution, effect }
+            : fail('EFFECT_NOT_FOUND', {
+                executionId: command.executionId,
+                effectId: command.effectId,
+            });
+    }
+
+    _mutated(execution, event) {
+        execution.version += 1;
+        execution.history.push(clone(event));
+        return execution;
+    }
+
+    _create(command, index) {
+        const executionError = requireText(command.executionId, 'executionId');
+        if (executionError) return executionError;
+        const workflowError = requireText(command.workflow, 'workflow');
+        if (workflowError) return workflowError;
+        if (!command.snapshot || requireText(command.snapshot.id, 'snapshot.id')) {
+            return fail('INVALID_AGENT_COMMAND', { message: 'snapshot with an id is required' });
+        }
+
+        const candidate = {
+            executionId: command.executionId,
+            workflow: command.workflow,
+            snapshot: clone(command.snapshot),
+            step: 0,
+            version: 1,
+            state: clone(command.initialState || {}),
+            status: EXECUTION_STATUS.RUNNING,
+            semanticConflict: null,
+            history: [{
+                type: 'EXECUTION_CREATED',
+                index,
+                step: 0,
+                snapshotId: command.snapshot.id,
+            }],
+            effects: [],
+        };
+        const existing = this.executions.get(command.executionId);
+        if (existing) {
+            const sameIdentity = existing.workflow === candidate.workflow
+                && same(existing.snapshot, candidate.snapshot)
+                && same(existing.state, candidate.state);
+            return sameIdentity
+                ? { ok: true, mutated: false, duplicate: true, execution: clone(existing) }
+                : fail('EXECUTION_ID_CONFLICT', { executionId: command.executionId });
+        }
+
+        this.executions.set(command.executionId, candidate);
+        return { ok: true, mutated: true, execution: clone(candidate) };
+    }
+
+    _checkStep(execution, expectedStep) {
+        if (!Number.isInteger(expectedStep) || expectedStep < 0) {
+            return fail('INVALID_AGENT_COMMAND', { message: 'expectedStep must be a non-negative integer' });
+        }
+        if (execution.step !== expectedStep) {
+            return fail('STALE_EXECUTION_VERSION', {
+                executionId: execution.executionId,
+                expectedStep,
+                actualStep: execution.step,
+                actualVersion: execution.version,
+            });
+        }
+        return null;
+    }
+
+    _advance(command, index) {
+        const execution = this._execution(command);
+        if (execution.ok === false) return execution;
+        const stepError = this._checkStep(execution, command.expectedStep);
+        if (stepError) return stepError;
+        const labelError = requireText(command.label, 'label');
+        if (labelError) return labelError;
+        if (execution.status !== EXECUTION_STATUS.RUNNING) {
+            return fail('EXECUTION_NOT_RUNNING', {
+                executionId: execution.executionId,
+                status: execution.status,
+            });
+        }
+        if (command.patch !== undefined
+            && (!command.patch || Array.isArray(command.patch) || typeof command.patch !== 'object')) {
+            return fail('INVALID_AGENT_COMMAND', { message: 'patch must be an object' });
+        }
+
+        execution.step += 1;
+        execution.state = clone({ ...execution.state, ...(command.patch || {}) });
+        this._mutated(execution, {
+            type: 'STEP_ADVANCED',
+            index,
+            step: execution.step,
+            label: command.label,
+            patch: clone(command.patch || {}),
+        });
+        return {
+            ok: true,
+            mutated: true,
+            executionId: execution.executionId,
+            step: execution.step,
+            version: execution.version,
+        };
+    }
+
+    _intent(command, index) {
+        const execution = this._execution(command);
+        if (execution.ok === false) return execution;
+        if (execution.status !== EXECUTION_STATUS.RUNNING) {
+            return fail('EXECUTION_NOT_RUNNING', { status: execution.status });
+        }
+        const effectError = requireText(command.effectId, 'effectId');
+        if (effectError) return effectError;
+        const actionError = requireText(command.logicalAction, 'logicalAction');
+        if (actionError) return actionError;
+        if (command.snapshotId !== execution.snapshot.id) {
+            return fail('SEMANTIC_SNAPSHOT_MISMATCH', {
+                expectedSnapshotId: execution.snapshot.id,
+                actualSnapshotId: command.snapshotId,
+            });
+        }
+
+        const candidate = {
+            effectId: command.effectId,
+            executionId: command.executionId,
+            logicalAction: command.logicalAction,
+            parameters: clone(command.parameters || {}),
+            snapshotId: command.snapshotId,
+            atStep: execution.step,
+            status: EFFECT_STATUS.INTENT_RECORDED,
+            attempts: 0,
+            result: null,
+        };
+        const existing = execution.effects.find((effect) => effect.effectId === command.effectId);
+        if (existing) {
+            const sameIntent = existing.logicalAction === candidate.logicalAction
+                && existing.snapshotId === candidate.snapshotId
+                && same(existing.parameters, candidate.parameters);
+            return sameIntent
+                ? { ok: true, mutated: false, duplicate: true, effect: clone(existing) }
+                : fail('EFFECT_ID_CONFLICT', { effectId: command.effectId });
+        }
+
+        execution.effects.push(candidate);
+        execution.effects.sort((left, right) => (
+            left.effectId < right.effectId ? -1 : left.effectId > right.effectId ? 1 : 0
+        ));
+        this._mutated(execution, {
+            type: 'EFFECT_INTENT_RECORDED', index, step: execution.step, effectId: command.effectId,
+        });
+        return { ok: true, mutated: true, effect: clone(candidate), version: execution.version };
+    }
+
+    _dispatch(command, index) {
+        const found = this._effect(command);
+        if (found.ok === false) return found;
+        const { execution, effect } = found;
+        if (execution.status !== EXECUTION_STATUS.RUNNING) {
+            return fail('EXECUTION_NOT_RUNNING', { status: execution.status });
+        }
+        if (![EFFECT_STATUS.INTENT_RECORDED, EFFECT_STATUS.RECONCILIATION_REQUIRED]
+            .includes(effect.status)) {
+            return fail('EFFECT_NOT_DISPATCHABLE', { effectId: effect.effectId, status: effect.status });
+        }
+        effect.attempts += 1;
+        this._mutated(execution, {
+            type: 'EFFECT_DISPATCH_AUTHORIZED', index, step: execution.step,
+            effectId: effect.effectId, attempt: effect.attempts,
+        });
+        return { ok: true, mutated: true, effect: clone(effect), version: execution.version };
+    }
+
+    _requireReconciliation(command, index) {
+        const found = this._effect(command);
+        if (found.ok === false) return found;
+        const { execution, effect } = found;
+        if ([EFFECT_STATUS.RESULT_RECORDED, EFFECT_STATUS.EFFECT_COMMITTED].includes(effect.status)) {
+            return { ok: true, mutated: false, duplicate: true, effect: clone(effect) };
+        }
+        if (effect.status === EFFECT_STATUS.RECONCILIATION_REQUIRED) {
+            return { ok: true, mutated: false, duplicate: true, effect: clone(effect) };
+        }
+        effect.status = EFFECT_STATUS.RECONCILIATION_REQUIRED;
+        this._mutated(execution, {
+            type: 'EFFECT_RECONCILIATION_REQUIRED', index, step: execution.step,
+            effectId: effect.effectId,
+        });
+        return { ok: true, mutated: true, effect: clone(effect), version: execution.version };
+    }
+
+    _recordResult(command, index) {
+        const found = this._effect(command);
+        if (found.ok === false) return found;
+        const { execution, effect } = found;
+        if (command.result === undefined || command.result === null) {
+            return fail('INVALID_AGENT_COMMAND', { message: 'result is required' });
+        }
+        if ([EFFECT_STATUS.RESULT_RECORDED, EFFECT_STATUS.EFFECT_COMMITTED].includes(effect.status)) {
+            return same(effect.result, command.result)
+                ? { ok: true, mutated: false, duplicate: true, effect: clone(effect) }
+                : fail('EFFECT_RESULT_CONFLICT', { effectId: effect.effectId, recorded: clone(effect.result) });
+        }
+        effect.result = clone(command.result);
+        effect.status = EFFECT_STATUS.RESULT_RECORDED;
+        this._mutated(execution, {
+            type: 'EFFECT_RESULT_RECORDED', index, step: execution.step, effectId: effect.effectId,
+        });
+        return { ok: true, mutated: true, effect: clone(effect), version: execution.version };
+    }
+
+    _commitEffect(command, index) {
+        const found = this._effect(command);
+        if (found.ok === false) return found;
+        const { execution, effect } = found;
+        if (effect.status === EFFECT_STATUS.EFFECT_COMMITTED) {
+            return { ok: true, mutated: false, duplicate: true, effect: clone(effect) };
+        }
+        if (effect.status !== EFFECT_STATUS.RESULT_RECORDED || effect.result === null) {
+            return fail('EFFECT_RESULT_REQUIRED', { effectId: effect.effectId, status: effect.status });
+        }
+        effect.status = EFFECT_STATUS.EFFECT_COMMITTED;
+        this._mutated(execution, {
+            type: 'EFFECT_COMMITTED', index, step: execution.step, effectId: effect.effectId,
+        });
+        return { ok: true, mutated: true, effect: clone(effect), version: execution.version };
+    }
+
+    _detectSemanticConflict(command, index) {
+        const execution = this._execution(command);
+        if (execution.ok === false) return execution;
+        if (!command.availableSnapshot || requireText(command.availableSnapshot.id, 'availableSnapshot.id')) {
+            return fail('INVALID_AGENT_COMMAND', { message: 'availableSnapshot with an id is required' });
+        }
+        if (command.availableSnapshot.id === execution.snapshot.id) {
+            return { ok: true, mutated: false, duplicate: true, conflict: null };
+        }
+        const conflict = {
+            fromSnapshotId: execution.snapshot.id,
+            availableSnapshot: clone(command.availableSnapshot),
+            decision: command.decision || 'require-approval',
+            changed: clone(command.changed || []),
+            detectedAtIndex: index,
+        };
+        if (same(execution.semanticConflict, conflict)) {
+            return { ok: true, mutated: false, duplicate: true, conflict: clone(conflict) };
+        }
+        execution.semanticConflict = conflict;
+        execution.status = EXECUTION_STATUS.PAUSED_SEMANTIC_CONFLICT;
+        this._mutated(execution, {
+            type: 'SEMANTIC_CONFLICT_DETECTED', index, step: execution.step,
+            fromSnapshotId: conflict.fromSnapshotId,
+            availableSnapshotId: conflict.availableSnapshot.id,
+            decision: conflict.decision,
+            changed: conflict.changed,
+        });
+        return { ok: true, mutated: true, conflict: clone(conflict), version: execution.version };
+    }
+
+    _transitionSnapshot(command, index) {
+        const execution = this._execution(command);
+        if (execution.ok === false) return execution;
+        if (command.fromSnapshotId !== execution.snapshot.id) {
+        if (!execution.semanticConflict
+            || execution.status !== EXECUTION_STATUS.PAUSED_SEMANTIC_CONFLICT) {
+            return fail('SEMANTIC_CONFLICT_REQUIRED', { executionId: execution.executionId });
+        }
+            return fail('STALE_SEMANTIC_SNAPSHOT', {
+                expectedSnapshotId: command.fromSnapshotId,
+                actualSnapshotId: execution.snapshot.id,
+            });
+        }
+        if (!command.toSnapshot || requireText(command.toSnapshot.id, 'toSnapshot.id')) {
+            return fail('INVALID_AGENT_COMMAND', { message: 'toSnapshot with an id is required' });
+        }
+        if (!command.approval || command.approval.approved !== true
+            || requireText(command.approval.approvedBy, 'approval.approvedBy')) {
+        if (command.toSnapshot.id !== execution.semanticConflict.availableSnapshot.id) {
+            return fail('SEMANTIC_TRANSITION_MISMATCH', {
+                expectedSnapshotId: execution.semanticConflict.availableSnapshot.id,
+                actualSnapshotId: command.toSnapshot.id,
+            });
+        }
+            return fail('SEMANTIC_APPROVAL_REQUIRED', { executionId: execution.executionId });
+        }
+        const fromSnapshotId = execution.snapshot.id;
+        execution.snapshot = clone(command.toSnapshot);
+        execution.semanticConflict = null;
+        execution.status = EXECUTION_STATUS.RUNNING;
+        this._mutated(execution, {
+            type: 'SNAPSHOT_TRANSITIONED', index, step: execution.step,
+            fromSnapshotId,
+            toSnapshotId: command.toSnapshot.id,
+            approval: clone(command.approval),
+        });
+        return {
+            ok: true,
+            mutated: true,
+            snapshot: clone(execution.snapshot),
+            version: execution.version,
+        };
+    }
+
+    _complete(command, index) {
+        const execution = this._execution(command);
+        if (execution.ok === false) return execution;
+        const stepError = this._checkStep(execution, command.expectedStep);
+        if (stepError) return stepError;
+        if (execution.status === EXECUTION_STATUS.COMPLETE) {
+            return { ok: true, mutated: false, duplicate: true, execution: clone(execution) };
+        }
+        if (execution.status !== EXECUTION_STATUS.RUNNING) {
+            return fail('EXECUTION_NOT_RUNNING', { status: execution.status });
+        }
+        const unfinished = execution.effects.filter(
+            (effect) => effect.status !== EFFECT_STATUS.EFFECT_COMMITTED,
+        ).map((effect) => effect.effectId);
+        if (unfinished.length > 0) return fail('UNFINISHED_EFFECTS', { effectIds: unfinished });
+
+        execution.status = EXECUTION_STATUS.COMPLETE;
+        this._mutated(execution, {
+            type: 'EXECUTION_COMPLETED', index, step: execution.step,
+        });
+        return { ok: true, mutated: true, execution: clone(execution) };
+    }
+}
+
+module.exports = { AgentState, EFFECT_STATUS, EXECUTION_STATUS, stable };
+
+};
 __registry["replica/state-machine.js"] = function (module, exports, require) {
 /**
  * state-machine.js — the deterministic keyspace that committed Raft entries
@@ -1455,6 +1893,7 @@ __registry["replica/state-machine.js"] = function (module, exports, require) {
 
 const { HnswIndex } = require('./hnsw');
 const { BM25Index, reciprocalRankFusion } = require('./sparse');
+const { AgentState } = require('./agent-state');
 
 const EVENT_BUFFER_LIMIT = 1024;
 const RESULT_CACHE_LIMIT = 4096;
@@ -1548,6 +1987,11 @@ class StateMachine {
          */
         this.sparse = new BM25Index();
 
+        // AgentExecution and EffectLedger live here, not in a side database.
+        // Their only mutation path is AgentState#apply from committed log
+        // entries, so boot replay reconstructs them with the keyspace/index.
+        this.agent = new AgentState();
+
         this.events = [];
         this.eventsDropped = 0;
         this._results = new Map();
@@ -1592,6 +2036,14 @@ class StateMachine {
 
     resultFor(index) {
         return this._results.get(index) ?? null;
+    }
+
+    agentExecution(executionId) {
+        return this.agent.get(executionId);
+    }
+
+    agentExecutions() {
+        return this.agent.list();
     }
 
     // ── event plumbing ───────────────────────────────────────────────────────
@@ -1689,6 +2141,18 @@ class StateMachine {
             case 'vector-delete':
                 result = this._applyVectorDelete(command, entry);
                 break;
+            case 'agent.execution.create':
+            case 'agent.execution.advance':
+            case 'agent.execution.complete':
+            case 'agent.effect.intent':
+            case 'agent.effect.dispatch':
+            case 'agent.effect.reconciliation-required':
+            case 'agent.effect.result':
+            case 'agent.effect.commit':
+            case 'agent.semantic-conflict.detect':
+            case 'agent.snapshot.transition':
+                result = this._applyAgent(command, entry);
+                break;
             case 'append':
                 // Legacy path: the whiteboard appends opaque strokes with no
                 // key. They are ordered and durable but not addressable.
@@ -1699,6 +2163,23 @@ class StateMachine {
         }
 
         return this._rememberResult(entry.index, result);
+    }
+
+    _applyAgent(command, entry) {
+        const outcome = this.agent.apply(command, { index: entry.index });
+        const { mutated, ...result } = outcome;
+        if (!mutated) return result;
+
+        this.revision += 1;
+        this._emit({
+            type: command.op,
+            key: `agent/${command.executionId}`,
+            value: this.agent.get(command.executionId),
+            rev: this.revision,
+            index: entry.index,
+            clock: this.clock,
+        });
+        return { ...result, rev: this.revision };
     }
 
     _expireLeases(index) {
@@ -2035,6 +2516,7 @@ class StateMachine {
             // is a far stronger statement than agreeing on a few queries.
             index: this.index ? this.index.stats() : null,
             sparse: this.sparse.stats(),
+            agent: this.agent.snapshot(),
         };
     }
 }
@@ -4176,6 +4658,231 @@ class FlightRecorder {
 module.exports = { FlightRecorder };
 
 };
+__registry["packages/agent-runtime/index.js"] = function (module, exports, require) {
+'use strict';
+
+/**
+ * Durable execution primitives for autonomous agents.
+ *
+ * The runtime deliberately keeps cognition outside the consistency boundary:
+ * an LLM proposes logical actions, while this module owns their durable
+ * identity, semantic context, execution state, and observable effects.
+ */
+
+const crypto = require('crypto');
+
+const EFFECT_STATUS = Object.freeze({
+    INTENT_RECORDED: 'INTENT_RECORDED',
+    RECONCILIATION_REQUIRED: 'RECONCILIATION_REQUIRED',
+    RESULT_RECORDED: 'RESULT_RECORDED',
+    EFFECT_COMMITTED: 'EFFECT_COMMITTED',
+});
+
+const RESUME_DECISION = Object.freeze({
+    CONTINUE: 'continue',
+    REVALIDATE: 'revalidate',
+    RESTART: 'restart',
+    REQUIRE_APPROVAL: 'require-approval',
+    ABORT: 'abort',
+});
+
+function stable(value) {
+    if (Array.isArray(value)) return value.map(stable);
+    if (value && typeof value === 'object') {
+        return Object.fromEntries(Object.keys(value).sort().map((key) => [key, stable(value[key])]));
+    }
+    return value;
+}
+
+function digest(value) {
+    const encoded = JSON.stringify(stable(value));
+    return crypto.createHash('sha256').update(encoded === undefined ? 'undefined' : encoded).digest('hex');
+}
+
+function clone(value) {
+    return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
+}
+
+function makeEffectId(executionId, logicalAction, parameters) {
+    return `effect:${digest({ executionId, logicalAction, parameters })}`;
+}
+
+function makeSemanticSnapshot(resources) {
+    const normalized = clone(stable(resources));
+    return Object.freeze({
+        id: `snapshot:${digest(normalized)}`,
+        resources: Object.freeze(normalized),
+    });
+}
+
+function changedResources(before, after) {
+    const left = before?.resources || before || {};
+    const right = after?.resources || after || {};
+    return [...new Set([...Object.keys(left), ...Object.keys(right)])]
+        .filter((key) => digest(left[key]) !== digest(right[key]))
+        .sort();
+}
+
+function decideResume({ pinned, available, compatibility = {} }) {
+    const changed = changedResources(pinned, available);
+    if (changed.length === 0) return { decision: RESUME_DECISION.CONTINUE, changed };
+
+    const dispositions = changed.map((name) => compatibility[name] || RESUME_DECISION.REVALIDATE);
+    const precedence = [
+        RESUME_DECISION.ABORT,
+        RESUME_DECISION.REQUIRE_APPROVAL,
+        RESUME_DECISION.RESTART,
+        RESUME_DECISION.REVALIDATE,
+        RESUME_DECISION.CONTINUE,
+    ];
+    return {
+        decision: precedence.find((candidate) => dispositions.includes(candidate)),
+        changed,
+        dispositions: Object.fromEntries(changed.map((name, index) => [name, dispositions[index]])),
+    };
+}
+
+class EffectLedger {
+    constructor(records = []) {
+        this.records = new Map(records.map((record) => [record.effectId, clone(record)]));
+    }
+
+    get(effectId) {
+        const record = this.records.get(effectId);
+        return record ? clone(record) : null;
+    }
+
+    recordIntent({ executionId, logicalAction, parameters, snapshotId, atStep = null }) {
+        const effectId = makeEffectId(executionId, logicalAction, parameters);
+        const existing = this.records.get(effectId);
+        if (existing) return { record: clone(existing), duplicate: true };
+
+        const record = {
+            effectId,
+            executionId,
+            logicalAction,
+            parameters: clone(stable(parameters)),
+            snapshotId,
+            atStep,
+            status: EFFECT_STATUS.INTENT_RECORDED,
+            attempts: 0,
+            result: null,
+        };
+        this.records.set(effectId, record);
+        return { record: clone(record), duplicate: false };
+    }
+
+    markDispatched(effectId) {
+        const record = this._require(effectId);
+        if (record.status === EFFECT_STATUS.EFFECT_COMMITTED) return clone(record);
+        record.attempts += 1;
+        return clone(record);
+    }
+
+    requireReconciliation(effectId) {
+        const record = this._require(effectId);
+        if (record.status !== EFFECT_STATUS.EFFECT_COMMITTED) {
+            record.status = EFFECT_STATUS.RECONCILIATION_REQUIRED;
+        }
+        return clone(record);
+    }
+
+    recordResult(effectId, result) {
+        const record = this._require(effectId);
+        if (record.status === EFFECT_STATUS.EFFECT_COMMITTED) return clone(record);
+        record.result = clone(result);
+        record.status = EFFECT_STATUS.RESULT_RECORDED;
+        return clone(record);
+    }
+
+    commit(effectId) {
+        const record = this._require(effectId);
+        if (record.result === null) throw new Error(`cannot commit ${effectId} without a recorded result`);
+        record.status = EFFECT_STATUS.EFFECT_COMMITTED;
+        return clone(record);
+    }
+
+    resolve(effectId) {
+        const record = this.records.get(effectId);
+        if (!record) return { action: 'execute', record: null };
+        if (record.status === EFFECT_STATUS.EFFECT_COMMITTED) {
+            return { action: 'return-recorded-result', record: clone(record) };
+        }
+        return { action: 'reconcile', record: clone(record) };
+    }
+
+    export() {
+        return [...this.records.values()].map(clone);
+    }
+
+    _require(effectId) {
+        const record = this.records.get(effectId);
+        if (!record) throw new Error(`unknown effect ${effectId}`);
+        return record;
+    }
+}
+
+class AgentExecution {
+    constructor({ executionId, workflow, snapshot, checkpoint = null, ledger = null }) {
+        if (!executionId || !workflow || !snapshot) throw new TypeError('executionId, workflow, and snapshot are required');
+        this.executionId = executionId;
+        this.workflow = workflow;
+        this.snapshot = snapshot.id ? snapshot : makeSemanticSnapshot(snapshot);
+        this.ledger = ledger || new EffectLedger(checkpoint?.effects || []);
+        this.version = checkpoint?.version ?? 1;
+        this.semanticConflict = clone(checkpoint?.semanticConflict || null);
+        this.step = checkpoint?.step || 0;
+        this.state = clone(checkpoint?.state || {});
+        this.status = checkpoint?.status || 'RUNNING';
+        this.history = clone(checkpoint?.history || []);
+    }
+
+    advance(label, patch = {}) {
+        this.step += 1;
+        this.version += 1;
+        Object.assign(this.state, clone(patch));
+        this.history.push({ step: this.step, label, patch: clone(patch) });
+        return this.step;
+    }
+
+    checkpoint() {
+        return clone({
+            executionId: this.executionId,
+            workflow: this.workflow,
+            snapshot: this.snapshot,
+            step: this.step,
+            version: this.version,
+            semanticConflict: this.semanticConflict,
+            state: this.state,
+            status: this.status,
+            history: this.history,
+            effects: this.ledger.export(),
+        });
+    }
+
+    static resume(checkpoint) {
+        return new AgentExecution({
+            executionId: checkpoint.executionId,
+            workflow: checkpoint.workflow,
+            snapshot: checkpoint.snapshot,
+            checkpoint,
+        });
+    }
+}
+
+module.exports = {
+    AgentExecution,
+    EffectLedger,
+    EFFECT_STATUS,
+    RESUME_DECISION,
+    changedResources,
+    decideResume,
+    digest,
+    makeEffectId,
+    makeSemanticSnapshot,
+};
+
+};
 __registry["packages/workloads/extended.js"] = function (module, exports, require) {
 'use strict';
 
@@ -4742,6 +5449,302 @@ function createExtendedWorkloads({ pass, fail, watch, makeNode }) {
 }
 
 module.exports = { createExtendedWorkloads };
+
+};
+__registry["packages/workloads/agent-refund.js"] = function (module, exports, require) {
+'use strict';
+
+const {
+    AgentExecution,
+    RESUME_DECISION,
+    decideResume,
+    makeSemanticSnapshot,
+} = require('../agent-runtime/index.js');
+
+const EXECUTION_ID = 'support-ticket-4821';
+const REFUND = Object.freeze({ orderId: 4821, amountCents: 899900, currency: 'INR' });
+const BASE_CONTEXT = Object.freeze({
+    workflow: 'refund-agent-v7',
+    model: 'model-2026-08-20',
+    prompt: 'sha256:a892',
+    policy: 'refund-policy-v4',
+    retrievalIndex: 'support-index-v81',
+    toolSchemas: { payments: 'v2', orders: 'v14', crm: 'v6', mail: 'v3' },
+});
+
+function check(id, status, summary, evidence = {}) {
+    return { id, status, summary, evidence };
+}
+
+function makeNode(id, role, progress, accent = 'blue', process = 'up', network = 'connected') {
+    return { id, label: id, process, network, raftRole: role, detail: progress, accent };
+}
+
+function createState() {
+    const pinnedSnapshot = makeSemanticSnapshot(BASE_CONTEXT);
+    return {
+        execution: new AgentExecution({
+            executionId: EXECUTION_ID,
+            workflow: BASE_CONTEXT.workflow,
+            snapshot: pinnedSnapshot,
+        }),
+        pinnedSnapshot,
+        availableSnapshot: pinnedSnapshot,
+        checkpoint: null,
+        paymentProvider: new Map(),
+        paymentCalls: 0,
+        remoteRefundEffects: 0,
+        reconciliations: 0,
+        duplicateEffectsSuppressed: 0,
+        semanticConflicts: [],
+        snapshotTransitions: [],
+        crashes: 0,
+        resumes: 0,
+        crm: new Map(),
+        emails: new Map(),
+        authorizedSnapshots: new Set(),
+        effectSnapshots: [],
+        completed: false,
+    };
+}
+
+function current(state) {
+    if (!state.execution) throw new Error('agent worker is not running');
+    return state.execution;
+}
+
+function commitLocalEffect(state, logicalAction, parameters, result) {
+    const execution = current(state);
+    const intent = execution.ledger.recordIntent({
+        executionId: execution.executionId,
+        logicalAction,
+        parameters,
+        snapshotId: execution.snapshot.id,
+        atStep: execution.step,
+    });
+    if (intent.duplicate) {
+        state.duplicateEffectsSuppressed += 1;
+        return { ...intent.record, duplicate: true };
+    }
+    execution.ledger.markDispatched(intent.record.effectId);
+    execution.ledger.recordResult(intent.record.effectId, result);
+    const committed = execution.ledger.commit(intent.record.effectId);
+    state.effectSnapshots.push({ logicalAction, snapshotId: committed.snapshotId });
+    return { ...committed, duplicate: false };
+}
+
+function applyCommittedEntry(state, entry) {
+    const execution = state.execution;
+    switch (entry.op) {
+        case 'observe-context':
+            execution.advance('semantic-context-pinned', { orderId: REFUND.orderId });
+            return { snapshotId: execution.snapshot.id };
+        case 'authorize':
+            execution.advance('policy-authorized', { authorized: true, amountCents: REFUND.amountCents });
+            state.authorizedSnapshots.add(execution.snapshot.id);
+            return { policy: execution.snapshot.resources.policy, snapshotId: execution.snapshot.id };
+        case 'record-refund-intent': {
+            const intent = execution.ledger.recordIntent({
+                executionId: execution.executionId,
+                logicalAction: 'refund-payment',
+                parameters: REFUND,
+                snapshotId: execution.snapshot.id,
+                atStep: execution.step,
+            });
+            state.refundEffectId = intent.record.effectId;
+            execution.advance('refund-intent-recorded', { refundEffectId: state.refundEffectId });
+            return { effectId: state.refundEffectId, duplicate: intent.duplicate };
+        }
+        case 'dispatch-refund':
+            execution.ledger.markDispatched(state.refundEffectId);
+            state.paymentCalls += 1;
+            if (!state.paymentProvider.has(state.refundEffectId)) {
+                state.paymentProvider.set(state.refundEffectId, {
+                    providerRefundId: 'rf_4821_01',
+                    orderId: REFUND.orderId,
+                    amountCents: REFUND.amountCents,
+                });
+                state.remoteRefundEffects += 1;
+            }
+            return { providerCommitted: true, responseDelivered: false };
+        case 'lose-refund-response':
+            execution.ledger.requireReconciliation(state.refundEffectId);
+            return { effectId: state.refundEffectId, status: 'RECONCILIATION_REQUIRED' };
+        case 'checkpoint-crash':
+            state.checkpoint = execution.checkpoint();
+            state.execution = null;
+            state.crashes += 1;
+            return { step: state.checkpoint.step, durableEffects: state.checkpoint.effects.length };
+        case 'deploy-policy':
+            state.availableSnapshot = makeSemanticSnapshot({ ...BASE_CONTEXT, policy: entry.policy });
+            return { from: state.pinnedSnapshot.resources.policy, to: entry.policy };
+        case 'resume':
+            state.execution = AgentExecution.resume(state.checkpoint);
+            state.resumes += 1;
+            return { step: state.execution.step, effectStatus: state.execution.ledger.get(state.refundEffectId).status };
+        case 'check-semantic-snapshot': {
+            const verdict = decideResume({
+                pinned: current(state).snapshot,
+                available: state.availableSnapshot,
+                compatibility: { policy: RESUME_DECISION.REQUIRE_APPROVAL },
+            });
+            if (verdict.decision !== RESUME_DECISION.CONTINUE) {
+                state.semanticConflicts.push(verdict);
+                current(state).status = 'WAITING_FOR_REVALIDATION';
+            }
+            return verdict;
+        }
+        case 'revalidate': {
+            const prior = current(state).snapshot;
+            current(state).snapshot = state.availableSnapshot;
+            current(state).status = 'RUNNING';
+            current(state).advance('human-approved-revalidation', { policy: state.availableSnapshot.resources.policy });
+            state.authorizedSnapshots.add(state.availableSnapshot.id);
+            state.snapshotTransitions.push({ from: prior.id, to: state.availableSnapshot.id, approved: true });
+            return { from: prior.resources.policy, to: state.availableSnapshot.resources.policy };
+        }
+        case 'reconcile-refund': {
+            const resolution = current(state).ledger.resolve(state.refundEffectId);
+            if (resolution.action !== 'reconcile') return { action: resolution.action, duplicate: true };
+            const providerResult = state.paymentProvider.get(state.refundEffectId);
+            if (!providerResult) throw new Error('provider has no matching refund to reconcile');
+            current(state).ledger.recordResult(state.refundEffectId, providerResult);
+            const committed = current(state).ledger.commit(state.refundEffectId);
+            state.reconciliations += 1;
+            state.effectSnapshots.push({ logicalAction: committed.logicalAction, snapshotId: committed.snapshotId });
+            current(state).advance('refund-reconciled', { providerRefundId: providerResult.providerRefundId });
+            return { action: 'provider-lookup', providerRefundId: providerResult.providerRefundId };
+        }
+        case 'concurrent-retry': {
+            const intent = current(state).ledger.recordIntent({
+                executionId: EXECUTION_ID,
+                logicalAction: 'refund-payment',
+                parameters: REFUND,
+                snapshotId: current(state).snapshot.id,
+                atStep: current(state).step,
+            });
+            const resolution = current(state).ledger.resolve(intent.record.effectId);
+            if (intent.duplicate) state.duplicateEffectsSuppressed += 1;
+            return { duplicate: intent.duplicate, action: resolution.action, paymentCalls: state.paymentCalls };
+        }
+        case 'update-crm': {
+            const result = commitLocalEffect(state, 'mark-order-refunded', { orderId: REFUND.orderId }, { status: 'refunded' });
+            state.crm.set(REFUND.orderId, 'refunded');
+            current(state).advance('crm-updated', { crmStatus: 'refunded' });
+            return { effectId: result.effectId, status: 'refunded' };
+        }
+        case 'checkpoint-crash-late':
+            state.checkpoint = current(state).checkpoint();
+            state.execution = null;
+            state.crashes += 1;
+            return { step: state.checkpoint.step, crm: state.crm.get(REFUND.orderId) };
+        case 'resume-late':
+            state.execution = AgentExecution.resume(state.checkpoint);
+            state.resumes += 1;
+            return { step: state.execution.step, next: 'notify-customer' };
+        case 'notify': {
+            const result = commitLocalEffect(state, 'send-refund-email', { orderId: REFUND.orderId, template: 'refund-confirmed-v3' }, { messageId: 'msg_4821_01' });
+            state.emails.set(REFUND.orderId, result.result.messageId);
+            current(state).advance('customer-notified', { messageId: result.result.messageId });
+            return { messageId: result.result.messageId };
+        }
+        case 'complete':
+            current(state).advance('workflow-completed');
+            current(state).status = 'COMPLETED';
+            state.completed = true;
+            return { step: current(state).step, status: current(state).status };
+        default:
+            return { ok: true };
+    }
+}
+
+const agentRefund = {
+    id: 'agent-refund',
+    name: 'Autonomous refund agent',
+    shortName: 'Agent refund',
+    question: 'Can an agent survive lost responses, crashes, policy drift, and a concurrent retry without refunding twice?',
+    scenario: '₹8,999 refund · lost response · policy deploy · two crashes · concurrent worker',
+    createState,
+    applyCommittedEntry,
+    actions: [
+        { atMs: 0, key: 'start', type: 'agent.transaction.started', lane: 'clients', actor: 'refund-agent', target: 'runtime', label: 'Agent transaction begins', detail: 'The runtime pins the model, prompt, refund policy, retrieval index, and every tool schema before reasoning starts.', correlationId: EXECUTION_ID, entry: { op: 'observe-context' }, data: (_s, { effect }) => effect },
+        { atMs: 18, key: 'authorize', type: 'agent.policy.authorized', lane: 'commits', actor: 'refund-agent', target: 'policy-v4', label: '₹8,999 refund is authorized', detail: 'The authorization and its semantic snapshot are durable evidence, not a transient line in an LLM transcript.', correlationId: EXECUTION_ID, entry: { op: 'authorize' }, data: (_s, { effect }) => effect },
+        { atMs: 31, key: 'intent', type: 'agent.effect.intent.recorded', lane: 'commits', actor: 'runtime', target: 'effect-ledger', label: 'Refund intent commits before I/O', detail: 'A stable effect ID binds this ticket, logical refund action, and exact parameters before the payment API is called.', correlationId: EXECUTION_ID, entry: { op: 'record-refund-intent' }, data: (_s, { effect }) => effect },
+        { atMs: 46, key: 'remote-commit', type: 'tool.payment.refund.committed', lane: 'commits', actor: 'payment-api-v2', target: 'order-4821', label: 'Payment provider commits refund', detail: 'The money has moved remotely. The local runtime has not received the response yet.', correlationId: EXECUTION_ID, causedBy: 'intent', entry: { op: 'dispatch-refund' }, data: (_s, { effect }) => effect },
+        { atMs: 47, key: 'lost', type: 'fault.tool.response.lost', lane: 'faults', actor: 'network', target: 'refund-agent', label: 'Provider response is lost', detail: 'The runtime records ambiguity instead of guessing whether it is safe to retry.', correlationId: EXECUTION_ID, causedBy: 'remote-commit', entry: { op: 'lose-refund-response' }, data: (_s, { effect }) => effect },
+        { atMs: 52, key: 'crash-1', type: 'fault.worker.crashed', lane: 'faults', actor: 'worker-1', target: 'runtime', label: 'Worker crashes after remote commit', detail: 'The last durable checkpoint includes the refund intent and its reconciliation-required state.', correlationId: EXECUTION_ID, causedBy: 'lost', entry: { op: 'checkpoint-crash' }, process: 'down', data: (_s, { effect }) => effect },
+        { atMs: 300, key: 'policy-v5', type: 'semantic.resource.deployed', lane: 'faults', actor: 'policy-control', target: 'refund-agent', label: 'Refund policy v5 is deployed', detail: 'The paused workflow reasoned under v4. Blindly resuming it under v5 would mix incompatible semantic worlds.', correlationId: EXECUTION_ID, entry: { op: 'deploy-policy', policy: 'refund-policy-v5' }, data: (_s, { effect }) => effect },
+        { atMs: 410, key: 'resume-1', type: 'agent.execution.resumed', lane: 'commits', actor: 'worker-2', target: 'runtime', label: 'Worker resumes at the durable step', detail: 'It restores the recorded effect instead of restarting from the customer message.', correlationId: EXECUTION_ID, causedBy: 'crash-1', entry: { op: 'resume' }, process: 'up', data: (_s, { effect }) => effect },
+        { atMs: 414, key: 'snapshot-conflict', type: 'semantic.snapshot.conflict', lane: 'invariants', actor: 'runtime', target: 'policy-v5', label: 'Semantic snapshot conflict detected', detail: 'The runtime refuses to continue old reasoning under a new policy and moves the workflow to revalidation.', correlationId: EXECUTION_ID, causedBy: 'policy-v5', entry: { op: 'check-semantic-snapshot' }, data: (_s, { effect }) => effect },
+        { atMs: 520, key: 'revalidate', type: 'human.revalidation.approved', lane: 'commits', actor: 'support-lead', target: 'runtime', label: 'Human approves revalidation under v5', detail: 'The semantic boundary advances explicitly; earlier work remains attributable to its v4 authorization.', correlationId: EXECUTION_ID, causedBy: 'snapshot-conflict', entry: { op: 'revalidate' }, data: (_s, { effect }) => effect },
+        { atMs: 548, key: 'reconcile', type: 'agent.effect.reconciled', lane: 'commits', actor: 'runtime', target: 'payment-api-v2', label: 'Runtime reconciles instead of retrying', detail: 'A provider lookup finds the existing refund and commits its result locally without a second mutation.', correlationId: EXECUTION_ID, causedBy: 'lost', entry: { op: 'reconcile-refund' }, data: (_s, { effect }) => effect },
+        { atMs: 552, key: 'race', type: 'agent.effect.duplicate.suppressed', lane: 'invariants', actor: 'worker-3', target: 'effect-ledger', label: 'Concurrent worker is fenced', detail: 'A racing worker derives the same effect ID and receives the recorded result.', correlationId: EXECUTION_ID, causedBy: 'reconcile', entry: { op: 'concurrent-retry' }, data: (_s, { effect }) => effect },
+        { atMs: 590, key: 'crm', type: 'tool.crm.updated', lane: 'commits', actor: 'crm-v6', target: 'order-4821', label: 'CRM records the committed refund', detail: 'Downstream state changes only after the payment effect is known to be committed.', correlationId: EXECUTION_ID, causedBy: 'reconcile', entry: { op: 'update-crm' }, data: (_s, { effect }) => effect },
+        { atMs: 602, key: 'crash-2', type: 'fault.worker.crashed', lane: 'faults', actor: 'worker-2', target: 'runtime', label: 'Worker crashes again at step 6', detail: 'The CRM effect and workflow cursor are durable, so neither payment nor CRM work needs to repeat.', correlationId: EXECUTION_ID, causedBy: 'crm', entry: { op: 'checkpoint-crash-late' }, process: 'down', data: (_s, { effect }) => effect },
+        { atMs: 720, key: 'resume-2', type: 'agent.execution.resumed', lane: 'commits', actor: 'worker-4', target: 'runtime', label: 'Workflow resumes at notification', detail: 'Recovery restores the exact cursor, semantic snapshot, history, and effect ledger.', correlationId: EXECUTION_ID, causedBy: 'crash-2', entry: { op: 'resume-late' }, process: 'up', data: (_s, { effect }) => effect },
+        { atMs: 744, key: 'email', type: 'tool.email.sent', lane: 'commits', actor: 'mail-v3', target: 'customer-4821', label: 'Customer receives one confirmation', detail: 'Notification follows the committed refund and CRM update and has its own stable effect identity.', correlationId: EXECUTION_ID, causedBy: 'resume-2', entry: { op: 'notify' }, data: (_s, { effect }) => effect },
+        { atMs: 760, type: 'agent.transaction.completed', lane: 'commits', actor: 'runtime', target: EXECUTION_ID, label: 'Agent transaction completes', detail: 'Two crashes, one policy deployment, one lost response, and one racing worker produced exactly one refund.', correlationId: EXECUTION_ID, causedBy: 'email', entry: { op: 'complete' }, data: (_s, { effect }) => effect },
+    ],
+    invariants(state) {
+        const authorized = state.effectSnapshots.every((effect) => state.authorizedSnapshots.has(effect.snapshotId));
+        return [
+            state.remoteRefundEffects === 1
+                ? check('refund-effect-at-most-once', 'pass', 'one provider refund despite a lost reply and a concurrent retry', { observed: state.remoteRefundEffects, paymentCalls: state.paymentCalls })
+                : check('refund-effect-at-most-once', 'fail', 'the provider observed more than one refund', { observed: state.remoteRefundEffects }),
+            state.semanticConflicts.length === 1 && state.snapshotTransitions.every((item) => item.approved)
+                ? check('semantic-snapshot-isolation', 'pass', 'policy drift stopped execution until explicit revalidation', { transitions: state.snapshotTransitions })
+                : check('semantic-snapshot-isolation', 'fail', 'execution crossed a semantic boundary without revalidation'),
+            authorized
+                ? check('effect-requires-authorization', 'pass', 'every committed tool effect belongs to an authorized semantic snapshot', { effects: state.effectSnapshots })
+                : check('effect-requires-authorization', 'fail', 'a tool effect has no matching policy authorization'),
+            state.crm.get(REFUND.orderId) === 'refunded' && state.emails.has(REFUND.orderId) && state.completed
+                ? check('causal-side-effect-order', 'pass', 'payment committed before CRM and notification', { crm: state.crm.get(REFUND.orderId), email: state.emails.get(REFUND.orderId) })
+                : check('causal-side-effect-order', 'fail', 'downstream state does not match the refund outcome'),
+            state.resumes === 2 && current(state).step === 8
+                ? check('durable-resumption', 'pass', 'two crashes resumed from checkpoints and completed step 8', { crashes: state.crashes, resumes: state.resumes })
+                : check('durable-resumption', 'fail', 'the workflow cursor was lost or replayed incorrectly'),
+        ];
+    },
+    metrics(state) {
+        return [
+            { label: 'refunds', value: state.remoteRefundEffects, unit: `${state.paymentCalls} API call` },
+            { label: 'recovered', value: state.resumes, unit: `${state.crashes} crashes` },
+            { label: 'effects fenced', value: state.duplicateEffectsSuppressed, unit: 'duplicate' },
+            { label: 'semantic conflicts', value: state.semanticConflicts.length, unit: 'revalidated' },
+            { label: 'workflow step', value: current(state).step, unit: current(state).status.toLowerCase() },
+        ];
+    },
+    explainEvent(event) {
+        const explanations = {
+            'fault.tool.response.lost': 'A timeout cannot reveal whether the provider failed before mutation or succeeded before its reply was lost. The durable intent turns that uncertainty into an explicit reconciliation state.',
+            'semantic.snapshot.conflict': 'The checkpoint contains reasoning produced under refund-policy-v4. Comparing its pinned snapshot with the available v5 environment prevents semantic read skew.',
+            'agent.effect.reconciled': 'The provider is queried with the stable effect identity. Its existing refund is imported into the ledger as the original intent result; the mutation is not sent again.',
+            'agent.effect.duplicate.suppressed': 'Both workers derive the same identity from ticket, logical action, and parameters. The committed ledger entry fences the second worker.',
+            'agent.execution.resumed': 'The checkpoint restores the workflow cursor, semantic snapshot, state, history, and effect ledger—not just chat history.',
+        };
+        return explanations[event.type] || event.data.detail;
+    },
+    visualization(state) {
+        const execution = state.execution;
+        const policy = execution ? execution.snapshot.resources.policy : state.checkpoint.snapshot.resources.policy;
+        const refundCommitted = state.remoteRefundEffects === 1 && state.reconciliations === 1;
+        return {
+            title: `ticket 4821 · step ${execution ? execution.step : state.checkpoint?.step || 0}`,
+            subtitle: `₹8,999 · ${state.crashes} crashes · ${state.semanticConflicts.length} semantic conflict · ${state.remoteRefundEffects} refund`,
+            nodes: [
+                makeNode('agent-runtime', execution ? 'workflow runner' : 'recovering', execution ? execution.status.toLowerCase() : 'checkpoint durable', execution ? 'green' : 'amber', execution ? 'up' : 'down'),
+                makeNode('effect-ledger', 'durable fence', refundCommitted ? 'refund committed' : state.refundEffectId ? 'intent recorded' : 'empty', refundCommitted ? 'green' : 'amber'),
+                makeNode('payment-api', 'tool · v2', state.remoteRefundEffects ? 'rf_4821_01' : 'no refund', state.remoteRefundEffects ? 'green' : 'blue'),
+                makeNode('policy', policy, state.semanticConflicts.length ? 'revalidated' : 'snapshot pinned', state.semanticConflicts.length ? 'amber' : 'blue'),
+                makeNode('crm', 'tool · v6', state.crm.get(REFUND.orderId) || 'pending', state.crm.has(REFUND.orderId) ? 'green' : 'blue'),
+                makeNode('customer', 'human', state.emails.has(REFUND.orderId) ? 'notified once' : 'waiting', state.emails.has(REFUND.orderId) ? 'green' : 'blue'),
+            ],
+            policy: 'No tool mutation without a durable intent; no retry of an ambiguous effect; no resume across semantic drift without revalidation.',
+        };
+    },
+};
+
+module.exports = agentRefund;
 
 };
 __registry["packages/workloads/index.js"] = function (module, exports, require) {
@@ -6036,9 +7039,10 @@ const inventory = {
 };
 
 const EXTENDED_WORKLOADS = createExtendedWorkloads({ pass, fail, watch, makeNode });
+const AGENT_REFUND_WORKLOAD = require('./agent-refund');
 
 const WORKLOADS = Object.freeze([
-    configuration, payment, vectorSearch, rollout, streaming, dispatch, inventory, ...EXTENDED_WORKLOADS,
+    AGENT_REFUND_WORKLOAD, configuration, payment, vectorSearch, rollout, streaming, dispatch, inventory, ...EXTENDED_WORKLOADS,
 ].map(validateWorkload));
 
 function getWorkload(id) {
@@ -6090,6 +7094,14 @@ __registry["packages/workloads/plain-english.js"] = function (module, exports, r
  * — nobody has ever been upset about a linearizability violation as such.
  */
 const BRIEFS = {
+    'agent-refund': {
+        headline: 'A support agent refunds the same order twice.',
+        symptom: 'The first refund succeeded, but its reply disappeared. After a crash, another worker retries and the customer receives ₹17,998 instead of ₹8,999.',
+        whoHitsThis: 'Any autonomous agent allowed to call payment, email, CRM, deployment, or infrastructure tools.',
+        naive: 'Save the conversation, restart the agent, and retry whichever tool call has no successful response.',
+        rule: 'Commit a stable effect intent before I/O, reconcile ambiguous outcomes, and bind every decision to a versioned semantic snapshot.',
+    },
+
     configuration: {
         headline: 'A setting change silently never takes effect.',
         symptom: 'You switch a feature off. It stays on for a handful of servers, forever, and nothing anywhere reports an error.',
@@ -6169,6 +7181,26 @@ const BRIEFS = {
  * earlier ones, which is what lets each sentence stay short.
  */
 const STEPS = {
+    'agent-refund': {
+        'Agent transaction begins': 'The runtime freezes the model, prompt, refund policy, retrieval index, and tool schemas into one semantic snapshot.',
+        '₹8,999 refund is authorized': 'The agent approves this exact amount under policy v4, and the runtime keeps that authorization as durable evidence.',
+        'Refund intent commits before I/O': 'Before calling the payment provider, the runtime records what it intends to do under a stable effect ID.',
+        'Payment provider commits refund': 'The payment provider moves ₹8,999. The local worker has not recorded a result yet.',
+        'Provider response is lost': 'The money moved but the reply disappeared. The runtime marks the outcome ambiguous instead of guessing.',
+        'Worker crashes after remote commit': 'The worker dies at the worst moment, but its checkpoint contains the effect intent and reconciliation state.',
+        'Refund policy v5 is deployed': 'While the workflow is paused, its rules change. Resuming old reasoning under new rules would mix two semantic worlds.',
+        'Worker resumes at the durable step': 'A replacement restores the workflow cursor, semantic snapshot, and effect ledger instead of starting over.',
+        'Semantic snapshot conflict detected': 'The runtime sees policy v4 in the checkpoint and v5 in the environment, so it stops before taking another action.',
+        'Human approves revalidation under v5': 'A support lead explicitly advances the workflow to the new policy boundary.',
+        'Runtime reconciles instead of retrying': 'It asks the provider about the stable effect ID, finds the existing refund, and records that result locally.',
+        'Concurrent worker is fenced': 'A racing worker derives the same effect ID and gets the recorded result rather than issuing another refund.',
+        'CRM records the committed refund': 'Only after payment is confirmed does the runtime mark the order refunded in CRM.',
+        'Worker crashes again at step 6': 'The CRM update and workflow cursor survive too. Recovery does not repeat either earlier tool.',
+        'Workflow resumes at notification': 'The next worker continues exactly where the checkpoint says: send the customer confirmation.',
+        'Customer receives one confirmation': 'The email is also an identified effect, ordered after the refund and CRM update and has its own stable identity.',
+        'Agent transaction completes': 'Two crashes, one lost reply, one policy change, and one racing worker still produced one refund.',
+    },
+
     configuration: {
         'Controller lock acquired': 'Only one controller may act at a time. This one holds a lease — a lock that expires on its own, so a crash cannot freeze the system permanently.',
         'CAS establishes desired state': 'The controller writes what the system should look like. Compare-and-set means the write only lands if nobody else changed it first.',

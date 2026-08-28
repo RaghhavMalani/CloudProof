@@ -24,7 +24,7 @@ jobs:
       - run: npm test
         working-directory: replica
       - name: deterministic simulator and flight-recorder tests
-        run: node --test sim/*.test.js packages/*/*.test.js
+        run: node --test sim/*.test.js packages/*/*.test.js refund-provider/*.test.js tools/*.test.js
       - name: materialized schedule search campaign
         run: node sim/search.js --runs 100 --no-shrink
       # Every source file, found rather than listed. The previous version named
@@ -33,7 +33,7 @@ jobs:
       # that left them out of the Docker image.
       - name: syntax check every module
         run: |
-          find replica serving tools sim packages apps -name '*.js' -not -path '*/node_modules/*' -print0 \
+          find replica refund-provider serving tools sim packages apps -name '*.js' -not -path '*/node_modules/*' -print0 \
             | xargs -0 -n1 node --check
       - name: generated web assets are current
         run: |
@@ -62,6 +62,9 @@ jobs:
           - component: gateway
             dockerfile: gateway/Dockerfile
             context: .
+          - component: refund-provider
+            dockerfile: refund-provider/Dockerfile
+            context: refund-provider
           # Built from the repo root because it carries three entrypoints —
           # the embedding service, the dashboard and the artifact seed job —
           # which live in two directories.
@@ -103,3 +106,13 @@ jobs:
             ghcr.io/raghhavmalani/miniraft-${{ matrix.component }}:latest
             ghcr.io/raghhavmalani/miniraft-${{ matrix.component }}:${{ github.sha }}
           cache-from: type=gha,scope=${{ matrix.component }}
+
+  agent-raft-compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: live Raft-backed agent crash-boundary campaign
+        run: node tools/agent-raft-compose-test.js

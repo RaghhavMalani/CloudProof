@@ -6,9 +6,9 @@ const { REQUIRED_INTERFACE, WORKLOADS, validateWorkload, runWorkload } = require
 const { validateEvent } = require('../protocol/events');
 
 test('every workload implements the same executable interface', () => {
-    assert.equal(WORKLOADS.length, 10);
+    assert.equal(WORKLOADS.length, 11);
     assert.deepEqual(WORKLOADS.map((workload) => workload.id).sort(), [
-        'collaboration', 'configuration', 'dispatch', 'feed', 'inventory', 'payment', 'rollout',
+        'agent-refund', 'collaboration', 'configuration', 'dispatch', 'feed', 'inventory', 'payment', 'rollout',
         'settlement', 'streaming', 'vector-search',
     ]);
     for (const workload of WORKLOADS) {
@@ -38,6 +38,17 @@ test('lost payment reply causes two deliveries and one ledger effect', () => {
     assert.equal(result.state.deliveryAttempts.get('pay-7'), 2);
     assert.equal(result.state.results.size, 1);
     assert.equal(result.state.ledgerCents, 4200);
+});
+
+test('refund agent reconciles an ambiguous payment and survives semantic drift', () => {
+    const result = runWorkload(WORKLOADS.find((item) => item.id === 'agent-refund'));
+    assert.equal(result.state.remoteRefundEffects, 1);
+    assert.equal(result.state.paymentCalls, 1);
+    assert.equal(result.state.reconciliations, 1);
+    assert.equal(result.state.duplicateEffectsSuppressed, 1);
+    assert.equal(result.state.semanticConflicts.length, 1);
+    assert.equal(result.state.resumes, 2);
+    assert.equal(result.state.completed, true);
 });
 
 test('watch resume covers every revision written during disconnect', () => {

@@ -15,7 +15,7 @@ test('browser bundle exposes every runnable workload', () => {
     // Kept in step with packages/workloads deliberately: the browser bundle
     // silently shipping fewer workloads than the source defines is exactly the
     // drift this test exists to catch.
-    assert.equal(browser.miniRaft.workloads.WORKLOADS.length, 10);
+    assert.equal(browser.miniRaft.workloads.WORKLOADS.length, 11);
     for (const workload of browser.miniRaft.workloads.WORKLOADS) {
         const result = browser.miniRaft.workloads.runWorkload(workload, { seed: 42 });
         assert.ok(result.events.length > 0, `${workload.id} should produce a trace`);
@@ -47,7 +47,7 @@ test('reality harness scopes idempotency to one persistent-cluster run', () => {
     assert.match(harness, /write\([^\n]+recorder\.runId, 1\)/);
 });
 
-test('Flight Deck boots, explains a payment, and wires its primary controls', () => {
+test('Flight Deck boots into the refund agent and wires its primary controls', () => {
     class FakeClassList {
         constructor() { this.values = new Set(); }
         add(...names) { names.forEach((name) => this.values.add(name)); }
@@ -146,7 +146,7 @@ test('Flight Deck boots, explains a payment, and wires its primary controls', ()
     for (const workload of browser.miniRaft.workloads.WORKLOADS) tabFor(workload.id);
     vm.runInNewContext(deck, context, { filename: 'flight-deck.js' });
 
-    assert.equal(get('workload-name').textContent, 'Idempotent job & payment processor');
+    assert.equal(get('workload-name').textContent, 'Autonomous refund agent');
     assert.match(get('workload-tabs').innerHTML, /Payments/);
     assert.match(get('workload-tabs').innerHTML, /Feed/);
     assert.match(get('workload-tabs').innerHTML, /CRDT editing/);
@@ -157,7 +157,7 @@ test('Flight Deck boots, explains a payment, and wires its primary controls', ()
     // The briefing panel leads with the failure a reader would recognise, not
     // with the formal question. Asserted against the module rather than a
     // pinned phrase so rewording the copy is not a test failure.
-    const brief = browser.miniRaft.plainEnglish.briefFor('payment');
+    const brief = browser.miniRaft.plainEnglish.briefFor('agent-refund');
     assert.equal(get('workload-headline').textContent, brief.headline);
     assert.equal(get('workload-symptom').textContent, brief.symptom);
     assert.equal(get('workload-rule').textContent, brief.rule);
@@ -176,8 +176,8 @@ test('Flight Deck boots, explains a payment, and wires its primary controls', ()
     assert.equal(get('toggle-inspector').textContent, 'SHOW PROTOCOL X-RAY');
 
     // The real regression this guards: the deck used to fall back to the raw
-    // engineering detail string whenever plain copy was missing, so nine of the
-    // ten workloads silently rendered jargon inside a box headed "IN PLAIN
+    // engineering detail string whenever plain copy was missing, so most
+    // workloads silently rendered jargon inside a box headed "IN PLAIN
     // ENGLISH". Walk every event of every workload through the actual UI code
     // path and require a sentence at each step.
     for (const workload of browser.miniRaft.workloads.WORKLOADS) {

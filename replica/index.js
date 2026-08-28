@@ -135,6 +135,7 @@ async function propose(res, command) {
         // retrying immediately.
         return res.status(result.ok ? 200 : 409).json({
             ...result,
+            committed: true,
             index: outcome.entry.index,
             duplicate: outcome.duplicate,
         });
@@ -142,6 +143,60 @@ async function propose(res, command) {
         return res.status(500).json({ error: error.message });
     }
 }
+
+// -- Raft-backed agent execution --------------------------------------------
+
+/**
+ * Submit one explicit agent state transition. A 200 response means the entry
+ * reached a majority and was applied; callers must never contact an external
+ * provider before receiving that committed acknowledgement.
+ */
+app.post('/agent/commands', (req, res) => {
+    const command = req.body || {};
+    if (typeof command.op !== 'string' || !command.op.startsWith('agent.')) {
+        return res.status(400).json({ error: 'an explicit agent.* op is required' });
+    }
+    return propose(res, command);
+});
+
+app.post('/agent/executions', (req, res) => propose(res, {
+    op: 'agent.execution.create',
+    executionId: req.body?.executionId,
+    workflow: req.body?.workflow,
+    snapshot: req.body?.snapshot,
+    initialState: req.body?.initialState,
+    clientId: req.body?.clientId,
+    seqNo: req.body?.seqNo,
+}));
+
+app.get('/agent/executions', (req, res) => {
+    const local = req.query.stale === '1';
+    try {
+        const executions = local
+            ? raft.stateMachine.agentExecutions()
+            : raft.read((sm) => sm.agentExecutions());
+        return res.json({ executions, linearizable: !local });
+    } catch (error) {
+        return res.status(503).json({ error: error.message, leaderId: raft.leaderId });
+    }
+});
+
+app.get('/agent/executions/:executionId', (req, res) => {
+    const local = req.query.stale === '1';
+    try {
+        const execution = local
+            ? raft.stateMachine.agentExecution(req.params.executionId)
+            : raft.read((sm) => sm.agentExecution(req.params.executionId));
+        if (!execution) {
+            return res.status(404).json({
+                error: 'execution not found', executionId: req.params.executionId,
+            });
+        }
+        return res.json({ execution, linearizable: !local });
+    } catch (error) {
+        return res.status(503).json({ error: error.message, leaderId: raft.leaderId });
+    }
+});
 
 app.get('/kv/:key', (req, res) => {
     const local = req.query.stale === '1';

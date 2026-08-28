@@ -1,0 +1,435 @@
+'use strict';
+
+/**
+ * Deterministic reducer for Raft-backed agent executions.
+ *
+ * This module deliberately contains no clocks, randomness, I/O, or provider
+ * calls. Every mutation is a pure consequence of the committed command and
+ * its log index, so replaying a committed prefix reconstructs byte-equivalent
+ * execution checkpoints on every replica.
+ */
+
+const EFFECT_STATUS = Object.freeze({
+    INTENT_RECORDED: 'INTENT_RECORDED',
+    RECONCILIATION_REQUIRED: 'RECONCILIATION_REQUIRED',
+    RESULT_RECORDED: 'RESULT_RECORDED',
+    EFFECT_COMMITTED: 'EFFECT_COMMITTED',
+});
+
+const EXECUTION_STATUS = Object.freeze({
+    RUNNING: 'RUNNING',
+    PAUSED_SEMANTIC_CONFLICT: 'PAUSED_SEMANTIC_CONFLICT',
+    COMPLETE: 'COMPLETE',
+});
+
+function stable(value) {
+    if (Array.isArray(value)) return value.map(stable);
+    if (value && typeof value === 'object') {
+        return Object.fromEntries(Object.keys(value).sort().map((key) => [key, stable(value[key])]));
+    }
+    return value;
+}
+
+function clone(value) {
+    return value === undefined ? undefined : JSON.parse(JSON.stringify(stable(value)));
+}
+
+function same(left, right) {
+    return JSON.stringify(stable(left)) === JSON.stringify(stable(right));
+}
+
+function fail(error, details = {}) {
+    return { ok: false, error, mutated: false, ...details };
+}
+
+function requireText(value, field) {
+    return typeof value === 'string' && value.length > 0
+        ? null
+        : fail('INVALID_AGENT_COMMAND', { message: `${field} must be a non-empty string` });
+}
+
+class AgentState {
+    constructor() {
+        this.executions = new Map();
+    }
+
+    get(executionId) {
+        const execution = this.executions.get(executionId);
+        return execution ? clone(execution) : null;
+    }
+
+    list() {
+        return [...this.executions.keys()].sort().map((executionId) => this.get(executionId));
+    }
+
+    snapshot() {
+        return { executions: this.list() };
+    }
+
+    apply(command, { index = -1 } = {}) {
+        switch (command.op) {
+            case 'agent.execution.create':
+                return this._create(command, index);
+            case 'agent.execution.advance':
+                return this._advance(command, index);
+            case 'agent.execution.complete':
+                return this._complete(command, index);
+            case 'agent.effect.intent':
+                return this._intent(command, index);
+            case 'agent.effect.dispatch':
+                return this._dispatch(command, index);
+            case 'agent.effect.reconciliation-required':
+                return this._requireReconciliation(command, index);
+            case 'agent.effect.result':
+                return this._recordResult(command, index);
+            case 'agent.effect.commit':
+                return this._commitEffect(command, index);
+            case 'agent.semantic-conflict.detect':
+                return this._detectSemanticConflict(command, index);
+            case 'agent.snapshot.transition':
+                return this._transitionSnapshot(command, index);
+            default:
+                return fail('UNKNOWN_AGENT_COMMAND', { message: `unknown op: ${command.op}` });
+        }
+    }
+
+    _execution(command) {
+        const invalid = requireText(command.executionId, 'executionId');
+        if (invalid) return invalid;
+        const execution = this.executions.get(command.executionId);
+        return execution || fail('EXECUTION_NOT_FOUND', { executionId: command.executionId });
+    }
+
+    _effect(command) {
+        const execution = this._execution(command);
+        if (execution.ok === false) return execution;
+        const invalid = requireText(command.effectId, 'effectId');
+        if (invalid) return invalid;
+        const effect = execution.effects.find((candidate) => candidate.effectId === command.effectId);
+        return effect
+            ? { execution, effect }
+            : fail('EFFECT_NOT_FOUND', {
+                executionId: command.executionId,
+                effectId: command.effectId,
+            });
+    }
+
+    _mutated(execution, event) {
+        execution.version += 1;
+        execution.history.push(clone(event));
+        return execution;
+    }
+
+    _create(command, index) {
+        const executionError = requireText(command.executionId, 'executionId');
+        if (executionError) return executionError;
+        const workflowError = requireText(command.workflow, 'workflow');
+        if (workflowError) return workflowError;
+        if (!command.snapshot || requireText(command.snapshot.id, 'snapshot.id')) {
+            return fail('INVALID_AGENT_COMMAND', { message: 'snapshot with an id is required' });
+        }
+
+        const candidate = {
+            executionId: command.executionId,
+            workflow: command.workflow,
+            snapshot: clone(command.snapshot),
+            step: 0,
+            version: 1,
+            state: clone(command.initialState || {}),
+            status: EXECUTION_STATUS.RUNNING,
+            semanticConflict: null,
+            history: [{
+                type: 'EXECUTION_CREATED',
+                index,
+                step: 0,
+                snapshotId: command.snapshot.id,
+            }],
+            effects: [],
+        };
+        const existing = this.executions.get(command.executionId);
+        if (existing) {
+            const sameIdentity = existing.workflow === candidate.workflow
+                && same(existing.snapshot, candidate.snapshot)
+                && same(existing.state, candidate.state);
+            return sameIdentity
+                ? { ok: true, mutated: false, duplicate: true, execution: clone(existing) }
+                : fail('EXECUTION_ID_CONFLICT', { executionId: command.executionId });
+        }
+
+        this.executions.set(command.executionId, candidate);
+        return { ok: true, mutated: true, execution: clone(candidate) };
+    }
+
+    _checkStep(execution, expectedStep) {
+        if (!Number.isInteger(expectedStep) || expectedStep < 0) {
+            return fail('INVALID_AGENT_COMMAND', { message: 'expectedStep must be a non-negative integer' });
+        }
+        if (execution.step !== expectedStep) {
+            return fail('STALE_EXECUTION_VERSION', {
+                executionId: execution.executionId,
+                expectedStep,
+                actualStep: execution.step,
+                actualVersion: execution.version,
+            });
+        }
+        return null;
+    }
+
+    _advance(command, index) {
+        const execution = this._execution(command);
+        if (execution.ok === false) return execution;
+        const stepError = this._checkStep(execution, command.expectedStep);
+        if (stepError) return stepError;
+        const labelError = requireText(command.label, 'label');
+        if (labelError) return labelError;
+        if (execution.status !== EXECUTION_STATUS.RUNNING) {
+            return fail('EXECUTION_NOT_RUNNING', {
+                executionId: execution.executionId,
+                status: execution.status,
+            });
+        }
+        if (command.patch !== undefined
+            && (!command.patch || Array.isArray(command.patch) || typeof command.patch !== 'object')) {
+            return fail('INVALID_AGENT_COMMAND', { message: 'patch must be an object' });
+        }
+
+        execution.step += 1;
+        execution.state = clone({ ...execution.state, ...(command.patch || {}) });
+        this._mutated(execution, {
+            type: 'STEP_ADVANCED',
+            index,
+            step: execution.step,
+            label: command.label,
+            patch: clone(command.patch || {}),
+        });
+        return {
+            ok: true,
+            mutated: true,
+            executionId: execution.executionId,
+            step: execution.step,
+            version: execution.version,
+        };
+    }
+
+    _intent(command, index) {
+        const execution = this._execution(command);
+        if (execution.ok === false) return execution;
+        if (execution.status !== EXECUTION_STATUS.RUNNING) {
+            return fail('EXECUTION_NOT_RUNNING', { status: execution.status });
+        }
+        const effectError = requireText(command.effectId, 'effectId');
+        if (effectError) return effectError;
+        const actionError = requireText(command.logicalAction, 'logicalAction');
+        if (actionError) return actionError;
+        if (command.snapshotId !== execution.snapshot.id) {
+            return fail('SEMANTIC_SNAPSHOT_MISMATCH', {
+                expectedSnapshotId: execution.snapshot.id,
+                actualSnapshotId: command.snapshotId,
+            });
+        }
+
+        const candidate = {
+            effectId: command.effectId,
+            executionId: command.executionId,
+            logicalAction: command.logicalAction,
+            parameters: clone(command.parameters || {}),
+            snapshotId: command.snapshotId,
+            atStep: execution.step,
+            status: EFFECT_STATUS.INTENT_RECORDED,
+            attempts: 0,
+            result: null,
+        };
+        const existing = execution.effects.find((effect) => effect.effectId === command.effectId);
+        if (existing) {
+            const sameIntent = existing.logicalAction === candidate.logicalAction
+                && existing.snapshotId === candidate.snapshotId
+                && same(existing.parameters, candidate.parameters);
+            return sameIntent
+                ? { ok: true, mutated: false, duplicate: true, effect: clone(existing) }
+                : fail('EFFECT_ID_CONFLICT', { effectId: command.effectId });
+        }
+
+        execution.effects.push(candidate);
+        execution.effects.sort((left, right) => (
+            left.effectId < right.effectId ? -1 : left.effectId > right.effectId ? 1 : 0
+        ));
+        this._mutated(execution, {
+            type: 'EFFECT_INTENT_RECORDED', index, step: execution.step, effectId: command.effectId,
+        });
+        return { ok: true, mutated: true, effect: clone(candidate), version: execution.version };
+    }
+
+    _dispatch(command, index) {
+        const found = this._effect(command);
+        if (found.ok === false) return found;
+        const { execution, effect } = found;
+        if (execution.status !== EXECUTION_STATUS.RUNNING) {
+            return fail('EXECUTION_NOT_RUNNING', { status: execution.status });
+        }
+        if (![EFFECT_STATUS.INTENT_RECORDED, EFFECT_STATUS.RECONCILIATION_REQUIRED]
+            .includes(effect.status)) {
+            return fail('EFFECT_NOT_DISPATCHABLE', { effectId: effect.effectId, status: effect.status });
+        }
+        effect.attempts += 1;
+        this._mutated(execution, {
+            type: 'EFFECT_DISPATCH_AUTHORIZED', index, step: execution.step,
+            effectId: effect.effectId, attempt: effect.attempts,
+        });
+        return { ok: true, mutated: true, effect: clone(effect), version: execution.version };
+    }
+
+    _requireReconciliation(command, index) {
+        const found = this._effect(command);
+        if (found.ok === false) return found;
+        const { execution, effect } = found;
+        if ([EFFECT_STATUS.RESULT_RECORDED, EFFECT_STATUS.EFFECT_COMMITTED].includes(effect.status)) {
+            return { ok: true, mutated: false, duplicate: true, effect: clone(effect) };
+        }
+        if (effect.status === EFFECT_STATUS.RECONCILIATION_REQUIRED) {
+            return { ok: true, mutated: false, duplicate: true, effect: clone(effect) };
+        }
+        effect.status = EFFECT_STATUS.RECONCILIATION_REQUIRED;
+        this._mutated(execution, {
+            type: 'EFFECT_RECONCILIATION_REQUIRED', index, step: execution.step,
+            effectId: effect.effectId,
+        });
+        return { ok: true, mutated: true, effect: clone(effect), version: execution.version };
+    }
+
+    _recordResult(command, index) {
+        const found = this._effect(command);
+        if (found.ok === false) return found;
+        const { execution, effect } = found;
+        if (command.result === undefined || command.result === null) {
+            return fail('INVALID_AGENT_COMMAND', { message: 'result is required' });
+        }
+        if ([EFFECT_STATUS.RESULT_RECORDED, EFFECT_STATUS.EFFECT_COMMITTED].includes(effect.status)) {
+            return same(effect.result, command.result)
+                ? { ok: true, mutated: false, duplicate: true, effect: clone(effect) }
+                : fail('EFFECT_RESULT_CONFLICT', { effectId: effect.effectId, recorded: clone(effect.result) });
+        }
+        effect.result = clone(command.result);
+        effect.status = EFFECT_STATUS.RESULT_RECORDED;
+        this._mutated(execution, {
+            type: 'EFFECT_RESULT_RECORDED', index, step: execution.step, effectId: effect.effectId,
+        });
+        return { ok: true, mutated: true, effect: clone(effect), version: execution.version };
+    }
+
+    _commitEffect(command, index) {
+        const found = this._effect(command);
+        if (found.ok === false) return found;
+        const { execution, effect } = found;
+        if (effect.status === EFFECT_STATUS.EFFECT_COMMITTED) {
+            return { ok: true, mutated: false, duplicate: true, effect: clone(effect) };
+        }
+        if (effect.status !== EFFECT_STATUS.RESULT_RECORDED || effect.result === null) {
+            return fail('EFFECT_RESULT_REQUIRED', { effectId: effect.effectId, status: effect.status });
+        }
+        effect.status = EFFECT_STATUS.EFFECT_COMMITTED;
+        this._mutated(execution, {
+            type: 'EFFECT_COMMITTED', index, step: execution.step, effectId: effect.effectId,
+        });
+        return { ok: true, mutated: true, effect: clone(effect), version: execution.version };
+    }
+
+    _detectSemanticConflict(command, index) {
+        const execution = this._execution(command);
+        if (execution.ok === false) return execution;
+        if (!command.availableSnapshot || requireText(command.availableSnapshot.id, 'availableSnapshot.id')) {
+            return fail('INVALID_AGENT_COMMAND', { message: 'availableSnapshot with an id is required' });
+        }
+        if (command.availableSnapshot.id === execution.snapshot.id) {
+            return { ok: true, mutated: false, duplicate: true, conflict: null };
+        }
+        const conflict = {
+            fromSnapshotId: execution.snapshot.id,
+            availableSnapshot: clone(command.availableSnapshot),
+            decision: command.decision || 'require-approval',
+            changed: clone(command.changed || []),
+            detectedAtIndex: index,
+        };
+        if (same(execution.semanticConflict, conflict)) {
+            return { ok: true, mutated: false, duplicate: true, conflict: clone(conflict) };
+        }
+        execution.semanticConflict = conflict;
+        execution.status = EXECUTION_STATUS.PAUSED_SEMANTIC_CONFLICT;
+        this._mutated(execution, {
+            type: 'SEMANTIC_CONFLICT_DETECTED', index, step: execution.step,
+            fromSnapshotId: conflict.fromSnapshotId,
+            availableSnapshotId: conflict.availableSnapshot.id,
+            decision: conflict.decision,
+            changed: conflict.changed,
+        });
+        return { ok: true, mutated: true, conflict: clone(conflict), version: execution.version };
+    }
+
+    _transitionSnapshot(command, index) {
+        const execution = this._execution(command);
+        if (execution.ok === false) return execution;
+        if (command.fromSnapshotId !== execution.snapshot.id) {
+        if (!execution.semanticConflict
+            || execution.status !== EXECUTION_STATUS.PAUSED_SEMANTIC_CONFLICT) {
+            return fail('SEMANTIC_CONFLICT_REQUIRED', { executionId: execution.executionId });
+        }
+            return fail('STALE_SEMANTIC_SNAPSHOT', {
+                expectedSnapshotId: command.fromSnapshotId,
+                actualSnapshotId: execution.snapshot.id,
+            });
+        }
+        if (!command.toSnapshot || requireText(command.toSnapshot.id, 'toSnapshot.id')) {
+            return fail('INVALID_AGENT_COMMAND', { message: 'toSnapshot with an id is required' });
+        }
+        if (!command.approval || command.approval.approved !== true
+            || requireText(command.approval.approvedBy, 'approval.approvedBy')) {
+        if (command.toSnapshot.id !== execution.semanticConflict.availableSnapshot.id) {
+            return fail('SEMANTIC_TRANSITION_MISMATCH', {
+                expectedSnapshotId: execution.semanticConflict.availableSnapshot.id,
+                actualSnapshotId: command.toSnapshot.id,
+            });
+        }
+            return fail('SEMANTIC_APPROVAL_REQUIRED', { executionId: execution.executionId });
+        }
+        const fromSnapshotId = execution.snapshot.id;
+        execution.snapshot = clone(command.toSnapshot);
+        execution.semanticConflict = null;
+        execution.status = EXECUTION_STATUS.RUNNING;
+        this._mutated(execution, {
+            type: 'SNAPSHOT_TRANSITIONED', index, step: execution.step,
+            fromSnapshotId,
+            toSnapshotId: command.toSnapshot.id,
+            approval: clone(command.approval),
+        });
+        return {
+            ok: true,
+            mutated: true,
+            snapshot: clone(execution.snapshot),
+            version: execution.version,
+        };
+    }
+
+    _complete(command, index) {
+        const execution = this._execution(command);
+        if (execution.ok === false) return execution;
+        const stepError = this._checkStep(execution, command.expectedStep);
+        if (stepError) return stepError;
+        if (execution.status === EXECUTION_STATUS.COMPLETE) {
+            return { ok: true, mutated: false, duplicate: true, execution: clone(execution) };
+        }
+        if (execution.status !== EXECUTION_STATUS.RUNNING) {
+            return fail('EXECUTION_NOT_RUNNING', { status: execution.status });
+        }
+        const unfinished = execution.effects.filter(
+            (effect) => effect.status !== EFFECT_STATUS.EFFECT_COMMITTED,
+        ).map((effect) => effect.effectId);
+        if (unfinished.length > 0) return fail('UNFINISHED_EFFECTS', { effectIds: unfinished });
+
+        execution.status = EXECUTION_STATUS.COMPLETE;
+        this._mutated(execution, {
+            type: 'EXECUTION_COMPLETED', index, step: execution.step,
+        });
+        return { ok: true, mutated: true, execution: clone(execution) };
+    }
+}
+
+module.exports = { AgentState, EFFECT_STATUS, EXECUTION_STATUS, stable };

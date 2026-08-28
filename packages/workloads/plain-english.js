@@ -33,6 +33,14 @@
  * — nobody has ever been upset about a linearizability violation as such.
  */
 const BRIEFS = {
+    'agent-refund': {
+        headline: 'A support agent refunds the same order twice.',
+        symptom: 'The first refund succeeded, but its reply disappeared. After a crash, another worker retries and the customer receives ₹17,998 instead of ₹8,999.',
+        whoHitsThis: 'Any autonomous agent allowed to call payment, email, CRM, deployment, or infrastructure tools.',
+        naive: 'Save the conversation, restart the agent, and retry whichever tool call has no successful response.',
+        rule: 'Commit a stable effect intent before I/O, reconcile ambiguous outcomes, and bind every decision to a versioned semantic snapshot.',
+    },
+
     configuration: {
         headline: 'A setting change silently never takes effect.',
         symptom: 'You switch a feature off. It stays on for a handful of servers, forever, and nothing anywhere reports an error.',
@@ -112,6 +120,26 @@ const BRIEFS = {
  * earlier ones, which is what lets each sentence stay short.
  */
 const STEPS = {
+    'agent-refund': {
+        'Agent transaction begins': 'The runtime freezes the model, prompt, refund policy, retrieval index, and tool schemas into one semantic snapshot.',
+        '₹8,999 refund is authorized': 'The agent approves this exact amount under policy v4, and the runtime keeps that authorization as durable evidence.',
+        'Refund intent commits before I/O': 'Before calling the payment provider, the runtime records what it intends to do under a stable effect ID.',
+        'Payment provider commits refund': 'The payment provider moves ₹8,999. The local worker has not recorded a result yet.',
+        'Provider response is lost': 'The money moved but the reply disappeared. The runtime marks the outcome ambiguous instead of guessing.',
+        'Worker crashes after remote commit': 'The worker dies at the worst moment, but its checkpoint contains the effect intent and reconciliation state.',
+        'Refund policy v5 is deployed': 'While the workflow is paused, its rules change. Resuming old reasoning under new rules would mix two semantic worlds.',
+        'Worker resumes at the durable step': 'A replacement restores the workflow cursor, semantic snapshot, and effect ledger instead of starting over.',
+        'Semantic snapshot conflict detected': 'The runtime sees policy v4 in the checkpoint and v5 in the environment, so it stops before taking another action.',
+        'Human approves revalidation under v5': 'A support lead explicitly advances the workflow to the new policy boundary.',
+        'Runtime reconciles instead of retrying': 'It asks the provider about the stable effect ID, finds the existing refund, and records that result locally.',
+        'Concurrent worker is fenced': 'A racing worker derives the same effect ID and gets the recorded result rather than issuing another refund.',
+        'CRM records the committed refund': 'Only after payment is confirmed does the runtime mark the order refunded in CRM.',
+        'Worker crashes again at step 6': 'The CRM update and workflow cursor survive too. Recovery does not repeat either earlier tool.',
+        'Workflow resumes at notification': 'The next worker continues exactly where the checkpoint says: send the customer confirmation.',
+        'Customer receives one confirmation': 'The email is also an identified effect, ordered after the refund and CRM update and has its own stable identity.',
+        'Agent transaction completes': 'Two crashes, one lost reply, one policy change, and one racing worker still produced one refund.',
+    },
+
     configuration: {
         'Controller lock acquired': 'Only one controller may act at a time. This one holds a lease — a lock that expires on its own, so a crash cannot freeze the system permanently.',
         'CAS establishes desired state': 'The controller writes what the system should look like. Compare-and-set means the write only lands if nobody else changed it first.',
