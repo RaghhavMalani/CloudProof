@@ -113,6 +113,20 @@ class RaftAgentClient {
         return response.body.execution;
     }
 
+    async resource(resourceId, { url = null, stale = false } = {}) {
+        const target = url || (await this.leader()).url;
+        const suffix = stale ? '?stale=1' : '';
+        const response = await requestJson(
+            `${target}/agent/resources/${encodeURIComponent(resourceId)}${suffix}`,
+            {},
+            3000,
+        );
+        if (!response.ok) {
+            throw new AgentCommandError(response.body?.error || 'resource read failed', response);
+        }
+        return response.body.resource;
+    }
+
     async providerState() {
         const response = await requestJson(`${this.providerUrl}/state`);
         if (!response.ok) throw new AgentCommandError('provider state read failed', response);
@@ -144,6 +158,27 @@ class RaftAgentClient {
     async createExecution({ executionId, workflow, snapshot, initialState = {} }) {
         return this.command({
             op: 'agent.execution.create', executionId, workflow, snapshot, initialState,
+        });
+    }
+
+    async createResource({ resourceId, version = 1, state = {} }) {
+        return this.command({ op: 'agent.resource.create', resourceId, version, state });
+    }
+
+    async recordResourcePlan({ executionId, readSet, writeSet }) {
+        return this.command({ op: 'agent.execution.plan', executionId, readSet, writeSet });
+    }
+
+    async authorizeResourceEffect({
+        executionId, effectId, logicalAction, parameters = {}, snapshotId,
+    }) {
+        return this.command({
+            op: 'agent.effect.authorize-resource',
+            executionId,
+            effectId,
+            logicalAction,
+            parameters,
+            snapshotId,
         });
     }
 

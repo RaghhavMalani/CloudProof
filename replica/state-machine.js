@@ -183,6 +183,14 @@ class StateMachine {
         return this.agent.list();
     }
 
+    agentResource(resourceId) {
+        return this.agent.getResource(resourceId);
+    }
+
+    agentResources() {
+        return this.agent.listResources();
+    }
+
     // ── event plumbing ───────────────────────────────────────────────────────
 
     subscribe(listener) {
@@ -281,6 +289,9 @@ class StateMachine {
             case 'agent.execution.create':
             case 'agent.execution.advance':
             case 'agent.execution.complete':
+            case 'agent.execution.plan':
+            case 'agent.resource.create':
+            case 'agent.effect.authorize-resource':
             case 'agent.effect.intent':
             case 'agent.effect.dispatch':
             case 'agent.effect.reconciliation-required':
@@ -308,10 +319,14 @@ class StateMachine {
         if (!mutated) return result;
 
         this.revision += 1;
+        const isResource = command.op === 'agent.resource.create';
+        const subjectId = isResource ? command.resourceId : command.executionId;
         this._emit({
             type: command.op,
-            key: `agent/${command.executionId}`,
-            value: this.agent.get(command.executionId),
+            key: isResource ? `agent/resource/${subjectId}` : `agent/execution/${subjectId}`,
+            value: isResource
+                ? this.agent.getResource(subjectId)
+                : this.agent.get(subjectId),
             rev: this.revision,
             index: entry.index,
             clock: this.clock,

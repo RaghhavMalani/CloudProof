@@ -31,6 +31,10 @@ jobs:
         run: node sim/agent-search.js --workflow refund --runs 1000 --seed 1337 --mutant correct --no-shrink
       - name: autonomous agent mutant kill benchmark
         run: node sim/agent-search.js --benchmark --runs 100 --seed 1337
+      - name: correct multi-agent shared-state campaign
+        run: node sim/multi-agent-search.js --runs 1000 --seed 1337 --mutant correct --no-shrink --no-artifacts
+      - name: multi-agent race mutant kill benchmark
+        run: node sim/multi-agent-search.js --benchmark --runs 100 --seed 1337 --no-artifacts
       # Every source file, found rather than listed. The previous version named
       # raft.js and index.js explicitly, so log-store.js and state-machine.js
       # were never checked once they were split out — the same class of omission
@@ -118,5 +122,5 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - name: live Raft-backed agent crash-boundary and counterexample campaign
+      - name: live Raft-backed crash-boundary and single/multi-agent counterexample campaign
         run: node tools/agent-raft-compose-test.js

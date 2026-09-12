@@ -198,6 +198,35 @@ app.get('/agent/executions/:executionId', (req, res) => {
     }
 });
 
+app.get('/agent/resources', (req, res) => {
+    const local = req.query.stale === '1';
+    try {
+        const resources = local
+            ? raft.stateMachine.agentResources()
+            : raft.read((sm) => sm.agentResources());
+        return res.json({ resources, linearizable: !local });
+    } catch (error) {
+        return res.status(503).json({ error: error.message, leaderId: raft.leaderId });
+    }
+});
+
+app.get('/agent/resources/:resourceId', (req, res) => {
+    const local = req.query.stale === '1';
+    try {
+        const resource = local
+            ? raft.stateMachine.agentResource(req.params.resourceId)
+            : raft.read((sm) => sm.agentResource(req.params.resourceId));
+        if (!resource) {
+            return res.status(404).json({
+                error: 'resource not found', resourceId: req.params.resourceId,
+            });
+        }
+        return res.json({ resource, linearizable: !local });
+    } catch (error) {
+        return res.status(503).json({ error: error.message, leaderId: raft.leaderId });
+    }
+});
+
 app.get('/kv/:key', (req, res) => {
     const local = req.query.stale === '1';
     try {
