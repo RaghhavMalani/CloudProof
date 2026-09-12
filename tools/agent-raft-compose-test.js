@@ -12,6 +12,10 @@
 const assert = require('node:assert/strict');
 const { spawnSync } = require('node:child_process');
 const { makeEffectId } = require('../packages/agent-runtime');
+const { sameFailure } = require('../packages/simulator/agent-invariants');
+const { AGENT_ACTION, AGENT_FAULT } = require('../sim/agent-actions');
+const { searchAgentSchedules } = require('../sim/agent-search');
+const { getAgentWorkflow } = require('../sim/agent-workflows');
 const { RaftAgentClient, AgentCommandError, requestJson } = require('./agent-raft-client');
 
 const PROJECT = process.env.AGENT_RAFT_COMPOSE_PROJECT || 'miniraft-agent-stage4-test';
@@ -298,6 +302,97 @@ async function boundaryE(client) {
     await restoreReplica(client, stopped, spec.executionId);
 }
 
+async function boundaryF(client) {
+    log('boundary F: minimized blind-retry counterexample reproduces against live Raft');
+    const discovered = await searchAgentSchedules({
+        workflow: 'refund',
+        mutant: 'blind-retry',
+        strategy: 'coverage',
+        seed: 1337,
+        runs: 100,
+        artifacts: false,
+    });
+    assert.equal(discovered.found, true);
+    assert.deepEqual(discovered.minimized.schedule.actions.map((action) => action.type), [
+        AGENT_ACTION.AUTHORIZE_EFFECT,
+        AGENT_ACTION.DISPATCH_EFFECT,
+        AGENT_FAULT.DROP_TOOL_RESPONSE,
+        AGENT_FAULT.CRASH_WORKER,
+        AGENT_ACTION.DISPATCH_EFFECT,
+    ]);
+
+    const workflow = getAgentWorkflow('refund');
+    const canonical = workflow.effects.find((effect) => effect.key === 'refund');
+    const spec = {
+        executionId: workflow.executionId,
+        effectId: canonical.effectId,
+        parameters: canonical.parameters,
+    };
+    const providerBefore = await client.providerState();
+    await client.createExecution({
+        executionId: spec.executionId,
+        workflow: workflow.workflow,
+        snapshot: SNAPSHOT_V4,
+        initialState: { source: 'stage5-live-counterexample' },
+    });
+    await client.recordIntent({
+        executionId: spec.executionId,
+        effectId: spec.effectId,
+        logicalAction: canonical.logicalAction,
+        parameters: spec.parameters,
+        snapshotId: SNAPSHOT_V4.id,
+    });
+    await client.authorizeDispatch(spec.executionId, spec.effectId);
+    await assert.rejects(client.providerRefund(
+        { effectId: spec.effectId, ...spec.parameters },
+        { dropResponse: true },
+    ));
+    await client.command({
+        op: 'agent.effect.reconciliation-required',
+        executionId: spec.executionId,
+        effectId: spec.effectId,
+    });
+
+    // The recovered mutant re-dispatches the original durable intent but
+    // violates stable provider identity. A correct worker would reconcile.
+    const recoveredWorker = new RaftAgentClient({
+        replicaUrls: REPLICA_URLS,
+        providerUrl: PROVIDER_URL,
+        clientId: 'stage5-blind-retry-worker',
+    });
+    const retryEffectId = `${spec.effectId}:retry:2`;
+    await recoveredWorker.authorizeDispatch(spec.executionId, spec.effectId);
+    await recoveredWorker.providerRefund({ effectId: retryEffectId, ...spec.parameters });
+
+    const providerAfter = await client.providerState();
+    assert.equal(providerAfter.refundCount, providerBefore.refundCount + 2);
+    assert.ok(providerAfter.refunds[spec.effectId]);
+    assert.ok(providerAfter.refunds[retryEffectId]);
+    const liveExecution = await waitForConvergence(client, spec.executionId);
+    assert.equal(liveExecution.effects.length, 1, 'the mutant must not invent a second durable intent');
+    assert.equal(liveExecution.effects[0].effectId, spec.effectId);
+    assert.equal(liveExecution.effects[0].attempts, 2);
+    assert.equal(liveExecution.effects[0].status, 'RECONCILIATION_REQUIRED');
+
+    const liveFailure = {
+        failure: {
+            fingerprint: {
+                invariant: 'agent.effect.at-most-once',
+                violationClass: 'DUPLICATE_OBSERVABLE_EFFECT',
+                executionId: spec.executionId,
+                effectId: spec.effectId,
+            },
+        },
+    };
+    assert.ok(sameFailure(discovered.minimized, liveFailure));
+    return {
+        ...spec,
+        retryEffectId,
+        liveExecution,
+        fingerprint: liveFailure.failure.fingerprint,
+    };
+}
+
 async function campaign() {
     const client = new RaftAgentClient({
         replicaUrls: REPLICA_URLS,
@@ -319,6 +414,7 @@ async function campaign() {
         const flagship = await boundaryC(client);
         await boundaryD(client);
         await boundaryE(client);
+        const counterexample = await boundaryF(client);
 
         const beforeRestart = await waitForConvergence(client, flagship.executionId);
         assert.equal(beforeRestart.effects.length, 1);
@@ -330,6 +426,8 @@ async function campaign() {
         assert.equal(beforeRestart.snapshot.id, SNAPSHOT_V5.id);
         const providerBeforeRestart = await client.providerState();
         assert.ok(providerBeforeRestart.refunds[flagship.effectId]);
+        assert.ok(providerBeforeRestart.refunds[counterexample.effectId]);
+        assert.ok(providerBeforeRestart.refunds[counterexample.retryEffectId]);
 
         log('full cluster down/up: rebuilding execution exclusively from durable logs');
         compose(['down', '--remove-orphans']);
@@ -340,9 +438,14 @@ async function campaign() {
         await waitForCluster(client);
         const afterRestart = await waitForConvergence(client, flagship.executionId);
         assert.equal(JSON.stringify(afterRestart), JSON.stringify(beforeRestart));
+        const counterexampleAfterRestart = await waitForConvergence(client, counterexample.executionId);
+        assert.equal(
+            JSON.stringify(counterexampleAfterRestart),
+            JSON.stringify(counterexample.liveExecution),
+        );
         assert.deepEqual(await client.providerState(), providerBeforeRestart);
 
-        log('PASS: boundaries A-E, exactly-one flagship refund, fencing, convergence, and restart');
+        log('PASS: boundaries A-F, safe flagship, live minimized mutant, convergence, and restart');
     } catch (error) {
         failed = true;
         process.stderr.write(`${error.stack || error.message}\n`);
