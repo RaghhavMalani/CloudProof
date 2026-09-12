@@ -42,6 +42,100 @@ function clone(value) {
     return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
 }
 
+const RESOURCE_OPERATION = Object.freeze({
+    SET: 'set',
+    INCREMENT: 'increment',
+    APPEND_UNIQUE: 'append-unique',
+});
+
+function validResourceField(field) {
+    return typeof field === 'string'
+        && field.length > 0
+        && !['__proto__', 'constructor', 'prototype'].includes(field);
+}
+
+function normalizeReadSet(readSet) {
+    if (!Array.isArray(readSet) || readSet.length === 0) {
+        throw new TypeError('readSet must be a non-empty array');
+    }
+    const seen = new Set();
+    const normalized = readSet.map((entry) => {
+        if (!entry || typeof entry.resourceId !== 'string' || entry.resourceId.length === 0) {
+            throw new TypeError('readSet resourceId must be a non-empty string');
+        }
+        if (!Number.isInteger(entry.version) || entry.version < 0) {
+            throw new TypeError('readSet version must be a non-negative integer');
+        }
+        if (seen.has(entry.resourceId)) throw new TypeError(`duplicate readSet resource: ${entry.resourceId}`);
+        seen.add(entry.resourceId);
+        return { resourceId: entry.resourceId, version: entry.version };
+    });
+    return normalized.sort((left, right) => left.resourceId.localeCompare(right.resourceId));
+}
+
+function normalizeWriteSet(writeSet) {
+    if (!Array.isArray(writeSet) || writeSet.length === 0) {
+        throw new TypeError('writeSet must be a non-empty array');
+    }
+    const seen = new Set();
+    const normalized = writeSet.map((entry) => {
+        if (!entry || typeof entry.resourceId !== 'string' || entry.resourceId.length === 0) {
+            throw new TypeError('writeSet resourceId must be a non-empty string');
+        }
+        if (seen.has(entry.resourceId)) throw new TypeError(`duplicate writeSet resource: ${entry.resourceId}`);
+        seen.add(entry.resourceId);
+        if (!Array.isArray(entry.operations) || entry.operations.length === 0) {
+            throw new TypeError('writeSet operations must be a non-empty array');
+        }
+        const operations = entry.operations.map((operation) => {
+            if (!operation || !Object.values(RESOURCE_OPERATION).includes(operation.op)) {
+                throw new TypeError(`unsupported resource operation: ${operation && operation.op}`);
+            }
+            if (!validResourceField(operation.field)) {
+                throw new TypeError('resource operation field must be a safe non-empty string');
+            }
+            if (operation.op === RESOURCE_OPERATION.INCREMENT
+                && (typeof operation.value !== 'number' || !Number.isFinite(operation.value))) {
+                throw new TypeError('increment operation value must be finite');
+            }
+            return clone(stable(operation));
+        });
+        return { resourceId: entry.resourceId, operations };
+    });
+    return normalized.sort((left, right) => left.resourceId.localeCompare(right.resourceId));
+}
+
+function applyResourceOperations(state, operations) {
+    const next = clone(stable(state || {}));
+    for (const operation of operations) {
+        if (!operation || !Object.values(RESOURCE_OPERATION).includes(operation.op)
+            || !validResourceField(operation.field)) {
+            throw new TypeError('invalid resource operation');
+        }
+        if (operation.op === RESOURCE_OPERATION.SET) {
+            next[operation.field] = clone(stable(operation.value));
+        } else if (operation.op === RESOURCE_OPERATION.INCREMENT) {
+            if (typeof operation.value !== 'number' || !Number.isFinite(operation.value)) {
+                throw new TypeError('increment operation value must be finite');
+            }
+            const current = next[operation.field] === undefined ? 0 : next[operation.field];
+            if (typeof current !== 'number' || !Number.isFinite(current)) {
+                throw new TypeError(`cannot increment non-numeric field: ${operation.field}`);
+            }
+            next[operation.field] = current + operation.value;
+        } else if (operation.op === RESOURCE_OPERATION.APPEND_UNIQUE) {
+            const current = next[operation.field] === undefined ? [] : next[operation.field];
+            if (!Array.isArray(current)) {
+                throw new TypeError(`cannot append to non-array field: ${operation.field}`);
+            }
+            const candidate = clone(stable(operation.value));
+            if (!current.some((value) => digest(value) === digest(candidate))) current.push(candidate);
+            next[operation.field] = current;
+        }
+    }
+    return clone(stable(next));
+}
+
 function makeEffectId(executionId, logicalAction, parameters) {
     return `effect:${digest({ executionId, logicalAction, parameters })}`;
 }
@@ -213,10 +307,14 @@ module.exports = {
     AgentExecution,
     EffectLedger,
     EFFECT_STATUS,
+    RESOURCE_OPERATION,
     RESUME_DECISION,
+    applyResourceOperations,
     changedResources,
     decideResume,
     digest,
     makeEffectId,
     makeSemanticSnapshot,
+    normalizeReadSet,
+    normalizeWriteSet,
 };

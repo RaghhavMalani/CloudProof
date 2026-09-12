@@ -16,6 +16,8 @@ const { sameFailure } = require('../packages/simulator/agent-invariants');
 const { AGENT_ACTION, AGENT_FAULT } = require('../sim/agent-actions');
 const { searchAgentSchedules } = require('../sim/agent-search');
 const { getAgentWorkflow } = require('../sim/agent-workflows');
+const { searchMultiAgentSchedules } = require('../sim/multi-agent-search');
+const { INITIAL_RESOURCE, decideAgent } = require('../sim/multi-agent-scenario');
 const { RaftAgentClient, AgentCommandError, requestJson } = require('./agent-raft-client');
 
 const PROJECT = process.env.AGENT_RAFT_COMPOSE_PROJECT || 'miniraft-agent-stage4-test';
@@ -118,6 +120,21 @@ async function waitForConvergence(client, executionId) {
         }));
         if (reads.some((execution) => !execution)) return null;
         const encoded = reads.map((execution) => JSON.stringify(execution));
+        return new Set(encoded).size === 1 ? reads[0] : null;
+    });
+}
+
+async function waitForResourceConvergence(client, resourceId) {
+    return eventually(`resource ${resourceId} convergence`, async () => {
+        const reads = await Promise.all(REPLICA_URLS.map(async (url) => {
+            try {
+                return await client.resource(resourceId, { url, stale: true });
+            } catch (_) {
+                return null;
+            }
+        }));
+        if (reads.some((resource) => !resource)) return null;
+        const encoded = reads.map((resource) => JSON.stringify(resource));
         return new Set(encoded).size === 1 ? reads[0] : null;
     });
 }
@@ -393,6 +410,92 @@ async function boundaryF(client) {
     };
 }
 
+async function boundaryG(client) {
+    log('boundary G: minimized multi-agent over-compensation race is fenced by live Raft');
+    const discovered = await searchMultiAgentSchedules({
+        mutant: 'unfenced-compensation',
+        strategy: 'coverage',
+        seed: 1337,
+        runs: 10,
+        artifacts: false,
+    });
+    assert.equal(discovered.found, true);
+    assert.equal(discovered.original.schedule.actions.length, 29);
+    assert.equal(discovered.minimized.schedule.actions.length, 6);
+    assert.equal(discovered.minimized.failure.violationClass, 'OVER_COMPENSATION');
+    assert.deepEqual(
+        discovered.minimized.schedule.actions.map((action) => action.agentId),
+        [
+            'refund-agent',
+            'customer-recovery-agent',
+            'refund-agent',
+            'customer-recovery-agent',
+            'refund-agent',
+            'customer-recovery-agent',
+        ],
+    );
+
+    await client.createResource(INITIAL_RESOURCE);
+    const targetAgents = ['refund-agent', 'customer-recovery-agent'];
+    const decisions = {};
+    for (const agentId of targetAgents) {
+        const executionId = `${agentId}:order-4821`;
+        await client.createExecution({
+            executionId,
+            workflow: agentId,
+            snapshot: SNAPSHOT_V4,
+            initialState: { orderId: 4821, source: 'stage6-live-race' },
+        });
+        decisions[agentId] = decideAgent(agentId, INITIAL_RESOURCE);
+        await client.recordResourcePlan({
+            executionId,
+            readSet: decisions[agentId].readSet,
+            writeSet: decisions[agentId].writeSet,
+        });
+    }
+
+    const refund = decisions['refund-agent'];
+    await client.authorizeResourceEffect({
+        executionId: refund.executionId,
+        effectId: refund.effectId,
+        logicalAction: refund.logicalAction,
+        parameters: refund.parameters,
+        snapshotId: SNAPSHOT_V4.id,
+    });
+
+    const recovery = decisions['customer-recovery-agent'];
+    await assert.rejects(
+        client.authorizeResourceEffect({
+            executionId: recovery.executionId,
+            effectId: recovery.effectId,
+            logicalAction: recovery.logicalAction,
+            parameters: recovery.parameters,
+            snapshotId: SNAPSHOT_V4.id,
+        }),
+        (error) => {
+            assert.ok(error instanceof AgentCommandError);
+            assert.equal(error.body.error, 'RESOURCE_VERSION_CONFLICT');
+            assert.equal(error.body.resourceId, INITIAL_RESOURCE.resourceId);
+            assert.equal(error.body.expectedVersion, 17);
+            assert.equal(error.body.actualVersion, 18);
+            assert.equal(error.body.decision, 'REVALIDATE');
+            return true;
+        },
+    );
+
+    const resource = await waitForResourceConvergence(client, INITIAL_RESOURCE.resourceId);
+    assert.equal(resource.version, 18);
+    assert.equal(resource.state.compensatedCents, 899900);
+    assert.equal(resource.state.orderValueCents, 899900);
+    assert.equal(resource.state.status, 'REFUNDED');
+    assert.deepEqual(resource.state.terminalStates, ['REFUNDED']);
+    assert.deepEqual(resource.state.financialOwners, ['refund-agent']);
+    const recoveryExecution = await waitForConvergence(client, recovery.executionId);
+    assert.equal(recoveryExecution.effects.length, 0);
+    assert.equal(recoveryExecution.readSet[0].version, 17);
+    return { resource, executionIds: targetAgents.map((agentId) => `${agentId}:order-4821`) };
+}
+
 async function campaign() {
     const client = new RaftAgentClient({
         replicaUrls: REPLICA_URLS,
@@ -415,6 +518,7 @@ async function campaign() {
         await boundaryD(client);
         await boundaryE(client);
         const counterexample = await boundaryF(client);
+        const multiAgentRace = await boundaryG(client);
 
         const beforeRestart = await waitForConvergence(client, flagship.executionId);
         assert.equal(beforeRestart.effects.length, 1);
@@ -443,9 +547,18 @@ async function campaign() {
             JSON.stringify(counterexampleAfterRestart),
             JSON.stringify(counterexample.liveExecution),
         );
+        const resourceAfterRestart = await waitForResourceConvergence(
+            client,
+            multiAgentRace.resource.resourceId,
+        );
+        assert.equal(JSON.stringify(resourceAfterRestart), JSON.stringify(multiAgentRace.resource));
+        for (const executionId of multiAgentRace.executionIds) {
+            const execution = await waitForConvergence(client, executionId);
+            assert.equal(execution.readSet[0].version, 17);
+        }
         assert.deepEqual(await client.providerState(), providerBeforeRestart);
 
-        log('PASS: boundaries A-F, safe flagship, live minimized mutant, convergence, and restart');
+        log('PASS: boundaries A-G, safe flagship, minimized races, convergence, and restart');
     } catch (error) {
         failed = true;
         process.stderr.write(`${error.stack || error.message}\n`);

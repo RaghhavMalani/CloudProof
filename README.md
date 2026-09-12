@@ -6,18 +6,22 @@ The thesis is simple: **AI agents are distributed systems with nondeterministic 
 
 The first vertical slice is an autonomous refund agent. The deterministic lab injects a lost payment response, two worker crashes, a policy deployment, and a racing worker. The safe execution produces one ₹8,999 refund, detects semantic drift before resuming, reconciles the ambiguous payment instead of retrying it, updates CRM, and sends one confirmation.
 
+The second vertical slice puts three individually correct agents over the same versioned order. Semantic optimistic concurrency carries each workflow's durable `readSet` and `writeSet` to the effect boundary, where Raft atomically rejects stale reasoning before it can mutate shared business state.
+
 ## Implemented agent-runtime primitives
 
 - `AgentExecution`: portable checkpoints containing the workflow cursor, state, semantic snapshot, history, and effect ledger.
 - `EffectLedger`: stable effect identities and explicit `INTENT_RECORDED`, `RECONCILIATION_REQUIRED`, `RESULT_RECORDED`, and `EFFECT_COMMITTED` states.
 - Semantic snapshots: versioned model, prompt, policy, retrieval index, and tool-schema resources with configurable resume decisions.
+- Versioned shared resources: durable business state, execution-scoped read/write sets, and atomic resource-version fencing before effect authorization.
 - Deterministic refund workload: one causal trace with execution-scoped invariants and plain-English replay.
 - Decision tapes, fault schedules, invariant checking, causal flight recording, and trace shrinking from the existing miniRaft lab.
 
-> **Current milestone:** miniRaft now generates agent fault schedules, searches
-> five deliberately broken runtimes, preserves exact failure fingerprints while
-> shrinking, and emits byte-identical replay artifacts plus regression tests.
-> See [AGENT-COUNTEREXAMPLE-SEARCH.md](AGENT-COUNTEREXAMPLE-SEARCH.md).
+> **Current milestone:** miniRaft now searches interleavings among three
+> autonomous workflows over shared order state, kills four deliberate race
+> mutants, shrinks each violation to six causal actions, and fences the promoted
+> race in the live Raft cluster. See
+> [MULTI-AGENT-RACE-DETECTION.md](MULTI-AGENT-RACE-DETECTION.md).
 
 ## What this project proves
 
@@ -29,6 +33,7 @@ The first vertical slice is an autonomous refund agent. The deterministic lab in
 | Causal effect ordering | Payment confirmation precedes CRM mutation, notification, and workflow completion |
 | Effect authorization | Every committed tool effect is attributable to an explicitly authorized semantic snapshot |
 | Counterexample discovery | Generated schedules automatically kill and classify five agent-runtime mutants while the correct runtime remains violation-free |
+| Multi-agent race safety | Resource versions fence stale read sets before effect authorization; reusable invariants detect over-compensation, terminal conflicts, stale writes, and double ownership |
 | Crash safety | Term, vote, append-only log, and commit index are durable; applied state is rebuilt deterministically from the committed prefix on restart |
 | Correct commit rule | A leader advances to the highest `N` replicated on a majority only when `log[N].term === currentTerm` |
 | Dynamic quorum | Majority is `Math.floor(clusterSize / 2) + 1`; the engine is not hard-coded to three nodes |
@@ -125,7 +130,7 @@ To stop the stack without deleting its durable state:
 docker compose down
 ```
 
-Run the Stage 4 crash-boundary campaign plus the promoted Stage 5 counterexample:
+Run the Stage 4 crash-boundary campaign plus the promoted Stage 5 and Stage 6 counterexamples:
 
 ```bash
 node tools/agent-raft-compose-test.js
@@ -215,6 +220,25 @@ types covered. See
 [AGENT-COUNTEREXAMPLE-SEARCH.md](AGENT-COUNTEREXAMPLE-SEARCH.md) for the action
 language, invariant fingerprints, measured results, and artifact schema.
 
+### Multi-agent shared-state race search
+
+Stage 6 interleaves three frozen workflows over the same versioned order. Each
+agent remains locally correct; only the global schedule can make its recorded
+decision stale.
+
+```bash
+node sim/multi-agent-search.js --runs 1000 --seed 1337 --mutant correct --no-shrink
+node sim/multi-agent-search.js --runs 100 --seed 1337 --mutant unfenced-compensation
+node sim/multi-agent-search.js --benchmark --runs 100 --seed 1337
+node sim/multi-agent-search.js --replay artifacts/failures/multi-agent-unfenced-compensation-1337.json
+```
+
+The benchmark kills four race mutants, minimizes each exact violation to six
+actions, requires byte-identical replay, and runs at least 1,000 corrected
+schedules with zero violations. See
+[MULTI-AGENT-RACE-DETECTION.md](MULTI-AGENT-RACE-DETECTION.md) for the durable
+resource model, action language, invariant set, and live Boundary G.
+
 ### CheckQuorum: the important distinction
 
 miniRaft does not claim full CheckQuorum semantics. An isolated leader retains
@@ -295,6 +319,8 @@ Useful endpoints:
 | `GET /health` | Process liveness |
 | `GET /ready` | Fresh leader/quorum lease |
 | `GET /metrics` | Prometheus metrics |
+| `GET /agent/resources/:resourceId` | Linearizable versioned business-resource read |
+| `POST /agent/commands` | Commit execution plans and resource-fenced effect authorizations through Raft |
 | `POST /pre-vote` | Read-only Raft PreVote RPC; never changes durable term or vote |
 | `POST /request-vote` | Raft RequestVote RPC |
 | `POST /append-entries` | Replication, catch-up, heartbeat, and commit propagation |

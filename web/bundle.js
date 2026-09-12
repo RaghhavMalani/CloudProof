@@ -1463,6 +1463,87 @@ function same(left, right) {
     return JSON.stringify(stable(left)) === JSON.stringify(stable(right));
 }
 
+// Kept inside the replica runtime because its production image intentionally
+// has the replica directory as its complete Docker build context. The shared
+// package exposes the same small operation language to search tooling.
+const RESOURCE_OPERATIONS = new Set(['set', 'increment', 'append-unique']);
+
+function safeField(field) {
+    return typeof field === 'string' && field.length > 0
+        && !['__proto__', 'constructor', 'prototype'].includes(field);
+}
+
+function normalizeReadSet(readSet) {
+    if (!Array.isArray(readSet) || readSet.length === 0) {
+        throw new TypeError('readSet must be a non-empty array');
+    }
+    const seen = new Set();
+    return readSet.map((entry) => {
+        if (!entry || typeof entry.resourceId !== 'string' || entry.resourceId.length === 0) {
+            throw new TypeError('readSet resourceId must be a non-empty string');
+        }
+        if (!Number.isInteger(entry.version) || entry.version < 0) {
+            throw new TypeError('readSet version must be a non-negative integer');
+        }
+        if (seen.has(entry.resourceId)) throw new TypeError(`duplicate readSet resource: ${entry.resourceId}`);
+        seen.add(entry.resourceId);
+        return { resourceId: entry.resourceId, version: entry.version };
+    }).sort((left, right) => left.resourceId.localeCompare(right.resourceId));
+}
+
+function normalizeWriteSet(writeSet) {
+    if (!Array.isArray(writeSet) || writeSet.length === 0) {
+        throw new TypeError('writeSet must be a non-empty array');
+    }
+    const seen = new Set();
+    return writeSet.map((entry) => {
+        if (!entry || typeof entry.resourceId !== 'string' || entry.resourceId.length === 0) {
+            throw new TypeError('writeSet resourceId must be a non-empty string');
+        }
+        if (seen.has(entry.resourceId)) throw new TypeError(`duplicate writeSet resource: ${entry.resourceId}`);
+        seen.add(entry.resourceId);
+        if (!Array.isArray(entry.operations) || entry.operations.length === 0) {
+            throw new TypeError('writeSet operations must be a non-empty array');
+        }
+        const operations = entry.operations.map((operation) => {
+            if (!operation || !RESOURCE_OPERATIONS.has(operation.op)) {
+                throw new TypeError(`unsupported resource operation: ${operation && operation.op}`);
+            }
+            if (!safeField(operation.field)) throw new TypeError('resource operation field is invalid');
+            if (operation.op === 'increment'
+                && (typeof operation.value !== 'number' || !Number.isFinite(operation.value))) {
+                throw new TypeError('increment operation value must be finite');
+            }
+            return clone(operation);
+        });
+        return { resourceId: entry.resourceId, operations };
+    }).sort((left, right) => left.resourceId.localeCompare(right.resourceId));
+}
+
+function applyResourceOperations(state, operations) {
+    const next = clone(state || {});
+    for (const operation of operations) {
+        if (operation.op === 'set') {
+            next[operation.field] = clone(operation.value);
+        } else if (operation.op === 'increment') {
+            const current = next[operation.field] === undefined ? 0 : next[operation.field];
+            if (typeof current !== 'number' || !Number.isFinite(current)) {
+                throw new TypeError(`cannot increment non-numeric field: ${operation.field}`);
+            }
+            next[operation.field] = current + operation.value;
+        } else if (operation.op === 'append-unique') {
+            const current = next[operation.field] === undefined ? [] : next[operation.field];
+            if (!Array.isArray(current)) {
+                throw new TypeError(`cannot append to non-array field: ${operation.field}`);
+            }
+            const candidate = clone(operation.value);
+            if (!current.some((value) => same(value, candidate))) current.push(candidate);
+            next[operation.field] = current;
+        }
+    }
+    return clone(next);
+}
+
 function fail(error, details = {}) {
     return { ok: false, error, mutated: false, ...details };
 }
@@ -1476,6 +1557,7 @@ function requireText(value, field) {
 class AgentState {
     constructor() {
         this.executions = new Map();
+        this.resources = new Map();
     }
 
     get(executionId) {
@@ -1487,8 +1569,17 @@ class AgentState {
         return [...this.executions.keys()].sort().map((executionId) => this.get(executionId));
     }
 
+    getResource(resourceId) {
+        const resource = this.resources.get(resourceId);
+        return resource ? clone(resource) : null;
+    }
+
+    listResources() {
+        return [...this.resources.keys()].sort().map((resourceId) => this.getResource(resourceId));
+    }
+
     snapshot() {
-        return { executions: this.list() };
+        return { executions: this.list(), resources: this.listResources() };
     }
 
     apply(command, { index = -1 } = {}) {
@@ -1499,6 +1590,12 @@ class AgentState {
                 return this._advance(command, index);
             case 'agent.execution.complete':
                 return this._complete(command, index);
+            case 'agent.execution.plan':
+                return this._plan(command, index);
+            case 'agent.resource.create':
+                return this._createResource(command, index);
+            case 'agent.effect.authorize-resource':
+                return this._authorizeResourceEffect(command, index);
             case 'agent.effect.intent':
                 return this._intent(command, index);
             case 'agent.effect.dispatch':
@@ -1563,6 +1660,8 @@ class AgentState {
             state: clone(command.initialState || {}),
             status: EXECUTION_STATUS.RUNNING,
             semanticConflict: null,
+            readSet: [],
+            writeSet: [],
             history: [{
                 type: 'EXECUTION_CREATED',
                 index,
@@ -1583,6 +1682,189 @@ class AgentState {
 
         this.executions.set(command.executionId, candidate);
         return { ok: true, mutated: true, execution: clone(candidate) };
+    }
+
+    _createResource(command, index) {
+        const resourceError = requireText(command.resourceId, 'resourceId');
+        if (resourceError) return resourceError;
+        if (command.state !== undefined
+            && (!command.state || Array.isArray(command.state) || typeof command.state !== 'object')) {
+            return fail('INVALID_AGENT_COMMAND', { message: 'resource state must be an object' });
+        }
+        const version = command.version === undefined ? 1 : command.version;
+        if (!Number.isInteger(version) || version < 0) {
+            return fail('INVALID_AGENT_COMMAND', { message: 'resource version must be a non-negative integer' });
+        }
+        const candidate = {
+            resourceId: command.resourceId,
+            version,
+            state: clone(command.state || {}),
+            lastMutation: { type: 'RESOURCE_CREATED', index },
+        };
+        const existing = this.resources.get(command.resourceId);
+        if (existing) {
+            const sameIdentity = existing.version === candidate.version
+                && same(existing.state, candidate.state);
+            return sameIdentity
+                ? { ok: true, mutated: false, duplicate: true, resource: clone(existing) }
+                : fail('RESOURCE_ID_CONFLICT', { resourceId: command.resourceId });
+        }
+        this.resources.set(command.resourceId, candidate);
+        return { ok: true, mutated: true, resource: clone(candidate) };
+    }
+
+    _plan(command, index) {
+        const execution = this._execution(command);
+        if (execution.ok === false) return execution;
+        if (execution.status !== EXECUTION_STATUS.RUNNING) {
+            return fail('EXECUTION_NOT_RUNNING', { status: execution.status });
+        }
+        let readSet;
+        let writeSet;
+        try {
+            readSet = normalizeReadSet(command.readSet);
+            writeSet = normalizeWriteSet(command.writeSet);
+        } catch (error) {
+            return fail('INVALID_AGENT_COMMAND', { message: error.message });
+        }
+        const readResources = new Set(readSet.map((entry) => entry.resourceId));
+        const unobserved = writeSet.find((entry) => !readResources.has(entry.resourceId));
+        if (unobserved) {
+            return fail('UNOBSERVED_RESOURCE_WRITE', { resourceId: unobserved.resourceId });
+        }
+        const missing = readSet.find((entry) => !this.resources.has(entry.resourceId));
+        if (missing) return fail('RESOURCE_NOT_FOUND', { resourceId: missing.resourceId });
+
+        execution.readSet = clone(readSet);
+        execution.writeSet = clone(writeSet);
+        this._mutated(execution, {
+            type: 'RESOURCE_PLAN_RECORDED',
+            index,
+            step: execution.step,
+            readSet,
+            writeSet,
+        });
+        return {
+            ok: true,
+            mutated: true,
+            executionId: execution.executionId,
+            readSet: clone(readSet),
+            writeSet: clone(writeSet),
+            version: execution.version,
+        };
+    }
+
+    _authorizeResourceEffect(command, index) {
+        const execution = this._execution(command);
+        if (execution.ok === false) return execution;
+        if (execution.status !== EXECUTION_STATUS.RUNNING) {
+            return fail('EXECUTION_NOT_RUNNING', { status: execution.status });
+        }
+        const effectError = requireText(command.effectId, 'effectId');
+        if (effectError) return effectError;
+        const actionError = requireText(command.logicalAction, 'logicalAction');
+        if (actionError) return actionError;
+        if (command.snapshotId !== execution.snapshot.id) {
+            return fail('SEMANTIC_SNAPSHOT_MISMATCH', {
+                expectedSnapshotId: execution.snapshot.id,
+                actualSnapshotId: command.snapshotId,
+            });
+        }
+        if (execution.readSet.length === 0 || execution.writeSet.length === 0) {
+            return fail('RESOURCE_PLAN_REQUIRED', { executionId: execution.executionId });
+        }
+
+        const existing = execution.effects.find((effect) => effect.effectId === command.effectId);
+        if (existing) {
+            const sameIntent = existing.logicalAction === command.logicalAction
+                && existing.snapshotId === command.snapshotId
+                && same(existing.parameters, command.parameters || {})
+                && same(existing.resourceAuthorization?.readSet, execution.readSet)
+                && same(existing.resourceAuthorization?.writeSet, execution.writeSet);
+            return sameIntent
+                ? { ok: true, mutated: false, duplicate: true, effect: clone(existing) }
+                : fail('EFFECT_ID_CONFLICT', { effectId: command.effectId });
+        }
+
+        const conflicts = execution.readSet.map((expected) => {
+            const resource = this.resources.get(expected.resourceId);
+            return !resource || resource.version !== expected.version
+                ? {
+                    resourceId: expected.resourceId,
+                    expectedVersion: expected.version,
+                    actualVersion: resource?.version ?? null,
+                }
+                : null;
+        }).filter(Boolean);
+        if (conflicts.length > 0) {
+            return fail('RESOURCE_VERSION_CONFLICT', {
+                executionId: execution.executionId,
+                resourceId: conflicts[0].resourceId,
+                expectedVersion: conflicts[0].expectedVersion,
+                actualVersion: conflicts[0].actualVersion,
+                conflicts,
+                decision: 'REVALIDATE',
+            });
+        }
+
+        const projected = new Map();
+        try {
+            for (const intent of execution.writeSet) {
+                const resource = this.resources.get(intent.resourceId);
+                projected.set(intent.resourceId, applyResourceOperations(resource.state, intent.operations));
+            }
+        } catch (error) {
+            return fail('INVALID_AGENT_COMMAND', { message: error.message });
+        }
+
+        const resultingVersions = {};
+        for (const intent of execution.writeSet) {
+            const resource = this.resources.get(intent.resourceId);
+            resource.state = projected.get(intent.resourceId);
+            resource.version += 1;
+            resource.lastMutation = {
+                type: 'RESOURCE_EFFECT_AUTHORIZED',
+                index,
+                executionId: execution.executionId,
+                effectId: command.effectId,
+            };
+            resultingVersions[intent.resourceId] = resource.version;
+        }
+
+        const effect = {
+            effectId: command.effectId,
+            executionId: command.executionId,
+            logicalAction: command.logicalAction,
+            parameters: clone(command.parameters || {}),
+            snapshotId: command.snapshotId,
+            atStep: execution.step,
+            status: EFFECT_STATUS.INTENT_RECORDED,
+            attempts: 0,
+            result: null,
+            resourceAuthorization: {
+                readSet: clone(execution.readSet),
+                writeSet: clone(execution.writeSet),
+                resultingVersions: clone(resultingVersions),
+                committedAtIndex: index,
+            },
+        };
+        execution.effects.push(effect);
+        execution.effects.sort((left, right) => left.effectId.localeCompare(right.effectId));
+        this._mutated(execution, {
+            type: 'RESOURCE_EFFECT_AUTHORIZED',
+            index,
+            step: execution.step,
+            effectId: command.effectId,
+            readSet: clone(execution.readSet),
+            resultingVersions: clone(resultingVersions),
+        });
+        return {
+            ok: true,
+            mutated: true,
+            effect: clone(effect),
+            resources: execution.writeSet.map((entry) => this.getResource(entry.resourceId)),
+            version: execution.version,
+        };
     }
 
     _checkStep(execution, expectedStep) {
@@ -2046,6 +2328,14 @@ class StateMachine {
         return this.agent.list();
     }
 
+    agentResource(resourceId) {
+        return this.agent.getResource(resourceId);
+    }
+
+    agentResources() {
+        return this.agent.listResources();
+    }
+
     // ── event plumbing ───────────────────────────────────────────────────────
 
     subscribe(listener) {
@@ -2144,6 +2434,9 @@ class StateMachine {
             case 'agent.execution.create':
             case 'agent.execution.advance':
             case 'agent.execution.complete':
+            case 'agent.execution.plan':
+            case 'agent.resource.create':
+            case 'agent.effect.authorize-resource':
             case 'agent.effect.intent':
             case 'agent.effect.dispatch':
             case 'agent.effect.reconciliation-required':
@@ -2171,10 +2464,14 @@ class StateMachine {
         if (!mutated) return result;
 
         this.revision += 1;
+        const isResource = command.op === 'agent.resource.create';
+        const subjectId = isResource ? command.resourceId : command.executionId;
         this._emit({
             type: command.op,
-            key: `agent/${command.executionId}`,
-            value: this.agent.get(command.executionId),
+            key: isResource ? `agent/resource/${subjectId}` : `agent/execution/${subjectId}`,
+            value: isResource
+                ? this.agent.getResource(subjectId)
+                : this.agent.get(subjectId),
             rev: this.revision,
             index: entry.index,
             clock: this.clock,
@@ -4703,6 +5000,100 @@ function clone(value) {
     return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
 }
 
+const RESOURCE_OPERATION = Object.freeze({
+    SET: 'set',
+    INCREMENT: 'increment',
+    APPEND_UNIQUE: 'append-unique',
+});
+
+function validResourceField(field) {
+    return typeof field === 'string'
+        && field.length > 0
+        && !['__proto__', 'constructor', 'prototype'].includes(field);
+}
+
+function normalizeReadSet(readSet) {
+    if (!Array.isArray(readSet) || readSet.length === 0) {
+        throw new TypeError('readSet must be a non-empty array');
+    }
+    const seen = new Set();
+    const normalized = readSet.map((entry) => {
+        if (!entry || typeof entry.resourceId !== 'string' || entry.resourceId.length === 0) {
+            throw new TypeError('readSet resourceId must be a non-empty string');
+        }
+        if (!Number.isInteger(entry.version) || entry.version < 0) {
+            throw new TypeError('readSet version must be a non-negative integer');
+        }
+        if (seen.has(entry.resourceId)) throw new TypeError(`duplicate readSet resource: ${entry.resourceId}`);
+        seen.add(entry.resourceId);
+        return { resourceId: entry.resourceId, version: entry.version };
+    });
+    return normalized.sort((left, right) => left.resourceId.localeCompare(right.resourceId));
+}
+
+function normalizeWriteSet(writeSet) {
+    if (!Array.isArray(writeSet) || writeSet.length === 0) {
+        throw new TypeError('writeSet must be a non-empty array');
+    }
+    const seen = new Set();
+    const normalized = writeSet.map((entry) => {
+        if (!entry || typeof entry.resourceId !== 'string' || entry.resourceId.length === 0) {
+            throw new TypeError('writeSet resourceId must be a non-empty string');
+        }
+        if (seen.has(entry.resourceId)) throw new TypeError(`duplicate writeSet resource: ${entry.resourceId}`);
+        seen.add(entry.resourceId);
+        if (!Array.isArray(entry.operations) || entry.operations.length === 0) {
+            throw new TypeError('writeSet operations must be a non-empty array');
+        }
+        const operations = entry.operations.map((operation) => {
+            if (!operation || !Object.values(RESOURCE_OPERATION).includes(operation.op)) {
+                throw new TypeError(`unsupported resource operation: ${operation && operation.op}`);
+            }
+            if (!validResourceField(operation.field)) {
+                throw new TypeError('resource operation field must be a safe non-empty string');
+            }
+            if (operation.op === RESOURCE_OPERATION.INCREMENT
+                && (typeof operation.value !== 'number' || !Number.isFinite(operation.value))) {
+                throw new TypeError('increment operation value must be finite');
+            }
+            return clone(stable(operation));
+        });
+        return { resourceId: entry.resourceId, operations };
+    });
+    return normalized.sort((left, right) => left.resourceId.localeCompare(right.resourceId));
+}
+
+function applyResourceOperations(state, operations) {
+    const next = clone(stable(state || {}));
+    for (const operation of operations) {
+        if (!operation || !Object.values(RESOURCE_OPERATION).includes(operation.op)
+            || !validResourceField(operation.field)) {
+            throw new TypeError('invalid resource operation');
+        }
+        if (operation.op === RESOURCE_OPERATION.SET) {
+            next[operation.field] = clone(stable(operation.value));
+        } else if (operation.op === RESOURCE_OPERATION.INCREMENT) {
+            if (typeof operation.value !== 'number' || !Number.isFinite(operation.value)) {
+                throw new TypeError('increment operation value must be finite');
+            }
+            const current = next[operation.field] === undefined ? 0 : next[operation.field];
+            if (typeof current !== 'number' || !Number.isFinite(current)) {
+                throw new TypeError(`cannot increment non-numeric field: ${operation.field}`);
+            }
+            next[operation.field] = current + operation.value;
+        } else if (operation.op === RESOURCE_OPERATION.APPEND_UNIQUE) {
+            const current = next[operation.field] === undefined ? [] : next[operation.field];
+            if (!Array.isArray(current)) {
+                throw new TypeError(`cannot append to non-array field: ${operation.field}`);
+            }
+            const candidate = clone(stable(operation.value));
+            if (!current.some((value) => digest(value) === digest(candidate))) current.push(candidate);
+            next[operation.field] = current;
+        }
+    }
+    return clone(stable(next));
+}
+
 function makeEffectId(executionId, logicalAction, parameters) {
     return `effect:${digest({ executionId, logicalAction, parameters })}`;
 }
@@ -4874,12 +5265,16 @@ module.exports = {
     AgentExecution,
     EffectLedger,
     EFFECT_STATUS,
+    RESOURCE_OPERATION,
     RESUME_DECISION,
+    applyResourceOperations,
     changedResources,
     decideResume,
     digest,
     makeEffectId,
     makeSemanticSnapshot,
+    normalizeReadSet,
+    normalizeWriteSet,
 };
 
 };
