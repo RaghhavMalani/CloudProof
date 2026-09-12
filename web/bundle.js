@@ -1425,12 +1425,6 @@ module.exports = { HnswIndex, Rng, Heap, hashId32 };
 __registry["replica/agent-state.js"] = function (module, exports, require) {
 'use strict';
 
-const {
-    applyResourceOperations,
-    normalizeReadSet,
-    normalizeWriteSet,
-} = require('../packages/agent-runtime/index.js');
-
 /**
  * Deterministic reducer for Raft-backed agent executions.
  *
@@ -1467,6 +1461,87 @@ function clone(value) {
 
 function same(left, right) {
     return JSON.stringify(stable(left)) === JSON.stringify(stable(right));
+}
+
+// Kept inside the replica runtime because its production image intentionally
+// has the replica directory as its complete Docker build context. The shared
+// package exposes the same small operation language to search tooling.
+const RESOURCE_OPERATIONS = new Set(['set', 'increment', 'append-unique']);
+
+function safeField(field) {
+    return typeof field === 'string' && field.length > 0
+        && !['__proto__', 'constructor', 'prototype'].includes(field);
+}
+
+function normalizeReadSet(readSet) {
+    if (!Array.isArray(readSet) || readSet.length === 0) {
+        throw new TypeError('readSet must be a non-empty array');
+    }
+    const seen = new Set();
+    return readSet.map((entry) => {
+        if (!entry || typeof entry.resourceId !== 'string' || entry.resourceId.length === 0) {
+            throw new TypeError('readSet resourceId must be a non-empty string');
+        }
+        if (!Number.isInteger(entry.version) || entry.version < 0) {
+            throw new TypeError('readSet version must be a non-negative integer');
+        }
+        if (seen.has(entry.resourceId)) throw new TypeError(`duplicate readSet resource: ${entry.resourceId}`);
+        seen.add(entry.resourceId);
+        return { resourceId: entry.resourceId, version: entry.version };
+    }).sort((left, right) => left.resourceId.localeCompare(right.resourceId));
+}
+
+function normalizeWriteSet(writeSet) {
+    if (!Array.isArray(writeSet) || writeSet.length === 0) {
+        throw new TypeError('writeSet must be a non-empty array');
+    }
+    const seen = new Set();
+    return writeSet.map((entry) => {
+        if (!entry || typeof entry.resourceId !== 'string' || entry.resourceId.length === 0) {
+            throw new TypeError('writeSet resourceId must be a non-empty string');
+        }
+        if (seen.has(entry.resourceId)) throw new TypeError(`duplicate writeSet resource: ${entry.resourceId}`);
+        seen.add(entry.resourceId);
+        if (!Array.isArray(entry.operations) || entry.operations.length === 0) {
+            throw new TypeError('writeSet operations must be a non-empty array');
+        }
+        const operations = entry.operations.map((operation) => {
+            if (!operation || !RESOURCE_OPERATIONS.has(operation.op)) {
+                throw new TypeError(`unsupported resource operation: ${operation && operation.op}`);
+            }
+            if (!safeField(operation.field)) throw new TypeError('resource operation field is invalid');
+            if (operation.op === 'increment'
+                && (typeof operation.value !== 'number' || !Number.isFinite(operation.value))) {
+                throw new TypeError('increment operation value must be finite');
+            }
+            return clone(operation);
+        });
+        return { resourceId: entry.resourceId, operations };
+    }).sort((left, right) => left.resourceId.localeCompare(right.resourceId));
+}
+
+function applyResourceOperations(state, operations) {
+    const next = clone(state || {});
+    for (const operation of operations) {
+        if (operation.op === 'set') {
+            next[operation.field] = clone(operation.value);
+        } else if (operation.op === 'increment') {
+            const current = next[operation.field] === undefined ? 0 : next[operation.field];
+            if (typeof current !== 'number' || !Number.isFinite(current)) {
+                throw new TypeError(`cannot increment non-numeric field: ${operation.field}`);
+            }
+            next[operation.field] = current + operation.value;
+        } else if (operation.op === 'append-unique') {
+            const current = next[operation.field] === undefined ? [] : next[operation.field];
+            if (!Array.isArray(current)) {
+                throw new TypeError(`cannot append to non-array field: ${operation.field}`);
+            }
+            const candidate = clone(operation.value);
+            if (!current.some((value) => same(value, candidate))) current.push(candidate);
+            next[operation.field] = current;
+        }
+    }
+    return clone(next);
 }
 
 function fail(error, details = {}) {
