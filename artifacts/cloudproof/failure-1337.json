@@ -1,0 +1,349 @@
+{
+  "schemaVersion": 1,
+  "kind": "cloudproof.counterexample",
+  "scenario": "flagship",
+  "mutant": "correct",
+  "seed": 1337,
+  "foundAfter": 1,
+  "expectedFailure": {
+    "invariant": "cloud.deployment.rollout-availability",
+    "violationClass": "ROLLOUT_AVAILABILITY_VIOLATION",
+    "resourceId": "deployment/api",
+    "expected": 5,
+    "observed": 4,
+    "fingerprint": {
+      "expected": 5,
+      "invariant": "cloud.deployment.rollout-availability",
+      "observed": 4,
+      "resourceId": "deployment/api",
+      "violationClass": "ROLLOUT_AVAILABILITY_VIOLATION"
+    },
+    "signature": "{\"expected\":5,\"invariant\":\"cloud.deployment.rollout-availability\",\"observed\":4,\"resourceId\":\"deployment/api\",\"violationClass\":\"ROLLOUT_AVAILABILITY_VIOLATION\"}",
+    "summary": "rollout left 4 ready replicas below its floor of 5",
+    "evidence": {
+      "desiredReplicas": 6,
+      "maxUnavailable": 1
+    }
+  },
+  "replayFingerprint": "496a03923606c333ea6c16253831adbf5541ecf68d80f0c796e0e44b78b636f0",
+  "schedule": {
+    "schemaVersion": 1,
+    "kind": "cloudproof.schedule",
+    "seed": 1337,
+    "scenario": "flagship",
+    "runtime": "correct",
+    "strategy": "coverage",
+    "actions": [
+      {
+        "type": "cloud.action.roll-out",
+        "version": "v42",
+        "id": "cloud-action-1",
+        "atMs": 0
+      },
+      {
+        "type": "cloud.controller.deployment",
+        "id": "cloud-action-2",
+        "atMs": 1
+      },
+      {
+        "type": "cloud.action.drain-node",
+        "nodeId": "node-b",
+        "id": "cloud-action-3",
+        "atMs": 2
+      }
+    ],
+    "decisions": {
+      "generation": {
+        "cloud-structure": [],
+        "cloud-noise": [
+          {
+            "sequence": 1,
+            "stream": "cloud-noise",
+            "label": "cloud-noise-action",
+            "raw": 2797297159,
+            "atMs": null,
+            "context": {
+              "index": 0
+            },
+            "value": "cloud.scheduler.yield"
+          },
+          {
+            "sequence": 2,
+            "stream": "cloud-noise",
+            "label": "cloud-noise-action",
+            "raw": 1632174664,
+            "atMs": null,
+            "context": {
+              "index": 1
+            },
+            "value": "cloud.controller.scheduler"
+          },
+          {
+            "sequence": 3,
+            "stream": "cloud-noise",
+            "label": "cloud-noise-action",
+            "raw": 4010299975,
+            "atMs": null,
+            "context": {
+              "index": 2
+            },
+            "value": "cloud.controller.endpoints"
+          },
+          {
+            "sequence": 4,
+            "stream": "cloud-noise",
+            "label": "cloud-noise-action",
+            "raw": 2727679006,
+            "atMs": null,
+            "context": {
+              "index": 3
+            },
+            "value": "cloud.controller.endpoints"
+          },
+          {
+            "sequence": 5,
+            "stream": "cloud-noise",
+            "label": "cloud-noise-action",
+            "raw": 3735170349,
+            "atMs": null,
+            "context": {
+              "index": 4
+            },
+            "value": "cloud.controller.scheduler"
+          },
+          {
+            "sequence": 6,
+            "stream": "cloud-noise",
+            "label": "cloud-noise-action",
+            "raw": 4157616115,
+            "atMs": null,
+            "context": {
+              "index": 5
+            },
+            "value": "cloud.controller.kubelet"
+          },
+          {
+            "sequence": 7,
+            "stream": "cloud-noise",
+            "label": "cloud-noise-action",
+            "raw": 1525137700,
+            "atMs": null,
+            "context": {
+              "index": 6
+            },
+            "value": "cloud.controller.kubelet"
+          },
+          {
+            "sequence": 8,
+            "stream": "cloud-noise",
+            "label": "cloud-noise-action",
+            "raw": 1356340098,
+            "atMs": null,
+            "context": {
+              "index": 7
+            },
+            "value": "cloud.controller.scheduler"
+          },
+          {
+            "sequence": 9,
+            "stream": "cloud-noise",
+            "label": "cloud-noise-action",
+            "raw": 2682036209,
+            "atMs": null,
+            "context": {
+              "index": 8
+            },
+            "value": "cloud.scheduler.yield"
+          },
+          {
+            "sequence": 10,
+            "stream": "cloud-noise",
+            "label": "cloud-noise-action",
+            "raw": 3909456974,
+            "atMs": null,
+            "context": {
+              "index": 9
+            },
+            "value": "cloud.controller.endpoints"
+          },
+          {
+            "sequence": 11,
+            "stream": "cloud-noise",
+            "label": "cloud-noise-action",
+            "raw": 2374993579,
+            "atMs": null,
+            "context": {
+              "index": 10
+            },
+            "value": "cloud.controller.deployment"
+          },
+          {
+            "sequence": 12,
+            "stream": "cloud-noise",
+            "label": "cloud-noise-action",
+            "raw": 488347795,
+            "atMs": null,
+            "context": {
+              "index": 11
+            },
+            "value": "cloud.controller.pdb"
+          }
+        ]
+      }
+    },
+    "topology": {
+      "zones": 3,
+      "initialReplicas": 6,
+      "service": "api"
+    }
+  },
+  "original": {
+    "actions": 34,
+    "transitions": 46
+  },
+  "minimized": {
+    "actions": 3,
+    "transitions": 3
+  },
+  "shrink": {
+    "stats": {
+      "actionsBefore": 34,
+      "actionsAfter": 3,
+      "transitionsBefore": 46,
+      "transitionsAfter": 3,
+      "evaluations": 39,
+      "accepted": 9
+    },
+    "passes": [
+      {
+        "name": "remove-contiguous-chunks",
+        "before": 34,
+        "after": 3
+      },
+      {
+        "name": "remove-individual-actions",
+        "before": 3,
+        "after": 3
+      }
+    ]
+  },
+  "result": {
+    "ok": false,
+    "failure": {
+      "invariant": "cloud.deployment.rollout-availability",
+      "violationClass": "ROLLOUT_AVAILABILITY_VIOLATION",
+      "resourceId": "deployment/api",
+      "expected": 5,
+      "observed": 4,
+      "fingerprint": {
+        "expected": 5,
+        "invariant": "cloud.deployment.rollout-availability",
+        "observed": 4,
+        "resourceId": "deployment/api",
+        "violationClass": "ROLLOUT_AVAILABILITY_VIOLATION"
+      },
+      "signature": "{\"expected\":5,\"invariant\":\"cloud.deployment.rollout-availability\",\"observed\":4,\"resourceId\":\"deployment/api\",\"violationClass\":\"ROLLOUT_AVAILABILITY_VIOLATION\"}",
+      "summary": "rollout left 4 ready replicas below its floor of 5",
+      "evidence": {
+        "desiredReplicas": 6,
+        "maxUnavailable": 1
+      }
+    },
+    "replayFingerprint": "496a03923606c333ea6c16253831adbf5541ecf68d80f0c796e0e44b78b636f0",
+    "mutant": "correct",
+    "metrics": {
+      "actions": 3,
+      "transitions": 3,
+      "minReadyReplicas": 4
+    }
+  },
+  "trace": {
+    "schemaVersion": 1,
+    "kind": "cloudproof.transition-trace",
+    "transitions": [
+      {
+        "sequence": 1,
+        "atMs": 0,
+        "action": {
+          "type": "cloud.action.roll-out",
+          "version": "v42",
+          "id": "cloud-action-1",
+          "atMs": 0
+        },
+        "outcome": {
+          "from": "v41",
+          "to": "v42"
+        },
+        "failure": null
+      },
+      {
+        "sequence": 2,
+        "atMs": 0,
+        "action": {
+          "type": "cloud.controller.deployment",
+          "id": "cloud-action-2",
+          "atMs": 1
+        },
+        "outcome": {
+          "changed": true,
+          "created": "pod/api-7",
+          "terminated": "pod/api-6"
+        },
+        "failure": null
+      },
+      {
+        "sequence": 3,
+        "atMs": 0,
+        "action": {
+          "type": "cloud.action.drain-node",
+          "nodeId": "node-b",
+          "id": "cloud-action-3",
+          "atMs": 2
+        },
+        "outcome": {
+          "drained": true,
+          "nodeId": "node/node-b",
+          "decisions": [
+            {
+              "actionId": "cloud-action-3",
+              "nodeId": "node/node-b",
+              "podId": "pod/api-2",
+              "voluntary": true,
+              "allowed": true,
+              "availableAfter": 4
+            },
+            {
+              "actionId": "cloud-action-3",
+              "nodeId": "node/node-b",
+              "podId": "pod/api-5",
+              "voluntary": true,
+              "allowed": false,
+              "availableAfter": 3
+            }
+          ]
+        },
+        "failure": {
+          "invariant": "cloud.deployment.rollout-availability",
+          "violationClass": "ROLLOUT_AVAILABILITY_VIOLATION",
+          "resourceId": "deployment/api",
+          "expected": 5,
+          "observed": 4,
+          "fingerprint": {
+            "expected": 5,
+            "invariant": "cloud.deployment.rollout-availability",
+            "observed": 4,
+            "resourceId": "deployment/api",
+            "violationClass": "ROLLOUT_AVAILABILITY_VIOLATION"
+          },
+          "signature": "{\"expected\":5,\"invariant\":\"cloud.deployment.rollout-availability\",\"observed\":4,\"resourceId\":\"deployment/api\",\"violationClass\":\"ROLLOUT_AVAILABILITY_VIOLATION\"}",
+          "summary": "rollout left 4 ready replicas below its floor of 5",
+          "evidence": {
+            "desiredReplicas": 6,
+            "maxUnavailable": 1
+          }
+        }
+      }
+    ]
+  },
+  "dataset": "datasets/transitions-seed-1337.jsonl"
+}

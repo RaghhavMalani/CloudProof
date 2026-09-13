@@ -35,6 +35,8 @@ jobs:
         run: node sim/multi-agent-search.js --runs 1000 --seed 1337 --mutant correct --no-shrink --no-artifacts
       - name: multi-agent race mutant kill benchmark
         run: node sim/multi-agent-search.js --benchmark --runs 100 --seed 1337 --no-artifacts
+      - name: CloudProof executable twin acceptance gate
+        run: node sim/cloud-search.js --benchmark --runs 10 --seed 1337 --no-artifacts
       # Every source file, found rather than listed. The previous version named
       # raft.js and index.js explicitly, so log-store.js and state-machine.js
       # were never checked once they were split out — the same class of omission

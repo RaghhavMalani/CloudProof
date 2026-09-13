@@ -136,6 +136,9 @@ cat <<EOF
   │    node tools/loadgen.js --targets http://localhost:8080│
   │    kubectl -n miniraft-serving get hpa -w              │
   │                                                        │
+  │  CloudProof sim-to-real replay:                        │
+  │    node tools/cloudproof-kind-replay.js <artifact>     │
+  │                                                        │
   │  ./tools/kind-up.sh --down   to remove everything      │
   └────────────────────────────────────────────────────────┘
 
