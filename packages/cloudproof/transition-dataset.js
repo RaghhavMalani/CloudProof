@@ -5,7 +5,7 @@ const path = require('node:path');
 const { Rng } = require('../../sim/simulator');
 const { stable } = require('./state');
 
-const FEATURE_NAMES = Object.freeze([
+const STATE_FEATURE_NAMES = Object.freeze([
     'readyReplicas',
     'pendingReplicas',
     'zoneConcentration',
@@ -15,6 +15,7 @@ const FEATURE_NAMES = Object.freeze([
     'pdbHeadroom',
     'degradedNodes',
 ]);
+const FEATURE_NAMES = Object.freeze([...STATE_FEATURE_NAMES, 'candidateActionRisk']);
 
 function graphNode(graph, type) {
     return graph.nodes.find((node) => node.type === type) || null;
@@ -71,12 +72,12 @@ function featuresFromState(state) {
     };
 }
 
-function extractRiskFeatures(value) {
+function extractRiskFeatures(value, candidateAction = null) {
     const source = value?.state || value;
     const features = source?.kind === 'cloudproof.infrastructure-graph'
         ? featuresFromGraph(source)
         : featuresFromState(source);
-    return FEATURE_NAMES.map((name) => features[name]);
+    return [...STATE_FEATURE_NAMES.map((name) => features[name]), actionRisk(candidateAction || value?.action)];
 }
 
 function normalized(values) {
@@ -89,7 +90,13 @@ function normalized(values) {
         values[5],
         values[6] / 8,
         values[7] / 3,
+        values[8],
     ];
+}
+
+function featureVector(value, candidateAction = null) {
+    if (Array.isArray(value?.features)) return normalized(value.features);
+    return normalized(extractRiskFeatures(value, candidateAction));
 }
 
 function sigmoid(value) {
@@ -106,18 +113,45 @@ function actionRisk(action = {}) {
     return 0;
 }
 
+function riskLabel(row) {
+    return Boolean(row.labels.sloViolationWithinKTransitions
+        ?? row.labels.sloViolationWithin1000ms);
+}
+
+function heuristicRiskScore(state, candidateAction = null) {
+    const values = normalized(extractRiskFeatures(state, candidateAction));
+    const [ready, pending, concentration, pressure, rollout, hpa, pdbHeadroom, degraded, action] = values;
+    const scarcity = Math.max(0, 0.5 - ready) * 1.5;
+    const risk = 0.04
+        + 0.20 * pending
+        + 0.22 * concentration
+        + 0.20 * Math.max(0, pressure - 0.7)
+        + 0.12 * rollout
+        + 0.05 * hpa
+        + 0.25 * Math.max(0, -pdbHeadroom)
+        + 0.30 * degraded
+        + 0.35 * action
+        + scarcity;
+    return Math.max(0.001, Math.min(0.999, risk));
+}
+
 class RiskBaseline {
     constructor({ weights = null, bias = 0 } = {}) {
-        this.weights = weights ? weights.slice() : Array(FEATURE_NAMES.length).fill(0);
+        this.weights = weights ? weights.slice(0, FEATURE_NAMES.length) : [];
+        while (this.weights.length < FEATURE_NAMES.length) this.weights.push(0);
         this.bias = bias;
     }
 
     score(state, candidateAction = null) {
-        const values = normalized(extractRiskFeatures(state));
+        const values = featureVector(state, candidateAction);
         const logit = this.bias + values.reduce((sum, value, index) => (
             sum + value * this.weights[index]
-        ), 0) + actionRisk(candidateAction);
+        ), 0);
         return sigmoid(logit);
+    }
+
+    scoreFeatures(features) {
+        return this.score({ features });
     }
 
     train(records, { iterations = 300, learningRate = 0.08, l2 = 0.001 } = {}) {
@@ -126,8 +160,8 @@ class RiskBaseline {
             const gradient = Array(this.weights.length).fill(0);
             let biasGradient = 0;
             for (const row of records) {
-                const x = normalized(extractRiskFeatures(row));
-                const y = row.labels.sloViolationWithin1000ms ? 1 : 0;
+                const x = featureVector(row, row.action);
+                const y = riskLabel(row) ? 1 : 0;
                 const prediction = sigmoid(this.bias + x.reduce((sum, value, index) => (
                     sum + value * this.weights[index]
                 ), 0));
@@ -158,16 +192,19 @@ function areaUnderRoc(labels, scores) {
     const positives = labels.filter(Boolean).length;
     const negatives = labels.length - positives;
     if (positives === 0 || negatives === 0) return null;
-    let favorable = 0;
-    for (let i = 0; i < labels.length; i += 1) {
-        if (!labels[i]) continue;
-        for (let j = 0; j < labels.length; j += 1) {
-            if (labels[j]) continue;
-            if (scores[i] > scores[j]) favorable += 1;
-            else if (scores[i] === scores[j]) favorable += 0.5;
+    const ordered = scores.map((score, index) => ({ score, label: labels[index] }))
+        .sort((left, right) => left.score - right.score);
+    let positiveRankSum = 0;
+    for (let start = 0; start < ordered.length;) {
+        let end = start + 1;
+        while (end < ordered.length && ordered[end].score === ordered[start].score) end += 1;
+        const averageRank = ((start + 1) + end) / 2;
+        for (let index = start; index < end; index += 1) {
+            if (ordered[index].label) positiveRankSum += averageRank;
         }
+        start = end;
     }
-    return favorable / (positives * negatives);
+    return (positiveRankSum - positives * (positives + 1) / 2) / (positives * negatives);
 }
 
 function areaUnderPrecisionRecall(labels, scores) {
@@ -179,19 +216,30 @@ function areaUnderPrecisionRecall(labels, scores) {
     let falsePositives = 0;
     let previousRecall = 0;
     let area = 0;
-    for (const item of order) {
-        if (item.label) truePositives += 1;
-        else falsePositives += 1;
+    for (let start = 0; start < order.length;) {
+        let end = start + 1;
+        while (end < order.length && order[end].score === order[start].score) end += 1;
+        for (let index = start; index < end; index += 1) {
+            if (order[index].label) truePositives += 1;
+            else falsePositives += 1;
+        }
         const recall = truePositives / positives;
         const precision = truePositives / (truePositives + falsePositives);
         area += (recall - previousRecall) * precision;
         previousRecall = recall;
+        start = end;
     }
     return area;
 }
 
 function evaluateScores(records, scores) {
-    const labels = records.map((row) => Boolean(row.labels.sloViolationWithin1000ms));
+    if (!Array.isArray(records) || records.length === 0 || records.length !== scores.length) {
+        throw new TypeError('records and equally-sized scores are required');
+    }
+    if (scores.some((score) => !Number.isFinite(score) || score < 0 || score > 1)) {
+        throw new TypeError('scores must be finite probabilities in [0, 1]');
+    }
+    const labels = records.map(riskLabel);
     const brier = scores.reduce((sum, score, index) => (
         sum + (score - (labels[index] ? 1 : 0)) ** 2
     ), 0) / scores.length;
@@ -204,39 +252,50 @@ function evaluateScores(records, scores) {
         bin.predicted += score;
         bin.observed += labels[index] ? 1 : 0;
     });
+    const calibration = bins.map((bin) => ({
+        lower: bin.lower,
+        upper: bin.upper,
+        count: bin.count,
+        meanPredicted: bin.count ? bin.predicted / bin.count : null,
+        observedRate: bin.count ? bin.observed / bin.count : null,
+    }));
+    const expectedCalibrationError = calibration.reduce((sum, bin) => (
+        sum + (bin.count / records.length)
+            * (bin.count ? Math.abs(bin.meanPredicted - bin.observedRate) : 0)
+    ), 0);
     return stable({
         auroc: areaUnderRoc(labels, scores),
         auprc: areaUnderPrecisionRecall(labels, scores),
         brierScore: brier,
-        calibration: bins.map((bin) => ({
-            lower: bin.lower,
-            upper: bin.upper,
-            count: bin.count,
-            meanPredicted: bin.count ? bin.predicted / bin.count : null,
-            observedRate: bin.count ? bin.observed / bin.count : null,
-        })),
+        expectedCalibrationError,
+        calibration,
     });
 }
 
 function evaluateRiskBaseline(model, records, { randomSeed = 1337 } = {}) {
     const rng = new Rng(randomSeed);
     const randomScores = records.map(() => rng.float());
-    const logisticScores = records.map((row) => model.score(row.state, row.action));
+    const heuristicScores = records.map((row) => row.heuristicScore
+        ?? heuristicRiskScore(row.state, row.action));
+    const logisticScores = records.map((row) => Array.isArray(row.features)
+        ? model.scoreFeatures(row.features)
+        : model.score(row.state, row.action));
     return stable({
         random: evaluateScores(records, randomScores),
+        heuristic: evaluateScores(records, heuristicScores),
         logistic: evaluateScores(records, logisticScores),
     });
+}
+
+function modelInput(row) {
+    if (!row?.state || !row?.action) throw new TypeError('row must contain state and action');
+    return stable({ state: row.state, action: row.action });
 }
 
 function exportTransitionDataset(records, file) {
     const resolved = path.resolve(file);
     fs.mkdirSync(path.dirname(resolved), { recursive: true });
-    const contents = records.map((row) => JSON.stringify(stable({
-        state: row.state,
-        action: row.action,
-        nextState: row.nextState,
-        labels: row.labels,
-    }))).join('\n');
+    const contents = records.map((row) => JSON.stringify(stable(row))).join('\n');
     fs.writeFileSync(resolved, `${contents}${contents ? '\n' : ''}`, 'utf8');
     return resolved;
 }
@@ -244,7 +303,12 @@ function exportTransitionDataset(records, file) {
 module.exports = {
     FEATURE_NAMES,
     RiskBaseline,
+    evaluateScores,
     evaluateRiskBaseline,
     exportTransitionDataset,
     extractRiskFeatures,
+    featureVector,
+    heuristicRiskScore,
+    modelInput,
+    riskLabel,
 };
