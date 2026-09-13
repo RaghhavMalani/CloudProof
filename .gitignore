@@ -12,7 +12,13 @@ dist/
 Thumbs.db
 
 # Generated demo state
-artifacts/
+artifacts/*
+!artifacts/cloudproof/
+artifacts/cloudproof/*
+!artifacts/cloudproof/failure-1337.json
+!artifacts/cloudproof/datasets/
+artifacts/cloudproof/datasets/*
+!artifacts/cloudproof/datasets/transitions-seed-1337.jsonl
 .demo-data/
 
 .vercel

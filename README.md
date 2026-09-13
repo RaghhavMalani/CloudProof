@@ -239,6 +239,23 @@ schedules with zero violations. See
 [MULTI-AGENT-RACE-DETECTION.md](MULTI-AGENT-RACE-DETECTION.md) for the durable
 resource model, action language, invariant set, and live Boundary G.
 
+### CloudProof executable Kubernetes twin
+
+CloudProof models Deployment, scheduler, readiness, endpoints, HPA, and PDB
+reconciliation over an explicit desired/observed cluster state. It searches and
+shrinks rollout/scale/drain failures, emits every transition as heterogeneous
+graph training data, and includes a deterministic logistic risk baseline behind
+an injected scorer interface.
+
+```bash
+node tools/cloudproof.js search --seed 1337 --runs 1
+node tools/cloudproof.js benchmark --seed 1337 --runs 10 --no-artifacts
+node tools/cloudproof-kind-replay.js artifacts/cloudproof/failure-1337.json
+```
+
+See [CLOUDPROOF.md](CLOUDPROOF.md) for the modeled Kubernetes boundary, graph
+schema, mutants, dataset contract, and sim-to-real workflow.
+
 ### CheckQuorum: the important distinction
 
 miniRaft does not claim full CheckQuorum semantics. An isolated leader retains

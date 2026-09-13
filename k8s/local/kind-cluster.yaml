@@ -62,7 +62,7 @@ nodes:
         kind: JoinConfiguration
         nodeRegistration:
           kubeletExtraArgs:
-            node-labels: "miniraft.io/tier=consensus"
+            node-labels: "miniraft.io/tier=consensus,cloudproof.io/node=node-a,topology.kubernetes.io/zone=zone-a"
           taints:
             - key: "miniraft.io/tier"
               value: "consensus"
@@ -75,7 +75,7 @@ nodes:
         kind: JoinConfiguration
         nodeRegistration:
           kubeletExtraArgs:
-            node-labels: "miniraft.io/tier=consensus"
+            node-labels: "miniraft.io/tier=consensus,cloudproof.io/node=node-b,topology.kubernetes.io/zone=zone-b"
           taints:
             - key: "miniraft.io/tier"
               value: "consensus"
@@ -88,7 +88,7 @@ nodes:
         kind: JoinConfiguration
         nodeRegistration:
           kubeletExtraArgs:
-            node-labels: "miniraft.io/tier=consensus"
+            node-labels: "miniraft.io/tier=consensus,cloudproof.io/node=node-c,topology.kubernetes.io/zone=zone-c"
           taints:
             - key: "miniraft.io/tier"
               value: "consensus"
