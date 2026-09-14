@@ -6,6 +6,8 @@ CloudProof tests one claim:
 
 Phase I also emits the supervised graph transitions needed by a future learned world model. It does **not** implement a GNN, an LLM planner, an RL adversary, Terraform, or multi-cloud behavior.
 
+The topology-held-out dataset and fixed-budget baseline stage is documented in [CLOUDPROOF-PHASE-II-A.md](CLOUDPROOF-PHASE-II-A.md).
+
 ## Architecture
 
 ```text
@@ -83,7 +85,7 @@ Every explicit action and virtual-clock callback emits:
 
 Saved counterexamples place these rows under `artifacts/cloudproof/datasets/transitions-seed-<seed>.jsonl`.
 
-`RiskBaseline` uses eight fixed features: ready replicas, pending replicas, zone concentration, CPU pressure, rollout active, HPA active, PDB headroom, and degraded-node count. Training uses deterministic batch gradient descent; evaluation reports AUROC, AUPRC, Brier score, and five-bin calibration for both a seeded random baseline and the logistic model. Search accepts any object implementing `riskScorer.score(state, candidateAction)` and has no ML-framework dependency.
+`RiskBaseline` uses eight fixed state features—ready replicas, pending replicas, zone concentration, CPU pressure, rollout active, HPA active, PDB headroom, and degraded-node count—plus a bounded candidate-action risk feature. Training uses deterministic batch gradient descent; evaluation reports AUROC, AUPRC, Brier score, expected calibration error, and five-bin calibration for seeded random, heuristic, and logistic baselines. Search accepts any object implementing `riskScorer.score(state, candidateAction)` and has no ML-framework dependency.
 
 ## Run
 

@@ -12,8 +12,9 @@ function latencyBucket(latencyMs) {
 }
 
 class TransitionTelemetry {
-    constructor({ horizonMs = 1000 } = {}) {
+    constructor({ horizonMs = 1000, horizonTransitions = null } = {}) {
         this.horizonMs = horizonMs;
+        this.horizonTransitions = horizonTransitions;
         this.transitions = [];
         this.sequence = 0;
     }
@@ -29,6 +30,10 @@ class TransitionTelemetry {
             nextState: infrastructureGraph(afterState),
             labels: {
                 sloViolationWithin1000ms: false,
+                ...(this.horizonTransitions === null ? {} : {
+                    sloViolationWithinKTransitions: false,
+                    labelHorizonTransitions: this.horizonTransitions,
+                }),
                 minReadyReplicas: service.observed.endpointPodIds.length,
                 latencyBucket: latencyBucket(afterState.traffic.latencyMs),
                 failureClass: evaluated.failure?.violationClass || null,
@@ -45,12 +50,20 @@ class TransitionTelemetry {
             const future = rows.slice(index).find((candidate) => (
                 candidate.atMs <= deadline && candidate.labels.failureClass !== null
             ));
+            const transitionFuture = this.horizonTransitions === null ? null
+                : rows.slice(index, index + this.horizonTransitions)
+                    .find((candidate) => candidate.labels.failureClass !== null);
             return stable({
                 ...clone(row),
                 labels: {
                     ...row.labels,
                     sloViolationWithin1000ms: Boolean(future),
-                    failureClass: future?.labels.failureClass || row.labels.failureClass,
+                    ...(this.horizonTransitions === null ? {} : {
+                        sloViolationWithinKTransitions: Boolean(transitionFuture),
+                    }),
+                    failureClass: transitionFuture?.labels.failureClass
+                        || future?.labels.failureClass
+                        || row.labels.failureClass,
                     minReadyReplicas: Math.min(...rows.slice(index)
                         .filter((candidate) => candidate.atMs <= deadline)
                         .map((candidate) => candidate.labels.minReadyReplicas)),

@@ -99,4 +99,11 @@ function infrastructureGraph(state) {
     });
 }
 
-module.exports = { EDGE_TYPE, infrastructureGraph };
+function canonicalGraphSerialization(graph) {
+    if (!graph || graph.kind !== 'cloudproof.infrastructure-graph') {
+        throw new TypeError('expected a CloudProof infrastructure graph');
+    }
+    return JSON.stringify(stable(graph));
+}
+
+module.exports = { EDGE_TYPE, canonicalGraphSerialization, infrastructureGraph };

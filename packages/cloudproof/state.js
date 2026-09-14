@@ -1,6 +1,6 @@
 'use strict';
 
-const { POD_PHASE, clone, createFlagshipResources } = require('./resources');
+const { POD_PHASE, clone, createCloudResources, createFlagshipResources } = require('./resources');
 
 function stable(value) {
     if (Array.isArray(value)) return value.map(stable);
@@ -48,15 +48,15 @@ function recomputeObserved(state) {
     return state;
 }
 
-function createFlagshipState({ seed = 1337 } = {}) {
+function stateEnvelope({ seed, resources, traffic, nextPodOrdinal }) {
     const state = {
         schemaVersion: 1,
         kind: 'cloudproof.cluster-state',
         seed,
         clockMs: 0,
         timeMs: 0,
-        resources: createFlagshipResources(),
-        traffic: { cpuPercent: 55, latencyMs: 18, requestsPerSecond: 120 },
+        resources,
+        traffic,
         faults: {
             readinessDelayMs: 0,
             imagePullDelayMs: 0,
@@ -71,11 +71,35 @@ function createFlagshipState({ seed = 1337 } = {}) {
             endpoints: { restartUntilMs: 0 },
             hpa: { restartUntilMs: 0 },
         },
-        counters: { nextPodOrdinal: 7 },
+        counters: { nextPodOrdinal },
         operations: { rollout: false, drainNodes: [], crashedNodes: [] },
         history: { disruptions: [], hpaSamples: [] },
     };
     return recomputeObserved(state);
+}
+
+function createCloudState({ seed = 1337, topology, traffic = {} } = {}) {
+    if (!topology) return createFlagshipState({ seed });
+    const initialTraffic = {
+        cpuPercent: traffic.cpuPercent ?? 55,
+        latencyMs: traffic.latencyMs ?? 18,
+        requestsPerSecond: traffic.requestsPerSecond ?? 120,
+    };
+    return stateEnvelope({
+        seed,
+        resources: createCloudResources(topology, initialTraffic),
+        traffic: initialTraffic,
+        nextPodOrdinal: topology.initialReplicas + 1,
+    });
+}
+
+function createFlagshipState({ seed = 1337 } = {}) {
+    return stateEnvelope({
+        seed,
+        resources: createFlagshipResources(),
+        traffic: { cpuPercent: 55, latencyMs: 18, requestsPerSecond: 120 },
+        nextPodOrdinal: 7,
+    });
 }
 
 function getDeployment(state, id = 'deployment/api') {
@@ -102,6 +126,7 @@ module.exports = {
     byId,
     canonicalState,
     clone,
+    createCloudState,
     createFlagshipState,
     getDeployment,
     getHpa,

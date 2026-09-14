@@ -5,7 +5,12 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
-const { RiskBaseline, evaluateRiskBaseline, exportTransitionDataset } = require('./transition-dataset');
+const {
+    RiskBaseline,
+    evaluateRiskBaseline,
+    evaluateScores,
+    exportTransitionDataset,
+} = require('./transition-dataset');
 const { runCloudSchedule } = require('../../sim/cloud-runtime');
 const { materializeCloudSchedule } = require('../../sim/cloud-schedule');
 
@@ -46,4 +51,18 @@ test('logistic risk baseline trains and evaluates reproducibly', async () => {
     assert.equal(typeof evaluation.logistic.brierScore, 'number');
     assert.equal(evaluation.logistic.calibration.length, 5);
     assert.equal(typeof first.score(failure.finalState, { type: 'cloud.action.drain-node' }), 'number');
+});
+
+test('ranking and calibration metrics handle perfect and tied probabilities', () => {
+    const records = [true, false].map((label) => ({
+        labels: { sloViolationWithinKTransitions: label },
+    }));
+    const perfect = evaluateScores(records, [1, 0]);
+    assert.equal(perfect.auroc, 1);
+    assert.equal(perfect.auprc, 1);
+    assert.equal(perfect.brierScore, 0);
+    assert.equal(perfect.expectedCalibrationError, 0);
+    const tied = evaluateScores(records, [0.5, 0.5]);
+    assert.equal(tied.auroc, 0.5);
+    assert.equal(tied.auprc, 0.5);
 });

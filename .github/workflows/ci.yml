@@ -37,6 +37,15 @@ jobs:
         run: node sim/multi-agent-search.js --benchmark --runs 100 --seed 1337 --no-artifacts
       - name: CloudProof executable twin acceptance gate
         run: node sim/cloud-search.js --benchmark --runs 10 --seed 1337 --no-artifacts
+      - name: CloudProof Phase II-A dataset and evaluation smoke gate
+        run: >-
+          node tools/cloudproof-dataset.js
+          --simulations 34
+          --minimum-simulations 34
+          --seed 43000
+          --iterations 10
+          --budgets 2,4,8
+          --out artifacts/cloudproof/research-ci
       # Every source file, found rather than listed. The previous version named
       # raft.js and index.js explicitly, so log-store.js and state-machine.js
       # were never checked once they were split out — the same class of omission
