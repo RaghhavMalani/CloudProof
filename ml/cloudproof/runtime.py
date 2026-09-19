@@ -1,0 +1,115 @@
+"""Shared artifact loading and batched ensemble inference helpers."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+from pathlib import Path
+from typing import Iterable
+
+import torch
+from torch.utils.data import DataLoader
+
+from .constants import RELATION_TYPES, RESOURCE_TYPES
+from .dataset import StreamingGraphDataset
+from .model import ModelConfig, build_model, ensemble_predict
+from .tensorize import GraphSample, collate_graphs
+
+
+def json_dump(path: str | Path, value: dict) -> None:
+    destination = Path(path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(
+        json.dumps(value, indent=2, sort_keys=True, allow_nan=False) + "\n",
+        encoding="utf-8",
+    )
+
+
+def sha256_file(path: str | Path) -> str:
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def load_artifact(
+    artifact_directory: str | Path,
+    device: str | torch.device = "cpu",
+) -> tuple[dict, list[torch.nn.Module]]:
+    directory = Path(artifact_directory)
+    config = json.loads((directory / "config.json").read_text(encoding="utf-8"))
+    if config.get("kind") != "cloudproof.gnn-risk-model-config":
+        raise ValueError("unsupported CloudProof model artifact")
+    model_config = ModelConfig.from_dict(config["model"])
+    models = []
+    for index, _seed in enumerate(config["ensembleSeeds"]):
+        model = build_model(model_config).to(device)
+        weights = torch.load(
+            directory / f"member-{index}.pt",
+            map_location=device,
+            weights_only=True,
+        )
+        model.load_state_dict(weights)
+        model.eval()
+        models.append(model)
+    return config, models
+
+
+@torch.no_grad()
+def predict_samples(
+    models: list[torch.nn.Module],
+    samples: Iterable[GraphSample],
+    *,
+    batch_size: int = 128,
+    device: str | torch.device = "cpu",
+) -> tuple[list[float], list[float], list[float], list[str | None]]:
+    loader = DataLoader(samples, batch_size=batch_size, collate_fn=collate_graphs, num_workers=0)
+    labels: list[float] = []
+    risks: list[float] = []
+    uncertainties: list[float] = []
+    record_ids: list[str | None] = []
+    for batch in loader:
+        batch = batch.to(device)
+        risk, uncertainty = ensemble_predict(models, batch)
+        risks.extend(risk.cpu().tolist())
+        uncertainties.extend(uncertainty.cpu().tolist())
+        if batch.labels is not None:
+            labels.extend(batch.labels.cpu().tolist())
+        record_ids.extend(batch.record_ids)
+    return labels, risks, uncertainties, record_ids
+
+
+def predict_path(
+    models: list[torch.nn.Module],
+    path: str | Path,
+    *,
+    batch_size: int = 128,
+    max_records: int | None = None,
+    device: str | torch.device = "cpu",
+) -> tuple[list[float], list[float], list[float], list[str | None]]:
+    dataset = StreamingGraphDataset(path, include_label=True, max_records=max_records)
+    return predict_samples(models, dataset, batch_size=batch_size, device=device)
+
+
+def artifact_manifest(directory: str | Path, config: dict) -> dict:
+    root = Path(directory)
+    members = []
+    for index, seed in enumerate(config["ensembleSeeds"]):
+        filename = f"member-{index}.pt"
+        members.append({"file": filename, "seed": seed, "sha256": sha256_file(root / filename)})
+    result = {
+        "kind": "cloudproof.gnn-risk-model-manifest",
+        "schemaVersion": 1,
+        "safetyAuthority": "deterministic-node-verifier",
+        "modelRole": "schedule-risk-ranking-only",
+        "resourceTypes": list(RESOURCE_TYPES),
+        "relationTypes": list(RELATION_TYPES),
+        "config": {"file": "config.json", "sha256": sha256_file(root / "config.json")},
+        "members": members,
+        "dataset": config["dataset"],
+    }
+    metrics = root / "metrics.json"
+    if metrics.is_file():
+        result["metrics"] = {"file": "metrics.json", "sha256": sha256_file(metrics)}
+    return result
