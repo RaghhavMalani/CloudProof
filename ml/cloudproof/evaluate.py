@@ -37,6 +37,7 @@ def evaluate_artifact(
         "kind": "cloudproof.gnn-risk-model-evaluation",
         "schemaVersion": 1,
         "ablation": config["ablation"],
+        "labelControl": config.get("labelControl", "observed"),
         "members": previous.get("members"),
     }
     for split in ("validation", "test", "ood"):

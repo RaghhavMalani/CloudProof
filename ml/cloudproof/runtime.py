@@ -8,11 +8,12 @@ from pathlib import Path
 from typing import Iterable
 
 import torch
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, IterableDataset
 
 from .constants import RELATION_TYPES, RESOURCE_TYPES
 from .dataset import StreamingGraphDataset
 from .model import ModelConfig, build_model, ensemble_predict
+from .perturb import perturb_sample, relation_mode_for
 from .tensorize import GraphSample, collate_graphs
 
 
@@ -56,6 +57,19 @@ def load_artifact(
     return config, models
 
 
+class _PerturbedSamples(IterableDataset[GraphSample]):
+    """Keep perturbation streams recognizable as iterable datasets to DataLoader."""
+
+    def __init__(self, samples: Iterable[GraphSample], edge_mode: str) -> None:
+        super().__init__()
+        self.samples = samples
+        self.edge_mode = edge_mode
+
+    def __iter__(self):
+        for sample in self.samples:
+            yield perturb_sample(sample, self.edge_mode)
+
+
 @torch.no_grad()
 def predict_samples(
     models: list[torch.nn.Module],
@@ -63,15 +77,17 @@ def predict_samples(
     *,
     batch_size: int = 128,
     device: str | torch.device = "cpu",
+    edge_mode: str = "full",
 ) -> tuple[list[float], list[float], list[float], list[str | None]]:
-    loader = DataLoader(samples, batch_size=batch_size, collate_fn=collate_graphs, num_workers=0)
+    perturbed = _PerturbedSamples(samples, edge_mode)
+    loader = DataLoader(perturbed, batch_size=batch_size, collate_fn=collate_graphs, num_workers=0)
     labels: list[float] = []
     risks: list[float] = []
     uncertainties: list[float] = []
     record_ids: list[str | None] = []
     for batch in loader:
         batch = batch.to(device)
-        risk, uncertainty = ensemble_predict(models, batch)
+        risk, uncertainty = ensemble_predict(models, batch, relation_mode_for(edge_mode))
         risks.extend(risk.cpu().tolist())
         uncertainties.extend(uncertainty.cpu().tolist())
         if batch.labels is not None:
@@ -87,9 +103,12 @@ def predict_path(
     batch_size: int = 128,
     max_records: int | None = None,
     device: str | torch.device = "cpu",
+    edge_mode: str = "full",
 ) -> tuple[list[float], list[float], list[float], list[str | None]]:
     dataset = StreamingGraphDataset(path, include_label=True, max_records=max_records)
-    return predict_samples(models, dataset, batch_size=batch_size, device=device)
+    return predict_samples(
+        models, dataset, batch_size=batch_size, device=device, edge_mode=edge_mode
+    )
 
 
 def artifact_manifest(directory: str | Path, config: dict) -> dict:

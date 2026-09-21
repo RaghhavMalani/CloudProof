@@ -6,11 +6,12 @@ import argparse
 import json
 from pathlib import Path
 
-from torch.utils.data import DataLoader, IterableDataset
+import torch
+from torch.utils.data import IterableDataset
 
-from .runtime import load_artifact
-from .model import ensemble_predict
-from .tensorize import CloudProofTensorizer, collate_graphs
+from .perturb import EDGE_DESTRUCTION_MODES
+from .runtime import load_artifact, predict_samples
+from .tensorize import CloudProofTensorizer
 
 
 class RequestDataset(IterableDataset):
@@ -39,31 +40,28 @@ def infer_file(
     output_path: str | Path,
     batch_size: int = 128,
     device: str = "cpu",
+    edge_mode: str = "full",
 ) -> None:
     _config, models = load_artifact(artifact_directory, device)
-    loader = DataLoader(
+    _labels, risks, uncertainties, keys = predict_samples(
+        models,
         RequestDataset(input_path),
         batch_size=batch_size,
-        collate_fn=collate_graphs,
-        num_workers=0,
+        device=device,
+        edge_mode=edge_mode,
     )
     destination = Path(output_path)
     destination.parent.mkdir(parents=True, exist_ok=True)
     with destination.open("w", encoding="utf-8", newline="\n") as output:
-        for batch in loader:
-            batch = batch.to(device)
-            risk, uncertainty = ensemble_predict(models, batch)
-            for key, risk_value, uncertainty_value in zip(
-                batch.record_ids, risk.cpu().tolist(), uncertainty.cpu().tolist()
-            ):
-                output.write(
-                    json.dumps(
-                        {"key": key, "risk": risk_value, "uncertainty": uncertainty_value},
-                        sort_keys=True,
-                        separators=(",", ":"),
-                    )
-                    + "\n"
+        for key, risk_value, uncertainty_value in zip(keys, risks, uncertainties):
+            output.write(
+                json.dumps(
+                    {"key": key, "risk": risk_value, "uncertainty": uncertainty_value},
+                    sort_keys=True,
+                    separators=(",", ":"),
                 )
+                + "\n"
+            )
 
 
 def parse_args() -> argparse.Namespace:
@@ -73,17 +71,23 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output", required=True)
     parser.add_argument("--batch-size", type=int, default=128)
     parser.add_argument("--device", default="cpu")
+    parser.add_argument("--edge-mode", choices=EDGE_DESTRUCTION_MODES, default="full")
+    parser.add_argument("--threads", type=int, default=1)
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
+    if args.threads < 1:
+        raise ValueError("threads must be positive")
+    torch.set_num_threads(args.threads)
     infer_file(
         artifact_directory=args.model,
         input_path=args.input,
         output_path=args.output,
         batch_size=args.batch_size,
         device=args.device,
+        edge_mode=args.edge_mode,
     )
 
 

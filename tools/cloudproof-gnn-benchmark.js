@@ -12,6 +12,19 @@ const { RiskBaseline } = require('../packages/cloudproof/transition-dataset');
 const { runCloudSchedule } = require('../sim/cloud-runtime');
 const { controllerStateSignature } = require('../sim/cloud-schedule');
 
+const EDGE_MODES = Object.freeze([
+    'full',
+    'randomized-edges',
+    'collapsed-edge-types',
+    'no-edges',
+    'random-relation-labels',
+]);
+
+function scorerName(mode) {
+    if (mode === 'full') return 'gnn';
+    return `gnn${mode.split('-').map((part) => part[0].toUpperCase() + part.slice(1)).join('')}`;
+}
+
 function parseArgs(argv) {
     const options = {
         dataset: 'artifacts/cloudproof/research-dataset',
@@ -21,6 +34,7 @@ function parseArgs(argv) {
         budgets: [100, 500, 1000, 5000],
         concurrency: 16,
         maxSchedules: null,
+        edgeModes: ['full'],
     };
     for (let index = 0; index < argv.length; index += 1) {
         const name = argv[index];
@@ -32,6 +46,7 @@ function parseArgs(argv) {
         else if (name === '--budgets') options.budgets = value.split(',').map(Number);
         else if (name === '--concurrency') options.concurrency = Number(value);
         else if (name === '--max-schedules') options.maxSchedules = Number(value);
+        else if (name === '--edge-modes') options.edgeModes = value.split(',').filter(Boolean);
         else throw new TypeError(`unknown argument: ${name}`);
         index += 1;
     }
@@ -43,6 +58,12 @@ function parseArgs(argv) {
     }
     if (options.maxSchedules !== null && (!Number.isInteger(options.maxSchedules) || options.maxSchedules < 1)) {
         throw new TypeError('max-schedules must be a positive integer');
+    }
+    if (!options.edgeModes.length || options.edgeModes.some((mode) => !EDGE_MODES.includes(mode))) {
+        throw new TypeError(`edge-modes must be selected from: ${EDGE_MODES.join(', ')}`);
+    }
+    if (new Set(options.edgeModes).size !== options.edgeModes.length) {
+        throw new TypeError('edge-modes must not contain duplicates');
     }
     return options;
 }
@@ -71,6 +92,17 @@ function writeInferenceRequests(schedules, file) {
     const lines = [...requests.values()].map((value) => JSON.stringify(value)).join('\n');
     fs.writeFileSync(file, `${lines}\n`, 'utf8');
     return requests.size;
+}
+
+function runInference(options, requestFile, scoreFile, edgeMode) {
+    const inference = spawnSync(options.python, [
+        '-m', 'ml.cloudproof.infer', '--model', options.model,
+        '--input', requestFile, '--output', scoreFile, '--edge-mode', edgeMode,
+    ], { cwd: path.resolve(__dirname, '..'), encoding: 'utf8' });
+    if (inference.status !== 0) {
+        throw new Error(`GNN inference failed for ${edgeMode}:\n${inference.stdout}\n${inference.stderr}`);
+    }
+    return OfflineGnnRiskScorer.fromJsonl(scoreFile);
 }
 
 async function replayCandidates(items, concurrency) {
@@ -119,21 +151,19 @@ async function main(argv = process.argv.slice(2)) {
     const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'cloudproof-gnn-'));
     try {
         const requestFile = path.join(temporary, 'requests.jsonl');
-        const scoreFile = path.join(temporary, 'scores.jsonl');
         const uniqueInferenceRequests = writeInferenceRequests(schedules, requestFile);
-        const inference = spawnSync(options.python, [
-            '-m', 'ml.cloudproof.infer', '--model', options.model,
-            '--input', requestFile, '--output', scoreFile,
-        ], { cwd: path.resolve(__dirname, '..'), encoding: 'utf8' });
-        if (inference.status !== 0) {
-            throw new Error(`GNN inference failed:\n${inference.stdout}\n${inference.stderr}`);
+        const additionalScorers = {};
+        for (const edgeMode of options.edgeModes) {
+            const scoreFile = path.join(temporary, `${edgeMode}-scores.jsonl`);
+            additionalScorers[scorerName(edgeMode)] = runInference(
+                options, requestFile, scoreFile, edgeMode,
+            );
         }
-        const scorer = OfflineGnnRiskScorer.fromJsonl(scoreFile);
         const candidates = await replayCandidates(schedules, options.concurrency);
         const fixedBudget = evaluateSchedulePrioritizers(candidates, logistic, {
             budgets: options.budgets,
             randomSeed: 1337,
-            additionalScorers: { gnn: scorer },
+            additionalScorers,
         });
         const result = {
             ...fixedBudget,
@@ -141,6 +171,7 @@ async function main(argv = process.argv.slice(2)) {
             schemaVersion: 1,
             safetyAuthority: 'deterministic-node-verifier',
             candidateSplits: ['validation', 'test', 'ood'],
+            edgeModes: options.edgeModes,
             uniqueInferenceRequests,
         };
         fs.mkdirSync(path.dirname(options.out), { recursive: true });
@@ -159,4 +190,12 @@ if (require.main === module) {
     });
 }
 
-module.exports = { initialGraph, main, parseArgs, replayCandidates, writeInferenceRequests };
+module.exports = {
+    EDGE_MODES,
+    initialGraph,
+    main,
+    parseArgs,
+    replayCandidates,
+    scorerName,
+    writeInferenceRequests,
+};

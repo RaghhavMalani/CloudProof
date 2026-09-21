@@ -14,14 +14,22 @@ from torch import nn
 from torch.utils.data import DataLoader
 
 from .constants import ACTION_TYPES, ENSEMBLE_SEEDS, NODE_FEATURE_NAMES, RELATION_TYPES, RESOURCE_TYPES
-from .dataset import CorpusManifest, StreamingGraphDataset, label_balance
+from .dataset import CorpusManifest, StreamingGraphDataset, label_balance, permuted_label_vector
 from .metrics import evaluate_binary_risk, threshold_for_f1
 from .model import ModelConfig, build_model, ensemble_predict
 from .runtime import artifact_manifest, json_dump
 from .tensorize import collate_graphs
 
 
-ABLATIONS = ("full", "no-edge-types", "no-action-embedding", "no-zone-relations", "flat-mlp")
+ABLATIONS = (
+    "full",
+    "action-only",
+    "state-only",
+    "no-edge-types",
+    "no-action-embedding",
+    "no-zone-relations",
+    "flat-mlp",
+)
 
 
 def config_for_ablation(name: str, hidden_dim: int, layers: int, dropout: float) -> ModelConfig:
@@ -35,6 +43,7 @@ def config_for_ablation(name: str, hidden_dim: int, layers: int, dropout: float)
         use_action_embedding=name != "no-action-embedding",
         use_zone_relations=name != "no-zone-relations",
         flat_mlp=name == "flat-mlp",
+        input_mode=name if name in {"action-only", "state-only"} else "state-action",
     )
 
 
@@ -59,9 +68,9 @@ def _member_predictions(model, loader, device) -> tuple[list[float], list[float]
     return labels, predictions
 
 
-def _validation_loader(path, batch_size, max_records):
+def _validation_loader(path, batch_size, max_records, label_overrides=None):
     return DataLoader(
-        StreamingGraphDataset(path, max_records=max_records),
+        StreamingGraphDataset(path, max_records=max_records, label_overrides=label_overrides),
         batch_size=batch_size,
         collate_fn=collate_graphs,
         num_workers=0,
@@ -84,6 +93,8 @@ def train_member(
     max_train_records: int | None,
     max_validation_records: int | None,
     device: str,
+    train_label_overrides: tuple[float, ...] | None = None,
+    validation_label_overrides: tuple[float, ...] | None = None,
 ) -> tuple[nn.Module, dict]:
     seed_everything(seed)
     model = build_model(config).to(device)
@@ -95,6 +106,7 @@ def train_member(
         shuffle_seed=seed,
         shuffle_buffer=shuffle_buffer,
         max_records=max_train_records,
+        label_overrides=train_label_overrides,
     )
     train_loader = DataLoader(
         train_data,
@@ -122,7 +134,9 @@ def train_member(
             optimizer.step()
             loss_sum += float(loss.detach()) * batch.graph_count
             examples += batch.graph_count
-        validation_loader = _validation_loader(validation_path, batch_size, max_validation_records)
+        validation_loader = _validation_loader(
+            validation_path, batch_size, max_validation_records, validation_label_overrides
+        )
         labels, probabilities = _member_predictions(model, validation_loader, device)
         metrics = evaluate_binary_risk(labels, probabilities)
         history.append({"epoch": epoch, "trainLoss": loss_sum / max(1, examples), "validation": metrics})
@@ -161,9 +175,15 @@ def train_ensemble(
     max_validation_records: int | None = None,
     verify_hashes: bool = True,
     device: str = "cpu",
+    permuted_labels: bool = False,
+    label_permutation_seed: int = 99173,
+    torch_threads: int = 1,
 ) -> dict:
     if len(seeds) != 5:
         raise ValueError("Phase II-B requires exactly five independently initialized models")
+    if torch_threads < 1:
+        raise ValueError("torch_threads must be positive")
+    torch.set_num_threads(torch_threads)
     manifest = CorpusManifest(dataset_directory)
     verified_hashes = manifest.verify_hashes() if verify_hashes else None
     train_path = manifest.path_for("train")
@@ -174,6 +194,15 @@ def train_ensemble(
     heavily_imbalanced = balance.positive_rate < 0.25 or balance.positive_rate > 0.75
     pos_weight = balance.negative / balance.positive if heavily_imbalanced else 1.0
     model_config = config_for_ablation(ablation, hidden_dim, layers, dropout)
+    train_label_overrides = None
+    validation_label_overrides = None
+    if permuted_labels:
+        train_label_overrides = permuted_label_vector(
+            train_path, label_permutation_seed, max_train_records
+        )
+        validation_label_overrides = permuted_label_vector(
+            validation_path, label_permutation_seed + 1, max_validation_records
+        )
     output = Path(output_directory)
     output.mkdir(parents=True, exist_ok=True)
     config = {
@@ -195,6 +224,8 @@ def train_ensemble(
             "trajectory outcomes",
             "failure classes",
         ],
+        "parameterCount": sum(parameter.numel() for parameter in build_model(model_config).parameters()),
+        "labelControl": "permuted" if permuted_labels else "observed",
         "dataset": manifest.artifact_contract(),
         "training": {
             "epochs": epochs,
@@ -210,6 +241,9 @@ def train_ensemble(
             "positiveWeight": pos_weight,
             "device": device,
             "hashesVerified": bool(verified_hashes),
+            "torchThreads": torch_threads,
+            "labelPermutationSeed": label_permutation_seed if permuted_labels else None,
+            "validationSelectionLabels": "permuted" if permuted_labels else "observed",
         },
     }
     json_dump(output / "config.json", config)
@@ -232,12 +266,16 @@ def train_ensemble(
             max_train_records=max_train_records,
             max_validation_records=max_validation_records,
             device=device,
+            train_label_overrides=train_label_overrides,
+            validation_label_overrides=validation_label_overrides,
         )
         torch.save(model.state_dict(), output / f"member-{index}.pt")
         models.append(model)
         members.append(member)
 
-    validation_loader = _validation_loader(validation_path, batch_size, max_validation_records)
+    validation_loader = _validation_loader(
+        validation_path, batch_size, max_validation_records, validation_label_overrides
+    )
     labels = []
     probabilities = []
     uncertainties = []
@@ -255,6 +293,7 @@ def train_ensemble(
         "kind": "cloudproof.gnn-risk-model-training-metrics",
         "schemaVersion": 1,
         "ablation": ablation,
+        "labelControl": "permuted" if permuted_labels else "observed",
         "members": members,
         "validation": validation_metrics,
         "test": None,
@@ -284,6 +323,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-validation-records", type=int)
     parser.add_argument("--skip-hash-verification", action="store_true")
     parser.add_argument("--device", default="cpu")
+    parser.add_argument("--permuted-labels", action="store_true")
+    parser.add_argument("--label-permutation-seed", type=int, default=99173)
+    parser.add_argument("--threads", type=int, default=1)
     return parser.parse_args()
 
 
@@ -308,6 +350,9 @@ def main() -> None:
         max_validation_records=args.max_validation_records,
         verify_hashes=not args.skip_hash_verification,
         device=args.device,
+        permuted_labels=args.permuted_labels,
+        label_permutation_seed=args.label_permutation_seed,
+        torch_threads=args.threads,
     )
     print(json.dumps({"out": str(Path(args.out).resolve()), "validation": result["validation"]}, indent=2))
 

@@ -145,6 +145,18 @@ def label_balance(path: str | Path, max_records: int | None = None) -> LabelBala
     return LabelBalance(total=total, positive=positive, negative=total - positive)
 
 
+def permuted_label_vector(
+    path: str | Path, seed: int, max_records: int | None = None
+) -> tuple[float, ...]:
+    labels = []
+    for record in iter_jsonl(path):
+        labels.append(float(bool((record.get("labels") or {}).get("sloViolationWithinKTransitions"))))
+        if max_records is not None and len(labels) >= max_records:
+            break
+    random.Random(seed).shuffle(labels)
+    return tuple(labels)
+
+
 class StreamingGraphDataset(IterableDataset[GraphSample]):
     """Deterministic streaming dataset with bounded-buffer train shuffling."""
 
@@ -158,6 +170,7 @@ class StreamingGraphDataset(IterableDataset[GraphSample]):
         shuffle_seed: int = 0,
         shuffle_buffer: int = 2048,
         max_records: int | None = None,
+        label_overrides: tuple[float, ...] | None = None,
     ) -> None:
         super().__init__()
         self.path = Path(path)
@@ -167,38 +180,50 @@ class StreamingGraphDataset(IterableDataset[GraphSample]):
         self.shuffle_seed = shuffle_seed
         self.shuffle_buffer = shuffle_buffer
         self.max_records = max_records
+        self.label_overrides = label_overrides
         self.epoch = 0
 
     def set_epoch(self, epoch: int) -> None:
         self.epoch = int(epoch)
 
-    def _records(self) -> Iterator[dict[str, Any]]:
+    def _records(self) -> Iterator[tuple[int, dict[str, Any]]]:
         worker = get_worker_info()
-        yielded = 0
         for index, record in enumerate(iter_jsonl(self.path)):
+            if self.max_records is not None and index >= self.max_records:
+                break
             if worker is not None and index % worker.num_workers != worker.id:
                 continue
-            yield record
-            yielded += 1
-            if self.max_records is not None and yielded >= self.max_records:
-                break
+            yield index, record
+
+    def _tensorize(self, index: int, record: dict[str, Any]) -> GraphSample:
+        if self.label_overrides is None:
+            return self.tensorizer.tensorize_record(record, self.include_label)
+        if not self.include_label:
+            raise ValueError("label overrides require include_label=True")
+        if index >= len(self.label_overrides):
+            raise ValueError("label override vector is shorter than the dataset")
+        return self.tensorizer.tensorize(
+            record["state"], record["action"], self.label_overrides[index], record.get("recordId")
+        )
 
     def __iter__(self) -> Iterator[GraphSample]:
         records = self._records()
         if not self.shuffle:
-            for record in records:
-                yield self.tensorizer.tensorize_record(record, self.include_label)
+            for index, record in records:
+                yield self._tensorize(index, record)
             return
         randomizer = random.Random(self.shuffle_seed + self.epoch * 1_000_003)
         buffer = []
-        for record in records:
-            buffer.append(record)
+        for indexed_record in records:
+            buffer.append(indexed_record)
             if len(buffer) >= self.shuffle_buffer:
                 selected = randomizer.randrange(len(buffer))
-                yield self.tensorizer.tensorize_record(buffer.pop(selected), self.include_label)
+                index, record = buffer.pop(selected)
+                yield self._tensorize(index, record)
         while buffer:
             selected = randomizer.randrange(len(buffer))
-            yield self.tensorizer.tensorize_record(buffer.pop(selected), self.include_label)
+            index, record = buffer.pop(selected)
+            yield self._tensorize(index, record)
 
 
 def find_zone_experiment_record(path: str | Path) -> dict[str, Any]:

@@ -1,0 +1,156 @@
+{
+  "kind": "cloudproof.phase-ii-b1-attribution-audit",
+  "schemaVersion": 1,
+  "status": "attribution-gate-failed",
+  "decision": "do-not-run-full-acceptance-or-push-until-the-corpus-is-repaired",
+  "safetyAuthority": "deterministic-node-verifier",
+  "protocol": {
+    "dataset": "artifacts/cloudproof/research-dataset",
+    "ensembleSeeds": [1337, 2027, 4099, 7919, 104729],
+    "epochs": 3,
+    "maxTrainRecords": 10000,
+    "maxValidationRecords": 5000,
+    "maxEvaluationRecordsPerSplit": 5000,
+    "fixedBudgetSchedules": 5292,
+    "counterfactualPairs": 250
+  },
+  "modelComparison": {
+    "fullGnn": {
+      "parameters": 123793,
+      "test": { "auroc": 0.982738, "auprc": 0.899814 },
+      "ood": { "auroc": 0.984076, "auprc": 0.894898 }
+    },
+    "actionOnly": {
+      "parameters": 13633,
+      "test": { "auroc": 0.852667, "auprc": 0.547556 },
+      "ood": { "auroc": 0.855974, "auprc": 0.556554 }
+    },
+    "stateOnly": {
+      "parameters": 119185,
+      "test": { "auroc": 0.941991, "auprc": 0.713575 },
+      "ood": { "auroc": 0.973503, "auprc": 0.81765 }
+    },
+    "pooledMlp": {
+      "parameters": 137665,
+      "parameterRatioToGnn": 1.112055,
+      "test": { "auroc": 0.988733, "auprc": 0.926766 },
+      "ood": { "auroc": 0.98709, "auprc": 0.899991 }
+    },
+    "permutedLabels": {
+      "parameters": 123793,
+      "validation": { "auroc": 0.659204, "auprc": 0.140501 },
+      "test": { "auroc": 0.692289, "auprc": 0.147249 },
+      "ood": { "auroc": 0.738807, "auprc": 0.176667 }
+    }
+  },
+  "fixedBudgetFailuresFound": {
+    "budgets": [100, 500, 1000, 5000],
+    "random": [50, 251, 518, 2505],
+    "logistic": [0, 98, 249, 2354],
+    "heuristic": [100, 346, 549, 2578],
+    "fullGnn": [100, 490, 929, 2597],
+    "actionOnly": [100, 500, 1000, 2540],
+    "stateOnly": [100, 500, 1000, 2570],
+    "pooledMlp": [100, 500, 931, 2548],
+    "permutedLabels": [100, 245, 470, 2354]
+  },
+  "edgeDestructionFailuresFound": {
+    "budgets": [100, 500, 1000, 5000],
+    "full": [100, 490, 929, 2597],
+    "randomizedEdges": [100, 490, 929, 2597],
+    "collapsedEdgeTypes": [100, 500, 1000, 2597],
+    "noEdges": [100, 500, 1000, 2551],
+    "randomRelationLabels": [100, 500, 1000, 2597]
+  },
+  "counterfactualTopology": {
+    "pairs": 250,
+    "fullGnn": {
+      "pairwiseAccuracy": 0.668,
+      "correct": 167,
+      "meanRiskMargin": 0.002027,
+      "auroc": 0.528224
+    },
+    "pooledMlp": {
+      "pairwiseAccuracy": 0.0,
+      "ties": 250,
+      "meanRiskMargin": 0.0,
+      "auroc": 0.5
+    }
+  },
+  "horizonAnalysisValidation": {
+    "records": 5000,
+    "1": { "positiveRate": 0.0234, "auroc": 0.936119, "auprc": 0.206578 },
+    "3": { "positiveRate": 0.0562, "auroc": 0.947137, "auprc": 0.453739 },
+    "5": { "positiveRate": 0.0864, "auroc": 0.966471, "auprc": 0.806763 },
+    "10": { "positiveRate": 0.1074, "auroc": 0.944934, "auprc": 0.757746 },
+    "20": { "positiveRate": 0.1074, "auroc": 0.944934, "auprc": 0.757746 }
+  },
+  "leakageAudit": {
+    "schedules": 10000,
+    "transitions": 320256,
+    "safeMeanScheduleLength": 42.0,
+    "unsafeMeanScheduleLength": 6.0094,
+    "safeOnlyRuntime": "correct",
+    "unsafeOnlyRuntimes": [
+      "endpoint-includes-unready",
+      "hpa-stale-indefinitely",
+      "rollout-ignores-terminating"
+    ],
+    "safeOnlyFaultCombination": "none",
+    "unsafeActionPercent": {
+      "trafficSpike": 38.26,
+      "readinessDelay": 61.74,
+      "hpaStaleMetric": 38.26,
+      "imagePullDelay": 38.22,
+      "endpointPropagationDelay": 38.22
+    },
+    "correspondingSafeActionPercent": 0.0,
+    "stateActionFingerprints": {
+      "unique": 4980,
+      "duplicateFingerprints": 4747,
+      "duplicateOccurrences": 315276,
+      "crossSplitFingerprints": 0,
+      "conflictingLabelFingerprints": 5
+    },
+    "selectedStateMeans": {
+      "safe": {
+        "desiredReplicas": 6.2052,
+        "pendingPods": 0.1425,
+        "readyReplicas": 5.9815,
+        "rolloutActive": 0.3873,
+        "podReady": 0.7722,
+        "serviceEndpoints": 5.8391,
+        "hpaActive": 0.0012
+      },
+      "unsafe": {
+        "desiredReplicas": 5.8382,
+        "pendingPods": 0.2883,
+        "readyReplicas": 5.5454,
+        "rolloutActive": 0.1257,
+        "podReady": 0.9397,
+        "serviceEndpoints": 5.5454,
+        "hpaActive": 0.0599
+      }
+    }
+  },
+  "conclusions": [
+    "The current fixed-budget gain is not attributable to correct graph topology.",
+    "Randomizing edge endpoints leaves the full GNN result exactly unchanged.",
+    "Action-only, state-only, pooled-MLP, and structurally destroyed variants match or beat the full GNN at budget 500.",
+    "The parameter-matched pooled MLP beats the full GNN on transition-level test and OOD metrics.",
+    "The full GNN shows a small topology signal on matched pairs, but its 66.8% pairwise accuracy and 0.002 mean margin do not explain the headline benchmark gain.",
+    "The corpus construction exposes strong SAFE/UNSAFE shortcuts through schedule length, runtime, fault/action support, and repeated state/action fingerprints.",
+    "The label-permutation schedule benchmark is approximately random at low budgets, but non-chance AUROC from near-constant scores is another reason not to treat the corpus as a clean attribution benchmark."
+  ],
+  "fullCorpusAcceptance": {
+    "status": "not-run",
+    "reason": "The explicitly prerequisite attribution and leakage sanity gates failed. Scaling training on the same confounded corpus would not establish relational causality.",
+    "testDisclosure": "Test and OOD slices had already been inspected during the earlier bounded Phase II-B study, so they cannot honestly be described as virgin final holdouts."
+  },
+  "delivery": {
+    "commitCreated": false,
+    "pushed": false,
+    "pullRequestCreated": false,
+    "reason": "The brief permits push only after a clean full-corpus acceptance; that gate was not reached."
+  }
+}

@@ -336,7 +336,8 @@ async function runCloudSchedule(input, options = {}) {
         mutant: options.mutant || schedule.runtime || 'correct',
         topology: schedule.topology?.maxUnavailable === undefined ? null : schedule.topology,
         traffic: schedule.scenarioParameters?.traffic || null,
-        horizonTransitions: schedule.strategy === 'research-corpus' ? 5 : null,
+        horizonTransitions: options.horizonTransitions
+            ?? (schedule.strategy === 'research-corpus' ? 5 : null),
     });
     for (const action of schedule.actions) await simulation.execute(action);
     const finalState = simulation.export();
