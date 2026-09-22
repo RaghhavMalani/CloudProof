@@ -154,18 +154,23 @@ class RiskBaseline {
         return this.score({ features });
     }
 
-    train(records, { iterations = 300, learningRate = 0.08, l2 = 0.001 } = {}) {
+    train(records, { iterations = 300, learningRate = 0.08, l2 = 0.001, balanceClasses = false } = {}) {
         if (!Array.isArray(records) || records.length === 0) throw new TypeError('records are required');
+        // Rare positives otherwise leave the weights near zero after a bounded
+        // number of full-batch steps, which makes the ordering meaningless.
+        const positives = records.filter((row) => riskLabel(row)).length;
+        const positiveWeight = balanceClasses && positives > 0 && positives < records.length
+            ? (records.length - positives) / positives
+            : 1;
+        const cache = records.map((row) => ({ x: featureVector(row, row.action), y: riskLabel(row) ? 1 : 0 }));
         for (let iteration = 0; iteration < iterations; iteration += 1) {
             const gradient = Array(this.weights.length).fill(0);
             let biasGradient = 0;
-            for (const row of records) {
-                const x = featureVector(row, row.action);
-                const y = riskLabel(row) ? 1 : 0;
+            for (const { x, y } of cache) {
                 const prediction = sigmoid(this.bias + x.reduce((sum, value, index) => (
                     sum + value * this.weights[index]
                 ), 0));
-                const error = prediction - y;
+                const error = (prediction - y) * (y ? positiveWeight : 1);
                 biasGradient += error;
                 for (let index = 0; index < gradient.length; index += 1) gradient[index] += error * x[index];
             }
@@ -303,6 +308,8 @@ function exportTransitionDataset(records, file) {
 module.exports = {
     FEATURE_NAMES,
     RiskBaseline,
+    areaUnderPrecisionRecall,
+    areaUnderRoc,
     evaluateScores,
     evaluateRiskBaseline,
     exportTransitionDataset,

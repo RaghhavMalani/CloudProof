@@ -46,6 +46,21 @@ jobs:
           --iterations 10
           --budgets 2,4,8
           --out artifacts/cloudproof/research-ci
+      - name: CloudProof Phase II-A.2 causal corpus smoke gate
+        run: >-
+          node tools/cloudproof-causal-corpus.js
+          --simulations 160
+          --seed 61000
+          --minimum-trajectories 160
+          --minimum-matched-pairs 4
+          --minimum-discordant-pairs 0
+          --pairs 24
+          --budgets 2,4,8
+          --workers 2
+          --shortcut-auroc-hard-max 1
+          --permutation-mean-band 1
+          --permutation-trial-band 1
+          --out artifacts/cloudproof/causal-corpus-ci
       # Every source file, found rather than listed. The previous version named
       # raft.js and index.js explicitly, so log-store.js and state-machine.js
       # were never checked once they were split out — the same class of omission

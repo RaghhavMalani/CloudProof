@@ -6,7 +6,7 @@ CloudProof tests one claim:
 
 Phase I also emits the supervised graph transitions needed by a future learned world model. It does **not** implement a GNN, an LLM planner, an RL adversary, Terraform, or multi-cloud behavior.
 
-The topology-held-out dataset and fixed-budget baseline stage is documented in [CLOUDPROOF-PHASE-II-A.md](CLOUDPROOF-PHASE-II-A.md).
+The topology-held-out dataset and fixed-budget baseline stage is documented in [CLOUDPROOF-PHASE-II-A.md](CLOUDPROOF-PHASE-II-A.md). Its corpus was superseded after the Phase II-B.1 attribution audit ([CLOUDPROOF-PHASE-II-B1-ATTRIBUTION-AUDIT.md](CLOUDPROOF-PHASE-II-B1-ATTRIBUTION-AUDIT.md)); the leakage-resistant replacement is documented in [CLOUDPROOF-PHASE-II-A2-CAUSAL-CORPUS.md](CLOUDPROOF-PHASE-II-A2-CAUSAL-CORPUS.md).
 
 ## Architecture
 

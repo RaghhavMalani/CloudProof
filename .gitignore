@@ -22,3 +22,6 @@ artifacts/cloudproof/datasets/*
 .demo-data/
 
 .vercel
+
+# Python bytecode caches from the ml test suite
+__pycache__/

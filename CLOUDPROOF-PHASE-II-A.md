@@ -1,5 +1,10 @@
 # CloudProof Phase II-A — Research Dataset and Evaluation Infrastructure
 
+> **Superseded (2026-09-22).** The Phase II-B.1 attribution audit found that this corpus assigns
+> outcomes by construction (safe/unsafe templates). It is retained unchanged as research history;
+> do not use it to claim graph-topology learning. The replacement is
+> [CLOUDPROOF-PHASE-II-A2-CAUSAL-CORPUS.md](CLOUDPROOF-PHASE-II-A2-CAUSAL-CORPUS.md).
+
 Phase II-A turns the deterministic Kubernetes twin into a reproducible research instrument. It deliberately stops before GNN, LLM, reinforcement-learning, or counterexample-guided retraining work.
 
 ## Generate and evaluate the research corpus

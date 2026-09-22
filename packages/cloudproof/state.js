@@ -78,7 +78,7 @@ function stateEnvelope({ seed, resources, traffic, nextPodOrdinal }) {
     return recomputeObserved(state);
 }
 
-function createCloudState({ seed = 1337, topology, traffic = {} } = {}) {
+function createCloudState({ seed = 1337, topology, traffic = {}, placement = null } = {}) {
     if (!topology) return createFlagshipState({ seed });
     const initialTraffic = {
         cpuPercent: traffic.cpuPercent ?? 55,
@@ -87,7 +87,7 @@ function createCloudState({ seed = 1337, topology, traffic = {} } = {}) {
     };
     return stateEnvelope({
         seed,
-        resources: createCloudResources(topology, initialTraffic),
+        resources: createCloudResources(topology, initialTraffic, placement),
         traffic: initialTraffic,
         nextPodOrdinal: topology.initialReplicas + 1,
     });
