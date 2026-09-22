@@ -54,10 +54,14 @@ jobs:
           --minimum-trajectories 160
           --minimum-matched-pairs 4
           --minimum-discordant-pairs 0
-          --pairs 24
+          --minimum-relational-discordant-pairs 0
+          --minimum-horizon-positives 1
+          --max-class-share 1
+          --pairs 96
           --budgets 2,4,8
           --workers 2
           --shortcut-auroc-hard-max 1
+          --shortcut-split-max 1
           --permutation-mean-band 1
           --permutation-trial-band 1
           --out artifacts/cloudproof/causal-corpus-ci

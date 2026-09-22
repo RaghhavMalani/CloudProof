@@ -71,3 +71,25 @@ test('infeasible placements are rejected before any state exists', () => {
         { podsPerZone: [12, 0, 0] }), /capacity 8/);
     assert.equal(normalizePlacement(topology, null), null);
 });
+
+test('podsPerNode and startingPerZone move relations without touching multisets', () => {
+    const topology = normalizeTopology({ initialReplicas: 6, zones: 3 });
+    const spread = createCloudState({ seed: 1, topology, placement: { nodesPerZone: [2, 1, 1], podsPerNode: [1, 1, 2, 2] } });
+    const stacked = createCloudState({ seed: 1, topology, placement: { nodesPerZone: [2, 1, 1], podsPerNode: [2, 0, 2, 2] } });
+    assert.deepEqual(podsPerZone(spread), podsPerZone(stacked));
+    assert.notDeepEqual(spread.resources.pods.map((pod) => pod.nodeId), stacked.resources.pods.map((pod) => pod.nodeId));
+    assert.throws(() => normalizePlacement(topology, { nodesPerZone: [2, 1, 1], podsPerNode: [9, 0, 0, 0] }), /slots/);
+    assert.throws(() => normalizePlacement(topology, { podsPerNode: [2, 2, 2], podsPerZone: [3, 3, 0] }), /disagrees/);
+    const inside = createCloudState({ seed: 1, topology, placement: { podsPerZone: [2, 2, 2], startingPerZone: [2, 0, 0] } });
+    const outside = createCloudState({ seed: 1, topology, placement: { podsPerZone: [2, 2, 2], startingPerZone: [0, 1, 1] } });
+    for (const state of [inside, outside]) {
+        assert.equal(state.resources.pods.filter((pod) => pod.phase === 'STARTING').length, 2);
+        assert.equal(state.resources.services[0].observed.endpointPodIds.length, 4);
+        assert.equal(state.resources.deployments[0].observed.ready, 4);
+        assert.equal(state.resources.deployments[0].observed.pending, 2);
+    }
+    const graph = (state) => infrastructureGraph(state);
+    const routes = (state) => JSON.stringify(graph(state).edges.filter((edge) => edge.type === 'ROUTES_TO'));
+    assert.notEqual(routes(inside), routes(outside));
+    assert.throws(() => normalizePlacement(topology, { podsPerZone: [2, 2, 2], startingPerZone: [3, 0, 0] }), /exceeds/);
+});

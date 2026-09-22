@@ -1,0 +1,579 @@
+{
+  "kind": "cloudproof.causal-corpus-freeze",
+  "schemaVersion": 1,
+  "corpus": "causal-corpus-v2",
+  "manifestKind": "cloudproof.causal-corpus-manifest",
+  "manifestSchemaVersion": 3,
+  "generator": {
+    "id": "cloudproof.causal-generator",
+    "version": 1,
+    "commitSha": "42fda40db8ee4ae72c914d71e08dd5faef21f3f6",
+    "outcomeBlind": true
+  },
+  "seeds": {
+    "count": 50000,
+    "first": 90000,
+    "last": 139999,
+    "pairCount": 2000,
+    "pairFirst": 95000,
+    "pairLast": 96999
+  },
+  "splitPolicy": "topology-holdout-v2",
+  "counts": {
+    "pool": 50000,
+    "poolSafe": 21524,
+    "poolTransitions": 5934217,
+    "poolUnsafe": 28476,
+    "postIncidentTransitionsDropped": 231041,
+    "rows": 180170,
+    "rowsBySplit": {
+      "ood": 29909,
+      "test": 28142,
+      "train": 73782,
+      "validation": 48337
+    },
+    "selectedSafe": 4856,
+    "selectedTrajectories": 9712,
+    "selectedUnsafe": 4856
+  },
+  "matching": {
+    "matchedPairs": 4856,
+    "matchedPairsBeforePruning": 9996,
+    "pool": 50000,
+    "poolSafe": 21524,
+    "poolUnsafe": 28476,
+    "selectedTrajectories": 9712,
+    "unmatchedSafe": 11528,
+    "unmatchedUnsafe": 18480,
+    "matchedByLevel": [
+      4565,
+      999,
+      670,
+      618,
+      3144
+    ],
+    "pruningRounds": [
+      {
+        "crossFitAuroc": 0.7392662347051666,
+        "dropped": 999,
+        "pairs": 9996,
+        "round": 0
+      },
+      {
+        "crossFitAuroc": 0.7018261765073557,
+        "dropped": 899,
+        "pairs": 8997,
+        "round": 1
+      },
+      {
+        "crossFitAuroc": 0.673196218025898,
+        "dropped": 809,
+        "pairs": 8098,
+        "round": 2
+      },
+      {
+        "crossFitAuroc": 0.6486066945719311,
+        "dropped": 728,
+        "pairs": 7289,
+        "round": 3
+      },
+      {
+        "crossFitAuroc": 0.6202268925431045,
+        "dropped": 656,
+        "pairs": 6561,
+        "round": 4
+      },
+      {
+        "crossFitAuroc": 0.5847557538531691,
+        "dropped": 590,
+        "pairs": 5905,
+        "round": 5
+      },
+      {
+        "crossFitAuroc": 0.5345554081572149,
+        "dropped": 0,
+        "pairs": 5315,
+        "round": 6
+      }
+    ],
+    "classCap": {
+      "before": {
+        "AUTOSCALER_CAPACITY_MISMATCH": 178,
+        "ROLLOUT_AVAILABILITY_VIOLATION": 333,
+        "SERVICE_CAPACITY_COLLAPSE": 2401,
+        "TRAFFIC_TO_UNREADY_POD": 1074,
+        "ZONE_SURVIVABILITY_VIOLATION": 1329
+      },
+      "after": {
+        "AUTOSCALER_CAPACITY_MISMATCH": 178,
+        "ROLLOUT_AVAILABILITY_VIOLATION": 333,
+        "SERVICE_CAPACITY_COLLAPSE": 1942,
+        "TRAFFIC_TO_UNREADY_POD": 1074,
+        "ZONE_SURVIVABILITY_VIOLATION": 1329
+      }
+    }
+  },
+  "rowCap": {
+    "ood": {
+      "cap": 38,
+      "cappedTrajectories": 786,
+      "quantile": 0.5,
+      "rowsAfter": 49142,
+      "rowsBefore": 65922,
+      "seed": 9004,
+      "trajectories": 1608
+    },
+    "test": {
+      "cap": 34,
+      "cappedTrajectories": 733,
+      "quantile": 0.5,
+      "rowsAfter": 41251,
+      "rowsBefore": 56799,
+      "seed": 9003,
+      "trajectories": 1510
+    },
+    "train": {
+      "cap": 32,
+      "cappedTrajectories": 1907,
+      "quantile": 0.5,
+      "rowsAfter": 97556,
+      "rowsBefore": 138751,
+      "seed": 9001,
+      "trajectories": 3874
+    },
+    "validation": {
+      "cap": 29,
+      "cappedTrajectories": 1318,
+      "quantile": 0.5,
+      "rowsAfter": 62547,
+      "rowsBefore": 89815,
+      "seed": 9002,
+      "trajectories": 2720
+    }
+  },
+  "positionBalance": {
+    "ood": {
+      "rowsBefore": 49142,
+      "rowsAfter": 29909,
+      "targetRate": 0.06830238726790451
+    },
+    "test": {
+      "rowsBefore": 41251,
+      "rowsAfter": 28142,
+      "targetRate": 0.06387362637362637
+    },
+    "train": {
+      "rowsBefore": 97556,
+      "rowsAfter": 73782,
+      "targetRate": 0.06523832450649976
+    },
+    "validation": {
+      "rowsBefore": 62547,
+      "rowsAfter": 48337,
+      "targetRate": 0.0691747572815534
+    }
+  },
+  "sanity": {
+    "shortcutProbe": {
+      "trajectory": {
+        "aurocBySplit": {
+          "ood": 0.507563241008886,
+          "test": 0.5666470768825929,
+          "validation": 0.5409639922145328
+        },
+        "pooled": {
+          "auprc": 0.5331155025343419,
+          "auroc": 0.5288374791284283,
+          "brierScore": 0.25941012811889974,
+          "calibration": [
+            {
+              "count": 1,
+              "lower": 0,
+              "meanPredicted": 0.19938843888956986,
+              "observedRate": 1,
+              "upper": 0.2
+            },
+            {
+              "count": 737,
+              "lower": 0.2,
+              "meanPredicted": 0.3538281979665051,
+              "observedRate": 0.417910447761194,
+              "upper": 0.4
+            },
+            {
+              "count": 3155,
+              "lower": 0.4,
+              "meanPredicted": 0.5002750350959466,
+              "observedRate": 0.5137876386687797,
+              "upper": 0.6
+            },
+            {
+              "count": 1906,
+              "lower": 0.6,
+              "meanPredicted": 0.6752061374502007,
+              "observedRate": 0.5031479538300105,
+              "upper": 0.8
+            },
+            {
+              "count": 39,
+              "lower": 0.8,
+              "meanPredicted": 0.8161391202792736,
+              "observedRate": 0.7692307692307693,
+              "upper": 1
+            }
+          ],
+          "expectedCalibrationError": 0.07201675532769079
+        }
+      },
+      "transition": {
+        "aurocBySplit": {
+          "ood": 0.5134705028925093,
+          "test": 0.578806308463956,
+          "validation": 0.5529588004520086
+        },
+        "pooled": {
+          "auprc": 0.08570413894183936,
+          "auroc": 0.542022962061735,
+          "brierScore": 0.06703924464916905,
+          "calibration": [
+            {
+              "count": 88048,
+              "lower": 0,
+              "meanPredicted": 0.08720724952669785,
+              "observedRate": 0.07188124659276758,
+              "upper": 0.2
+            },
+            {
+              "count": 3,
+              "lower": 0.2,
+              "meanPredicted": 0.2012634430380186,
+              "observedRate": 0,
+              "upper": 0.4
+            },
+            {
+              "count": 0,
+              "lower": 0.4,
+              "meanPredicted": null,
+              "observedRate": null,
+              "upper": 0.6
+            },
+            {
+              "count": 0,
+              "lower": 0.6,
+              "meanPredicted": null,
+              "observedRate": null,
+              "upper": 0.8
+            },
+            {
+              "count": 0,
+              "lower": 0.8,
+              "meanPredicted": null,
+              "observedRate": null,
+              "upper": 1
+            }
+          ],
+          "expectedCalibrationError": 0.015332338038816215
+        }
+      },
+      "transitionNuisanceOnly": {
+        "ood": 0.4839777575513271,
+        "test": 0.5675098963052753,
+        "validation": 0.5416517720963543
+      },
+      "transitionPositionOnly": {
+        "ood": 0.5687225494058904,
+        "test": 0.5653840930324201,
+        "validation": 0.5528881943561913
+      }
+    },
+    "labelPermutation": {
+      "seeds": [
+        1337,
+        2027,
+        4099,
+        7919,
+        104729,
+        11,
+        22,
+        33,
+        44,
+        55,
+        66,
+        77
+      ],
+      "families": {
+        "logisticBaseline": {
+          "maximum": 0.6096825483394047,
+          "mean": 0.5028335675245251,
+          "minimum": 0.3987042505323462,
+          "stddev": 0.07811553207894563,
+          "trials": 12
+        },
+        "trajectoryProbe": {
+          "maximum": 0.5350967776816609,
+          "mean": 0.5093620692762398,
+          "minimum": 0.4764927551903114,
+          "stddev": 0.018022309975017716,
+          "trials": 12
+        },
+        "transitionProbe": {
+          "maximum": 0.5336647207812436,
+          "mean": 0.49495365693240073,
+          "minimum": 0.4664502287942093,
+          "stddev": 0.021172104269521905,
+          "trials": 12
+        }
+      },
+      "intervals95": {
+        "logisticBaseline": {
+          "includesChance": true,
+          "lower": 0.4586355445203284,
+          "upper": 0.5470315905287219
+        },
+        "trajectoryProbe": {
+          "includesChance": true,
+          "lower": 0.49916498747105437,
+          "upper": 0.5195591510814253
+        },
+        "transitionProbe": {
+          "includesChance": true,
+          "lower": 0.48297441123506785,
+          "upper": 0.5069329026297337
+        }
+      }
+    },
+    "horizons": {
+      "allNontrivial": true,
+      "oneAndFiveDiffer": true,
+      "positiveCounts": {
+        "1": 4406,
+        "5": 12799,
+        "10": 20784,
+        "20": 34621
+      },
+      "positiveRates": {
+        "1": 0.024454681689515458,
+        "5": 0.07103846367319754,
+        "10": 0.11535771771105068,
+        "20": 0.19215740689348948
+      },
+      "strictlyIncreasing": true,
+      "tenAndTwentyDiffer": true
+    },
+    "counterfactualPairs": {
+      "counts": {
+        "aggregateMatched": 2000,
+        "discordant": 354,
+        "horizonDiscordant": 499,
+        "invalid": 56,
+        "safeToUnsafe": 344,
+        "sameOutcome": 1590,
+        "total": 2000,
+        "unsafeToSafe": 10,
+        "valid": 1944
+      },
+      "relationalOnly": {
+        "allFlatSummariesIdentical": true,
+        "allPooledInputsIdentical": true,
+        "discordantPairs": 173,
+        "families": [
+          "capacity-distribution",
+          "node-concentration",
+          "readiness-drain",
+          "readiness-wiring"
+        ],
+        "flatSummaryIdentical": 1111,
+        "infeasible": 34,
+        "pooledInputsIdentical": 1111,
+        "validPairs": 1111
+      },
+      "families": {
+        "capacity-distribution": {
+          "aggregateMatched": 160,
+          "discordant": 1,
+          "riskierB": 1,
+          "safeToUnsafe": 1,
+          "sameOutcome": 155,
+          "total": 160,
+          "unsafeToSafe": 0,
+          "valid": 156
+        },
+        "node-concentration": {
+          "aggregateMatched": 340,
+          "discordant": 86,
+          "riskierB": 85,
+          "safeToUnsafe": 85,
+          "sameOutcome": 216,
+          "total": 340,
+          "unsafeToSafe": 1,
+          "valid": 302
+        },
+        "node-placement": {
+          "aggregateMatched": 340,
+          "discordant": 92,
+          "riskierB": 92,
+          "safeToUnsafe": 92,
+          "sameOutcome": 247,
+          "total": 340,
+          "unsafeToSafe": 0,
+          "valid": 339
+        },
+        "pdb-placement": {
+          "aggregateMatched": 160,
+          "discordant": 7,
+          "riskierB": 6,
+          "safeToUnsafe": 6,
+          "sameOutcome": 153,
+          "total": 160,
+          "unsafeToSafe": 1,
+          "valid": 160
+        },
+        "readiness-drain": {
+          "aggregateMatched": 320,
+          "discordant": 31,
+          "riskierB": 23,
+          "safeToUnsafe": 23,
+          "sameOutcome": 285,
+          "total": 320,
+          "unsafeToSafe": 8,
+          "valid": 316
+        },
+        "readiness-wiring": {
+          "aggregateMatched": 340,
+          "discordant": 55,
+          "riskierB": 55,
+          "safeToUnsafe": 55,
+          "sameOutcome": 282,
+          "total": 340,
+          "unsafeToSafe": 0,
+          "valid": 337
+        },
+        "zone-placement": {
+          "aggregateMatched": 340,
+          "discordant": 82,
+          "riskierB": 82,
+          "safeToUnsafe": 82,
+          "sameOutcome": 252,
+          "total": 340,
+          "unsafeToSafe": 0,
+          "valid": 334
+        }
+      }
+    },
+    "splitIntegrity": true,
+    "replay": {
+      "fingerprintMismatches": 0,
+      "phaseOneArtifact": {
+        "byteIdentical": true,
+        "file": "artifacts\\cloudproof\\failure-1337.json",
+        "sameFailure": true,
+        "violationClass": "ROLLOUT_AVAILABILITY_VIOLATION"
+      },
+      "selectedReplayed": 9712
+    }
+  },
+  "acceptance": {
+    "featuresAboveSmdReport": [
+      {
+        "name": "transitions",
+        "smd": 0.12242280013457343
+      }
+    ],
+    "gates": {
+      "baselineMetricsComplete": true,
+      "counterfactualPairsPresent": true,
+      "explicitOodSplit": true,
+      "fixedBudgetPrioritizersComplete": true,
+      "freshHoldouts": true,
+      "horizonsDistinct": true,
+      "horizonsNontrivial": true,
+      "incidentClassesBalanced": true,
+      "labelPermutationNearChance": true,
+      "labelsFromDeterministicExecution": true,
+      "manifestHashesPresent": true,
+      "matchingDeterministic": true,
+      "minimumCorpusSize": true,
+      "minimumMatchedPairs": true,
+      "minimumRawOutcomes": true,
+      "noFamilyIdentifiersInInputs": true,
+      "noFutureStateInRows": true,
+      "nuisanceDistributionsOverlap": true,
+      "outcomeBlindGeneration": true,
+      "pairAggregateFeaturesMatched": true,
+      "pairLabelsSimulatorDerived": true,
+      "phaseOneReplayByteIdentical": true,
+      "relationalPairFamiliesPresent": true,
+      "relationalPairsPooledInputsIdentical": true,
+      "selectedBalance": true,
+      "shortcutProbeNotStrong": true,
+      "shortcutProbeSplitsBelowMax": true,
+      "splitIntegrity": true,
+      "topologyHeldOutSplits": true
+    },
+    "passed": true,
+    "probeVerdicts": {
+      "trajectory": "warning",
+      "transitionNuisanceOnly": "warning",
+      "transitionPositionOnly": "warning",
+      "transitionWithPosition": "warning"
+    },
+    "thresholds": {
+      "maxAbsoluteSmdAfter": 0.12242280013457343,
+      "maxClassShare": 0.4,
+      "minimumDiscordantPairs": 100,
+      "minimumMatchedPairs": 4000,
+      "minimumSafe": 1,
+      "minimumTrajectories": 20000,
+      "minimumUnsafe": 1,
+      "permutationBand": 0.05,
+      "permutationMeanBand": 0.03,
+      "permutationTrialBand": 0.15,
+      "shortcutAurocHardMax": 0.65,
+      "shortcutAurocWarn": 0.55,
+      "shortcutSplitMax": 0.6,
+      "smdMax": 0.2,
+      "smdMaxEffective": 0.2,
+      "smdReport": 0.1
+    },
+    "warnings": [
+      "1 nuisance feature(s) with |SMD| > 0.1 after matching",
+      "shortcut probe trajectory in warning region (0.55, 0.65)",
+      "shortcut probe transitionNuisanceOnly in warning region (0.55, 0.65)",
+      "shortcut probe transitionPositionOnly in warning region (0.55, 0.65)",
+      "shortcut probe transitionWithPosition in warning region (0.55, 0.65)",
+      "9 permutation trial(s) outside ±0.05"
+    ]
+  },
+  "files": {
+    "counterfactual-pairs.jsonl": {
+      "bytes": 41802721,
+      "role": "pairs",
+      "sha256": "547e27db11595417f9fec5e0006edfb963fe27b603d2157b405cc79f7e235c22"
+    },
+    "trajectories.jsonl": {
+      "bytes": 467763655,
+      "role": "trajectories",
+      "sha256": "9d1b55f606986f6a08af4fea807e829444fe4a5155920c916abbf03be244ddff"
+    },
+    "transitions-ood.jsonl": {
+      "bytes": 199800158,
+      "role": "ood",
+      "sha256": "5c37b988b581302115519e4893a3452df923af10d815537b7e270e0e59564d90"
+    },
+    "transitions-test.jsonl": {
+      "bytes": 138038411,
+      "role": "test",
+      "sha256": "f606dd5cc22c4a91f5c854409126c46df9a846ce3dada20bdbac6c630741f5f2"
+    },
+    "transitions-train.jsonl": {
+      "bytes": 340290752,
+      "role": "train",
+      "sha256": "64f41d0de1c0fed9a455bb344bfb273cd54bd9d7930aa4597163668d71ddbfbc"
+    },
+    "transitions-validation.jsonl": {
+      "bytes": 221125492,
+      "role": "validation",
+      "sha256": "4d35134206a5bcb3f5ea30c57155238210526d72634ca1ac277702a67390116c"
+    }
+  }
+}

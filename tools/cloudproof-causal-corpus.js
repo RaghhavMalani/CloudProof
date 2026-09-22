@@ -8,8 +8,8 @@
 //     --out artifacts/cloudproof/causal-corpus-v2
 //
 // The command exits non-zero unless every corpus-repair acceptance gate passes.
-// Smoke variant (CI): --trajectories 120 --minimum-trajectories 120
-//   --minimum-matched-pairs 10 --minimum-discordant-pairs 1 --pairs 24 --budgets 2,4,8
+// Smoke variant (CI): see .github/workflows/ci.yml — a tiny pool exercises the
+// mechanics with the statistical gates widened, never the research thresholds.
 
 const fs = require('node:fs');
 const path = require('node:path');
@@ -33,9 +33,13 @@ function parseArgs(argv = process.argv.slice(2)) {
         pruneFloorFraction: 0.4,
         shortcutAurocMax: 0.55,
         shortcutAurocHardMax: 0.65,
+        shortcutSplitMax: 0.6,
         minimumSafe: 1,
         minimumUnsafe: 1,
-        smdMax: 0.25,
+        smdMax: 0.2,
+        smdReport: 0.1,
+        maxClassShare: 0.4,
+        minimumRelationalDiscordantPairs: 1,
         permutationBand: 0.05,
         minimumTrajectories: 20000,
         minimumMatchedPairs: 4000,
@@ -57,6 +61,15 @@ function parseArgs(argv = process.argv.slice(2)) {
         else if (token === '--minimum-safe') options.minimumSafe = Number(value);
         else if (token === '--minimum-unsafe') options.minimumUnsafe = Number(value);
         else if (token === '--shortcut-auroc-hard-max') options.shortcutAurocHardMax = Number(value);
+        else if (token === '--shortcut-split-max') options.shortcutSplitMax = Number(value);
+        else if (token === '--smd-report') options.smdReport = Number(value);
+        else if (token === '--max-class-share') options.maxClassShare = Number(value);
+        else if (token === '--position-target-quantile') options.positionTargetQuantile = Number(value);
+        else if (token === '--max-rows-per-trajectory') options.maxRowsPerTrajectory = Number(value);
+        else if (token === '--row-cap-quantile') options.rowCapQuantile = Number(value);
+        else if (token === '--position-minimum-keep-fraction') options.positionMinimumKeepFraction = Number(value);
+        else if (token === '--minimum-relational-discordant-pairs') options.minimumRelationalDiscordantPairs = Number(value);
+        else if (token === '--minimum-horizon-positives') options.minimumHorizonPositives = Number(value);
         else if (token === '--seed') options.seedStart = Number(value);
         else if (token === '--pairs') options.pairs = Number(value);
         else if (token === '--pair-seed') options.pairSeedStart = Number(value);
@@ -111,6 +124,11 @@ async function main(argv = process.argv.slice(2)) {
         },
         horizons: evaluation.horizons.positiveRates,
         counterfactualPairs: evaluation.counterfactualPairs.counts,
+        relationalOnlyPairs: evaluation.counterfactualPairs.relationalOnly,
+        incidentClasses: corpus.manifest.matching.classCap,
+        positionBalance: Object.fromEntries(Object.entries(corpus.manifest.positionBalance)
+            .map(([split, report]) => [split, { rowsBefore: report.rowsBefore, rowsAfter: report.rowsAfter,
+                targetRate: report.targetRate }])),
         splitIntegrity: evaluation.splitIntegrity.ok,
         acceptance,
         elapsedSeconds: Math.round((Date.now() - started) / 1000),

@@ -71,6 +71,7 @@ const TRANSITION_NUISANCE_NAMES = Object.freeze([
     'relativeSequence',
     'atMs',
     'relativeAtMs',
+    'hpaClockMs',
 ]);
 
 function nuisanceVector(summary) {
@@ -475,7 +476,139 @@ function positionProbeVector(summary, row) {
         row.sequence / Math.max(1, summary.transitions),
         row.atMs,
         row.atMs / Math.max(1, summary.virtualRuntimeMs),
+        row.hpaClockMs ?? 0,
     ];
+}
+
+/**
+ * Label-blind cap on research rows per trajectory. Safe trajectories run to
+ * the end of their schedule while unsafe ones stop at the incident, so without
+ * a cap long safe trajectories flood the negatives and "long schedule" turns
+ * into a row-level shortcut even after trajectory-level matching. Each
+ * trajectory above the cap keeps a seeded uniform sample of its rows; the
+ * label is never consulted, so P(label | state) inside a trajectory is
+ * unchanged and every trajectory contributes at most `cap` rows.
+ */
+function capRowsPerTrajectory(examples, { cap = null, quantile = 0.5, seed = 9001 } = {}) {
+    const byTrajectory = new Map();
+    for (const example of examples) {
+        if (!byTrajectory.has(example.trajectoryId)) byTrajectory.set(example.trajectoryId, []);
+        byTrajectory.get(example.trajectoryId).push(example);
+    }
+    const sizes = [...byTrajectory.values()].map((rows) => rows.length).sort((left, right) => left - right);
+    const effectiveCap = cap ?? (sizes.length ? sizes[Math.min(sizes.length - 1, Math.floor(quantile * sizes.length))] : 0);
+    const rng = new Rng(seed);
+    const kept = new Set();
+    let capped = 0;
+    for (const trajectoryId of [...byTrajectory.keys()].sort()) {
+        const rows = byTrajectory.get(trajectoryId).slice().sort((left, right) => left.recordId.localeCompare(right.recordId));
+        if (rows.length <= effectiveCap) { rows.forEach((row) => kept.add(row.recordId)); continue; }
+        capped += 1;
+        rows.map((row) => ({ row, roll: rng.float() }))
+            .sort((left, right) => left.roll - right.roll || left.row.recordId.localeCompare(right.row.recordId))
+            .slice(0, effectiveCap)
+            .forEach(({ row }) => kept.add(row.recordId));
+    }
+    const result = stable({
+        cap: effectiveCap,
+        quantile,
+        seed,
+        trajectories: byTrajectory.size,
+        cappedTrajectories: capped,
+        rowsBefore: examples.length,
+        rowsAfter: kept.size,
+    });
+    result.keep = kept;
+    return result;
+}
+
+const POSITION_CELL = Object.freeze({ sequenceWidth: 20, sequenceBuckets: 8, relativeBuckets: 10 });
+
+function positionCell(example) {
+    const sequenceBucket = Math.min(POSITION_CELL.sequenceBuckets - 1,
+        Math.floor(example.sequence / POSITION_CELL.sequenceWidth));
+    const relativeBucket = Math.min(POSITION_CELL.relativeBuckets - 1,
+        Math.floor((example.sequence / Math.max(1, example.transitions)) * POSITION_CELL.relativeBuckets));
+    return `s${sequenceBucket}|r${relativeBucket}`;
+}
+
+/**
+ * Post-hoc position balancing of research rows. Rows are truncated at the
+ * first incident and incidents are not exponentially timed, so the K-horizon
+ * positive rate rises with position: a row's index alone predicted the label
+ * at 0.60-0.65 AUROC in pilots. Within each (absolute, relative) position cell
+ * the rate is raised to a common target by dropping negatives with a seeded
+ * coin; positives are never dropped and no cell is emptied. Selection inside a
+ * cell is independent of state, so P(label | state, cell) is unchanged; only
+ * the mixture over cells is reweighted, and every drop is reported.
+ */
+function balancePositions(examples, { horizon = 5, targetQuantile = 0.75, minimumKeepFraction = 0.25, seed = 4242 } = {}) {
+    const key = String(horizon);
+    const cells = new Map();
+    for (const example of examples) {
+        const cell = positionCell(example);
+        if (!cells.has(cell)) cells.set(cell, { positives: [], negatives: [] });
+        cells.get(cell)[example.horizons[key] ? 'positives' : 'negatives'].push(example);
+    }
+    // Row-weighted quantile of cell rates: small, noisy corner cells must not
+    // set the target for everyone else.
+    const weighted = [...cells.values()].map((cell) => ({
+        rate: cell.positives.length / Math.max(1, cell.positives.length + cell.negatives.length),
+        rows: cell.positives.length + cell.negatives.length,
+    })).sort((left, right) => left.rate - right.rate);
+    const totalRows = weighted.reduce((sum, cell) => sum + cell.rows, 0);
+    let cumulative = 0;
+    let quantileRate = 0;
+    for (const cell of weighted) {
+        cumulative += cell.rows;
+        quantileRate = cell.rate;
+        if (cumulative >= targetQuantile * totalRows) break;
+    }
+    const globalRate = examples.filter((example) => example.horizons[key]).length / Math.max(1, examples.length);
+    const target = Math.max(globalRate, quantileRate);
+    const rng = new Rng(seed);
+    const kept = new Set();
+    const report = {};
+    for (const [name, cell] of [...cells.entries()].sort(([left], [right]) => left.localeCompare(right))) {
+        const total = cell.positives.length + cell.negatives.length;
+        const before = cell.positives.length / Math.max(1, total);
+        cell.positives.forEach((example) => kept.add(example.recordId));
+        let keepNegatives = cell.negatives.length;
+        if (before < target && target > 0) {
+            keepNegatives = Math.max(
+                Math.ceil(cell.negatives.length * minimumKeepFraction),
+                Math.round(cell.positives.length * (1 - target) / target),
+            );
+        }
+        const ordered = cell.negatives.slice().sort((left, right) => left.recordId.localeCompare(right.recordId));
+        // Seeded reservoir: consume one roll per negative in a fixed order.
+        const scored = ordered.map((example) => ({ example, roll: rng.float() }))
+            .sort((left, right) => left.roll - right.roll || left.example.recordId.localeCompare(right.example.recordId));
+        scored.slice(0, keepNegatives).forEach(({ example }) => kept.add(example.recordId));
+        report[name] = {
+            rows: total,
+            positives: cell.positives.length,
+            rateBefore: before,
+            keptNegatives: Math.min(keepNegatives, cell.negatives.length),
+            droppedNegatives: cell.negatives.length - Math.min(keepNegatives, cell.negatives.length),
+            rateAfter: cell.positives.length / Math.max(1, cell.positives.length + Math.min(keepNegatives, cell.negatives.length)),
+        };
+    }
+    // `stable` would flatten the Set, so the keep-set is attached afterwards.
+    const result = stable({
+        horizon,
+        targetQuantile,
+        minimumKeepFraction,
+        seed,
+        targetRate: target,
+        globalRateBefore: globalRate,
+        rowsBefore: examples.length,
+        rowsAfter: kept.size,
+        droppedRows: examples.length - kept.size,
+        cells: report,
+    });
+    result.keep = kept;
+    return result;
 }
 
 function transitionProbeVector(summary, row) {
@@ -510,12 +643,15 @@ module.exports = {
     STRATUM_LEVELS,
     ShortcutProbe,
     TRANSITION_NUISANCE_NAMES,
+    balancePositions,
+    capRowsPerTrajectory,
     categoricalOverlap,
     deterministicSubsample,
     lengthBucket,
     matchTrajectories,
     maxAbsoluteSmd,
     nuisanceVector,
+    positionCell,
     positionProbeVector,
     probeFeatureNames,
     pruneShortcutPairs,

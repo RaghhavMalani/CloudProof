@@ -153,6 +153,13 @@ function pdb(topology = {}) {
 // requested share, dealt round-robin over that zone's own nodes.
 function podNodeNames(topology, names, placement) {
     if (!placement) return names.map((item) => item.name);
+    if (placement.podsPerNode) {
+        const assignments = [];
+        placement.podsPerNode.forEach((count, nodeIndex) => {
+            for (let local = 0; local < count; local += 1) assignments.push(names[nodeIndex].name);
+        });
+        return assignments;
+    }
     const byZone = Array.from({ length: topology.zones }, (_, zoneIndex) => (
         names.filter((item) => item.zone === zoneName(zoneIndex)).map((item) => item.name)
     ));
@@ -165,6 +172,26 @@ function podNodeNames(topology, names, placement) {
     return assignments;
 }
 
+// The first `startingPerZone[z]` pods dealt to zone z begin STARTING: running
+// on their node but not ready and not an endpoint. The pod multiset is the
+// same whichever zone holds them; only the readiness-to-zone wiring moves.
+function applyStartingPods(pods, names, placement) {
+    if (!placement?.startingPerZone) return new Set();
+    const zoneOf = new Map(names.map((item) => [`node/${item.name}`, item.zone]));
+    const remaining = placement.startingPerZone.slice();
+    const starting = new Set();
+    for (const item of pods) {
+        const zoneIndex = zoneOf.get(item.nodeId).charCodeAt(5) - 97;
+        if (remaining[zoneIndex] <= 0) continue;
+        remaining[zoneIndex] -= 1;
+        item.phase = POD_PHASE.STARTING;
+        item.ready = false;
+        item.readyAtMs = null;
+        starting.add(item.id);
+    }
+    return starting;
+}
+
 function createCloudResources(topology, traffic = {}, placement = null) {
     const normalized = normalizePlacement(topology, placement);
     const names = nodeNameList(topology, normalized?.nodesPerZone || null);
@@ -172,12 +199,15 @@ function createCloudResources(topology, traffic = {}, placement = null) {
     const pods = Array.from({ length: topology.initialReplicas }, (_, index) => (
         pod(index + 1, podNodes[index % podNodes.length], 'v41', topology)
     ));
+    const starting = applyStartingPods(pods, names, normalized);
+    const api = service(topology);
+    api.observed.endpointPodIds = api.observed.endpointPodIds.filter((podId) => !starting.has(podId));
     return {
         zones: Array.from({ length: topology.zones }, (_, index) => zone(zoneName(index))),
         nodes: names.map((item) => node(item.name, item.zone, topology)),
         pods,
         deployments: [deployment(topology)],
-        services: [service(topology)],
+        services: [api],
         hpas: [hpa(topology, traffic)],
         pdbs: [pdb(topology)],
     };

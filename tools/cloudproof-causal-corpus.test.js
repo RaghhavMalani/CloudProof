@@ -19,4 +19,13 @@ test('causal corpus CLI parses its aliases and keeps deterministic defaults', ()
     assert.equal(defaults.shortcutAurocMax, 0.55);
     assert.equal(defaults.shortcutAurocHardMax, 0.65);
     assert.throws(() => parseArgs(['--desired-outcome', 'unsafe']), /unknown option/);
+    const hardened = parseArgs(['--max-class-share', '0.3', '--shortcut-split-max', '0.58', '--max-rows-per-trajectory', '20',
+        '--position-target-quantile', '0.9', '--minimum-horizon-positives', '5']);
+    assert.equal(hardened.maxClassShare, 0.3);
+    assert.equal(hardened.shortcutSplitMax, 0.58);
+    assert.equal(hardened.maxRowsPerTrajectory, 20);
+    assert.equal(hardened.positionTargetQuantile, 0.9);
+    assert.equal(hardened.minimumHorizonPositives, 5);
+    assert.equal(defaults.maxClassShare, 0.4);
+    assert.equal(defaults.smdMax, 0.2);
 });

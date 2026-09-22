@@ -45,27 +45,79 @@ function integerVector(value, name, length, minimum) {
     return value.slice();
 }
 
+// Zone index of every node in nodeNameList order.
+function nodeZoneIndexes(nodesPerZone) {
+    const zones = [];
+    nodesPerZone.forEach((count, zoneIndex) => {
+        for (let ordinal = 0; ordinal < count; ordinal += 1) zones.push(zoneIndex);
+    });
+    return zones;
+}
+
+/**
+ * placement = {
+ *   nodesPerZone?:    nodes in each zone (default: the historical formula)
+ *   podsPerZone?:     pods dealt to each zone (default: historical round-robin)
+ *   podsPerNode?:     pods on each node in nodeNameList order; overrides
+ *                     podsPerZone and lets two worlds share every per-zone
+ *                     count while differing only in which node holds them
+ *   startingPerZone?: pods per zone that begin STARTING (not ready, not an
+ *                     endpoint) so readiness can be wired to zones without
+ *                     changing the pod multiset
+ * }
+ */
 function normalizePlacement(topology, placement = null) {
     if (placement === null || placement === undefined) return null;
     if (typeof placement !== 'object') throw new TypeError('placement must be an object');
     const nodesPerZone = placement.nodesPerZone === undefined || placement.nodesPerZone === null
         ? defaultNodesPerZone(topology)
         : integerVector(placement.nodesPerZone, 'placement.nodesPerZone', topology.zones, 1);
-    const podsPerZone = placement.podsPerZone === undefined || placement.podsPerZone === null
-        ? roundRobinPodsPerZone(topology, nodesPerZone)
-        : integerVector(placement.podsPerZone, 'placement.podsPerZone', topology.zones, 0);
+    const nodeCount = nodesPerZone.reduce((sum, value) => sum + value, 0);
+    const zoneOfNode = nodeZoneIndexes(nodesPerZone);
+    const slots = slotsPerNode(topology);
+    let podsPerNode = null;
+    let podsPerZone;
+    if (placement.podsPerNode !== undefined && placement.podsPerNode !== null) {
+        podsPerNode = integerVector(placement.podsPerNode, 'placement.podsPerNode', nodeCount, 0);
+        podsPerNode.forEach((count, nodeIndex) => {
+            if (count > slots) throw new TypeError(`placement puts ${count} pods on node ${nodeIndex} with ${slots} slots`);
+        });
+        podsPerZone = Array.from({ length: topology.zones }, () => 0);
+        podsPerNode.forEach((count, nodeIndex) => { podsPerZone[zoneOfNode[nodeIndex]] += count; });
+        if (placement.podsPerZone !== undefined && placement.podsPerZone !== null
+            && JSON.stringify(placement.podsPerZone) !== JSON.stringify(podsPerZone)) {
+            throw new TypeError('placement.podsPerZone disagrees with placement.podsPerNode');
+        }
+    } else {
+        podsPerZone = placement.podsPerZone === undefined || placement.podsPerZone === null
+            ? roundRobinPodsPerZone(topology, nodesPerZone)
+            : integerVector(placement.podsPerZone, 'placement.podsPerZone', topology.zones, 0);
+    }
     const total = podsPerZone.reduce((sum, value) => sum + value, 0);
     if (total !== topology.initialReplicas) {
         throw new TypeError(`placement.podsPerZone must sum to ${topology.initialReplicas}, got ${total}`);
     }
-    const slots = slotsPerNode(topology);
     podsPerZone.forEach((count, zoneIndex) => {
         if (count > nodesPerZone[zoneIndex] * slots) {
             throw new TypeError(`placement puts ${count} pods in zone ${zoneIndex} with capacity `
                 + `${nodesPerZone[zoneIndex] * slots}`);
         }
     });
-    return { nodesPerZone, podsPerZone };
+    let startingPerZone = null;
+    if (placement.startingPerZone !== undefined && placement.startingPerZone !== null) {
+        startingPerZone = integerVector(placement.startingPerZone, 'placement.startingPerZone', topology.zones, 0);
+        startingPerZone.forEach((count, zoneIndex) => {
+            if (count > podsPerZone[zoneIndex]) {
+                throw new TypeError(`placement.startingPerZone[${zoneIndex}] exceeds the pods in that zone`);
+            }
+        });
+    }
+    return {
+        nodesPerZone,
+        podsPerZone,
+        ...(podsPerNode ? { podsPerNode } : {}),
+        ...(startingPerZone ? { startingPerZone } : {}),
+    };
 }
 
 function balancedPodsPerZone(replicas, zones) {
@@ -127,6 +179,7 @@ module.exports = {
     concentratedPodsPerZone,
     defaultNodesPerZone,
     nodeNameList,
+    nodeZoneIndexes,
     normalizePlacement,
     placementConcentration,
     roundRobinPodsPerZone,

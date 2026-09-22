@@ -1,7 +1,9 @@
 # CloudProof Phase II-A.2 — Causal Corpus Repair
 
-**Status:** infrastructure complete; bounded corpus validated; full corpus not yet
-generated; no learned model has been trained on it.
+**Status:** infrastructure complete (II-A.2) and attribution-hardened (II-A.2.1);
+bounded (2 000), intermediate (10 000) and full (50 000) corpora pass every hard gate;
+the full corpus is frozen in `CLOUDPROOF-PHASE-II-A2-CORPUS-FREEZE.json` (§10.2); no
+learned model has been trained on any of them.
 
 ## 0. Why Phase II-A is superseded
 
@@ -158,6 +160,31 @@ delta (per-type node-feature multisets) and a structural delta (relation types t
 Pair truth is simulator output; a deterministic sample is re-executed and fingerprints compared.
 `pairwiseRanking` scores discordant pairs only.
 
+### 7.1 Relational-only families (Phase II-A.2.1)
+
+The bounded run showed that the heuristic and the logistic baseline ranked every flipping
+placement pair correctly: the intervention was visible through the flat `zoneConcentration`
+feature, so those pairs could not isolate graph structure. Three further families keep
+**every per-type node-feature multiset, every per-zone pod count, the endpoint count, the
+zone-concentration statistic and the intervention identical** between members; only which
+resource is related to which differs:
+
+| Family | Shared | Differs | Intervention |
+| --- | --- | --- | --- |
+| `node-concentration` | identical nodes (target zone has two), identical pods per zone | target zone's pods spread over its two nodes vs stacked on the first (`podsPerNode`) | `NODE_CRASH` of that first node |
+| `readiness-wiring` | identical pods per zone, k pods start not-ready in both | the k unready pods sit inside the target zone vs outside it (`startingPerZone`) | `ZONE_DEGRADED` of the target zone |
+| `readiness-drain` | as above | as above | `DRAIN_NODE` of the target zone's node |
+| `capacity-distribution` | identical pods and node multiset | the spare node's zone (`LOCATED_IN`) | `ZONE_DEGRADED` |
+
+`placement.podsPerNode` and `placement.startingPerZone` extend the schedule contract
+(default path byte-identical). Every pair records `pooledInputsIdentical` (per-type
+node-feature multisets equal, hence identical inputs to the pooled MLP's typed
+mean/min/max/sum) and `flatSummaryIdentical` (the nine flat risk features equal); both are a
+hard gate for relational-only families, and `ml/cloudproof/tests/test_relational_pairs.py`
+tensorizes the committed fixture (`artifacts/cloudproof/datasets/relational-pairs-95000.jsonl`)
+and proves the untrained pooled MLP emits identical logits for both members while the relation
+tensors differ. Half of all generated pairs belong to relational-only families.
+
 ## 8. Horizons and meaningful transitions
 
 Trajectories run 40–140 actions (median 118 raw transitions in the bounded pool); K = 1, 5,
@@ -168,6 +195,34 @@ exogenous action, every transition whose observable controller state changed
 version, node readiness/draining, rollout/HPA activity, PDB headroom), and a seeded 15% / 10%
 of the remaining uneventful ticks / timers. Each row records `rawTransitionCount` and
 `researchTransitionCount`, the checkpoint reason, and `replayDigest`.
+
+### 8.1 Row cap and position balancing (Phase II-A.2.1)
+
+Two row-level shortcuts survived trajectory-level matching in the 10 000-trajectory run:
+(a) safe trajectories run to the end of their schedule while unsafe ones stop at the
+incident, so long schedules flood the negatives and "long schedule" predicts the row label
+(nuisance-only transition probe 0.567 pooled, 0.606 on test); (b) rows are truncated at the
+incident and incidents are not exponentially timed, so the row index alone predicted the
+label (position-only probe 0.637 pooled). Both are handled post-hoc and label-blind:
+
+- **Row cap.** Each trajectory contributes at most the split's median research-row count;
+  longer trajectories keep a seeded uniform sample of their rows. The label is never read.
+- **Position balancing.** Rows are binned into (absolute-sequence × relative-position) cells;
+  in cells below a row-weighted 75th-percentile target rate, negatives are dropped by a seeded
+  coin until the cell reaches the target (never below 25% of its negatives, never a positive).
+  Selection inside a cell is independent of state, so P(label | state, cell) is unchanged;
+  only the mixture over cells is reweighted. Every cell's before/after rate is in the manifest.
+
+The HPA's `sampledAtMs` is the one clock a scorer can read from the state graph, so it is
+included in the position-only probe. Rows first land in staging files; the final split files
+are streamed from staging with only the surviving record IDs.
+
+### 8.2 Incident-class cap (Phase II-A.2.1)
+
+`SERVICE_CAPACITY_COLLAPSE` supplied ~50% of unsafe trajectories in the raw pool and
+`TRAFFIC_TO_UNREADY_POD` (the endpoint-propagation race) ~24%. After pruning, pairs of any
+class above 40% of the matched unsafe set are dropped worst-match first until the cap holds.
+The raw class distribution stays in the manifest; simulator semantics are untouched.
 
 ## 9. Split and OOD contract
 
@@ -223,6 +278,85 @@ are reported as such. The linear baselines are near chance at trajectory level a
 prioritize this balanced held-out set — which is the point: a matched corpus removes the free
 lunch the old corpus handed every method.
 
+## 10.1 Intermediate results (`causal-corpus-10k`, 10 000 trajectories, seed 70 000)
+
+```bash
+node tools/cloudproof-causal-corpus.js --simulations 10000 --seed 70000 --pair-seed 75000 \
+  --minimum-trajectories 10000 --minimum-matched-pairs 500 --minimum-discordant-pairs 50 \
+  --pairs 800 --budgets 50,100,500,1000 --out artifacts/cloudproof/causal-corpus-10k
+```
+
+| Quantity | Value |
+| --- | ---: |
+| Raw pool | 10 000 trajectories, 4 254 safe / 5 746 unsafe, 1 191 407 raw transitions |
+| Matched | 1 732 pairs → 1 138 after pruning → 1 040 after the class cap (2 080 trajectories, 1 040 / 1 040) |
+| Class cap | capacity collapse 514 → 416 (40%); unready endpoint 244; survivability 291; rollout floor 62; autoscaler 27 |
+| Research rows | 70 191 → 49 135 after the row cap (median cap 27–36 rows) → **33 408** after position balancing (train 13 112 / val 7 911 / test 5 118 / OOD 7 267) |
+| Horizon positives K=1/5/10/20 | 955 / 2 640 / 4 183 / 6 922 rows (2.9% / 7.9% / 12.5% / 20.7%) |
+| Max abs SMD after matching | 0.143 (`transitions` 0.14, `zones` −0.13 are the only features above 0.10) |
+| ShortcutProbe, trajectory | pooled 0.524 (AUPRC 0.543, Brier 0.280); val 0.523 / test 0.555 / OOD 0.516 |
+| ShortcutProbe, transition K=5 (with position) | pooled 0.527; val 0.537 / test 0.570 / OOD 0.516 |
+| — trajectory-nuisance-only | pooled 0.510; val 0.521 / test 0.554 / OOD 0.495 |
+| — position-only | pooled 0.574; val 0.582 / test 0.589 / OOD 0.553 (warning region) |
+| — K=1 with position | pooled 0.572; test 0.619 (warning region; K=1 positives are the incident row itself) |
+| Permutation (12 seeds) | trajectory probe 0.491 ± 0.028, transition probe 0.501 ± 0.014, logistic 0.516 ± 0.051; every 95% interval contains 0.50 |
+| Counterfactual pairs | 800 built, 775 valid, 126 flipped (122 safe→unsafe, 4 unsafe→safe), 649 unchanged |
+| Relational-only pairs | 438 valid, **72 flipped**; pooled inputs identical 438/438; flat risk features identical 438/438 |
+| Flips by family | node-concentration 35/123, readiness-wiring 24/140, readiness-drain 12/117, capacity 1/58; node-placement 32/139, zone-placement 19/138, pdb 3/60 |
+| Heuristic / logistic on relational-only flips | **0 correct, 71/71 ties** (both tie by construction); on placement flips 51/51 correct |
+| Baselines K=5 (val/test/OOD AUROC) | heuristic 0.57/0.60/0.56; logistic 0.63/0.63/0.54; trajectory-level ≈ 0.5 |
+| Fixed-budget prioritization (1 250 held-out, 625 counterexamples) | random 240 / coverage 295 / heuristic 239 / logistic 256 at budget 500 |
+| Replay | 2 080/2 080 fingerprint-identical; 20/20 sampled pairs identical; Phase I byte-identical |
+
+All hard gates pass under the full-scale defaults (split ceiling 0.60, hard 0.65, SMD 0.20,
+class cap 0.40, 12 permutation seeds). Warnings: every probe variant sits in the 0.55–0.60
+warning region on at least one split, and position-only remains the strongest residual.
+
+## 10.2 Frozen corpus (`causal-corpus-v2`, 50 000 trajectories, seeds 90 000 / 95 000)
+
+Generated by the command in §12 with the CLI defaults (all full-scale gates on); 991 s on
+14 worker threads; freeze record `CLOUDPROOF-PHASE-II-A2-CORPUS-FREEZE.json` (generator commit
+`42fda40`, SHA-256 per file). The corpus directory itself is gitignored (1.4 GB).
+
+| Quantity | Value |
+| --- | ---: |
+| Raw pool | 50 000 trajectories, 21 524 safe / 28 476 unsafe, 5 934 217 raw transitions |
+| Matched | 9 996 pairs → 5 315 after pruning (7 rounds, cross-fit probe 0.739 → 0.535) → **4 856** after the class cap (9 712 trajectories, 4 856 / 4 856) |
+| Matching levels | 4 565 / 999 / 670 / 618 / 3 144 pairs at strata levels 0–4 |
+| Class cap | capacity collapse 2 401 → 1 942 (40%); survivability 1 329; unready endpoint 1 074; rollout floor 333; autoscaler 178 |
+| Research rows | 351 287 → 250 496 after the row cap (median 29–38 rows) → **180 170** after position balancing (train 73 782 / val 48 337 / test 28 142 / OOD 29 909); 231 041 post-incident transitions dropped |
+| Trajectory length (selected) | raw transitions p10/p50/p90 = 64/112/165 (safe), 69/118/169 (unsafe); first incident at sequence 28/66/122 |
+| Horizon positives K=1/5/10/20 | 4 406 / 12 799 / 20 784 / 34 621 rows (2.4% / 7.1% / 11.5% / 19.2%) |
+| Difficulty tiers (unsafe) | T1 249, T2 1 869, T3 292, T4 691, T5 1 755 |
+| Max abs SMD after matching | **0.122** (`transitions`; no other feature above 0.10) |
+| ShortcutProbe, trajectory | pooled 0.529 (AUPRC 0.533, Brier 0.259); val 0.541 / test 0.567 / OOD 0.508 |
+| ShortcutProbe, transition K=5 (with position) | pooled 0.542; val 0.553 / test 0.579 / OOD 0.513 |
+| — trajectory-nuisance-only | pooled 0.525; val 0.542 / test 0.568 / OOD 0.484 |
+| — position-only | pooled 0.562; val 0.553 / test 0.565 / OOD 0.569 |
+| — K=1 with position | pooled 0.581; val 0.596 / test 0.600 / OOD 0.555 |
+| Permutation (12 seeds, validation) | trajectory probe 0.509 ± 0.018 [0.499, 0.520]; transition probe 0.495 ± 0.021 [0.483, 0.507]; logistic 0.503 ± 0.078 [0.459, 0.547]; no family with every trial above 0.53 |
+| Counterfactual pairs | 2 000 built, 1 944 valid, **354 flipped** (344 safe→unsafe, 10 unsafe→safe), 1 590 unchanged |
+| Relational-only pairs | 1 111 valid, **173 flipped**; pooled inputs identical 1 111 / 1 111; flat risk features identical 1 111 / 1 111; 34 infeasible |
+| Flips by family | node-concentration 86/302, readiness-wiring 55/337, readiness-drain 31/316, capacity 1/156; node-placement 92/339, zone-placement 82/334, pdb 7/160 |
+| Heuristic on relational-only flips | 0 correct, 172/173 ties (1 capacity pair scored); on placement flips 174/174 correct |
+| Logistic on relational-only flips | 0 correct, 172/173 ties; on placement flips **0/174 correct** (its zone-concentration weight is negative on the matched corpus) |
+| Baselines K=5 (val/test/OOD AUROC) | heuristic 0.60/0.58/0.55; logistic 0.64/0.61/0.54; trajectory-level 0.51/0.47/0.50 (heuristic), 0.53/0.54/0.49 (logistic) |
+| Fixed-budget prioritization (5 838 held-out, 2 919 counterexamples) | budget 500: random 254, coverage 302, heuristic 237, logistic 242; budget 1 000: 487 / 608 / 495 / 488 |
+| Replay | 9 712/9 712 re-executions fingerprint-identical; 20/20 sampled pairs identical; Phase I `failure-1337` byte-identical |
+
+Warnings recorded in the freeze: all four probe variants sit in the 0.55–0.60 region on at
+least one held-out split (test is consistently the highest, 0.57–0.58); nine of 36
+permutation trials fall outside ±0.05 (all inside their family's 95% interval); and
+`transitions` retains |SMD| = 0.12.
+
+Reading: at 50 000 trajectories the trajectory-level ShortcutProbe is at 0.53 pooled against
+the Phase II-A regime where schedule length alone separated the classes; the linear baselines
+tie by construction on every relational-only pair while ranking the flat-visible placement
+pairs perfectly (heuristic) or perfectly wrongly (logistic); the pooled MLP cannot separate any
+relational-only pair by construction (identical inputs). The corpus therefore supports the
+Phase II-B.2 question — whether a GNN ranks the 173 relational-only flips above chance and
+whether randomizing its edges removes that ability — without handing any model a free lunch.
+
 ## 11. Limitations
 
 - The cloud twin is still a simplified single-service Kubernetes control plane; a graph model
@@ -237,14 +371,22 @@ lunch the old corpus handed every method.
 - Pruning is post-hoc selection on the label. It is allowed because generation never saw the
   label, but it shifts the corpus toward outcomes that nuisance cannot explain and every
   dropped pair is recorded for that reason.
-- Position remains weakly informative at transition level (warning region).
+- Position remains weakly informative at transition level after balancing (position-only
+  probe ≈ 0.57 pooled, K=1 up to 0.62 on one split); the model does not receive position, but
+  `HPA.sampledAtMs` is a clock inside the state and Phase II-B.2 must include a clock-blind
+  ablation.
+- The row cap and position balancing reweight which rows a trajectory contributes; they never
+  consult the label or the state, but the emitted rows are a subsample, and the raw trace is
+  the only complete record (`rawTransitionCount` vs `researchTransitionCount`).
+- The PDB and capacity-distribution families almost never flip under the current invariants;
+  they are kept and reported, not counted as evidence.
 - No learned model has been retrained on the repaired corpus; no claim of GNN superiority
   survives from Phase II-B.
 - Sim-to-real evidence still comes from the Phase I flagship scenario, not from this corpus.
 - The bounded run's per-split estimates on test (54 trajectories) and OOD (62) are noisy;
   the full corpus is required before any per-split number is quoted.
 
-## 12. Full-corpus generation (next stage, not run here)
+## 12. Full-corpus generation and freeze
 
 ```bash
 node tools/cloudproof-causal-corpus.js \
@@ -252,13 +394,42 @@ node tools/cloudproof-causal-corpus.js \
   --pairs 2000 --pair-seed 95000 \
   --budgets 100,500,1000,5000 \
   --out artifacts/cloudproof/causal-corpus-v2
+node tools/cloudproof-corpus-freeze.js artifacts/cloudproof/causal-corpus-v2 \
+  CLOUDPROOF-PHASE-II-A2-CORPUS-FREEZE.json
 ```
 
-Defaults enforce ≥ 20 000 trajectories, ≥ 4 000 matched pairs, ≥ 100 discordant pairs, the
-probe and permutation gates above, split integrity, hash manifests, and the Phase I replay.
-Only after that command exits 0 may Phase II-B.2 retrain anything, and it must evaluate the
-GNN, the pooled MLP and the edge-destruction controls on the counterfactual pairs and on the
-trajectory-level metrics, not only on transition AUROC.
+Full-scale acceptance (all enforced by the CLI defaults unless noted):
+
+```text
+ShortcutProbe   pooled held-out AUROC ≤ 0.55 preferred (warning above); every size-gated
+                split < 0.60; no probe variant ≥ 0.65
+Permutation     12 seeds; each family's 95% interval contains 0.50; no family with every
+                trial above 0.50 + 0.03
+Matching        max |SMD| ≤ 0.20 (finite-sample floor 3·sqrt(2/pairs)); every feature above
+                0.10 listed in the acceptance record
+Horizons        K1 < K5 < K10 < K20 positive prevalence, each with ≥ 20 positives
+Counterfactuals ≥ 2 relational-only families with ≥ 1 flipping pair; pooled inputs and flat
+                risk features identical in every valid relational-only pair
+Incident classes no class above 40% of matched unsafe trajectories
+Integrity       outcome-blind generator, labels from execution, deterministic matching,
+                split integrity, replay fingerprints, Phase I byte-identity, SHA-256 per file
+```
+
+The freeze record (`CLOUDPROOF-PHASE-II-A2-CORPUS-FREEZE.json`) is committed; the corpus
+directory is not. Only after the freeze exists may Phase II-B.2 retrain anything, and its key
+table must be:
+
+| Model | Natural trajectories | OOD | Relational-only pairs |
+| --- | ---: | ---: | ---: |
+| Heuristic | | | ties by construction |
+| Logistic | | | ties by construction |
+| Pooled MLP | | | ≈ 50% expected (identical inputs) |
+| GNN | | | ? |
+| GNN, randomized edges | | | ? |
+
+The claim worth making is not "higher AUROC"; it is that on pairs where all pooled features
+are identical and only resource relations change, the GNN ranks the riskier topology correctly
+while the pooled MLP cannot, and destroying the graph edges removes the advantage.
 
 ## 13. Files
 

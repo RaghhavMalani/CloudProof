@@ -33,7 +33,10 @@ const { pairwiseRanking } = require('../packages/cloudproof/counterfactual-pairs
 const { DEFAULT_HORIZON, HORIZONS, SPLITS } = require('./cloud-causal-corpus');
 
 const EVALUATION_SPLITS = Object.freeze(['validation', 'test', 'ood']);
-const DEFAULT_PERMUTATION_SEEDS = Object.freeze([1337, 2027, 4099, 7919, 104729]);
+// Five canonical Phase II-B seeds plus seven more: with only five trials a
+// bounded corpus produced a run in which every permuted transition probe sat
+// slightly below chance by accident (p ~ 1/32), which twelve trials resolve.
+const DEFAULT_PERMUTATION_SEEDS = Object.freeze([1337, 2027, 4099, 7919, 104729, 11, 22, 33, 44, 55, 66, 77]);
 
 function horizonView(example, horizon) {
     return {
@@ -119,14 +122,18 @@ function trajectoryMetrics(examplesBySplit, models, summariesById) {
     return report;
 }
 
-function horizonDistinctness(examplesBySplit) {
+function horizonDistinctness(examplesBySplit, minimumPositives = 20) {
     const all = SPLITS.flatMap((split) => examplesBySplit[split]);
     const rates = Object.fromEntries(HORIZONS.map((horizon) => [String(horizon), positiveRate(all, horizon)]));
     const differing = (left, right) => all.some((example) => (
         example.horizons[String(left)] !== example.horizons[String(right)]
     ));
+    const positives = Object.fromEntries(HORIZONS.map((horizon) => [String(horizon),
+        all.filter((example) => example.horizons[String(horizon)]).length]));
     return stable({
         positiveRates: rates,
+        positiveCounts: positives,
+        allNontrivial: HORIZONS.every((horizon) => positives[String(horizon)] >= (minimumPositives ?? 20)),
         strictlyIncreasing: HORIZONS.every((horizon, index) => index === 0
             || rates[String(horizon)] > rates[String(HORIZONS[index - 1])]),
         tenAndTwentyDiffer: differing(10, 20),
@@ -316,6 +323,17 @@ function permutationControls(probeVectors, examplesBySplit, options = {}) {
     // does not exist; at full scale the spread collapses and the fixed band
     // dominates.
     const meanAllowance = (family) => Math.max(meanBand, 2.5 * family.stddev / Math.sqrt(family.trials));
+    const interval95 = (family) => {
+        const halfWidth = 1.96 * family.stddev / Math.sqrt(family.trials);
+        return { lower: family.mean - halfWidth, upper: family.mean + halfWidth,
+            includesChance: family.mean - halfWidth <= 0.5 && 0.5 <= family.mean + halfWidth };
+    };
+    const positiveShare = (name) => {
+        const key = { trajectoryProbe: 'trajectoryProbeAuroc', transitionProbe: 'transitionProbeAuroc',
+            logisticBaseline: 'logisticAuroc' }[name];
+        const observed = trials.map((trial) => trial[key]).filter((value) => value !== null);
+        return observed.length ? observed.filter((value) => value > 0.5).length / observed.length : null;
+    };
     return stable({
         seeds,
         band,
@@ -335,6 +353,16 @@ function permutationControls(probeVectors, examplesBySplit, options = {}) {
         meansNearChance: present.every((family) => Math.abs(family.mean - 0.5) <= meanAllowance(family)),
         meanAllowances: Object.fromEntries(Object.entries(families)
             .map(([name, family]) => [name, family ? meanAllowance(family) : null])),
+        intervals95: Object.fromEntries(Object.entries(families)
+            .map(([name, family]) => [name, family ? interval95(family) : null])),
+        // Either the 95% interval covers chance or the mean is within the
+        // fixed floor; a family whose every trial sits above 0.5 by more than
+        // the floor is flagged as systematic positive bias.
+        intervalsIncludeChance: Object.entries(families).every(([, family]) => family === null
+            || interval95(family).includesChance || Math.abs(family.mean - 0.5) <= meanBand),
+        positiveTrialShare: Object.fromEntries(Object.keys(families).map((name) => [name, positiveShare(name)])),
+        noSystematicPositiveBias: Object.entries(families).every(([name, family]) => family === null
+            || positiveShare(name) < 1 || family.mean - 0.5 <= meanBand),
         trialsBounded: Object.values(families).every((family) => family === null
             || family.maximum - 0.5 <= Math.max(trialBand, 3 * family.stddev)
             && 0.5 - family.minimum <= Math.max(trialBand, 3 * family.stddev)),
@@ -368,10 +396,22 @@ function pairEvaluation(pairSummaries, models) {
         if (pair.aggregateMatched) { counts.aggregateMatched += 1; family.aggregateMatched += 1; }
     }
     const placementFamilies = pairSummaries.filter((pair) => pair.family !== 'capacity-distribution');
+    const relational = pairSummaries.filter((pair) => pair.relationalOnly && pair.valid);
+    const relationalFamilies = [...new Set(relational.map((pair) => pair.family))].sort();
     return stable({
         counts,
         families,
         bySplit,
+        relationalOnly: {
+            families: relationalFamilies,
+            validPairs: relational.length,
+            discordantPairs: relational.filter((pair) => pair.discordant).length,
+            pooledInputsIdentical: relational.filter((pair) => pair.pooledInputsIdentical).length,
+            flatSummaryIdentical: relational.filter((pair) => pair.flatSummaryIdentical).length,
+            allPooledInputsIdentical: relational.length > 0 && relational.every((pair) => pair.pooledInputsIdentical),
+            allFlatSummariesIdentical: relational.length > 0 && relational.every((pair) => pair.flatSummaryIdentical),
+            infeasible: pairSummaries.filter((pair) => pair.relationalOnly && pair.infeasibleReason).length,
+        },
         placementFamiliesAggregateMatched: placementFamilies.length > 0
             && placementFamilies.every((pair) => pair.aggregateMatched),
         ranking: {
@@ -413,7 +453,7 @@ function evaluateCausalCorpus(corpus, options = {}) {
         models: Object.fromEntries(HORIZONS.map((horizon) => [String(horizon), models[horizon].export()])),
         transitionMetrics: metrics,
         trajectoryMetrics: trajectoryMetrics(examplesBySplit, models),
-        horizons: horizonDistinctness(examplesBySplit),
+        horizons: horizonDistinctness(examplesBySplit, options.minimumHorizonPositives ?? 20),
         shortcutProbe: probes.report,
         labelPermutation: permutation,
         counterfactualPairs: pairEvaluation(pairSummaries, models),
@@ -471,7 +511,9 @@ function evaluateCausalAcceptance(corpus, evaluation, options = {}) {
     // honestly, and only clearly strong prediction rejects the corpus.
     const shortcutWarn = options.shortcutAurocMax ?? 0.55;
     const shortcutHard = options.shortcutAurocHardMax ?? 0.65;
-    const smdMax = options.smdMax ?? 0.25;
+    const shortcutSplitMax = options.shortcutSplitMax ?? 0.6;
+    const smdMax = options.smdMax ?? 0.2;
+    const smdReport = options.smdReport ?? 0.1;
     const catalog = manifest.parameters.topologyCatalog;
     const splitIds = Object.fromEntries(SPLITS.map((split) => [split,
         new Set(catalog.filter((entry) => entry.split === split).map((entry) => entry.topologyId))]));
@@ -506,8 +548,24 @@ function evaluateCausalAcceptance(corpus, evaluation, options = {}) {
         nuisanceDistributionsOverlap: maxAbsoluteSmd(manifest.matching.balance.after)
             <= Math.max(smdMax, 3 * Math.sqrt(2 / Math.max(1, manifest.matching.counts.matchedPairs))),
         shortcutProbeNotStrong: Object.values(probeVerdicts).every((verdict) => verdict !== 'fail'),
+        // Every split large enough to be gated on its own stays below the
+        // split ceiling (0.60 by default); smaller splits count via the pool.
+        shortcutProbeSplitsBelowMax: [probe.trajectory, probe.transitionTrajectoryNuisanceOnly[horizonKey],
+            probe.transition[horizonKey]].every((report) => Object.entries(report.aurocBySplit)
+            .every(([split, value]) => value === null
+                || report.sizeBySplit[split] < report.minimumGatedSplitSize || value < shortcutSplitMax)),
         labelPermutationNearChance: evaluation.labelPermutation.meansNearChance
-            && evaluation.labelPermutation.trialsBounded,
+            && evaluation.labelPermutation.trialsBounded
+            && evaluation.labelPermutation.intervalsIncludeChance
+            && evaluation.labelPermutation.noSystematicPositiveBias,
+        horizonsNontrivial: evaluation.horizons.allNontrivial,
+        relationalPairFamiliesPresent: evaluation.counterfactualPairs.relationalOnly.families.length >= 2
+            && evaluation.counterfactualPairs.relationalOnly.discordantPairs >= (options.minimumRelationalDiscordantPairs ?? 1),
+        relationalPairsPooledInputsIdentical: evaluation.counterfactualPairs.relationalOnly.allPooledInputsIdentical
+            && evaluation.counterfactualPairs.relationalOnly.allFlatSummariesIdentical,
+        incidentClassesBalanced: Object.values(manifest.matching.classCap.after)
+            .every((count) => count / Math.max(1, manifest.matching.counts.matchedPairs)
+                <= (options.maxClassShare ?? 0.4) + 1e-9),
         splitIntegrity: integrity?.ok === true,
         topologyHeldOutSplits: allIds.length === new Set(allIds).size
             && splitIds.validation.size > 0 && splitIds.test.size > 0,
@@ -541,6 +599,16 @@ function evaluateCausalAcceptance(corpus, evaluation, options = {}) {
         )),
     });
     const warnings = [];
+    const smdAfter = manifest.matching.balance.after;
+    const featuresAboveReport = Object.entries(smdAfter).filter(([, entry]) => Math.abs(entry.smd) > smdReport)
+        .map(([name, entry]) => ({ name, smd: entry.smd })).sort((left, right) => Math.abs(right.smd) - Math.abs(left.smd));
+    if (featuresAboveReport.length) {
+        warnings.push(`${featuresAboveReport.length} nuisance feature(s) with |SMD| > ${smdReport} after matching`);
+    }
+    const pooledProbe = probe.trajectory.pooledHeldOut?.auroc ?? null;
+    if (pooledProbe !== null && pooledProbe > shortcutWarn) {
+        warnings.push(`pooled held-out trajectory probe AUROC ${pooledProbe.toFixed(3)} above ${shortcutWarn}`);
+    }
     for (const [name, verdict] of Object.entries(probeVerdicts)) {
         if (verdict === 'warning') warnings.push(`shortcut probe ${name} in warning region (${shortcutWarn}, ${shortcutHard})`);
     }
@@ -552,10 +620,14 @@ function evaluateCausalAcceptance(corpus, evaluation, options = {}) {
         gates,
         warnings,
         probeVerdicts,
+        featuresAboveSmdReport: featuresAboveReport,
         thresholds: {
             shortcutAurocWarn: shortcutWarn,
             shortcutAurocHardMax: shortcutHard,
+            shortcutSplitMax,
             smdMax,
+            smdReport,
+            maxClassShare: options.maxClassShare ?? 0.4,
             smdMaxEffective: Math.max(smdMax, 3 * Math.sqrt(2 / Math.max(1, manifest.matching.counts.matchedPairs))),
             maxAbsoluteSmdAfter: maxAbsoluteSmd(manifest.matching.balance.after),
             permutationBand: evaluation.labelPermutation.band,

@@ -220,6 +220,9 @@ test('bounded pipeline: raw and matched distributions, deterministic matching, s
             minimumTrajectories: 80,
             minimumMatchedPairs: 1,
             minimumDiscordantPairs: 0,
+            // A pool this small has only a handful of pairs; the class cap is
+            // exercised on its own in cloud-causal-relational.test.js.
+            maxClassShare: 1,
         };
         const first = await generateCausalCorpus({ ...options, outputDirectory: directory });
         const second = await generateCausalCorpus({ ...options, outputDirectory: again });
@@ -234,17 +237,26 @@ test('bounded pipeline: raw and matched distributions, deterministic matching, s
         assert.equal(manifest.matching.deterministic, true);
         assert.equal(manifest.replay.fingerprintMismatches, 0);
         assert.equal(manifest.replay.phaseOneArtifact.byteIdentical, true);
+        for (const split of ['train', 'validation', 'test', 'ood']) {
+            assert.ok(manifest.rowCap[split].rowsAfter <= manifest.rowCap[split].rowsBefore, split);
+            assert.ok(manifest.positionBalance[split].rowsAfter <= manifest.positionBalance[split].rowsBefore, split);
+            assert.equal(manifest.counts.rowsBySplit[split], manifest.positionBalance[split].rowsAfter, split);
+        }
+        assert.equal(manifest.matching.classCap.maxShare, 1);
+        assert.equal(manifest.matching.classCap.droppedPairs, 0);
         for (const [name, file] of Object.entries(manifest.files)) {
             assert.equal(file.sha256.length, 64, name);
             assert.equal(file.sha256, second.manifest.files[name].sha256, `${name} hash drifted between runs`);
         }
         const rows = fs.readFileSync(path.join(directory, 'transitions-train.jsonl'), 'utf8').split('\n').filter(Boolean);
         const parsed = rows.map((line) => JSON.parse(line));
+        assert.equal(parsed.length, manifest.counts.rowsBySplit.train, 'streamed rows match the kept set');
+        assert.ok(!fs.existsSync(path.join(directory, 'transitions-train.jsonl.staging')));
         assert.ok(parsed.every((row) => row.split === 'train'));
         assert.ok(parsed.every((row) => row.metadata.rawTransitionCount >= row.metadata.researchTransitionCount));
         const evaluation = evaluateCausalCorpus(first, { budgets: [2, 4, 8], iterations: 20 });
         assert.equal(evaluation.splitIntegrity.ok, true);
-        assert.equal(evaluation.labelPermutation.trials.length, 5);
+        assert.equal(evaluation.labelPermutation.trials.length, 12);
         assert.ok(Object.keys(evaluation.transitionMetrics).length === 4);
         const acceptance = evaluateCausalAcceptance(first, evaluation, options);
         for (const gate of ['outcomeBlindGeneration', 'labelsFromDeterministicExecution', 'matchingDeterministic',

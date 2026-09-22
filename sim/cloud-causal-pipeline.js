@@ -15,8 +15,11 @@ const {
     TOPOLOGY_CATALOG_V2,
     assertDisjointTopologySplits,
 } = require('../packages/cloudproof/topology');
+const readline = require('node:readline');
 const {
     REPORT_ONLY_NUISANCE_NAMES,
+    balancePositions,
+    capRowsPerTrajectory,
     categoricalOverlap,
     matchTrajectories,
     pruneShortcutPairs,
@@ -151,12 +154,63 @@ function nuisanceReport(summaries, selected) {
     });
 }
 
+function classDistribution(pairs, summariesById) {
+    const counts = {};
+    for (const pair of pairs) {
+        const cls = summariesById.get(pair.unsafeTrajectoryId).incident?.violationClass || 'unknown';
+        counts[cls] = (counts[cls] || 0) + 1;
+    }
+    return stable(counts);
+}
+
+function capIncidentClasses(pairs, summariesById, maxShare) {
+    const before = classDistribution(pairs, summariesById);
+    let current = pairs.slice();
+    const dropped = {};
+    for (;;) {
+        const counts = classDistribution(current, summariesById);
+        const total = current.length;
+        const offending = Object.entries(counts).filter(([, count]) => count / Math.max(1, total) > maxShare)
+            .sort(([, left], [, right]) => right - left)[0];
+        if (!offending || total === 0) break;
+        const [cls] = offending;
+        const candidates = current
+            .filter((pair) => (summariesById.get(pair.unsafeTrajectoryId).incident?.violationClass || 'unknown') === cls)
+            .sort((left, right) => right.distance - left.distance || right.matchId.localeCompare(left.matchId));
+        const victim = candidates[0];
+        current = current.filter((pair) => pair.matchId !== victim.matchId);
+        dropped[cls] = (dropped[cls] || 0) + 1;
+    }
+    return stable({ maxShare, before, after: classDistribution(current, summariesById), dropped, pairs: current,
+        droppedPairs: pairs.length - current.length });
+}
+
 function openOutputs(outputDirectory) {
     const resolved = path.resolve(outputDirectory);
     fs.mkdirSync(resolved, { recursive: true });
+    // Transition rows first land in staging files; position balancing decides
+    // which record IDs survive, and the final files are streamed from staging.
     const handles = Object.fromEntries(Object.entries(FILENAMES).map(([name, file]) => [name,
-        fs.openSync(path.join(resolved, file), 'w')]));
+        fs.openSync(path.join(resolved, SPLITS.includes(name) ? `${file}.staging` : file), 'w')]));
     return { directory: resolved, handles };
+}
+
+async function streamKeptRows(directory, split, keep) {
+    const staging = path.join(directory, `${FILENAMES[split]}.staging`);
+    const target = path.join(directory, FILENAMES[split]);
+    const output = fs.createWriteStream(target, { encoding: 'utf8' });
+    const reader = readline.createInterface({ input: fs.createReadStream(staging, { encoding: 'utf8' }), crlfDelay: Infinity });
+    let written = 0;
+    for await (const line of reader) {
+        if (!line) continue;
+        const match = /"recordId":"([^"]+)"/.exec(line);
+        if (!match || !keep.has(match[1])) continue;
+        if (!output.write(`${line}\n`)) await new Promise((resolve) => output.once('drain', resolve));
+        written += 1;
+    }
+    await new Promise((resolve) => output.end(resolve));
+    fs.unlinkSync(staging);
+    return written;
 }
 
 function writeLines(handle, lines) {
@@ -201,7 +255,13 @@ async function generateCausalCorpus(options = {}) {
         maxRounds: options.pruneMaxRounds ?? 15,
         floorFraction: options.pruneFloorFraction ?? 0.4,
     });
-    const keptPairs = pruning.pairs;
+    // Post-hoc class cap: no single incident class may exceed `maxClassShare`
+    // of the matched unsafe trajectories. Pairs of an over-represented class
+    // are dropped worst-match first (largest standardized distance, then
+    // matchId), whole, so balance and strata survive. Nothing about
+    // generation changes; the raw class distribution stays in the manifest.
+    const classCap = capIncidentClasses(pruning.pairs, summariesById, options.maxClassShare ?? 0.4);
+    const keptPairs = classCap.pairs;
     const selectedMap = {};
     for (const pair of keptPairs) {
         selectedMap[pair.unsafeTrajectoryId] = pair.matchId;
@@ -232,11 +292,12 @@ async function generateCausalCorpus(options = {}) {
             categoricalAfter: categoricalOverlap(matchedSummaries),
         },
         pruning: { ...pruning, pairs: undefined },
+        classCap: { ...classCap, pairs: undefined },
     });
     const selectedIndices = matchedSummaries.map((summary) => summary.index);
-    log(`  pruning kept ${keptPairs.length}/${rawMatching.counts.matchedPairs} pairs `
-        + `(cross-fit probe AUROC ${pruning.finalCrossFitAuroc?.toFixed(3)}), `
-        + `${selectedIndices.length} trajectories selected`);
+    log(`  pruning kept ${pruning.keptPairs}/${rawMatching.counts.matchedPairs} pairs `
+        + `(cross-fit probe AUROC ${pruning.finalCrossFitAuroc?.toFixed(3)}); class cap dropped `
+        + `${classCap.droppedPairs}; ${selectedIndices.length} trajectories selected`);
 
     const outputs = openOutputs(options.outputDirectory);
     const examplesBySplit = Object.fromEntries(SPLITS.map((split) => [split, []]));
@@ -295,6 +356,33 @@ async function generateCausalCorpus(options = {}) {
     } finally {
         Object.values(outputs.handles).forEach((handle) => fs.closeSync(handle));
     }
+
+    log('capping rows per trajectory and balancing research rows over position cells');
+    const positionBalance = {};
+    const rowCap = {};
+    for (const split of SPLITS) {
+        const capped = capRowsPerTrajectory(examplesBySplit[split], {
+            cap: options.maxRowsPerTrajectory ?? null,
+            quantile: options.rowCapQuantile ?? 0.5,
+            seed: 9001 + SPLITS.indexOf(split),
+        });
+        examplesBySplit[split] = examplesBySplit[split].filter((example) => capped.keep.has(example.recordId));
+        rowCap[split] = { ...capped, keep: undefined };
+        const balance = balancePositions(examplesBySplit[split], {
+            horizon: DEFAULT_HORIZON,
+            targetQuantile: options.positionTargetQuantile ?? 0.75,
+            minimumKeepFraction: options.positionMinimumKeepFraction ?? 0.25,
+            seed: 4242 + SPLITS.indexOf(split),
+        });
+        const keep = balance.keep;
+        examplesBySplit[split] = examplesBySplit[split].filter((example) => keep.has(example.recordId));
+        rowsBySplit[split] = await streamKeptRows(outputs.directory, split, keep);
+        if (rowsBySplit[split] !== examplesBySplit[split].length) {
+            throw new Error(`position balancing wrote ${rowsBySplit[split]} ${split} rows, expected ${examplesBySplit[split].length}`);
+        }
+        positionBalance[split] = { ...balance, keep: undefined };
+    }
+    log(`  kept ${Object.values(rowsBySplit).reduce((sum, value) => sum + value, 0)} rows`);
 
     // Pair truth must be reproducible from the schedule alone: re-run a
     // deterministic sample in-process and compare fingerprints.
@@ -389,6 +477,8 @@ async function generateCausalCorpus(options = {}) {
             rowsEndAtFirstIncident: true,
             source: 'first failing transition of deterministic execution',
         },
+        rowCap,
+        positionBalance,
         features: {
             inputs: ['state', 'candidateAction'],
             inputKeys: ['action', 'state'],
@@ -473,4 +563,4 @@ function writeAcceptedManifest(corpus, evaluation, acceptance) {
     return manifest;
 }
 
-module.exports = { FILENAMES, generateCausalCorpus, writeAcceptedManifest };
+module.exports = { FILENAMES, capIncidentClasses, generateCausalCorpus, writeAcceptedManifest };

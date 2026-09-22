@@ -55,8 +55,13 @@ const OPERATION_TYPES = new Set(ACTION_TYPES.filter((type) => type !== CLOUD_ACT
 // observable controller state changed, and a seeded fraction of the remaining
 // uneventful ticks/timers. The raw simulator trace is never truncated.
 const DEFAULT_CHECKPOINT_POLICY = Object.freeze({ tickRate: 0.15, timerRate: 0.1 });
-const PAIR_FAMILY_MIX = Object.freeze(['zone-placement', 'node-placement', 'zone-placement', 'node-placement',
-    'pdb-placement', 'zone-placement', 'node-placement', 'zone-placement', 'node-placement', 'capacity-distribution']);
+// Half of the pairs are relational-only (identical pooled inputs); the
+// placement families remain as the easier, flat-visible controls.
+const PAIR_FAMILY_MIX = Object.freeze([
+    'zone-placement', 'node-concentration', 'node-placement', 'readiness-wiring',
+    'zone-placement', 'node-concentration', 'node-placement', 'readiness-wiring',
+    'readiness-drain', 'pdb-placement', 'capacity-distribution', 'readiness-drain',
+]);
 const DEFAULT_PAIR_POLICY = Object.freeze({
     prefixActions: Object.freeze({ minimum: 4, maximum: 24 }),
     continuationActions: Object.freeze({ minimum: 20, maximum: 60 }),
@@ -319,10 +324,15 @@ function transitionRecord({ row, kind, checkpoint, summary, incidentSequence }) 
 
 function compactExample(record, summary) {
     return {
+        recordId: record.recordId,
         trajectoryId: record.trajectoryId,
         split: record.split,
         sequence: record.metadata.sequence,
         atMs: record.metadata.atMs,
+        transitions: summary.transitions,
+        // The HPA's last sample time is the one clock a scorer can read from
+        // the state graph; it is probed as a position feature for that reason.
+        hpaClockMs: graphFeature(record.state, 'HPA').sampledAtMs ?? 0,
         features: extractRiskFeatures(record, record.action),
         heuristicScore: heuristicRiskScore(record.state, record.action),
         horizons: record.labels.horizons,
@@ -463,7 +473,7 @@ async function executeCounterfactualPair(pairIndex, rawConfig) {
     const scheduleDigests = {};
     const outcome = {};
     const records = {};
-    let valid = true;
+    let valid = design.infeasibleReason === null;
     for (const variant of ['A', 'B']) {
         const schedule = buildSchedule(seed, worlds[variant], actions, {
             pair: { pairId, family, variant, role: design.roles[variant], interventionId },
@@ -496,6 +506,12 @@ async function executeCounterfactualPair(pairIndex, rawConfig) {
         };
     }
     const comparison = comparePairStates(records.A.row.state, records.B.row.state);
+    // The nine flat risk features (ready/pending replicas, zone concentration,
+    // CPU pressure, rollout/HPA flags, PDB headroom, degraded nodes, action
+    // risk) are what the heuristic and logistic baselines see. Relational-only
+    // families must leave them identical.
+    const flatSummaryIdentical = JSON.stringify(extractRiskFeatures(records.A.row, design.intervention))
+        === JSON.stringify(extractRiskFeatures(records.B.row, design.intervention));
     const truth = {
         A: { unsafe: outcome.A.unsafe, horizons: outcome.A.horizons, incident: outcome.A.incident },
         B: { unsafe: outcome.B.unsafe, horizons: outcome.B.horizons, incident: outcome.B.incident },
@@ -512,6 +528,10 @@ async function executeCounterfactualPair(pairIndex, rawConfig) {
         seed,
         family,
         interventionType: family,
+        relationalOnly: design.relationalOnly,
+        infeasibleReason: design.infeasibleReason,
+        pooledInputsIdentical: comparison.pooledInputsIdentical,
+        flatSummaryIdentical,
         sharedExogenousScheduleDigest,
         executedScheduleDigest: scheduleDigests.A,
         controlTopology: { topologyId: entry.topologyId, placement: design.placements.A, role: design.roles.A },
@@ -557,6 +577,7 @@ async function executeCounterfactualPair(pairIndex, rawConfig) {
             role: design.roles[variant],
             family,
             interventionType: family,
+            relationalOnly: design.relationalOnly,
             sharedExogenousScheduleDigest,
             split: entry.split,
             topologyId: entry.topologyId,
@@ -575,6 +596,8 @@ async function executeCounterfactualPair(pairIndex, rawConfig) {
                 valid,
                 discordant,
                 outcomeChange,
+                pooledInputsIdentical: comparison.pooledInputsIdentical,
+                flatSummaryIdentical,
                 aggregateMatched: comparison.aggregateMatched,
                 aggregateFeatureDelta: comparison.aggregateFeatureDelta,
                 graphStructuralDelta: comparison.graphStructuralDelta,
