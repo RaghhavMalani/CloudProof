@@ -37,3 +37,8 @@ artifacts/cloudproof/phase-ii-b2/models/*
 !artifacts/cloudproof/phase-ii-b2/models/*/
 artifacts/cloudproof/phase-ii-b2/models/*/*
 !artifacts/cloudproof/phase-ii-b2/models/*/*.json
+
+# Phase III simulator-only pilot summary
+!artifacts/cloudproof/phase-iii-pilot/
+artifacts/cloudproof/phase-iii-pilot/*
+!artifacts/cloudproof/phase-iii-pilot/pilot.json

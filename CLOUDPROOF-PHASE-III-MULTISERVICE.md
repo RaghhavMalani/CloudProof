@@ -1,10 +1,15 @@
 # CloudProof Phase III — Multi-Service Failure Propagation
 
 > **Status: design and preregistration, written before any Phase III model exists.** Phase II-B.2
-> is frozen on `main` (`de43a31`, PR #6). This document fixes the new world, the pair construction,
-> the controls and the pass criteria *before* the simulator is finished and before any model is
-> trained. Section 12 lists the only decisions left open, which are the ones a simulator-only
-> pilot is allowed to settle. Everything else here is fixed.
+> is frozen on `main` (`de43a31`, PR #6).
+>
+> This document was committed first (`96e26bb`), before any simulator code. It fixes the new world,
+> the pair construction, the controls and the pass criteria before any model is trained.
+>
+> The simulator has since been built (III-A.1) and piloted on simulator outcomes only (III-A.2).
+> The pilot settled the ranges §12 had left open, which are now frozen. Every change made to this
+> document after `96e26bb` is listed, with its reason, in §12.1. No model, learned score or corpus
+> exists yet.
 
 ## 1. Research question
 
@@ -131,6 +136,8 @@ pooled model read relational information. The graph is a DAG; the generator reje
 | Operations | `advance-time {ms}`, `scale {service, replicas}`, `traffic-shift {rps}`, `drain-node {node}`, `uncordon-node {node}`, `recover-node {node}`, `recover-zone {zone}` |
 | Faults | `node-crash {node}`, `zone-degraded {zone}`, `pod-crash {pod}`, `cache-flush {service}`, `consumer-stall {service, durationMs}`, `traffic-spike {factor}` |
 
+A fault aimed at a pod that an earlier scale-down removed hits nothing.
+
 Controllers run inside `advance-time`, in a fixed order on every tick: evictions, restarts, the
 scheduler, readiness, failover, cache warm-up, queue backlog, propagation, then the SLO check.
 
@@ -158,8 +165,8 @@ a SHA-256 of the canonical state, and a replay must reproduce every digest.
      predicts the outcome.
    This removes the Phase II failure mode where a fixed "treated is riskier" preference scored
    well.
-4. **Same exogenous schedule.** Both members share the seed, warm-up, fault and continuation:
-   20 × `advance-time 250 ms` (5 s).
+4. **Same exogenous schedule.** Both members share the seed, the warm-up (`advance-time
+   500 ms`), the fault and the continuation: 25 × `advance-time 200 ms` (5 s).
 5. **Truth comes from execution.** The riskier member is the one whose trajectory violates the
    SLO. A pair is *decisive* when exactly one member violates.
 
@@ -184,13 +191,17 @@ pair it ties by construction. That is a gate, not evidence.
 
 ### 4.3 Families
 
-| # | Family | Swapped relation | Fault targets (drawn 50/50) | Mechanism | Hops from fault to route |
+| # | Family | Swapped relation | Fault targets (drawn 50/50) | Mechanism | Hops from fault to route (measured) |
 | --- | --- | --- | --- | --- | ---: |
 | F1 | `route-entry` | ENTERS (high-share route ↔ low-share route) | crash the node holding entry P's pods / entry Q's pods | route weighting | 3 |
-| F2 | `call-dependency` | CALLS (callers on high/low-share paths ↔ callees X, Y) | crash X's node / Y's node | synchronous cascade | 5 |
-| F3 | `cache-backing` | BACKED_BY (caches K₁, K₂ ↔ stores S₁ critical, S₂ non-critical) | flush K₁ / flush K₂ | cache stampede → overload → cascade | 5 |
-| F4 | `storage-zone` | WRITES (writers on high/low-share paths ↔ databases D₁ in zone a, D₂ in zone b) | degrade zone a / zone b | zonal storage loss → cascade | 6 |
+| F2 | `call-dependency` | CALLS (callers on high/low-share paths ↔ callees X, Y) | crash X's node / Y's node | synchronous cascade | 4 |
+| F3 | `cache-backing` | BACKED_BY (caches K₁, K₂ ↔ stores S₁ critical, S₂ non-critical) | flush K₁ / flush K₂ | cache stampede → overload → cascade | 3 |
+| F4 | `storage-zone` | WRITES (writers on high/low-share paths ↔ databases D₁, D₂, each in its own storage zone with one dedicated node) | degrade D₁'s storage zone / D₂'s storage zone | zonal storage loss → cascade | 5 |
 | F5 | `queue-consumer` | CONSUMES (workers W₁, W₂ ↔ queues fed by high/low-rate producers) | crash W₁'s node / W₂'s node | backlog growth, then backpressure, racing consumer recovery | 5 |
+
+The hop column is the shortest undirected path from the fault target to the high-share route,
+measured in the pilot (§13). The first draft's estimates (3/5/5/6/5) counted a step that does
+not exist in the implemented motifs. The GNN's L = 6 covers every family.
 
 The motif's swapped elements have identical features (callees X ≅ Y, caches K₁ ≅ K₂, stores
 S₁ ≅ S₂, and so on), so P1 and P2 hold. Everything else in the world is sampled from the template
@@ -233,7 +244,7 @@ only: no pair record, pair label or pair world ever enters training.
 
 | Model | Role | Sees |
 | --- | --- | --- |
-| **Relational GNN** | hypothesis | Phase II-B family unchanged except for the new vocabulary: per-relation forward and reverse messages, mean aggregation, LayerNorm; **L = 6 layers** (§4.3's longest path is 6 hops); an `isActionTarget` input flag on the target node; typed mean pooling plus the target embedding |
+| **Relational GNN** | hypothesis | Phase II-B family unchanged except for the new vocabulary: per-relation forward and reverse messages, mean aggregation, LayerNorm; **L = 6 layers** (fixed in the first draft; the longest measured path in §4.3 is 5 hops, so every family is inside the receptive field); an `isActionTarget` input flag on the target node; typed mean pooling plus the target embedding |
 | Depth control | diagnostic | the same GNN with L = 2 |
 | Pooled MLP | topology-blind | typed mean/min/max/sum pools of node features plus the action and the target node's own features |
 | **Degree-aware MLP** | stronger non-relational control | the pooled MLP's inputs plus the §4.2 P2 summary: degree histograms, joint feature-and-degree pools, co-location pools, the target's degree and co-location counts and its one-hop neighbourhood |
@@ -252,8 +263,9 @@ within 1.25× of the GNN. No tuning after any test, OOD or pair result.
   isolates information *beyond* degree.
 - **No edges.** Construction check.
 - **Collapsed or random relation types.** Diagnostics only.
-- **Clock-blind retrain.** Every absolute timestamp column is zeroed. The masked field list is
-  written into each model config before training.
+- **No clock by construction.** The mesh graph export contains no absolute timestamp and no
+  elapsed-time counter. `packages/cloudproof-mesh/mesh.test.js` asserts this. A clock-blind
+  retrain would therefore see byte-identical inputs, so it is replaced by that assertion (§12.1).
 
 ## 9. Primary test and pass criteria (fixed now)
 
@@ -271,7 +283,7 @@ primary pair. If G fails, the experiment is invalid, not failed.
 | C2 | Beats uniform rewiring (primary control) | for **each** of the three seeds: GNN − rewired ≥ 0.10, paired interval excludes 0 |
 | C3 | Beyond degree | for **each** of the three degree-preserving seeds: GNN − randomized ≥ 0.10, paired interval excludes 0 |
 | C4 | No fixed preference | accuracy ≥ 0.60 with bootstrap lower bound > 0.5 on **both** halves: pairs where the canonical wiring (lexicographically smaller wiring digest) is riskier, and pairs where it is safer |
-| C5 | Not timing | clock-blind GNN meets C1 |
+| C5 | Not timing | the export carries no absolute clock (asserted by test); satisfied by construction, see §12.1 |
 
 **GRAPH ATTRIBUTION PASSED** if and only if G holds and C1–C5 all pass. Otherwise **FAILED**,
 reported with the same tables. The allowed claim, if it passes:
@@ -311,26 +323,90 @@ Phase II-B.2 had 45 unseen pairs (±0.14).
 - CPU-only training on one laptop. Ensembles run at 4–6 concurrent members after a one-epoch
   benchmark (Phase II-B.2 §5.2).
 
-## 12. What is frozen, and what the pilot may still set
+## 12. What is frozen
 
-**Frozen by this document:** the question; the world semantics (§3); pair principles P1–P5 and
-families F1–F5; the split policy by template (§5); the model roster and recipe (§7); the controls
-(§8); criteria G and C1–C5 with their thresholds (§9); N ≥ 350.
+**Frozen by the first draft (`96e26bb`):** the question; the world semantics (§3); pair principles
+P1–P5 and families F1–F5; the split policy by template (§5); the model roster and recipe (§7); the
+controls (§8); criteria G and C1–C4 with their thresholds (§9); N ≥ 350.
 
-**Open until the simulator-only pilot (§13), then frozen before any model trains:**
+**Frozen after the pilot (this commit), before any corpus or model:**
 
-- the numeric ranges inside each template;
-- the per-family motif parameter ranges (route shares, replica counts, headroom, queue capacity);
-- the number of pairs generated per template, chosen to reach N ≥ 350 decisive unseen pairs.
+- **Template ranges:** `COMMON` and `TEMPLATES` in `packages/cloudproof-mesh/generator.js`.
+- **The natural schedule process:** `naturalSchedule` in the same file.
+- **Motif ranges:** `MOTIF` and the `twins` defaults in `packages/cloudproof-mesh/pairs.js`.
+- **The unseen pair set, by a simulator-only stopping rule:**
+  - there are 20 cells: 5 families × 4 unseen templates (X1, X2, O1, O2);
+  - in each cell, pairs are generated with seeds 1, 2, 3, … and the first **18 valid decisive
+    pairs** are kept, giving 5 × 4 × 18 = **360 ≥ 350**;
+  - a cell stops after 500 seeds, and a short cell is reported, not refilled from another cell.
 
-The pilot reads simulator outcomes only: validity, decisiveness and balance. No model, learned
-score or feature importance is computed before the freeze.
+  From the pilot's decisive rates, the rule needs about 19–35 seeds per cell. The rule reads
+  simulator outcomes only (validity and decisiveness), never a model.
+
+### 12.1 Changes after the first draft (all before any corpus or model)
+
+| Change | Reason |
+| --- | --- |
+| Continuation 25 × 200 ms instead of 20 × 250 ms | 250 ms is not a multiple of the 100 ms tick. The window is still 5 s |
+| F4 databases get their own storage zones, one dedicated node each | the first probe had 0 of 21 decisive pairs: degrading a regular zone also removed a third to a half of every service's pods, so both members failed. The draft said only "degrade zone a / zone b" |
+| C5 and the clock-blind retrain are replaced by a test asserting that no exported feature is a clock | the export has no timestamp at all, so a clock-blind model would see identical inputs |
+| Hop counts in §4.3 corrected to measured values | see §4.3 |
+| Natural provisioning retuned: utilization 0.25–0.55 (was 0.35–0.75); `minHealthy` = ⌈r/2⌉ with probability 0.7; fault hazard 1–6 % per step (was 3–15 %); traffic spikes ×1.1–1.6 (was ×1.2–2.5); scale targets 2–6 | the first natural probe was 93 % unsafe, with a median first incident at transition 18. Every single fault was fatal, which is not a provisioned system |
+| Stores run hotter (database utilization 0.40–0.85); queues buffer 1–5 s of inflow (was 2–8 s); consumer stalls last 1–6 s (was 0.5–4 s) | with generous provisioning, natural data contained no queue backpressure and almost no cache stampede, so families F3 and F5 would test mechanisms that training never shows |
+| F3 stores run at utilization 0.60–0.90; F5 queues buffer 0.5–3 s | with template headroom, a cache flush can never overload the backing store (utilization × (hi + m) < hi + 0.2m everywhere in range) |
 
 ## 13. Build plan and status
 
 | Step | Content | Status |
 | --- | --- | --- |
-| III-A.1 | `packages/cloudproof-mesh`: world, engine, graph export, runner, pair builder, degree-aware summary, tests | in progress |
-| III-A.2 | Simulator-only pilot: pair validity, decisive rate and balance per family and template; natural base rates | pending |
-| III-A.3 | Freeze template and motif ranges; outcome-blind natural corpus with matching and shortcut gates; SHA-256 freeze | pending |
+| III-A.1 | `packages/cloudproof-mesh`: world, engine, graph export, runner, pair builder, degree-aware summary; 12 tests | done |
+| III-A.2 | Simulator-only pilot (`tools/cloudproof-mesh-pilot.js`, `artifacts/cloudproof/phase-iii-pilot/pilot.json`) | done |
+| III-A.3 | Natural corpus with matching, incident-class and shortcut gates; the unseen pair set by the §12 rule; SHA-256 freeze | next |
 | III-B | Tensorizer for the mesh vocabulary; train the §7 roster; evaluate §9 | pending |
+
+### 13.1 Pilot results (simulator outcomes only)
+
+Values are from `artifacts/cloudproof/phase-iii-pilot/pilot.json`. Pairs: 30 seeds × 10 seen
+templates per family, so pair outcomes come from train and validation templates only.
+
+| Family | Valid (P1–P5) | Decisive | Both unsafe / both safe | Canonical wiring riskier | Riskier = exposed | Hops, fault → critical route |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| route-entry | 300 / 300 | 158 (53 %) | 0 / 142 | 59 % | 158 / 158 | 3 (158) |
+| call-dependency | 300 / 300 | 178 (59 %) | 0 / 122 | 57 % | 178 / 178 | 4 (178) |
+| cache-backing | 300 / 300 | 235 (78 %) | 0 / 65 | 53 % | 235 / 235 | 3 (235) |
+| storage-zone | 300 / 300 | 285 (95 %) | 15 / 0 | 52 % | 285 / 285 | 4 (1), 5 (284) |
+| queue-consumer | 300 / 300 | 192 (64 %) | 0 / 108 | 47 % | 192 / 192 | 5 (192) |
+
+What the pilot shows:
+
+- **P1–P5 held for all 1 500 pairs.** On unseen templates, a structural check of 60 pairs found no
+  errors and no failed identity assertion; their outcomes were discarded unread.
+- **Randomizing the fault location balances which wiring is riskier** (47–59 %). A wiring-only
+  preference is therefore near chance, and C4 would catch it on one of the halves in any case.
+- **Riskier = exposed in every decisive pair.** A symbolic rule, "the member in which the fault
+  reaches the high-share route through hard edges", is right every time. That is the exposure
+  heuristic of §7. It is a structural reasoner, not a shortcut, and the question is whether a
+  model learns it from natural data.
+
+Natural trajectories, 30 worlds per seen template:
+
+| Template | Split | Unsafe | Median first incident (transition) | Incident classes |
+| --- | --- | ---: | ---: | --- |
+| T1 | train | 63 % | 18 | INSTANCE_LOSS 12, OVERLOAD 6, STORAGE_UNAVAILABLE 1 |
+| T2 | train | 57 % | 27 | CACHE_STAMPEDE 2, INSTANCE_LOSS 10, OVERLOAD 5 |
+| T3 | train | 63 % | 30 | INSTANCE_LOSS 11, OVERLOAD 8 |
+| T4 | train | 60 % | 22 | INSTANCE_LOSS 14, OVERLOAD 4 |
+| T5 | train | 63 % | 26 | CACHE_STAMPEDE 1, INSTANCE_LOSS 14, OVERLOAD 3, QUEUE_BACKPRESSURE 1 |
+| T6 | train | 73 % | 20 | CACHE_STAMPEDE 1, INSTANCE_LOSS 12, OVERLOAD 5, QUEUE_BACKPRESSURE 2, STORAGE_UNAVAILABLE 2 |
+| T7 | train | 67 % | 27 | CACHE_STAMPEDE 1, INSTANCE_LOSS 12, OVERLOAD 5, QUEUE_BACKPRESSURE 1, STORAGE_UNAVAILABLE 1 |
+| T8 | train | 60 % | 30 | CACHE_STAMPEDE 2, INSTANCE_LOSS 4, OVERLOAD 12 |
+| V1 | validation | 60 % | 26 | CACHE_STAMPEDE 2, INSTANCE_LOSS 11, OVERLOAD 5 |
+| V2 | validation | 63 % | 33 | INSTANCE_LOSS 9, OVERLOAD 7, QUEUE_BACKPRESSURE 3 |
+
+INSTANCE_LOSS dominates (58 % of unsafe trajectories), while cache stampede (5 %) and queue
+backpressure (4 %) are rare but present. At the planned 50 000 trajectories that is still
+roughly a thousand of each.
+
+III-A.3 therefore reuses II-A.2's incident-class cap, at most 40 % per class, and adds an
+acceptance gate: every class must make up at least 3 % of matched unsafe trajectories. It also
+reuses the matching and `ShortcutProbe` gates.
