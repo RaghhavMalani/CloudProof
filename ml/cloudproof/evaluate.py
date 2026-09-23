@@ -9,9 +9,9 @@ from pathlib import Path
 import numpy as np
 
 from .controlled import run_zone_concentration_experiment
-from .dataset import CorpusManifest, find_zone_experiment_record
+from .dataset import find_zone_experiment_record, open_corpus_manifest
 from .metrics import evaluate_binary_risk
-from .runtime import artifact_manifest, json_dump, load_artifact, predict_path
+from .runtime import artifact_manifest, json_dump, load_artifact, predict_path, tensorizer_for_config
 
 
 def evaluate_artifact(
@@ -22,8 +22,9 @@ def evaluate_artifact(
     max_records: int | None = None,
     device: str = "cpu",
 ) -> dict:
-    manifest = CorpusManifest(dataset_directory)
+    manifest = open_corpus_manifest(dataset_directory)
     config, models = load_artifact(artifact_directory, device)
+    tensorizer = tensorizer_for_config(config)
     if config["dataset"]["splitPolicy"] != manifest.value["splitPolicy"]:
         raise ValueError("model and evaluation split policies differ")
     expected_files = config["dataset"]["files"]
@@ -47,6 +48,7 @@ def evaluate_artifact(
             batch_size=batch_size,
             max_records=max_records,
             device=device,
+            tensorizer=tensorizer,
         )
         split_metrics = evaluate_binary_risk(labels, risks)
         split_metrics["meanUncertainty"] = float(np.mean(uncertainties))

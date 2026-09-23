@@ -1,0 +1,203 @@
+{
+  "corpus": "artifacts/cloudproof/causal-corpus-v2",
+  "elapsedSeconds": 43.87722490000306,
+  "freeze": {
+    "acceptancePassed": true,
+    "corpus": "causal-corpus-v2",
+    "files": {
+      "counterfactual-pairs.jsonl": {
+        "bytes": 41802721,
+        "sha256": "547e27db11595417f9fec5e0006edfb963fe27b603d2157b405cc79f7e235c22"
+      },
+      "trajectories.jsonl": {
+        "bytes": 467763655,
+        "sha256": "9d1b55f606986f6a08af4fea807e829444fe4a5155920c916abbf03be244ddff"
+      },
+      "transitions-ood.jsonl": {
+        "bytes": 199800158,
+        "sha256": "5c37b988b581302115519e4893a3452df923af10d815537b7e270e0e59564d90"
+      },
+      "transitions-test.jsonl": {
+        "bytes": 138038411,
+        "sha256": "f606dd5cc22c4a91f5c854409126c46df9a846ce3dada20bdbac6c630741f5f2"
+      },
+      "transitions-train.jsonl": {
+        "bytes": 340290752,
+        "sha256": "64f41d0de1c0fed9a455bb344bfb273cd54bd9d7930aa4597163668d71ddbfbc"
+      },
+      "transitions-validation.jsonl": {
+        "bytes": 221125492,
+        "sha256": "4d35134206a5bcb3f5ea30c57155238210526d72634ca1ac277702a67390116c"
+      }
+    },
+    "freezeDigest": "fceaf60b5d66a8a5543b80615482965b64dde4946d9588bb868613a57f19d6b8",
+    "freezeFile": "CLOUDPROOF-PHASE-II-A2-CORPUS-FREEZE.json",
+    "generatorCommitSha": "42fda40db8ee4ae72c914d71e08dd5faef21f3f6",
+    "seeds": {
+      "count": 50000,
+      "first": 90000,
+      "last": 139999,
+      "pairCount": 2000,
+      "pairFirst": 95000,
+      "pairLast": 96999
+    }
+  },
+  "kind": "cloudproof.phase-ii-b2-frozen-corpus-verification",
+  "labelContract": {
+    "primaryLabel": "labels.sloViolationWithinKTransitions == labels.horizons['5']",
+    "verifiedRows": 180170
+  },
+  "manifest": {
+    "featureBoundary": "state-and-candidate-action-only",
+    "generatorCommitSha": "42fda40db8ee4ae72c914d71e08dd5faef21f3f6",
+    "kind": "cloudproof.causal-corpus-manifest",
+    "label": {
+      "defaultHorizon": 5,
+      "horizons": [
+        1,
+        5,
+        10,
+        20
+      ],
+      "rowsEndAtFirstIncident": true,
+      "source": "first failing transition of deterministic execution",
+      "task": "SLO violation within next K transitions"
+    },
+    "schemaVersion": 3,
+    "splitPolicy": "topology-holdout-v2"
+  },
+  "pairs": {
+    "invalid": 112,
+    "relationalOnly": {
+      "discordantByFamily": {
+        "capacity-distribution": 1,
+        "node-concentration": 86,
+        "readiness-drain": 31,
+        "readiness-wiring": 55
+      },
+      "discordantBySplit": {
+        "ood": 25,
+        "test": 20,
+        "train": 83,
+        "validation": 45
+      },
+      "discordantPairDigest": "9ad039a167032d697b566c27469138a4d06f16b20da800eb15691daaa7440f2c",
+      "discordantPairs": 173,
+      "discordantPairsRelationTensorsDiffer": 173,
+      "pooledInputsIdenticalVerifiedAtTensorLevel": 1111,
+      "relationTensorsDiffer": 965,
+      "safeToUnsafe": 164,
+      "stateConvergedConcordantPairs": {
+        "byFamily": {
+          "node-concentration": 1,
+          "readiness-drain": 73,
+          "readiness-wiring": 72
+        },
+        "count": 146,
+        "note": "byte-identical members at the intervention row (starting pods became ready during the prefix); all concordant"
+      },
+      "unsafeToSafe": 9,
+      "validPairs": 1111
+    },
+    "safeToUnsafe": 344,
+    "sameOutcome": 1590,
+    "total": 2000,
+    "unsafeToSafe": 10,
+    "valid": 1944
+  },
+  "passed": true,
+  "phase": "II-B.2",
+  "schemaVersion": 1,
+  "splitIntegrity": {
+    "rowSplitFieldsMatchFiles": true,
+    "rowTopologiesMatchCatalog": true,
+    "rowsReferenceSelectedTrajectories": true,
+    "topologiesBySplit": {
+      "ood": 4,
+      "test": 3,
+      "train": 8,
+      "validation": 5
+    },
+    "topologyIdsDisjoint": true,
+    "trajectoryIdsDisjoint": true
+  },
+  "splits": {
+    "ood": {
+      "positiveRateK5": 0.07148349994984787,
+      "positivesByHorizon": {
+        "1": 723,
+        "10": 3486,
+        "20": 5847,
+        "5": 2138
+      },
+      "rows": 29909,
+      "tensorizationSampleChecked": 200,
+      "trajectories": 1608,
+      "trajectoryOutcomes": {
+        "safe": 17425,
+        "unsafe": 12484
+      }
+    },
+    "test": {
+      "positiveRateK5": 0.06996659796745079,
+      "positivesByHorizon": {
+        "1": 695,
+        "10": 3169,
+        "20": 5264,
+        "5": 1969
+      },
+      "rows": 28142,
+      "tensorizationSampleChecked": 200,
+      "trajectories": 1510,
+      "trajectoryOutcomes": {
+        "safe": 16646,
+        "unsafe": 11496
+      }
+    },
+    "train": {
+      "positiveRateK5": 0.06975956195277981,
+      "positivesByHorizon": {
+        "1": 1763,
+        "10": 8382,
+        "20": 14003,
+        "5": 5147
+      },
+      "rows": 73782,
+      "tensorizationSampleChecked": 200,
+      "trajectories": 3873,
+      "trajectoryOutcomes": {
+        "safe": 43334,
+        "unsafe": 30448
+      }
+    },
+    "validation": {
+      "positiveRateK5": 0.07333926391790968,
+      "positivesByHorizon": {
+        "1": 1225,
+        "10": 5747,
+        "20": 9507,
+        "5": 3545
+      },
+      "rows": 48337,
+      "tensorizationSampleChecked": 200,
+      "trajectories": 2720,
+      "trajectoryOutcomes": {
+        "safe": 28033,
+        "unsafe": 20304
+      }
+    }
+  },
+  "trajectories": {
+    "heldOutCounterexamples": 2919,
+    "heldOutSchedules": 5838,
+    "pool": 50000,
+    "selectedBySplit": {
+      "ood": 1608,
+      "test": 1510,
+      "train": 3874,
+      "validation": 2720
+    },
+    "selectedSafe": 4856,
+    "selectedUnsafe": 4856
+  }
+}

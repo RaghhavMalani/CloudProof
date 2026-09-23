@@ -1,0 +1,555 @@
+{
+  "attributionCriteria": {
+    "clockBlindIntervalMustExcludeChance": true,
+    "clockBlindMinimumTieAwareAccuracy": 0.6,
+    "edgeDestructionDifferenceIntervalMustExcludeZero": true,
+    "edgeDestructionMinimumDrop": 0.1,
+    "fullGnnBinomialAlpha": 0.01,
+    "fullGnnIntervalMustExcludeChance": true,
+    "fullGnnMinimumTieAwareAccuracy": 0.6,
+    "pooledMlpChanceBand": [
+      0.4,
+      0.6
+    ],
+    "primaryAccuracy": "tie-aware pairwise accuracy = (correct + 0.5 * ties) / pairs",
+    "primaryPairSet": "relational-only, valid, trajectory-outcome discordant pairs",
+    "tieTolerance": 1e-06
+  },
+  "clockBlindFields": [
+    "HPA.sampled_at",
+    "action.atMs"
+  ],
+  "clusterBootstrap": {
+    "resamples": 1000,
+    "seed": 20260922
+  },
+  "corpus": {
+    "directory": "artifacts/cloudproof/causal-corpus-v2",
+    "freeze": {
+      "acceptancePassed": true,
+      "corpus": "causal-corpus-v2",
+      "files": {
+        "counterfactual-pairs.jsonl": {
+          "bytes": 41802721,
+          "sha256": "547e27db11595417f9fec5e0006edfb963fe27b603d2157b405cc79f7e235c22"
+        },
+        "trajectories.jsonl": {
+          "bytes": 467763655,
+          "sha256": "9d1b55f606986f6a08af4fea807e829444fe4a5155920c916abbf03be244ddff"
+        },
+        "transitions-ood.jsonl": {
+          "bytes": 199800158,
+          "sha256": "5c37b988b581302115519e4893a3452df923af10d815537b7e270e0e59564d90"
+        },
+        "transitions-test.jsonl": {
+          "bytes": 138038411,
+          "sha256": "f606dd5cc22c4a91f5c854409126c46df9a846ce3dada20bdbac6c630741f5f2"
+        },
+        "transitions-train.jsonl": {
+          "bytes": 340290752,
+          "sha256": "64f41d0de1c0fed9a455bb344bfb273cd54bd9d7930aa4597163668d71ddbfbc"
+        },
+        "transitions-validation.jsonl": {
+          "bytes": 221125492,
+          "sha256": "4d35134206a5bcb3f5ea30c57155238210526d72634ca1ac277702a67390116c"
+        }
+      },
+      "freezeDigest": "fceaf60b5d66a8a5543b80615482965b64dde4946d9588bb868613a57f19d6b8",
+      "freezeFile": "CLOUDPROOF-PHASE-II-A2-CORPUS-FREEZE.json",
+      "generatorCommitSha": "42fda40db8ee4ae72c914d71e08dd5faef21f3f6",
+      "seeds": {
+        "count": 50000,
+        "first": 90000,
+        "last": 139999,
+        "pairCount": 2000,
+        "pairFirst": 95000,
+        "pairLast": 96999
+      }
+    }
+  },
+  "edgeModes": [
+    "full",
+    "randomized-edges",
+    "rewired-edges",
+    "no-edges",
+    "collapsed-edge-types",
+    "random-relation-labels"
+  ],
+  "edgeSeeds": [
+    1729,
+    2729,
+    3729
+  ],
+  "frozenRecipe": {
+    "actionEncoder": "Linear(ACTION_FEATURE_DIM, 48) + ReLU + Dropout, concatenated with the resolved target-node embedding",
+    "architecture": "HeterogeneousRiskGNN",
+    "batchSize": 128,
+    "calibration": "none post hoc; validation is used only for early stopping, checkpoint selection and the F1 threshold report",
+    "deterministicAlgorithms": true,
+    "device": "cpu",
+    "dropout": 0.1,
+    "earlyStoppingMetric": "validation NLL (best checkpoint restored)",
+    "ensembleSeeds": [
+      1337,
+      2027,
+      4099,
+      7919,
+      104729
+    ],
+    "epochs": 20,
+    "gradientClipNorm": 5.0,
+    "hiddenDim": 48,
+    "layers": 2,
+    "learningRate": 0.001,
+    "loss": "BCEWithLogits; pos_weight = negatives/positives when the train positive rate is outside [0.25, 0.75]",
+    "normalization": "fixed feature scales inside the tensorizer; LayerNorm per resource type in every relation layer",
+    "optimizer": "AdamW",
+    "patience": 4,
+    "pooling": "typed mean pooling over the seven resource types",
+    "relationHandling": "per-relation forward and reverse linear messages, mean aggregation, LayerNorm + ReLU",
+    "riskHead": "Linear(9*48, 48) + ReLU + Dropout + Linear(48, 1)",
+    "shuffleBuffer": 2048,
+    "torchThreads": 1,
+    "weightDecay": 0.0001
+  },
+  "kind": "cloudproof.phase-ii-b2-config",
+  "models": {
+    "gnn-clock-blind": {
+      "ablation": "full",
+      "artifact": "gnn-clock-blind-k5",
+      "clockBlind": true,
+      "role": "full heterogeneous GNN on the predeclared clock-blind representation"
+    },
+    "gnn-full": {
+      "ablation": "full",
+      "artifact": "gnn-full-k5",
+      "clockBlind": false,
+      "role": "full heterogeneous GNN, Phase II-B configuration"
+    },
+    "pooled-mlp": {
+      "ablation": "flat-mlp",
+      "artifact": "pooled-mlp-k5",
+      "clockBlind": false,
+      "role": "topology-blind parameter-matched pooled MLP (typed mean/min/max/sum + action)"
+    }
+  },
+  "pairBootstrap": {
+    "resamples": 10000,
+    "seed": 20260922
+  },
+  "phase": "II-B.2",
+  "primaryHorizon": 5,
+  "prohibitions": [
+    "no dataset change",
+    "no generation tuning",
+    "no tuning after test/OOD/pair results",
+    "no LLM",
+    "no RL",
+    "no new simulator features",
+    "no counterexample-guided retraining",
+    "no optimization for the relational-pair benchmark"
+  ],
+  "recipeKwargs": {
+    "batch_size": 128,
+    "dropout": 0.1,
+    "epochs": 20,
+    "hidden_dim": 48,
+    "layers": 2,
+    "learning_rate": 0.001,
+    "patience": 4,
+    "shuffle_buffer": 2048,
+    "weight_decay": 0.0001
+  },
+  "researchQuestion": "Does relational graph structure improve prediction and deterministic verification prioritization once schedule-construction shortcuts have been removed?",
+  "schemaVersion": 1,
+  "secondaryHorizons": [
+    1,
+    10,
+    20
+  ],
+  "tieTolerance": 1e-06,
+  "trainedArtifacts": {
+    "gnn-clock-blind-k5": {
+      "ablation": "full",
+      "featureTransform": {
+        "clockBlind": true,
+        "maskedFields": [
+          "HPA.sampled_at",
+          "action.atMs"
+        ]
+      },
+      "horizon": 5,
+      "members": [
+        {
+          "bestEpoch": 4,
+          "bestValidationNll": 0.3427734526222122,
+          "seed": 1337,
+          "trainingSeconds": 3977.405639899953
+        },
+        {
+          "bestEpoch": 7,
+          "bestValidationNll": 0.32845563094858893,
+          "seed": 2027,
+          "trainingSeconds": 5269.116262800002
+        },
+        {
+          "bestEpoch": 7,
+          "bestValidationNll": 0.30616253925648224,
+          "seed": 4099,
+          "trainingSeconds": 3924.083305200038
+        },
+        {
+          "bestEpoch": 6,
+          "bestValidationNll": 0.30935929136217427,
+          "seed": 7919,
+          "trainingSeconds": 3080.833605699998
+        },
+        {
+          "bestEpoch": 7,
+          "bestValidationNll": 0.31510175461858525,
+          "seed": 104729,
+          "trainingSeconds": 3335.1254997000215
+        }
+      ],
+      "modelFamily": "gnn-clock-blind",
+      "parameterCount": 123793
+    },
+    "gnn-full-k1": {
+      "ablation": "full",
+      "featureTransform": {
+        "clockBlind": false,
+        "maskedFields": []
+      },
+      "horizon": 1,
+      "members": [
+        {
+          "bestEpoch": 5,
+          "bestValidationNll": 0.11419132093096206,
+          "seed": 1337,
+          "trainingSeconds": 1279.5634558999955
+        },
+        {
+          "bestEpoch": 6,
+          "bestValidationNll": 0.10049938345124854,
+          "seed": 2027,
+          "trainingSeconds": 1363.7005473000027
+        },
+        {
+          "bestEpoch": 7,
+          "bestValidationNll": 0.12344987788534627,
+          "seed": 4099,
+          "trainingSeconds": 1442.0183164000046
+        },
+        {
+          "bestEpoch": 5,
+          "bestValidationNll": 0.09728179452566066,
+          "seed": 7919,
+          "trainingSeconds": 1278.762346800002
+        },
+        {
+          "bestEpoch": 2,
+          "bestValidationNll": 0.10794472416272151,
+          "seed": 104729,
+          "trainingSeconds": 929.9146993999966
+        }
+      ],
+      "modelFamily": "gnn-full",
+      "parameterCount": 123793
+    },
+    "gnn-full-k10": {
+      "ablation": "full",
+      "featureTransform": {
+        "clockBlind": false,
+        "maskedFields": []
+      },
+      "horizon": 10,
+      "members": [
+        {
+          "bestEpoch": 6,
+          "bestValidationNll": 0.4176703377854,
+          "seed": 1337,
+          "trainingSeconds": 1018.0659307000024
+        },
+        {
+          "bestEpoch": 3,
+          "bestValidationNll": 0.4212233361826396,
+          "seed": 2027,
+          "trainingSeconds": 662.9549525000039
+        },
+        {
+          "bestEpoch": 3,
+          "bestValidationNll": 0.4118792585916732,
+          "seed": 4099,
+          "trainingSeconds": 660.0776379000017
+        },
+        {
+          "bestEpoch": 6,
+          "bestValidationNll": 0.4170192135404594,
+          "seed": 7919,
+          "trainingSeconds": 873.3039075999986
+        },
+        {
+          "bestEpoch": 7,
+          "bestValidationNll": 0.3928317285751001,
+          "seed": 104729,
+          "trainingSeconds": 945.0917388000016
+        }
+      ],
+      "modelFamily": "gnn-full",
+      "parameterCount": 123793
+    },
+    "gnn-full-k20": {
+      "ablation": "full",
+      "featureTransform": {
+        "clockBlind": false,
+        "maskedFields": []
+      },
+      "horizon": 20,
+      "members": [
+        {
+          "bestEpoch": 2,
+          "bestValidationNll": 0.4901890548027558,
+          "seed": 1337,
+          "trainingSeconds": 1120.4623021000007
+        },
+        {
+          "bestEpoch": 5,
+          "bestValidationNll": 0.49365249426865937,
+          "seed": 2027,
+          "trainingSeconds": 1641.443429699997
+        },
+        {
+          "bestEpoch": 3,
+          "bestValidationNll": 0.5078826381561142,
+          "seed": 4099,
+          "trainingSeconds": 1334.2935759999964
+        },
+        {
+          "bestEpoch": 4,
+          "bestValidationNll": 0.489024690567645,
+          "seed": 7919,
+          "trainingSeconds": 1424.5740388999984
+        },
+        {
+          "bestEpoch": 2,
+          "bestValidationNll": 0.5030775891465132,
+          "seed": 104729,
+          "trainingSeconds": 1121.6973425000033
+        }
+      ],
+      "modelFamily": "gnn-full",
+      "parameterCount": 123793
+    },
+    "gnn-full-k5": {
+      "ablation": "full",
+      "featureTransform": {
+        "clockBlind": false,
+        "maskedFields": []
+      },
+      "horizon": 5,
+      "members": [
+        {
+          "bestEpoch": 4,
+          "bestValidationNll": 0.34579822470958216,
+          "seed": 1337,
+          "trainingSeconds": 3779.20824800001
+        },
+        {
+          "bestEpoch": 7,
+          "bestValidationNll": 0.3098530417999498,
+          "seed": 2027,
+          "trainingSeconds": 5087.505523899978
+        },
+        {
+          "bestEpoch": 7,
+          "bestValidationNll": 0.30167165096328236,
+          "seed": 4099,
+          "trainingSeconds": 5106.695072499977
+        },
+        {
+          "bestEpoch": 6,
+          "bestValidationNll": 0.32141012230213883,
+          "seed": 7919,
+          "trainingSeconds": 4761.903574299999
+        },
+        {
+          "bestEpoch": 7,
+          "bestValidationNll": 0.3174301229218278,
+          "seed": 104729,
+          "trainingSeconds": 5098.483239400026
+        }
+      ],
+      "modelFamily": "gnn-full",
+      "parameterCount": 123793
+    },
+    "pooled-mlp-k1": {
+      "ablation": "flat-mlp",
+      "featureTransform": {
+        "clockBlind": false,
+        "maskedFields": []
+      },
+      "horizon": 1,
+      "members": [
+        {
+          "bestEpoch": 3,
+          "bestValidationNll": 0.10452136186311117,
+          "seed": 1337,
+          "trainingSeconds": 919.4441176999972
+        },
+        {
+          "bestEpoch": 3,
+          "bestValidationNll": 0.09466928252427567,
+          "seed": 2027,
+          "trainingSeconds": 917.542872799997
+        },
+        {
+          "bestEpoch": 3,
+          "bestValidationNll": 0.10980786854511071,
+          "seed": 4099,
+          "trainingSeconds": 920.5774729999976
+        },
+        {
+          "bestEpoch": 4,
+          "bestValidationNll": 0.1083193183607824,
+          "seed": 7919,
+          "trainingSeconds": 1048.960955100003
+        },
+        {
+          "bestEpoch": 2,
+          "bestValidationNll": 0.09934786776693734,
+          "seed": 104729,
+          "trainingSeconds": 711.291504700006
+        }
+      ],
+      "modelFamily": "pooled-mlp",
+      "parameterCount": 137665
+    },
+    "pooled-mlp-k10": {
+      "ablation": "flat-mlp",
+      "featureTransform": {
+        "clockBlind": false,
+        "maskedFields": []
+      },
+      "horizon": 10,
+      "members": [
+        {
+          "bestEpoch": 6,
+          "bestValidationNll": 0.37385592032599324,
+          "seed": 1337,
+          "trainingSeconds": 688.1045354999951
+        },
+        {
+          "bestEpoch": 8,
+          "bestValidationNll": 0.4196683229641022,
+          "seed": 2027,
+          "trainingSeconds": 1746.678407600004
+        },
+        {
+          "bestEpoch": 6,
+          "bestValidationNll": 0.39729853302659035,
+          "seed": 4099,
+          "trainingSeconds": 627.1349382999979
+        },
+        {
+          "bestEpoch": 1,
+          "bestValidationNll": 0.42248476630033416,
+          "seed": 7919,
+          "trainingSeconds": 311.41021519999777
+        },
+        {
+          "bestEpoch": 4,
+          "bestValidationNll": 0.3993489287585099,
+          "seed": 104729,
+          "trainingSeconds": 489.48981460000505
+        }
+      ],
+      "modelFamily": "pooled-mlp",
+      "parameterCount": 137665
+    },
+    "pooled-mlp-k20": {
+      "ablation": "flat-mlp",
+      "featureTransform": {
+        "clockBlind": false,
+        "maskedFields": []
+      },
+      "horizon": 20,
+      "members": [
+        {
+          "bestEpoch": 2,
+          "bestValidationNll": 0.49045873364880627,
+          "seed": 1337,
+          "trainingSeconds": 826.4130069000093
+        },
+        {
+          "bestEpoch": 5,
+          "bestValidationNll": 0.471305619435474,
+          "seed": 2027,
+          "trainingSeconds": 1400.8780014999938
+        },
+        {
+          "bestEpoch": 6,
+          "bestValidationNll": 0.4893438952331786,
+          "seed": 4099,
+          "trainingSeconds": 1492.9582449000009
+        },
+        {
+          "bestEpoch": 6,
+          "bestValidationNll": 0.47566215712827487,
+          "seed": 7919,
+          "trainingSeconds": 1508.865310699999
+        },
+        {
+          "bestEpoch": 7,
+          "bestValidationNll": 0.49246146606940105,
+          "seed": 104729,
+          "trainingSeconds": 1695.7161545999988
+        }
+      ],
+      "modelFamily": "pooled-mlp",
+      "parameterCount": 137665
+    },
+    "pooled-mlp-k5": {
+      "ablation": "flat-mlp",
+      "featureTransform": {
+        "clockBlind": false,
+        "maskedFields": []
+      },
+      "horizon": 5,
+      "members": [
+        {
+          "bestEpoch": 9,
+          "bestValidationNll": 0.3082384038486997,
+          "seed": 1337,
+          "trainingSeconds": 5157.561936600017
+        },
+        {
+          "bestEpoch": 8,
+          "bestValidationNll": 0.2970142600488248,
+          "seed": 2027,
+          "trainingSeconds": 4847.138967800012
+        },
+        {
+          "bestEpoch": 7,
+          "bestValidationNll": 0.3270942363324742,
+          "seed": 4099,
+          "trainingSeconds": 4483.358131500019
+        },
+        {
+          "bestEpoch": 1,
+          "bestValidationNll": 0.34383695209447146,
+          "seed": 7919,
+          "trainingSeconds": 1825.119796700019
+        },
+        {
+          "bestEpoch": 4,
+          "bestValidationNll": 0.321293223840042,
+          "seed": 104729,
+          "trainingSeconds": 3148.284758099995
+        }
+      ],
+      "modelFamily": "pooled-mlp",
+      "parameterCount": 137665
+    }
+  },
+  "trajectoryRule": "trajectory risk = maximum ensemble-mean risk over the trajectory's emitted rows (rows end at the first incident); label = deterministic trajectory outcome"
+}

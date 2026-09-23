@@ -9,18 +9,19 @@ from pathlib import Path
 import torch
 from torch.utils.data import IterableDataset
 
-from .perturb import EDGE_DESTRUCTION_MODES
-from .runtime import load_artifact, predict_samples
+from .perturb import DEFAULT_EDGE_SEED, EDGE_DESTRUCTION_MODES
+from .runtime import load_artifact, predict_samples, tensorizer_for_config
 from .tensorize import CloudProofTensorizer
 
 
 class RequestDataset(IterableDataset):
-    def __init__(self, path: str | Path) -> None:
+    def __init__(self, path: str | Path, tensorizer: CloudProofTensorizer | None = None) -> None:
         super().__init__()
         self.path = Path(path)
+        self.tensorizer = tensorizer or CloudProofTensorizer()
 
     def __iter__(self):
-        tensorizer = CloudProofTensorizer()
+        tensorizer = self.tensorizer
         with self.path.open("r", encoding="utf-8") as handle:
             for line_number, line in enumerate(handle, start=1):
                 if not line.strip():
@@ -41,14 +42,16 @@ def infer_file(
     batch_size: int = 128,
     device: str = "cpu",
     edge_mode: str = "full",
+    edge_seed: int = DEFAULT_EDGE_SEED,
 ) -> None:
-    _config, models = load_artifact(artifact_directory, device)
+    config, models = load_artifact(artifact_directory, device)
     _labels, risks, uncertainties, keys = predict_samples(
         models,
-        RequestDataset(input_path),
+        RequestDataset(input_path, tensorizer_for_config(config)),
         batch_size=batch_size,
         device=device,
         edge_mode=edge_mode,
+        edge_seed=edge_seed,
     )
     destination = Path(output_path)
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -72,6 +75,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--batch-size", type=int, default=128)
     parser.add_argument("--device", default="cpu")
     parser.add_argument("--edge-mode", choices=EDGE_DESTRUCTION_MODES, default="full")
+    parser.add_argument("--edge-seed", type=int, default=DEFAULT_EDGE_SEED)
     parser.add_argument("--threads", type=int, default=1)
     return parser.parse_args()
 
@@ -88,6 +92,7 @@ def main() -> None:
         batch_size=args.batch_size,
         device=args.device,
         edge_mode=args.edge_mode,
+        edge_seed=args.edge_seed,
     )
 
 

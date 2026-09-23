@@ -152,5 +152,14 @@ NODE_FEATURE_NAMES = {
 NODE_FEATURE_DIMS = {name: len(features) for name, features in NODE_FEATURE_NAMES.items()}
 ACTION_FEATURE_DIM = len(ACTION_TYPES) + len(RESOURCE_TYPES) + 1 + len(ACTION_PARAMETER_NAMES)
 
+# Predeclared clock-blind field list (Phase II-B.2). These are the only encoded
+# inputs that carry absolute simulation progress: `HPA.sampledAtMs` is the one
+# clock a scorer can read from the state graph, and `atMs` is the schedule time
+# of the candidate action (already stripped from corpus v2 rows; masked so the
+# declaration is complete). Durations such as `ms`, `delayMs` and `durationMs`
+# are action parameters, not clocks, and stay. `state.atMs` is never encoded.
+CLOCK_NODE_FEATURES = (("HPA", "sampled_at"),)
+CLOCK_ACTION_PARAMETERS = ("atMs",)
+
 ENSEMBLE_SEEDS = (1337, 2027, 4099, 7919, 104729)
 SPLIT_NAMES = ("train", "validation", "test", "ood")

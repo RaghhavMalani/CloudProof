@@ -14,11 +14,11 @@ from torch import nn
 from torch.utils.data import DataLoader
 
 from .constants import ACTION_TYPES, ENSEMBLE_SEEDS, NODE_FEATURE_NAMES, RELATION_TYPES, RESOURCE_TYPES
-from .dataset import CorpusManifest, StreamingGraphDataset, label_balance, permuted_label_vector
+from .dataset import StreamingGraphDataset, label_balance, open_corpus_manifest, permuted_label_vector
 from .metrics import evaluate_binary_risk, threshold_for_f1
 from .model import ModelConfig, build_model, ensemble_predict
 from .runtime import artifact_manifest, json_dump
-from .tensorize import collate_graphs
+from .tensorize import CloudProofTensorizer, collate_graphs
 
 
 ABLATIONS = (
@@ -68,9 +68,11 @@ def _member_predictions(model, loader, device) -> tuple[list[float], list[float]
     return labels, predictions
 
 
-def _validation_loader(path, batch_size, max_records, label_overrides=None):
+def _validation_loader(path, batch_size, max_records, label_overrides=None, tensorizer=None):
     return DataLoader(
-        StreamingGraphDataset(path, max_records=max_records, label_overrides=label_overrides),
+        StreamingGraphDataset(
+            path, max_records=max_records, label_overrides=label_overrides, tensorizer=tensorizer
+        ),
         batch_size=batch_size,
         collate_fn=collate_graphs,
         num_workers=0,
@@ -95,6 +97,7 @@ def train_member(
     device: str,
     train_label_overrides: tuple[float, ...] | None = None,
     validation_label_overrides: tuple[float, ...] | None = None,
+    tensorizer: CloudProofTensorizer | None = None,
 ) -> tuple[nn.Module, dict]:
     seed_everything(seed)
     model = build_model(config).to(device)
@@ -107,6 +110,7 @@ def train_member(
         shuffle_buffer=shuffle_buffer,
         max_records=max_train_records,
         label_overrides=train_label_overrides,
+        tensorizer=tensorizer,
     )
     train_loader = DataLoader(
         train_data,
@@ -135,7 +139,7 @@ def train_member(
             loss_sum += float(loss.detach()) * batch.graph_count
             examples += batch.graph_count
         validation_loader = _validation_loader(
-            validation_path, batch_size, max_validation_records, validation_label_overrides
+            validation_path, batch_size, max_validation_records, validation_label_overrides, tensorizer
         )
         labels, probabilities = _member_predictions(model, validation_loader, device)
         metrics = evaluate_binary_risk(labels, probabilities)
@@ -184,7 +188,7 @@ def train_ensemble(
     if torch_threads < 1:
         raise ValueError("torch_threads must be positive")
     torch.set_num_threads(torch_threads)
-    manifest = CorpusManifest(dataset_directory)
+    manifest = open_corpus_manifest(dataset_directory)
     verified_hashes = manifest.verify_hashes() if verify_hashes else None
     train_path = manifest.path_for("train")
     validation_path = manifest.path_for("validation")

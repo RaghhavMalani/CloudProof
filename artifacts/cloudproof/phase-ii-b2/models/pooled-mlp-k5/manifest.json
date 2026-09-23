@@ -1,0 +1,106 @@
+{
+  "config": {
+    "file": "config.json",
+    "sha256": "2ea6f19e99184178e3d30bf074a920246e9fa026c2f990b48b5bdcb07043a498"
+  },
+  "dataset": {
+    "auxiliaryFiles": {
+      "counterfactual-pairs.jsonl": {
+        "bytes": 41802721,
+        "sha256": "547e27db11595417f9fec5e0006edfb963fe27b603d2157b405cc79f7e235c22"
+      },
+      "trajectories.jsonl": {
+        "bytes": 467763655,
+        "sha256": "9d1b55f606986f6a08af4fea807e829444fe4a5155920c916abbf03be244ddff"
+      }
+    },
+    "datasetKind": "cloudproof.causal-corpus-manifest",
+    "datasetSchemaVersion": 3,
+    "featureBoundary": "state-and-candidate-action-only",
+    "files": {
+      "transitions-ood.jsonl": {
+        "bytes": 199800158,
+        "sha256": "5c37b988b581302115519e4893a3452df923af10d815537b7e270e0e59564d90"
+      },
+      "transitions-test.jsonl": {
+        "bytes": 138038411,
+        "sha256": "f606dd5cc22c4a91f5c854409126c46df9a846ce3dada20bdbac6c630741f5f2"
+      },
+      "transitions-train.jsonl": {
+        "bytes": 340290752,
+        "sha256": "64f41d0de1c0fed9a455bb344bfb273cd54bd9d7930aa4597163668d71ddbfbc"
+      },
+      "transitions-validation.jsonl": {
+        "bytes": 221125492,
+        "sha256": "4d35134206a5bcb3f5ea30c57155238210526d72634ca1ac277702a67390116c"
+      }
+    },
+    "generatorCommitSha": "42fda40db8ee4ae72c914d71e08dd5faef21f3f6",
+    "label": {
+      "defaultHorizon": 5,
+      "horizons": [
+        1,
+        5,
+        10,
+        20
+      ],
+      "rowsEndAtFirstIncident": true,
+      "source": "first failing transition of deterministic execution",
+      "task": "SLO violation within next K transitions"
+    },
+    "splitPolicy": "topology-holdout-v2"
+  },
+  "kind": "cloudproof.gnn-risk-model-manifest",
+  "members": [
+    {
+      "file": "member-0.pt",
+      "seed": 1337,
+      "sha256": "04442e8567bb7dcac2696af8a8b589b30649854262f03766e82beb4aa03fc9bc"
+    },
+    {
+      "file": "member-1.pt",
+      "seed": 2027,
+      "sha256": "9725ba9b61a3beaa1cfb2eb7aea27267ddc94e284e506c63ef877e20f9724b3d"
+    },
+    {
+      "file": "member-2.pt",
+      "seed": 4099,
+      "sha256": "d10fc3786aaf83da18e78e9a749407766d336ed3a080eaf4655e47ee3e795a43"
+    },
+    {
+      "file": "member-3.pt",
+      "seed": 7919,
+      "sha256": "5be5f80cfab4b85b2c815cab736f4ce5df1d7d39f5c24e8af8f8181afd6ca222"
+    },
+    {
+      "file": "member-4.pt",
+      "seed": 104729,
+      "sha256": "60842044be7d4820bccb249cdb3f8508623fdaad0c90a6346e9ebc587e8f4759"
+    }
+  ],
+  "metrics": {
+    "file": "metrics.json",
+    "sha256": "1511302c20dd59a6be893a604223127ad37f3e7265003c416e5ff2ee035bf14c"
+  },
+  "modelRole": "schedule-risk-ranking-only",
+  "relationTypes": [
+    "RUNS_ON",
+    "OWNS",
+    "ROUTES_TO",
+    "LOCATED_IN",
+    "SELECTS",
+    "PROTECTS",
+    "SCALES"
+  ],
+  "resourceTypes": [
+    "Pod",
+    "Node",
+    "Deployment",
+    "Service",
+    "HPA",
+    "PDB",
+    "Zone"
+  ],
+  "safetyAuthority": "deterministic-node-verifier",
+  "schemaVersion": 1
+}

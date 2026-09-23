@@ -1,0 +1,880 @@
+{
+  "artifacts": {
+    "gnn-clock-blind-k5": {
+      "full": {
+        "ood": {
+          "auprc": 0.5955435391550429,
+          "auroc": 0.6453792913541744,
+          "aurocBootstrap95": {
+            "clusters": 1608,
+            "completedResamples": 1000,
+            "lower": 0.6180079685539002,
+            "resamples": 1000,
+            "seed": 20260922,
+            "upper": 0.670937274434262,
+            "value": 0.6453792913541744
+          },
+          "brier": 0.3252089955114655,
+          "count": 1608,
+          "ece": 0.3007284626781718,
+          "nll": 1.0044937581040054,
+          "positiveRate": 0.5,
+          "rule": "trajectory risk = maximum ensemble-mean risk over the trajectory's emitted rows (rows end at the first incident); label = deterministic trajectory outcome",
+          "unsafeByTier": {
+            "1": 32,
+            "2": 204,
+            "3": 24,
+            "4": 164,
+            "5": 380
+          }
+        },
+        "test": {
+          "auprc": 0.7760406441644141,
+          "auroc": 0.7712600324547169,
+          "aurocBootstrap95": {
+            "clusters": 1510,
+            "completedResamples": 1000,
+            "lower": 0.7472196975177928,
+            "resamples": 1000,
+            "seed": 20260922,
+            "upper": 0.793429518884116,
+            "value": 0.7712600324547169
+          },
+          "brier": 0.20353153085787495,
+          "count": 1510,
+          "ece": 0.09260629502599999,
+          "nll": 0.5954350425402934,
+          "positiveRate": 0.5,
+          "rule": "trajectory risk = maximum ensemble-mean risk over the trajectory's emitted rows (rows end at the first incident); label = deterministic trajectory outcome",
+          "unsafeByTier": {
+            "1": 25,
+            "2": 287,
+            "3": 57,
+            "4": 91,
+            "5": 295
+          }
+        },
+        "validation": {
+          "auprc": 0.7214597514639506,
+          "auroc": 0.7099548551038062,
+          "aurocBootstrap95": {
+            "clusters": 2720,
+            "completedResamples": 1000,
+            "lower": 0.6906740726793655,
+            "resamples": 1000,
+            "seed": 20260922,
+            "upper": 0.7293362382329219,
+            "value": 0.7099548551038062
+          },
+          "brier": 0.2352503004831545,
+          "count": 2720,
+          "ece": 0.12194712776690722,
+          "nll": 0.6884686351416257,
+          "positiveRate": 0.5,
+          "rule": "trajectory risk = maximum ensemble-mean risk over the trajectory's emitted rows (rows end at the first incident); label = deterministic trajectory outcome",
+          "unsafeByTier": {
+            "1": 116,
+            "2": 551,
+            "3": 61,
+            "4": 198,
+            "5": 434
+          }
+        }
+      },
+      "horizon": 5,
+      "modelFamily": "gnn-clock-blind"
+    },
+    "gnn-full-k1": {
+      "full": {
+        "ood": {
+          "auprc": 0.6664956332339276,
+          "auroc": 0.6836340684636519,
+          "aurocBootstrap95": {
+            "clusters": 1608,
+            "completedResamples": 1000,
+            "lower": 0.6570965128564007,
+            "resamples": 1000,
+            "seed": 20260922,
+            "upper": 0.708121290904793,
+            "value": 0.6836340684636519
+          },
+          "brier": 0.29774979950623115,
+          "count": 1608,
+          "ece": 0.2558669497167053,
+          "nll": 0.9322826971088769,
+          "positiveRate": 0.5,
+          "rule": "trajectory risk = maximum ensemble-mean risk over the trajectory's emitted rows (rows end at the first incident); label = deterministic trajectory outcome",
+          "unsafeByTier": {
+            "1": 32,
+            "2": 204,
+            "3": 24,
+            "4": 164,
+            "5": 380
+          }
+        },
+        "test": {
+          "auprc": 0.7601605418700421,
+          "auroc": 0.7650032893294154,
+          "aurocBootstrap95": {
+            "clusters": 1510,
+            "completedResamples": 1000,
+            "lower": 0.7416024841010107,
+            "resamples": 1000,
+            "seed": 20260922,
+            "upper": 0.7888596301457832,
+            "value": 0.7650032893294154
+          },
+          "brier": 0.22709719351087576,
+          "count": 1510,
+          "ece": 0.17832642591245962,
+          "nll": 0.6855920972201079,
+          "positiveRate": 0.5,
+          "rule": "trajectory risk = maximum ensemble-mean risk over the trajectory's emitted rows (rows end at the first incident); label = deterministic trajectory outcome",
+          "unsafeByTier": {
+            "1": 25,
+            "2": 287,
+            "3": 57,
+            "4": 91,
+            "5": 295
+          }
+        },
+        "validation": {
+          "auprc": 0.7251248040996798,
+          "auroc": 0.7069593425605536,
+          "aurocBootstrap95": {
+            "clusters": 2720,
+            "completedResamples": 1000,
+            "lower": 0.6860999202741114,
+            "resamples": 1000,
+            "seed": 20260922,
+            "upper": 0.7260594893048561,
+            "value": 0.7069593425605536
+          },
+          "brier": 0.2510750127699786,
+          "count": 2720,
+          "ece": 0.17803125371836034,
+          "nll": 0.7439511105652036,
+          "positiveRate": 0.5,
+          "rule": "trajectory risk = maximum ensemble-mean risk over the trajectory's emitted rows (rows end at the first incident); label = deterministic trajectory outcome",
+          "unsafeByTier": {
+            "1": 116,
+            "2": 551,
+            "3": 61,
+            "4": 198,
+            "5": 434
+          }
+        }
+      },
+      "horizon": 1,
+      "modelFamily": "gnn-full"
+    },
+    "gnn-full-k10": {
+      "full": {
+        "ood": {
+          "auprc": 0.6023271425936005,
+          "auroc": 0.6312080765327591,
+          "aurocBootstrap95": {
+            "clusters": 1608,
+            "completedResamples": 1000,
+            "lower": 0.6035634792591318,
+            "resamples": 1000,
+            "seed": 20260922,
+            "upper": 0.6572057092022351,
+            "value": 0.6312080765327591
+          },
+          "brier": 0.2890672617119465,
+          "count": 1608,
+          "ece": 0.21941442555974966,
+          "nll": 0.8236960011329443,
+          "positiveRate": 0.5,
+          "rule": "trajectory risk = maximum ensemble-mean risk over the trajectory's emitted rows (rows end at the first incident); label = deterministic trajectory outcome",
+          "unsafeByTier": {
+            "1": 32,
+            "2": 204,
+            "3": 24,
+            "4": 164,
+            "5": 380
+          }
+        },
+        "test": {
+          "auprc": 0.7409310688905622,
+          "auroc": 0.733308188237358,
+          "aurocBootstrap95": {
+            "clusters": 1510,
+            "completedResamples": 1000,
+            "lower": 0.7091446925437517,
+            "resamples": 1000,
+            "seed": 20260922,
+            "upper": 0.7570796785178244,
+            "value": 0.733308188237358
+          },
+          "brier": 0.20858308512122903,
+          "count": 1510,
+          "ece": 0.04611218640494427,
+          "nll": 0.6045046569782834,
+          "positiveRate": 0.5,
+          "rule": "trajectory risk = maximum ensemble-mean risk over the trajectory's emitted rows (rows end at the first incident); label = deterministic trajectory outcome",
+          "unsafeByTier": {
+            "1": 25,
+            "2": 287,
+            "3": 57,
+            "4": 91,
+            "5": 295
+          }
+        },
+        "validation": {
+          "auprc": 0.6839166437389927,
+          "auroc": 0.6724045739619378,
+          "aurocBootstrap95": {
+            "clusters": 2720,
+            "completedResamples": 1000,
+            "lower": 0.6521330833755692,
+            "resamples": 1000,
+            "seed": 20260922,
+            "upper": 0.6929074009363266,
+            "value": 0.6724045739619378
+          },
+          "brier": 0.23733945453094613,
+          "count": 2720,
+          "ece": 0.10170108573511244,
+          "nll": 0.6756022313135834,
+          "positiveRate": 0.5,
+          "rule": "trajectory risk = maximum ensemble-mean risk over the trajectory's emitted rows (rows end at the first incident); label = deterministic trajectory outcome",
+          "unsafeByTier": {
+            "1": 116,
+            "2": 551,
+            "3": 61,
+            "4": 198,
+            "5": 434
+          }
+        }
+      },
+      "horizon": 10,
+      "modelFamily": "gnn-full"
+    },
+    "gnn-full-k20": {
+      "full": {
+        "ood": {
+          "auprc": 0.6037210402388014,
+          "auroc": 0.62429225142942,
+          "aurocBootstrap95": {
+            "clusters": 1608,
+            "completedResamples": 1000,
+            "lower": 0.5955069001576234,
+            "resamples": 1000,
+            "seed": 20260922,
+            "upper": 0.6505505231602543,
+            "value": 0.62429225142942
+          },
+          "brier": 0.257543629248491,
+          "count": 1608,
+          "ece": 0.13988096501437292,
+          "nll": 0.7116215256120578,
+          "positiveRate": 0.5,
+          "rule": "trajectory risk = maximum ensemble-mean risk over the trajectory's emitted rows (rows end at the first incident); label = deterministic trajectory outcome",
+          "unsafeByTier": {
+            "1": 32,
+            "2": 204,
+            "3": 24,
+            "4": 164,
+            "5": 380
+          }
+        },
+        "test": {
+          "auprc": 0.6855051978056953,
+          "auroc": 0.6704925222577958,
+          "aurocBootstrap95": {
+            "clusters": 1510,
+            "completedResamples": 1000,
+            "lower": 0.6449338841630563,
+            "resamples": 1000,
+            "seed": 20260922,
+            "upper": 0.6967012533433055,
+            "value": 0.6704925222577958
+          },
+          "brier": 0.23185458984822246,
+          "count": 1510,
+          "ece": 0.07703361667890028,
+          "nll": 0.6560550934398897,
+          "positiveRate": 0.5,
+          "rule": "trajectory risk = maximum ensemble-mean risk over the trajectory's emitted rows (rows end at the first incident); label = deterministic trajectory outcome",
+          "unsafeByTier": {
+            "1": 25,
+            "2": 287,
+            "3": 57,
+            "4": 91,
+            "5": 295
+          }
+        },
+        "validation": {
+          "auprc": 0.6390482159148305,
+          "auroc": 0.6243790549307958,
+          "aurocBootstrap95": {
+            "clusters": 2720,
+            "completedResamples": 1000,
+            "lower": 0.6037208970346247,
+            "resamples": 1000,
+            "seed": 20260922,
+            "upper": 0.6440129244505336,
+            "value": 0.6243790549307958
+          },
+          "brier": 0.24266361568247394,
+          "count": 2720,
+          "ece": 0.0643016434575924,
+          "nll": 0.6803947235163559,
+          "positiveRate": 0.5,
+          "rule": "trajectory risk = maximum ensemble-mean risk over the trajectory's emitted rows (rows end at the first incident); label = deterministic trajectory outcome",
+          "unsafeByTier": {
+            "1": 116,
+            "2": 551,
+            "3": 61,
+            "4": 198,
+            "5": 434
+          }
+        }
+      },
+      "horizon": 20,
+      "modelFamily": "gnn-full"
+    },
+    "gnn-full-k5": {
+      "full": {
+        "ood": {
+          "auprc": 0.6098403317245494,
+          "auroc": 0.6478699475260513,
+          "aurocBootstrap95": {
+            "clusters": 1608,
+            "completedResamples": 1000,
+            "lower": 0.6204314117353253,
+            "resamples": 1000,
+            "seed": 20260922,
+            "upper": 0.6738093206008321,
+            "value": 0.6478699475260513
+          },
+          "brier": 0.31888898557734335,
+          "count": 1608,
+          "ece": 0.2912531605601978,
+          "nll": 0.9583939463013079,
+          "positiveRate": 0.5,
+          "rule": "trajectory risk = maximum ensemble-mean risk over the trajectory's emitted rows (rows end at the first incident); label = deterministic trajectory outcome",
+          "unsafeByTier": {
+            "1": 32,
+            "2": 204,
+            "3": 24,
+            "4": 164,
+            "5": 380
+          }
+        },
+        "test": {
+          "auprc": 0.7727377124536852,
+          "auroc": 0.7708372439805272,
+          "aurocBootstrap95": {
+            "clusters": 1510,
+            "completedResamples": 1000,
+            "lower": 0.7471354735827365,
+            "resamples": 1000,
+            "seed": 20260922,
+            "upper": 0.7945737705762941,
+            "value": 0.7708372439805272
+          },
+          "brier": 0.20485954350935526,
+          "count": 1510,
+          "ece": 0.09848157525592982,
+          "nll": 0.5987000773036563,
+          "positiveRate": 0.5,
+          "rule": "trajectory risk = maximum ensemble-mean risk over the trajectory's emitted rows (rows end at the first incident); label = deterministic trajectory outcome",
+          "unsafeByTier": {
+            "1": 25,
+            "2": 287,
+            "3": 57,
+            "4": 91,
+            "5": 295
+          }
+        },
+        "validation": {
+          "auprc": 0.720193041886835,
+          "auroc": 0.7116422469723184,
+          "aurocBootstrap95": {
+            "clusters": 2720,
+            "completedResamples": 1000,
+            "lower": 0.6925029942213649,
+            "resamples": 1000,
+            "seed": 20260922,
+            "upper": 0.7313218108927436,
+            "value": 0.7116422469723184
+          },
+          "brier": 0.2328694050561063,
+          "count": 2720,
+          "ece": 0.11572516905280819,
+          "nll": 0.6776502785331415,
+          "positiveRate": 0.5,
+          "rule": "trajectory risk = maximum ensemble-mean risk over the trajectory's emitted rows (rows end at the first incident); label = deterministic trajectory outcome",
+          "unsafeByTier": {
+            "1": 116,
+            "2": 551,
+            "3": 61,
+            "4": 198,
+            "5": 434
+          }
+        }
+      },
+      "horizon": 5,
+      "modelFamily": "gnn-full"
+    },
+    "pooled-mlp-k1": {
+      "full": {
+        "ood": {
+          "auprc": 0.646641529500284,
+          "auroc": 0.6618671258137174,
+          "aurocBootstrap95": {
+            "clusters": 1608,
+            "completedResamples": 1000,
+            "lower": 0.6344516572182334,
+            "resamples": 1000,
+            "seed": 20260922,
+            "upper": 0.6875870285357802,
+            "value": 0.6618671258137174
+          },
+          "brier": 0.3314082253738862,
+          "count": 1608,
+          "ece": 0.3017585772677148,
+          "nll": 1.1489388856631029,
+          "positiveRate": 0.5,
+          "rule": "trajectory risk = maximum ensemble-mean risk over the trajectory's emitted rows (rows end at the first incident); label = deterministic trajectory outcome",
+          "unsafeByTier": {
+            "1": 32,
+            "2": 204,
+            "3": 24,
+            "4": 164,
+            "5": 380
+          }
+        },
+        "test": {
+          "auprc": 0.7130941251485216,
+          "auroc": 0.724560326301478,
+          "aurocBootstrap95": {
+            "clusters": 1510,
+            "completedResamples": 1000,
+            "lower": 0.6996271314783085,
+            "resamples": 1000,
+            "seed": 20260922,
+            "upper": 0.7496097398899254,
+            "value": 0.724560326301478
+          },
+          "brier": 0.25135846993587363,
+          "count": 1510,
+          "ece": 0.19447863728106535,
+          "nll": 0.7402614677594713,
+          "positiveRate": 0.5,
+          "rule": "trajectory risk = maximum ensemble-mean risk over the trajectory's emitted rows (rows end at the first incident); label = deterministic trajectory outcome",
+          "unsafeByTier": {
+            "1": 25,
+            "2": 287,
+            "3": 57,
+            "4": 91,
+            "5": 295
+          }
+        },
+        "validation": {
+          "auprc": 0.7026450767438666,
+          "auroc": 0.7067633542387544,
+          "aurocBootstrap95": {
+            "clusters": 2720,
+            "completedResamples": 1000,
+            "lower": 0.686315834841047,
+            "resamples": 1000,
+            "seed": 20260922,
+            "upper": 0.7273301562877397,
+            "value": 0.7067633542387544
+          },
+          "brier": 0.2505510669575974,
+          "count": 2720,
+          "ece": 0.18085430906031041,
+          "nll": 0.7317316289423537,
+          "positiveRate": 0.5,
+          "rule": "trajectory risk = maximum ensemble-mean risk over the trajectory's emitted rows (rows end at the first incident); label = deterministic trajectory outcome",
+          "unsafeByTier": {
+            "1": 116,
+            "2": 551,
+            "3": 61,
+            "4": 198,
+            "5": 434
+          }
+        }
+      },
+      "horizon": 1,
+      "modelFamily": "pooled-mlp"
+    },
+    "pooled-mlp-k10": {
+      "full": {
+        "ood": {
+          "auprc": 0.6200651551591684,
+          "auroc": 0.6106957439172298,
+          "aurocBootstrap95": {
+            "clusters": 1608,
+            "completedResamples": 1000,
+            "lower": 0.583914698666342,
+            "resamples": 1000,
+            "seed": 20260922,
+            "upper": 0.6385702374783377,
+            "value": 0.6106957439172298
+          },
+          "brier": 0.3567762207583408,
+          "count": 1608,
+          "ece": 0.33610105293047665,
+          "nll": 1.0849188728427157,
+          "positiveRate": 0.5,
+          "rule": "trajectory risk = maximum ensemble-mean risk over the trajectory's emitted rows (rows end at the first incident); label = deterministic trajectory outcome",
+          "unsafeByTier": {
+            "1": 32,
+            "2": 204,
+            "3": 24,
+            "4": 164,
+            "5": 380
+          }
+        },
+        "test": {
+          "auprc": 0.7334148697902143,
+          "auroc": 0.7484382263935793,
+          "aurocBootstrap95": {
+            "clusters": 1510,
+            "completedResamples": 1000,
+            "lower": 0.7254657558676341,
+            "resamples": 1000,
+            "seed": 20260922,
+            "upper": 0.7715511192519277,
+            "value": 0.7484382263935793
+          },
+          "brier": 0.20619835798418698,
+          "count": 1510,
+          "ece": 0.049294356591012715,
+          "nll": 0.60011341188737,
+          "positiveRate": 0.5,
+          "rule": "trajectory risk = maximum ensemble-mean risk over the trajectory's emitted rows (rows end at the first incident); label = deterministic trajectory outcome",
+          "unsafeByTier": {
+            "1": 25,
+            "2": 287,
+            "3": 57,
+            "4": 91,
+            "5": 295
+          }
+        },
+        "validation": {
+          "auprc": 0.7182302349657055,
+          "auroc": 0.7238859753460207,
+          "aurocBootstrap95": {
+            "clusters": 2720,
+            "completedResamples": 1000,
+            "lower": 0.7056875297286572,
+            "resamples": 1000,
+            "seed": 20260922,
+            "upper": 0.7427848076694642,
+            "value": 0.7238859753460207
+          },
+          "brier": 0.22237076754847612,
+          "count": 2720,
+          "ece": 0.09836129373322956,
+          "nll": 0.6349513930631897,
+          "positiveRate": 0.5,
+          "rule": "trajectory risk = maximum ensemble-mean risk over the trajectory's emitted rows (rows end at the first incident); label = deterministic trajectory outcome",
+          "unsafeByTier": {
+            "1": 116,
+            "2": 551,
+            "3": 61,
+            "4": 198,
+            "5": 434
+          }
+        }
+      },
+      "horizon": 10,
+      "modelFamily": "pooled-mlp"
+    },
+    "pooled-mlp-k20": {
+      "full": {
+        "ood": {
+          "auprc": 0.6136070230839525,
+          "auroc": 0.5976275339719314,
+          "aurocBootstrap95": {
+            "clusters": 1608,
+            "completedResamples": 1000,
+            "lower": 0.5705927777975897,
+            "resamples": 1000,
+            "seed": 20260922,
+            "upper": 0.6255728813774099,
+            "value": 0.5976275339719314
+          },
+          "brier": 0.370491425088477,
+          "count": 1608,
+          "ece": 0.34872760958459914,
+          "nll": 1.163582001181273,
+          "positiveRate": 0.5,
+          "rule": "trajectory risk = maximum ensemble-mean risk over the trajectory's emitted rows (rows end at the first incident); label = deterministic trajectory outcome",
+          "unsafeByTier": {
+            "1": 32,
+            "2": 204,
+            "3": 24,
+            "4": 164,
+            "5": 380
+          }
+        },
+        "test": {
+          "auprc": 0.7048587781546284,
+          "auroc": 0.7118345686592693,
+          "aurocBootstrap95": {
+            "clusters": 1510,
+            "completedResamples": 1000,
+            "lower": 0.6861314755279072,
+            "resamples": 1000,
+            "seed": 20260922,
+            "upper": 0.7374204958880041,
+            "value": 0.7118345686592693
+          },
+          "brier": 0.21752980127894644,
+          "count": 1510,
+          "ece": 0.04912407535948598,
+          "nll": 0.6254983763465587,
+          "positiveRate": 0.5,
+          "rule": "trajectory risk = maximum ensemble-mean risk over the trajectory's emitted rows (rows end at the first incident); label = deterministic trajectory outcome",
+          "unsafeByTier": {
+            "1": 25,
+            "2": 287,
+            "3": 57,
+            "4": 91,
+            "5": 295
+          }
+        },
+        "validation": {
+          "auprc": 0.705195906722307,
+          "auroc": 0.7013994917820069,
+          "aurocBootstrap95": {
+            "clusters": 2720,
+            "completedResamples": 1000,
+            "lower": 0.6822994817752372,
+            "resamples": 1000,
+            "seed": 20260922,
+            "upper": 0.7205584951411392,
+            "value": 0.7013994917820069
+          },
+          "brier": 0.22162017328195419,
+          "count": 2720,
+          "ece": 0.05125453082351562,
+          "nll": 0.6338080477317963,
+          "positiveRate": 0.5,
+          "rule": "trajectory risk = maximum ensemble-mean risk over the trajectory's emitted rows (rows end at the first incident); label = deterministic trajectory outcome",
+          "unsafeByTier": {
+            "1": 116,
+            "2": 551,
+            "3": 61,
+            "4": 198,
+            "5": 434
+          }
+        }
+      },
+      "horizon": 20,
+      "modelFamily": "pooled-mlp"
+    },
+    "pooled-mlp-k5": {
+      "full": {
+        "ood": {
+          "auprc": 0.6346125813072314,
+          "auroc": 0.6277064614737259,
+          "aurocBootstrap95": {
+            "clusters": 1608,
+            "completedResamples": 1000,
+            "lower": 0.6000618550936158,
+            "resamples": 1000,
+            "seed": 20260922,
+            "upper": 0.6545570514802387,
+            "value": 0.6277064614737259
+          },
+          "brier": 0.37087196086596214,
+          "count": 1608,
+          "ece": 0.3601080822800078,
+          "nll": 1.1845204277507768,
+          "positiveRate": 0.5,
+          "rule": "trajectory risk = maximum ensemble-mean risk over the trajectory's emitted rows (rows end at the first incident); label = deterministic trajectory outcome",
+          "unsafeByTier": {
+            "1": 32,
+            "2": 204,
+            "3": 24,
+            "4": 164,
+            "5": 380
+          }
+        },
+        "test": {
+          "auprc": 0.7459383567935867,
+          "auroc": 0.7624569097846585,
+          "aurocBootstrap95": {
+            "clusters": 1510,
+            "completedResamples": 1000,
+            "lower": 0.7398640774111831,
+            "resamples": 1000,
+            "seed": 20260922,
+            "upper": 0.7861196355863403,
+            "value": 0.7624569097846585
+          },
+          "brier": 0.21390776392218996,
+          "count": 1510,
+          "ece": 0.11841782298654513,
+          "nll": 0.6174884055747405,
+          "positiveRate": 0.5,
+          "rule": "trajectory risk = maximum ensemble-mean risk over the trajectory's emitted rows (rows end at the first incident); label = deterministic trajectory outcome",
+          "unsafeByTier": {
+            "1": 25,
+            "2": 287,
+            "3": 57,
+            "4": 91,
+            "5": 295
+          }
+        },
+        "validation": {
+          "auprc": 0.7202446170205202,
+          "auroc": 0.7298821366782007,
+          "aurocBootstrap95": {
+            "clusters": 2720,
+            "completedResamples": 1000,
+            "lower": 0.7123823346715785,
+            "resamples": 1000,
+            "seed": 20260922,
+            "upper": 0.7488720939108542,
+            "value": 0.7298821366782007
+          },
+          "brier": 0.2323027245037175,
+          "count": 2720,
+          "ece": 0.1467167965519954,
+          "nll": 0.660098036771822,
+          "positiveRate": 0.5,
+          "rule": "trajectory risk = maximum ensemble-mean risk over the trajectory's emitted rows (rows end at the first incident); label = deterministic trajectory outcome",
+          "unsafeByTier": {
+            "1": 116,
+            "2": 551,
+            "3": 61,
+            "4": 198,
+            "5": 434
+          }
+        }
+      },
+      "horizon": 5,
+      "modelFamily": "pooled-mlp"
+    }
+  },
+  "corpusBaselines": {
+    "source": "causal corpus evaluation.json (heuristic and logistic baselines, same maximum rule)",
+    "trajectoryMetrics": {
+      "ood": {
+        "heuristic": {
+          "auprc": 0.4973619660413995,
+          "auroc": 0.5033105616197618
+        },
+        "logistic": {
+          "auprc": 0.5163686925715858,
+          "auroc": 0.49203299423281605
+        },
+        "trajectories": 1608,
+        "unsafeByTier": {
+          "1": 32,
+          "2": 204,
+          "3": 24,
+          "4": 164,
+          "5": 380
+        },
+        "unsafeTrajectories": 804
+      },
+      "test": {
+        "heuristic": {
+          "auprc": 0.4859265631904866,
+          "auroc": 0.46832682777071183
+        },
+        "logistic": {
+          "auprc": 0.5550566890200258,
+          "auroc": 0.5397096618569361
+        },
+        "trajectories": 1510,
+        "unsafeByTier": {
+          "1": 25,
+          "2": 287,
+          "3": 57,
+          "4": 91,
+          "5": 295
+        },
+        "unsafeTrajectories": 755
+      },
+      "validation": {
+        "heuristic": {
+          "auprc": 0.5150166541213954,
+          "auroc": 0.5124435012975779
+        },
+        "logistic": {
+          "auprc": 0.5434725072419407,
+          "auroc": 0.5308023356401385
+        },
+        "trajectories": 2720,
+        "unsafeByTier": {
+          "1": 116,
+          "2": 551,
+          "3": 61,
+          "4": 198,
+          "5": 434
+        },
+        "unsafeTrajectories": 1360
+      }
+    },
+    "transitionMetricsK5": {
+      "ood": {
+        "heuristic": {
+          "auprc": 0.08786414826603153,
+          "auroc": 0.551442028936445,
+          "brierScore": 0.15616534735921256
+        },
+        "logistic": {
+          "auprc": 0.10259405414147543,
+          "auroc": 0.5416367084681852,
+          "brierScore": 0.2094242173700087
+        },
+        "random": {
+          "auprc": 0.07224767142748362,
+          "auroc": 0.5008826700019763,
+          "brierScore": 0.33295246687572855
+        }
+      },
+      "test": {
+        "heuristic": {
+          "auprc": 0.1067703250639039,
+          "auroc": 0.5835094947889126,
+          "brierScore": 0.3257042342587411
+        },
+        "logistic": {
+          "auprc": 0.13966836338617317,
+          "auroc": 0.6098046736993606,
+          "brierScore": 0.2234990344377151
+        },
+        "random": {
+          "auprc": 0.07140653094776808,
+          "auroc": 0.5017350369616458,
+          "brierScore": 0.329796685749856
+        }
+      },
+      "validation": {
+        "heuristic": {
+          "auprc": 0.11570815122109539,
+          "auroc": 0.5951161815869296,
+          "brierScore": 0.34558554428752836
+        },
+        "logistic": {
+          "auprc": 0.14235528856487592,
+          "auroc": 0.6417755815251112,
+          "brierScore": 0.23506511810132988
+        },
+        "random": {
+          "auprc": 0.07137844649222479,
+          "auroc": 0.4915252471791885,
+          "brierScore": 0.33541266889014093
+        }
+      }
+    }
+  },
+  "kind": "cloudproof.phase-ii-b2-trajectory-metrics",
+  "maxRecordsPerSplit": null,
+  "phase": "II-B.2",
+  "rule": "trajectory risk = maximum ensemble-mean risk over the trajectory's emitted rows (rows end at the first incident); label = deterministic trajectory outcome",
+  "schemaVersion": 1
+}

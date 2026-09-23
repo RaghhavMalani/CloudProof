@@ -1,0 +1,250 @@
+{
+  "ablation": "full",
+  "actionTypes": [
+    "cloud.action.roll-out",
+    "cloud.action.roll-back",
+    "cloud.action.scale",
+    "cloud.action.drain-node",
+    "cloud.action.recover-node",
+    "cloud.action.advance-time",
+    "cloud.action.traffic-spike",
+    "cloud.fault.node-crash",
+    "cloud.fault.node-drain",
+    "cloud.fault.zone-degraded",
+    "cloud.fault.readiness-delay",
+    "cloud.fault.image-pull-delay",
+    "cloud.fault.hpa-stale-metric",
+    "cloud.fault.endpoint-propagation-delay",
+    "cloud.fault.controller-restart",
+    "cloud.controller.deployment",
+    "cloud.controller.scheduler",
+    "cloud.controller.kubelet",
+    "cloud.controller.endpoints",
+    "cloud.controller.hpa",
+    "cloud.controller.pdb",
+    "cloud.controller.endpoints-propagated",
+    "cloud.kubelet.image-pulled",
+    "cloud.kubelet.pod-ready",
+    "cloud.kubelet.pod-terminated",
+    "cloud.scheduler.yield"
+  ],
+  "dataset": {
+    "auxiliaryFiles": {
+      "counterfactual-pairs.jsonl": {
+        "bytes": 41802721,
+        "sha256": "547e27db11595417f9fec5e0006edfb963fe27b603d2157b405cc79f7e235c22"
+      },
+      "trajectories.jsonl": {
+        "bytes": 467763655,
+        "sha256": "9d1b55f606986f6a08af4fea807e829444fe4a5155920c916abbf03be244ddff"
+      }
+    },
+    "datasetKind": "cloudproof.causal-corpus-manifest",
+    "datasetSchemaVersion": 3,
+    "featureBoundary": "state-and-candidate-action-only",
+    "files": {
+      "transitions-ood.jsonl": {
+        "bytes": 199800158,
+        "sha256": "5c37b988b581302115519e4893a3452df923af10d815537b7e270e0e59564d90"
+      },
+      "transitions-test.jsonl": {
+        "bytes": 138038411,
+        "sha256": "f606dd5cc22c4a91f5c854409126c46df9a846ce3dada20bdbac6c630741f5f2"
+      },
+      "transitions-train.jsonl": {
+        "bytes": 340290752,
+        "sha256": "64f41d0de1c0fed9a455bb344bfb273cd54bd9d7930aa4597163668d71ddbfbc"
+      },
+      "transitions-validation.jsonl": {
+        "bytes": 221125492,
+        "sha256": "4d35134206a5bcb3f5ea30c57155238210526d72634ca1ac277702a67390116c"
+      }
+    },
+    "generatorCommitSha": "42fda40db8ee4ae72c914d71e08dd5faef21f3f6",
+    "label": {
+      "defaultHorizon": 5,
+      "horizons": [
+        1,
+        5,
+        10,
+        20
+      ],
+      "rowsEndAtFirstIncident": true,
+      "source": "first failing transition of deterministic execution",
+      "task": "SLO violation within next K transitions"
+    },
+    "splitPolicy": "topology-holdout-v2"
+  },
+  "ensembleSeeds": [
+    1337,
+    2027,
+    4099,
+    7919,
+    104729
+  ],
+  "featureTransform": {
+    "clockBlind": false,
+    "maskedFields": []
+  },
+  "frozenRecipe": {
+    "actionEncoder": "Linear(ACTION_FEATURE_DIM, 48) + ReLU + Dropout, concatenated with the resolved target-node embedding",
+    "architecture": "HeterogeneousRiskGNN",
+    "batchSize": 128,
+    "calibration": "none post hoc; validation is used only for early stopping, checkpoint selection and the F1 threshold report",
+    "deterministicAlgorithms": true,
+    "device": "cpu",
+    "dropout": 0.1,
+    "earlyStoppingMetric": "validation NLL (best checkpoint restored)",
+    "ensembleSeeds": [
+      1337,
+      2027,
+      4099,
+      7919,
+      104729
+    ],
+    "epochs": 20,
+    "gradientClipNorm": 5.0,
+    "hiddenDim": 48,
+    "layers": 2,
+    "learningRate": 0.001,
+    "loss": "BCEWithLogits; pos_weight = negatives/positives when the train positive rate is outside [0.25, 0.75]",
+    "normalization": "fixed feature scales inside the tensorizer; LayerNorm per resource type in every relation layer",
+    "optimizer": "AdamW",
+    "patience": 4,
+    "pooling": "typed mean pooling over the seven resource types",
+    "relationHandling": "per-relation forward and reverse linear messages, mean aggregation, LayerNorm + ReLU",
+    "riskHead": "Linear(9*48, 48) + ReLU + Dropout + Linear(48, 1)",
+    "shuffleBuffer": 2048,
+    "torchThreads": 1,
+    "weightDecay": 0.0001
+  },
+  "horizon": 20,
+  "kind": "cloudproof.gnn-risk-model-config",
+  "labelControl": "observed",
+  "labelField": "labels.horizons.20",
+  "leakageExclusions": [
+    "identifiers",
+    "topology labels",
+    "split labels",
+    "scenario/trajectory/pair identifiers",
+    "nextState",
+    "trajectory outcomes",
+    "failure classes",
+    "transitions-to-failure",
+    "horizon labels other than the target label",
+    "nuisance and matching metadata",
+    "counterfactual pair labels and membership"
+  ],
+  "model": {
+    "dropout": 0.1,
+    "flat_mlp": false,
+    "hidden_dim": 48,
+    "input_mode": "state-action",
+    "layers": 2,
+    "use_action_embedding": true,
+    "use_edge_types": true,
+    "use_zone_relations": true
+  },
+  "modelFamily": "gnn-full",
+  "nodeFeatureNames": {
+    "Deployment": [
+      "desired_replicas",
+      "desired_version",
+      "max_surge",
+      "max_unavailable",
+      "observed_running",
+      "observed_ready",
+      "observed_pending",
+      "observed_terminating",
+      "observed_replicas",
+      "rollout_active"
+    ],
+    "HPA": [
+      "min_replicas",
+      "max_replicas",
+      "target_metric",
+      "current_metric",
+      "sampled_at",
+      "recommendation",
+      "active"
+    ],
+    "Node": [
+      "ready",
+      "draining",
+      "cpu_capacity",
+      "memory_capacity",
+      "taint_count"
+    ],
+    "PDB": [
+      "min_available",
+      "disruptions_allowed"
+    ],
+    "Pod": [
+      "ready",
+      "cpu_request",
+      "memory_request",
+      "version_number",
+      "phase_pending",
+      "phase_running",
+      "phase_ready",
+      "phase_terminating",
+      "phase_failed"
+    ],
+    "Service": [
+      "minimum_ready",
+      "endpoint_count"
+    ],
+    "Zone": [
+      "degraded"
+    ]
+  },
+  "parameterCount": 123793,
+  "phase": "II-B.2",
+  "primaryHorizon": false,
+  "relationTypes": [
+    "RUNS_ON",
+    "OWNS",
+    "ROUTES_TO",
+    "LOCATED_IN",
+    "SELECTS",
+    "PROTECTS",
+    "SCALES"
+  ],
+  "resourceTypes": [
+    "Pod",
+    "Node",
+    "Deployment",
+    "Service",
+    "HPA",
+    "PDB",
+    "Zone"
+  ],
+  "role": "full heterogeneous GNN, Phase II-B configuration",
+  "schemaVersion": 1,
+  "task": "P(SLO violation within next K=20 transitions)",
+  "training": {
+    "batchSize": 128,
+    "device": "cpu",
+    "epochs": 20,
+    "hashesVerified": true,
+    "labelPermutationSeed": null,
+    "learningRate": 0.001,
+    "loss": "weighted-bce",
+    "maxTrainRecords": null,
+    "maxValidationRecords": null,
+    "memberProcesses": "one process per seed, identical to sequential training",
+    "modelSelection": "train only; validation for early stopping and checkpoint selection; test/OOD untouched",
+    "patience": 4,
+    "positiveWeight": 4.269013782760837,
+    "shuffleBuffer": 2048,
+    "torchThreads": 1,
+    "transitionLabelBalance": {
+      "negative": 59779,
+      "positive": 14003,
+      "positiveRate": 0.18978883738581226,
+      "total": 73782
+    },
+    "validationSelectionLabels": "observed",
+    "weightDecay": 0.0001
+  }
+}

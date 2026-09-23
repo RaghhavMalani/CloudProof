@@ -13,8 +13,8 @@ from torch.utils.data import DataLoader, IterableDataset
 from .constants import RELATION_TYPES, RESOURCE_TYPES
 from .dataset import StreamingGraphDataset
 from .model import ModelConfig, build_model, ensemble_predict
-from .perturb import perturb_sample, relation_mode_for
-from .tensorize import GraphSample, collate_graphs
+from .perturb import DEFAULT_EDGE_SEED, perturb_sample, relation_mode_for
+from .tensorize import CloudProofTensorizer, GraphSample, collate_graphs
 
 
 def json_dump(path: str | Path, value: dict) -> None:
@@ -57,17 +57,29 @@ def load_artifact(
     return config, models
 
 
+def tensorizer_for_config(config: dict, label_horizon: int | None = None) -> CloudProofTensorizer:
+    """The input transform a model artifact was trained with (clock-blind or plain)."""
+    transform = config.get("featureTransform") or {}
+    if isinstance(transform, str):
+        transform = {"clockBlind": transform == "clock-blind"}
+    return CloudProofTensorizer(
+        clock_blind=bool(transform.get("clockBlind")),
+        label_horizon=label_horizon,
+    )
+
+
 class _PerturbedSamples(IterableDataset[GraphSample]):
     """Keep perturbation streams recognizable as iterable datasets to DataLoader."""
 
-    def __init__(self, samples: Iterable[GraphSample], edge_mode: str) -> None:
+    def __init__(self, samples: Iterable[GraphSample], edge_mode: str, edge_seed: int) -> None:
         super().__init__()
         self.samples = samples
         self.edge_mode = edge_mode
+        self.edge_seed = edge_seed
 
     def __iter__(self):
         for sample in self.samples:
-            yield perturb_sample(sample, self.edge_mode)
+            yield perturb_sample(sample, self.edge_mode, self.edge_seed)
 
 
 @torch.no_grad()
@@ -78,8 +90,9 @@ def predict_samples(
     batch_size: int = 128,
     device: str | torch.device = "cpu",
     edge_mode: str = "full",
+    edge_seed: int = DEFAULT_EDGE_SEED,
 ) -> tuple[list[float], list[float], list[float], list[str | None]]:
-    perturbed = _PerturbedSamples(samples, edge_mode)
+    perturbed = _PerturbedSamples(samples, edge_mode, edge_seed)
     loader = DataLoader(perturbed, batch_size=batch_size, collate_fn=collate_graphs, num_workers=0)
     labels: list[float] = []
     risks: list[float] = []
@@ -104,10 +117,14 @@ def predict_path(
     max_records: int | None = None,
     device: str | torch.device = "cpu",
     edge_mode: str = "full",
+    edge_seed: int = DEFAULT_EDGE_SEED,
+    tensorizer: CloudProofTensorizer | None = None,
 ) -> tuple[list[float], list[float], list[float], list[str | None]]:
-    dataset = StreamingGraphDataset(path, include_label=True, max_records=max_records)
+    dataset = StreamingGraphDataset(
+        path, include_label=True, max_records=max_records, tensorizer=tensorizer
+    )
     return predict_samples(
-        models, dataset, batch_size=batch_size, device=device, edge_mode=edge_mode
+        models, dataset, batch_size=batch_size, device=device, edge_mode=edge_mode, edge_seed=edge_seed
     )
 
 

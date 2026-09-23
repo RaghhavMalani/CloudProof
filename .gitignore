@@ -26,3 +26,14 @@ artifacts/cloudproof/datasets/*
 # Python bytecode caches from the ml test suite
 __pycache__/
 !artifacts/cloudproof/datasets/relational-pairs-95000.jsonl
+
+# Phase II-B.2 frozen-corpus attribution: JSON results are committed, model
+# weights and per-row prediction dumps stay local (hashes are in manifest.json)
+!artifacts/cloudproof/phase-ii-b2/
+artifacts/cloudproof/phase-ii-b2/*
+!artifacts/cloudproof/phase-ii-b2/*.json
+!artifacts/cloudproof/phase-ii-b2/models/
+artifacts/cloudproof/phase-ii-b2/models/*
+!artifacts/cloudproof/phase-ii-b2/models/*/
+artifacts/cloudproof/phase-ii-b2/models/*/*
+!artifacts/cloudproof/phase-ii-b2/models/*/*.json

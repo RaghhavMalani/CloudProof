@@ -9,10 +9,10 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from .dataset import CorpusManifest
+from .dataset import open_corpus_manifest
 from .metrics import evaluate_binary_risk
 from .perturb import EDGE_DESTRUCTION_MODES
-from .runtime import json_dump, load_artifact, predict_path
+from .runtime import json_dump, load_artifact, predict_path, tensorizer_for_config
 
 
 def evaluate_edge_attribution(
@@ -28,8 +28,9 @@ def evaluate_edge_attribution(
     if torch_threads < 1:
         raise ValueError("torch_threads must be positive")
     torch.set_num_threads(torch_threads)
-    manifest = CorpusManifest(dataset_directory)
+    manifest = open_corpus_manifest(dataset_directory)
     config, models = load_artifact(artifact_directory, device)
+    tensorizer = tensorizer_for_config(config)
     modes: dict[str, dict] = {}
     for mode in EDGE_DESTRUCTION_MODES:
         modes[mode] = {}
@@ -41,6 +42,7 @@ def evaluate_edge_attribution(
                 max_records=max_records,
                 device=device,
                 edge_mode=mode,
+                tensorizer=tensorizer,
             )
             values = evaluate_binary_risk(labels, risks)
             values["meanUncertainty"] = float(np.mean(uncertainties))

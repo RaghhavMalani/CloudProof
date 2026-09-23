@@ -14,7 +14,10 @@ from .constants import (
     ACTION_PARAMETER_SCALES,
     ACTION_TARGET_TYPES,
     ACTION_TYPES,
+    CLOCK_ACTION_PARAMETERS,
+    CLOCK_NODE_FEATURES,
     NODE_FEATURE_DIMS,
+    NODE_FEATURE_NAMES,
     RELATION_ENDPOINTS,
     RELATION_TYPES,
     RESOURCE_TYPES,
@@ -154,21 +157,84 @@ class GraphBatch:
         )
 
 
+CLOCK_NODE_COLUMNS = {
+    node_type: NODE_FEATURE_NAMES[node_type].index(feature) for node_type, feature in CLOCK_NODE_FEATURES
+}
+CLOCK_ACTION_COLUMNS = tuple(
+    len(ACTION_TYPES) + len(RESOURCE_TYPES) + 1 + ACTION_PARAMETER_NAMES.index(name)
+    for name in CLOCK_ACTION_PARAMETERS
+)
+
+
+def mask_clock_features(sample: GraphSample) -> GraphSample:
+    """Zero the predeclared clock columns; tensor shapes and every other value stay."""
+    node_features = dict(sample.node_features)
+    for node_type, column in CLOCK_NODE_COLUMNS.items():
+        masked = node_features[node_type].clone()
+        masked[:, column] = 0.0
+        node_features[node_type] = masked
+    action_features = sample.action_features.clone()
+    for column in CLOCK_ACTION_COLUMNS:
+        action_features[column] = 0.0
+    return GraphSample(
+        node_features=node_features,
+        edges=sample.edges,
+        action_features=action_features,
+        target=sample.target,
+        label=sample.label,
+        record_id=sample.record_id,
+    )
+
+
+def clock_blind_field_list() -> list[str]:
+    fields = [f"{node_type}.{feature}" for node_type, feature in CLOCK_NODE_FEATURES]
+    return fields + [f"action.{name}" for name in CLOCK_ACTION_PARAMETERS]
+
+
 class CloudProofTensorizer:
     """Turns only ``state + candidate action`` into tensors.
 
     IDs are used transiently to resolve relation endpoints and an action target.
     They are absent from every returned tensor. Future state, labels, split names,
     topology labels, scenario metadata, and trajectory outcomes are not read.
+
+    ``clock_blind`` applies the predeclared Phase II-B.2 clock mask after the
+    ordinary encoding; ``label_horizon`` selects ``labels.horizons[K]`` instead of
+    the default ``sloViolationWithinKTransitions`` (K = 5) target.
     """
+
+    def __init__(self, *, clock_blind: bool = False, label_horizon: int | None = None) -> None:
+        if label_horizon is not None and (not isinstance(label_horizon, int) or label_horizon < 1):
+            raise ValueError("label_horizon must be a positive integer")
+        self.clock_blind = bool(clock_blind)
+        self.label_horizon = label_horizon
+
+    def describe(self) -> dict[str, Any]:
+        return {
+            "clockBlind": self.clock_blind,
+            "maskedFields": clock_blind_field_list() if self.clock_blind else [],
+            "labelHorizon": self.label_horizon,
+            "labelField": (
+                "labels.sloViolationWithinKTransitions"
+                if self.label_horizon is None
+                else f"labels.horizons.{self.label_horizon}"
+            ),
+        }
+
+    def record_label(self, record: dict[str, Any]) -> float:
+        labels = record.get("labels") or {}
+        if self.label_horizon is None:
+            return float(bool(labels.get("sloViolationWithinKTransitions")))
+        horizons = labels.get("horizons") or {}
+        key = str(self.label_horizon)
+        if key not in horizons:
+            raise ValueError(f"record has no horizon-{key} label")
+        return float(bool(horizons[key]))
 
     def tensorize_record(self, record: dict[str, Any], include_label: bool = True) -> GraphSample:
         if not isinstance(record.get("state"), dict) or not isinstance(record.get("action"), dict):
             raise ValueError("record must contain state and action objects")
-        label = None
-        if include_label:
-            labels = record.get("labels") or {}
-            label = float(bool(labels.get("sloViolationWithinKTransitions")))
+        label = self.record_label(record) if include_label else None
         return self.tensorize(record["state"], record["action"], label, record.get("recordId"))
 
     def tensorize(
@@ -238,7 +304,8 @@ class CloudProofTensorizer:
         action_features, target_type = self._encode_action(action)
         target = self._resolve_target(action, target_type, node_lookup)
         action_features[len(ACTION_TYPES) + len(RESOURCE_TYPES)] = float(target is not None)
-        return GraphSample(node_features, edges, action_features, target, label, record_id)
+        sample = GraphSample(node_features, edges, action_features, target, label, record_id)
+        return mask_clock_features(sample) if self.clock_blind else sample
 
     @staticmethod
     def _encode_action(action: dict[str, Any]) -> tuple[torch.Tensor, str | None]:

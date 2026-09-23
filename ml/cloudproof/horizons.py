@@ -8,9 +8,9 @@ from pathlib import Path
 
 import torch
 
-from .dataset import CorpusManifest, iter_jsonl
+from .dataset import iter_jsonl, open_corpus_manifest
 from .metrics import evaluate_binary_risk
-from .runtime import json_dump, load_artifact, predict_path
+from .runtime import json_dump, load_artifact, predict_path, tensorizer_for_config
 
 
 def evaluate_horizons(
@@ -25,7 +25,7 @@ def evaluate_horizons(
     torch_threads: int = 1,
 ) -> dict:
     torch.set_num_threads(torch_threads)
-    manifest = CorpusManifest(dataset_directory)
+    manifest = open_corpus_manifest(dataset_directory)
     config, models = load_artifact(artifact_directory, device)
     _, risks, _, record_ids = predict_path(
         models,
@@ -33,6 +33,7 @@ def evaluate_horizons(
         batch_size=batch_size,
         max_records=max_records,
         device=device,
+        tensorizer=tensorizer_for_config(config),
     )
     horizon_labels = {
         row["recordId"]: row["labels"]

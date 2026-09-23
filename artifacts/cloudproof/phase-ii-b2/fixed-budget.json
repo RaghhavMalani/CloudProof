@@ -1,0 +1,3795 @@
+{
+  "kind": "cloudproof.phase-ii-b2-fixed-budget",
+  "methods": {
+    "coverageGuided": {
+      "budgets": {
+        "100": {
+          "controllerStateCoverage": {
+            "actionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded"
+            ],
+            "controllerStates": {
+              "count": 655,
+              "signaturesSha256": "ecb4ee3eab8318d19835cca45833767c2ae1dcb8cd274fd6e45a46fccbacef27"
+            },
+            "failureClasses": [
+              "ROLLOUT_AVAILABILITY_VIOLATION",
+              "SERVICE_CAPACITY_COLLAPSE",
+              "TRAFFIC_TO_UNREADY_POD",
+              "ZONE_SURVIVABILITY_VIOLATION"
+            ],
+            "missing": [
+              "cloud.fault.node-drain",
+              "cloud.scheduler.yield"
+            ],
+            "target": {
+              "covered": 20,
+              "ratio": 0.9090909090909091,
+              "total": 22
+            },
+            "transitionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.endpoints-propagated",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded",
+              "cloud.kubelet.image-pulled",
+              "cloud.kubelet.pod-ready",
+              "cloud.kubelet.pod-terminated"
+            ]
+          },
+          "counterexampleLength": {
+            "meanActions": 89.26027397260275,
+            "minimumActions": 43
+          },
+          "evaluatedSchedules": 100,
+          "failureRecall": 0.025008564576909902,
+          "failuresFound": 73,
+          "requestedBudget": 100,
+          "schedulesToFirstCounterexample": 1,
+          "timeToFirstCounterexampleMs": 174.245,
+          "uniqueFailureClassCount": 4,
+          "uniqueFailureClasses": [
+            "ROLLOUT_AVAILABILITY_VIOLATION",
+            "SERVICE_CAPACITY_COLLAPSE",
+            "TRAFFIC_TO_UNREADY_POD",
+            "ZONE_SURVIVABILITY_VIOLATION"
+          ],
+          "verificationWallTimeMs": 23460.640400000008
+        },
+        "500": {
+          "controllerStateCoverage": {
+            "actionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded"
+            ],
+            "controllerStates": {
+              "count": 1452,
+              "signaturesSha256": "5db3116e2a18f35277e659654bb4defe2670dc75fcd1ed76332e11ae4af5fb90"
+            },
+            "failureClasses": [
+              "AUTOSCALER_CAPACITY_MISMATCH",
+              "ROLLOUT_AVAILABILITY_VIOLATION",
+              "SERVICE_CAPACITY_COLLAPSE",
+              "TRAFFIC_TO_UNREADY_POD",
+              "ZONE_SURVIVABILITY_VIOLATION"
+            ],
+            "missing": [
+              "cloud.fault.node-drain",
+              "cloud.scheduler.yield"
+            ],
+            "target": {
+              "covered": 20,
+              "ratio": 0.9090909090909091,
+              "total": 22
+            },
+            "transitionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.endpoints-propagated",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded",
+              "cloud.kubelet.image-pulled",
+              "cloud.kubelet.pod-ready",
+              "cloud.kubelet.pod-terminated"
+            ]
+          },
+          "counterexampleLength": {
+            "meanActions": 87.40066225165563,
+            "minimumActions": 40
+          },
+          "evaluatedSchedules": 500,
+          "failureRecall": 0.10346008907159986,
+          "failuresFound": 302,
+          "requestedBudget": 500,
+          "schedulesToFirstCounterexample": 1,
+          "timeToFirstCounterexampleMs": 174.245,
+          "uniqueFailureClassCount": 5,
+          "uniqueFailureClasses": [
+            "AUTOSCALER_CAPACITY_MISMATCH",
+            "ROLLOUT_AVAILABILITY_VIOLATION",
+            "SERVICE_CAPACITY_COLLAPSE",
+            "TRAFFIC_TO_UNREADY_POD",
+            "ZONE_SURVIVABILITY_VIOLATION"
+          ],
+          "verificationWallTimeMs": 160914.74489999993
+        },
+        "1000": {
+          "controllerStateCoverage": {
+            "actionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded"
+            ],
+            "controllerStates": {
+              "count": 1969,
+              "signaturesSha256": "fc57dbe091f1ab7fa876966f97c3ea5a62c69c71d1ad48d0baaf735a0aa40829"
+            },
+            "failureClasses": [
+              "AUTOSCALER_CAPACITY_MISMATCH",
+              "ROLLOUT_AVAILABILITY_VIOLATION",
+              "SERVICE_CAPACITY_COLLAPSE",
+              "TRAFFIC_TO_UNREADY_POD",
+              "ZONE_SURVIVABILITY_VIOLATION"
+            ],
+            "missing": [
+              "cloud.fault.node-drain",
+              "cloud.scheduler.yield"
+            ],
+            "target": {
+              "covered": 20,
+              "ratio": 0.9090909090909091,
+              "total": 22
+            },
+            "transitionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.endpoints-propagated",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded",
+              "cloud.kubelet.image-pulled",
+              "cloud.kubelet.pod-ready",
+              "cloud.kubelet.pod-terminated"
+            ]
+          },
+          "counterexampleLength": {
+            "meanActions": 89.31085526315789,
+            "minimumActions": 40
+          },
+          "evaluatedSchedules": 1000,
+          "failureRecall": 0.20829051044878383,
+          "failuresFound": 608,
+          "requestedBudget": 1000,
+          "schedulesToFirstCounterexample": 1,
+          "timeToFirstCounterexampleMs": 174.245,
+          "uniqueFailureClassCount": 5,
+          "uniqueFailureClasses": [
+            "AUTOSCALER_CAPACITY_MISMATCH",
+            "ROLLOUT_AVAILABILITY_VIOLATION",
+            "SERVICE_CAPACITY_COLLAPSE",
+            "TRAFFIC_TO_UNREADY_POD",
+            "ZONE_SURVIVABILITY_VIOLATION"
+          ],
+          "verificationWallTimeMs": 334499.9599999996
+        },
+        "5000": {
+          "controllerStateCoverage": {
+            "actionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded"
+            ],
+            "controllerStates": {
+              "count": 3220,
+              "signaturesSha256": "f525c94af9fa5024c50a7085b1962cd83d8f3cf58e197512f7aa0f9931a83f09"
+            },
+            "failureClasses": [
+              "AUTOSCALER_CAPACITY_MISMATCH",
+              "ROLLOUT_AVAILABILITY_VIOLATION",
+              "SERVICE_CAPACITY_COLLAPSE",
+              "TRAFFIC_TO_UNREADY_POD",
+              "ZONE_SURVIVABILITY_VIOLATION"
+            ],
+            "missing": [
+              "cloud.fault.node-drain",
+              "cloud.scheduler.yield"
+            ],
+            "target": {
+              "covered": 20,
+              "ratio": 0.9090909090909091,
+              "total": 22
+            },
+            "transitionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.endpoints-propagated",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded",
+              "cloud.kubelet.image-pulled",
+              "cloud.kubelet.pod-ready",
+              "cloud.kubelet.pod-terminated"
+            ]
+          },
+          "counterexampleLength": {
+            "meanActions": 90.2593161736458,
+            "minimumActions": 40
+          },
+          "evaluatedSchedules": 5000,
+          "failureRecall": 0.8917437478588558,
+          "failuresFound": 2603,
+          "requestedBudget": 5000,
+          "schedulesToFirstCounterexample": 1,
+          "timeToFirstCounterexampleMs": 174.245,
+          "uniqueFailureClassCount": 5,
+          "uniqueFailureClasses": [
+            "AUTOSCALER_CAPACITY_MISMATCH",
+            "ROLLOUT_AVAILABILITY_VIOLATION",
+            "SERVICE_CAPACITY_COLLAPSE",
+            "TRAFFIC_TO_UNREADY_POD",
+            "ZONE_SURVIVABILITY_VIOLATION"
+          ],
+          "verificationWallTimeMs": 728629.2742000018
+        }
+      },
+      "candidateSchedules": 5838,
+      "totalCounterexamples": 2919
+    },
+    "gnn": {
+      "budgets": {
+        "100": {
+          "controllerStateCoverage": {
+            "actionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded"
+            ],
+            "controllerStates": {
+              "count": 499,
+              "signaturesSha256": "6a6862d79561b26a4a98cb709dfdeb91eda2fbbea3c4d76deb9dfcf706de74ec"
+            },
+            "failureClasses": [
+              "AUTOSCALER_CAPACITY_MISMATCH",
+              "ROLLOUT_AVAILABILITY_VIOLATION",
+              "SERVICE_CAPACITY_COLLAPSE",
+              "TRAFFIC_TO_UNREADY_POD",
+              "ZONE_SURVIVABILITY_VIOLATION"
+            ],
+            "missing": [
+              "cloud.fault.node-drain",
+              "cloud.scheduler.yield"
+            ],
+            "target": {
+              "covered": 20,
+              "ratio": 0.9090909090909091,
+              "total": 22
+            },
+            "transitionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.endpoints-propagated",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded",
+              "cloud.kubelet.image-pulled",
+              "cloud.kubelet.pod-ready",
+              "cloud.kubelet.pod-terminated"
+            ]
+          },
+          "counterexampleLength": {
+            "meanActions": 87.90322580645162,
+            "minimumActions": 44
+          },
+          "evaluatedSchedules": 100,
+          "failureRecall": 0.021240150736553613,
+          "failuresFound": 62,
+          "requestedBudget": 100,
+          "schedulesToFirstCounterexample": 2,
+          "timeToFirstCounterexampleMs": 270.9045,
+          "uniqueFailureClassCount": 5,
+          "uniqueFailureClasses": [
+            "AUTOSCALER_CAPACITY_MISMATCH",
+            "ROLLOUT_AVAILABILITY_VIOLATION",
+            "SERVICE_CAPACITY_COLLAPSE",
+            "TRAFFIC_TO_UNREADY_POD",
+            "ZONE_SURVIVABILITY_VIOLATION"
+          ],
+          "verificationWallTimeMs": 21812.058699999994
+        },
+        "500": {
+          "controllerStateCoverage": {
+            "actionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded"
+            ],
+            "controllerStates": {
+              "count": 1082,
+              "signaturesSha256": "3ae414f9bf2a4c3bd9c7c8f585117410808cce453c893407c5ff491d30f94494"
+            },
+            "failureClasses": [
+              "AUTOSCALER_CAPACITY_MISMATCH",
+              "ROLLOUT_AVAILABILITY_VIOLATION",
+              "SERVICE_CAPACITY_COLLAPSE",
+              "TRAFFIC_TO_UNREADY_POD",
+              "ZONE_SURVIVABILITY_VIOLATION"
+            ],
+            "missing": [
+              "cloud.fault.node-drain",
+              "cloud.scheduler.yield"
+            ],
+            "target": {
+              "covered": 20,
+              "ratio": 0.9090909090909091,
+              "total": 22
+            },
+            "transitionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.endpoints-propagated",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded",
+              "cloud.kubelet.image-pulled",
+              "cloud.kubelet.pod-ready",
+              "cloud.kubelet.pod-terminated"
+            ]
+          },
+          "counterexampleLength": {
+            "meanActions": 91.94945848375451,
+            "minimumActions": 42
+          },
+          "evaluatedSchedules": 500,
+          "failureRecall": 0.09489551216169921,
+          "failuresFound": 277,
+          "requestedBudget": 500,
+          "schedulesToFirstCounterexample": 2,
+          "timeToFirstCounterexampleMs": 270.9045,
+          "uniqueFailureClassCount": 5,
+          "uniqueFailureClasses": [
+            "AUTOSCALER_CAPACITY_MISMATCH",
+            "ROLLOUT_AVAILABILITY_VIOLATION",
+            "SERVICE_CAPACITY_COLLAPSE",
+            "TRAFFIC_TO_UNREADY_POD",
+            "ZONE_SURVIVABILITY_VIOLATION"
+          ],
+          "verificationWallTimeMs": 96966.60989999998
+        },
+        "1000": {
+          "controllerStateCoverage": {
+            "actionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded"
+            ],
+            "controllerStates": {
+              "count": 1583,
+              "signaturesSha256": "fdf1925f1842ae1cbfc5c4f4edb45045c8f5022ea6e3bf204dc4073b5f2ad95e"
+            },
+            "failureClasses": [
+              "AUTOSCALER_CAPACITY_MISMATCH",
+              "ROLLOUT_AVAILABILITY_VIOLATION",
+              "SERVICE_CAPACITY_COLLAPSE",
+              "TRAFFIC_TO_UNREADY_POD",
+              "ZONE_SURVIVABILITY_VIOLATION"
+            ],
+            "missing": [
+              "cloud.fault.node-drain",
+              "cloud.scheduler.yield"
+            ],
+            "target": {
+              "covered": 20,
+              "ratio": 0.9090909090909091,
+              "total": 22
+            },
+            "transitionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.endpoints-propagated",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded",
+              "cloud.kubelet.image-pulled",
+              "cloud.kubelet.pod-ready",
+              "cloud.kubelet.pod-terminated"
+            ]
+          },
+          "counterexampleLength": {
+            "meanActions": 91.07731958762886,
+            "minimumActions": 41
+          },
+          "evaluatedSchedules": 1000,
+          "failureRecall": 0.19938335046248715,
+          "failuresFound": 582,
+          "requestedBudget": 1000,
+          "schedulesToFirstCounterexample": 2,
+          "timeToFirstCounterexampleMs": 270.9045,
+          "uniqueFailureClassCount": 5,
+          "uniqueFailureClasses": [
+            "AUTOSCALER_CAPACITY_MISMATCH",
+            "ROLLOUT_AVAILABILITY_VIOLATION",
+            "SERVICE_CAPACITY_COLLAPSE",
+            "TRAFFIC_TO_UNREADY_POD",
+            "ZONE_SURVIVABILITY_VIOLATION"
+          ],
+          "verificationWallTimeMs": 194799.95399999994
+        },
+        "5000": {
+          "controllerStateCoverage": {
+            "actionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded"
+            ],
+            "controllerStates": {
+              "count": 3273,
+              "signaturesSha256": "bebfa003aeafe7ed6ef0e8094ffdd60c47d6557e022df836725c87739f61bac2"
+            },
+            "failureClasses": [
+              "AUTOSCALER_CAPACITY_MISMATCH",
+              "ROLLOUT_AVAILABILITY_VIOLATION",
+              "SERVICE_CAPACITY_COLLAPSE",
+              "TRAFFIC_TO_UNREADY_POD",
+              "ZONE_SURVIVABILITY_VIOLATION"
+            ],
+            "missing": [
+              "cloud.fault.node-drain",
+              "cloud.scheduler.yield"
+            ],
+            "target": {
+              "covered": 20,
+              "ratio": 0.9090909090909091,
+              "total": 22
+            },
+            "transitionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.endpoints-propagated",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded",
+              "cloud.kubelet.image-pulled",
+              "cloud.kubelet.pod-ready",
+              "cloud.kubelet.pod-terminated"
+            ]
+          },
+          "counterexampleLength": {
+            "meanActions": 90.52340093603745,
+            "minimumActions": 40
+          },
+          "evaluatedSchedules": 5000,
+          "failureRecall": 0.8783830078794107,
+          "failuresFound": 2564,
+          "requestedBudget": 5000,
+          "schedulesToFirstCounterexample": 2,
+          "timeToFirstCounterexampleMs": 270.9045,
+          "uniqueFailureClassCount": 5,
+          "uniqueFailureClasses": [
+            "AUTOSCALER_CAPACITY_MISMATCH",
+            "ROLLOUT_AVAILABILITY_VIOLATION",
+            "SERVICE_CAPACITY_COLLAPSE",
+            "TRAFFIC_TO_UNREADY_POD",
+            "ZONE_SURVIVABILITY_VIOLATION"
+          ],
+          "verificationWallTimeMs": 725471.1940999991
+        }
+      },
+      "candidateSchedules": 5838,
+      "totalCounterexamples": 2919
+    },
+    "gnnClockBlind": {
+      "budgets": {
+        "100": {
+          "controllerStateCoverage": {
+            "actionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded"
+            ],
+            "controllerStates": {
+              "count": 452,
+              "signaturesSha256": "9d517992e3c7e9a7930c26d3e627b413fc18dc6d2a8df75ff55bf9c0eead0652"
+            },
+            "failureClasses": [
+              "AUTOSCALER_CAPACITY_MISMATCH",
+              "ROLLOUT_AVAILABILITY_VIOLATION",
+              "SERVICE_CAPACITY_COLLAPSE",
+              "TRAFFIC_TO_UNREADY_POD",
+              "ZONE_SURVIVABILITY_VIOLATION"
+            ],
+            "missing": [
+              "cloud.fault.node-drain",
+              "cloud.scheduler.yield"
+            ],
+            "target": {
+              "covered": 20,
+              "ratio": 0.9090909090909091,
+              "total": 22
+            },
+            "transitionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.endpoints-propagated",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded",
+              "cloud.kubelet.image-pulled",
+              "cloud.kubelet.pod-ready",
+              "cloud.kubelet.pod-terminated"
+            ]
+          },
+          "counterexampleLength": {
+            "meanActions": 92.6470588235294,
+            "minimumActions": 50
+          },
+          "evaluatedSchedules": 100,
+          "failureRecall": 0.017471736896197326,
+          "failuresFound": 51,
+          "requestedBudget": 100,
+          "schedulesToFirstCounterexample": 2,
+          "timeToFirstCounterexampleMs": 270.9045,
+          "uniqueFailureClassCount": 5,
+          "uniqueFailureClasses": [
+            "AUTOSCALER_CAPACITY_MISMATCH",
+            "ROLLOUT_AVAILABILITY_VIOLATION",
+            "SERVICE_CAPACITY_COLLAPSE",
+            "TRAFFIC_TO_UNREADY_POD",
+            "ZONE_SURVIVABILITY_VIOLATION"
+          ],
+          "verificationWallTimeMs": 18664.571800000005
+        },
+        "500": {
+          "controllerStateCoverage": {
+            "actionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded"
+            ],
+            "controllerStates": {
+              "count": 1057,
+              "signaturesSha256": "06062e435bbd36e62f6f20795deb261ce94697c14d2f803301f7a72002cd92de"
+            },
+            "failureClasses": [
+              "AUTOSCALER_CAPACITY_MISMATCH",
+              "ROLLOUT_AVAILABILITY_VIOLATION",
+              "SERVICE_CAPACITY_COLLAPSE",
+              "TRAFFIC_TO_UNREADY_POD",
+              "ZONE_SURVIVABILITY_VIOLATION"
+            ],
+            "missing": [
+              "cloud.fault.node-drain",
+              "cloud.scheduler.yield"
+            ],
+            "target": {
+              "covered": 20,
+              "ratio": 0.9090909090909091,
+              "total": 22
+            },
+            "transitionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.endpoints-propagated",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded",
+              "cloud.kubelet.image-pulled",
+              "cloud.kubelet.pod-ready",
+              "cloud.kubelet.pod-terminated"
+            ]
+          },
+          "counterexampleLength": {
+            "meanActions": 90.48821548821549,
+            "minimumActions": 42
+          },
+          "evaluatedSchedules": 500,
+          "failureRecall": 0.10174717368961973,
+          "failuresFound": 297,
+          "requestedBudget": 500,
+          "schedulesToFirstCounterexample": 2,
+          "timeToFirstCounterexampleMs": 270.9045,
+          "uniqueFailureClassCount": 5,
+          "uniqueFailureClasses": [
+            "AUTOSCALER_CAPACITY_MISMATCH",
+            "ROLLOUT_AVAILABILITY_VIOLATION",
+            "SERVICE_CAPACITY_COLLAPSE",
+            "TRAFFIC_TO_UNREADY_POD",
+            "ZONE_SURVIVABILITY_VIOLATION"
+          ],
+          "verificationWallTimeMs": 95405.59430000001
+        },
+        "1000": {
+          "controllerStateCoverage": {
+            "actionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded"
+            ],
+            "controllerStates": {
+              "count": 1466,
+              "signaturesSha256": "6a984acd4d410c9598451fb2a34260ced77de4feb934926f93d6f4ea44634457"
+            },
+            "failureClasses": [
+              "AUTOSCALER_CAPACITY_MISMATCH",
+              "ROLLOUT_AVAILABILITY_VIOLATION",
+              "SERVICE_CAPACITY_COLLAPSE",
+              "TRAFFIC_TO_UNREADY_POD",
+              "ZONE_SURVIVABILITY_VIOLATION"
+            ],
+            "missing": [
+              "cloud.fault.node-drain",
+              "cloud.scheduler.yield"
+            ],
+            "target": {
+              "covered": 20,
+              "ratio": 0.9090909090909091,
+              "total": 22
+            },
+            "transitionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.endpoints-propagated",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded",
+              "cloud.kubelet.image-pulled",
+              "cloud.kubelet.pod-ready",
+              "cloud.kubelet.pod-terminated"
+            ]
+          },
+          "counterexampleLength": {
+            "meanActions": 90.64840989399293,
+            "minimumActions": 41
+          },
+          "evaluatedSchedules": 1000,
+          "failureRecall": 0.19390202124015074,
+          "failuresFound": 566,
+          "requestedBudget": 1000,
+          "schedulesToFirstCounterexample": 2,
+          "timeToFirstCounterexampleMs": 270.9045,
+          "uniqueFailureClassCount": 5,
+          "uniqueFailureClasses": [
+            "AUTOSCALER_CAPACITY_MISMATCH",
+            "ROLLOUT_AVAILABILITY_VIOLATION",
+            "SERVICE_CAPACITY_COLLAPSE",
+            "TRAFFIC_TO_UNREADY_POD",
+            "ZONE_SURVIVABILITY_VIOLATION"
+          ],
+          "verificationWallTimeMs": 191846.10900000014
+        },
+        "5000": {
+          "controllerStateCoverage": {
+            "actionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded"
+            ],
+            "controllerStates": {
+              "count": 3280,
+              "signaturesSha256": "15f711823f25f9012295d1cf5834c5a5203566db8621eaeef567e926c4ba3387"
+            },
+            "failureClasses": [
+              "AUTOSCALER_CAPACITY_MISMATCH",
+              "ROLLOUT_AVAILABILITY_VIOLATION",
+              "SERVICE_CAPACITY_COLLAPSE",
+              "TRAFFIC_TO_UNREADY_POD",
+              "ZONE_SURVIVABILITY_VIOLATION"
+            ],
+            "missing": [
+              "cloud.fault.node-drain",
+              "cloud.scheduler.yield"
+            ],
+            "target": {
+              "covered": 20,
+              "ratio": 0.9090909090909091,
+              "total": 22
+            },
+            "transitionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.endpoints-propagated",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded",
+              "cloud.kubelet.image-pulled",
+              "cloud.kubelet.pod-ready",
+              "cloud.kubelet.pod-terminated"
+            ]
+          },
+          "counterexampleLength": {
+            "meanActions": 90.48449612403101,
+            "minimumActions": 40
+          },
+          "evaluatedSchedules": 5000,
+          "failureRecall": 0.8838643371017472,
+          "failuresFound": 2580,
+          "requestedBudget": 5000,
+          "schedulesToFirstCounterexample": 2,
+          "timeToFirstCounterexampleMs": 270.9045,
+          "uniqueFailureClassCount": 5,
+          "uniqueFailureClasses": [
+            "AUTOSCALER_CAPACITY_MISMATCH",
+            "ROLLOUT_AVAILABILITY_VIOLATION",
+            "SERVICE_CAPACITY_COLLAPSE",
+            "TRAFFIC_TO_UNREADY_POD",
+            "ZONE_SURVIVABILITY_VIOLATION"
+          ],
+          "verificationWallTimeMs": 725705.1367999978
+        }
+      },
+      "candidateSchedules": 5838,
+      "totalCounterexamples": 2919
+    },
+    "gnnNoEdges": {
+      "budgets": {
+        "100": {
+          "controllerStateCoverage": {
+            "actionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded"
+            ],
+            "controllerStates": {
+              "count": 396,
+              "signaturesSha256": "5500ec3238c897d5f2c0a4d3e87dfbd131e3f808a323efa942d68c7a4f0566bf"
+            },
+            "failureClasses": [
+              "AUTOSCALER_CAPACITY_MISMATCH",
+              "ROLLOUT_AVAILABILITY_VIOLATION",
+              "SERVICE_CAPACITY_COLLAPSE",
+              "TRAFFIC_TO_UNREADY_POD",
+              "ZONE_SURVIVABILITY_VIOLATION"
+            ],
+            "missing": [
+              "cloud.fault.node-drain",
+              "cloud.scheduler.yield"
+            ],
+            "target": {
+              "covered": 20,
+              "ratio": 0.9090909090909091,
+              "total": 22
+            },
+            "transitionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.endpoints-propagated",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded",
+              "cloud.kubelet.image-pulled",
+              "cloud.kubelet.pod-ready",
+              "cloud.kubelet.pod-terminated"
+            ]
+          },
+          "counterexampleLength": {
+            "meanActions": 90.36065573770492,
+            "minimumActions": 44
+          },
+          "evaluatedSchedules": 100,
+          "failureRecall": 0.020897567660157587,
+          "failuresFound": 61,
+          "requestedBudget": 100,
+          "schedulesToFirstCounterexample": 1,
+          "timeToFirstCounterexampleMs": 456.4019,
+          "uniqueFailureClassCount": 5,
+          "uniqueFailureClasses": [
+            "AUTOSCALER_CAPACITY_MISMATCH",
+            "ROLLOUT_AVAILABILITY_VIOLATION",
+            "SERVICE_CAPACITY_COLLAPSE",
+            "TRAFFIC_TO_UNREADY_POD",
+            "ZONE_SURVIVABILITY_VIOLATION"
+          ],
+          "verificationWallTimeMs": 19028.055499999995
+        },
+        "500": {
+          "controllerStateCoverage": {
+            "actionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded"
+            ],
+            "controllerStates": {
+              "count": 1293,
+              "signaturesSha256": "462bf8dbcb747571223b664eabe2e4a041fdd5ab296f32ab27de145a3e4f2d52"
+            },
+            "failureClasses": [
+              "AUTOSCALER_CAPACITY_MISMATCH",
+              "ROLLOUT_AVAILABILITY_VIOLATION",
+              "SERVICE_CAPACITY_COLLAPSE",
+              "TRAFFIC_TO_UNREADY_POD",
+              "ZONE_SURVIVABILITY_VIOLATION"
+            ],
+            "missing": [
+              "cloud.fault.node-drain",
+              "cloud.scheduler.yield"
+            ],
+            "target": {
+              "covered": 20,
+              "ratio": 0.9090909090909091,
+              "total": 22
+            },
+            "transitionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.endpoints-propagated",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded",
+              "cloud.kubelet.image-pulled",
+              "cloud.kubelet.pod-ready",
+              "cloud.kubelet.pod-terminated"
+            ]
+          },
+          "counterexampleLength": {
+            "meanActions": 91.41908713692946,
+            "minimumActions": 41
+          },
+          "evaluatedSchedules": 500,
+          "failureRecall": 0.08256252141144227,
+          "failuresFound": 241,
+          "requestedBudget": 500,
+          "schedulesToFirstCounterexample": 1,
+          "timeToFirstCounterexampleMs": 456.4019,
+          "uniqueFailureClassCount": 5,
+          "uniqueFailureClasses": [
+            "AUTOSCALER_CAPACITY_MISMATCH",
+            "ROLLOUT_AVAILABILITY_VIOLATION",
+            "SERVICE_CAPACITY_COLLAPSE",
+            "TRAFFIC_TO_UNREADY_POD",
+            "ZONE_SURVIVABILITY_VIOLATION"
+          ],
+          "verificationWallTimeMs": 84484.36110000001
+        },
+        "1000": {
+          "controllerStateCoverage": {
+            "actionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded"
+            ],
+            "controllerStates": {
+              "count": 1915,
+              "signaturesSha256": "5ba864596af14cc9bd188b036269f71e0b24ce22e192c14ac728fafd56aeaaeb"
+            },
+            "failureClasses": [
+              "AUTOSCALER_CAPACITY_MISMATCH",
+              "ROLLOUT_AVAILABILITY_VIOLATION",
+              "SERVICE_CAPACITY_COLLAPSE",
+              "TRAFFIC_TO_UNREADY_POD",
+              "ZONE_SURVIVABILITY_VIOLATION"
+            ],
+            "missing": [
+              "cloud.fault.node-drain",
+              "cloud.scheduler.yield"
+            ],
+            "target": {
+              "covered": 20,
+              "ratio": 0.9090909090909091,
+              "total": 22
+            },
+            "transitionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.endpoints-propagated",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded",
+              "cloud.kubelet.image-pulled",
+              "cloud.kubelet.pod-ready",
+              "cloud.kubelet.pod-terminated"
+            ]
+          },
+          "counterexampleLength": {
+            "meanActions": 91.65805168986084,
+            "minimumActions": 40
+          },
+          "evaluatedSchedules": 1000,
+          "failureRecall": 0.1723192874272011,
+          "failuresFound": 503,
+          "requestedBudget": 1000,
+          "schedulesToFirstCounterexample": 1,
+          "timeToFirstCounterexampleMs": 456.4019,
+          "uniqueFailureClassCount": 5,
+          "uniqueFailureClasses": [
+            "AUTOSCALER_CAPACITY_MISMATCH",
+            "ROLLOUT_AVAILABILITY_VIOLATION",
+            "SERVICE_CAPACITY_COLLAPSE",
+            "TRAFFIC_TO_UNREADY_POD",
+            "ZONE_SURVIVABILITY_VIOLATION"
+          ],
+          "verificationWallTimeMs": 159273.28349999987
+        },
+        "5000": {
+          "controllerStateCoverage": {
+            "actionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded"
+            ],
+            "controllerStates": {
+              "count": 3299,
+              "signaturesSha256": "c97276fd1e5a6241649c374e28c7478e31b2ebcf9e18cd7f9258f278b3b8dac9"
+            },
+            "failureClasses": [
+              "AUTOSCALER_CAPACITY_MISMATCH",
+              "ROLLOUT_AVAILABILITY_VIOLATION",
+              "SERVICE_CAPACITY_COLLAPSE",
+              "TRAFFIC_TO_UNREADY_POD",
+              "ZONE_SURVIVABILITY_VIOLATION"
+            ],
+            "missing": [
+              "cloud.fault.node-drain",
+              "cloud.scheduler.yield"
+            ],
+            "target": {
+              "covered": 20,
+              "ratio": 0.9090909090909091,
+              "total": 22
+            },
+            "transitionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.endpoints-propagated",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded",
+              "cloud.kubelet.image-pulled",
+              "cloud.kubelet.pod-ready",
+              "cloud.kubelet.pod-terminated"
+            ]
+          },
+          "counterexampleLength": {
+            "meanActions": 90.60752688172043,
+            "minimumActions": 40
+          },
+          "evaluatedSchedules": 5000,
+          "failureRecall": 0.8920863309352518,
+          "failuresFound": 2604,
+          "requestedBudget": 5000,
+          "schedulesToFirstCounterexample": 1,
+          "timeToFirstCounterexampleMs": 456.4019,
+          "uniqueFailureClassCount": 5,
+          "uniqueFailureClasses": [
+            "AUTOSCALER_CAPACITY_MISMATCH",
+            "ROLLOUT_AVAILABILITY_VIOLATION",
+            "SERVICE_CAPACITY_COLLAPSE",
+            "TRAFFIC_TO_UNREADY_POD",
+            "ZONE_SURVIVABILITY_VIOLATION"
+          ],
+          "verificationWallTimeMs": 727150.9280000018
+        }
+      },
+      "candidateSchedules": 5838,
+      "totalCounterexamples": 2919
+    },
+    "gnnRandomizedEdges": {
+      "budgets": {
+        "100": {
+          "controllerStateCoverage": {
+            "actionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded"
+            ],
+            "controllerStates": {
+              "count": 495,
+              "signaturesSha256": "2937b429c3b9e56699204d6756f743d028f335f6ca74e13dc6597fb80108c17d"
+            },
+            "failureClasses": [
+              "AUTOSCALER_CAPACITY_MISMATCH",
+              "ROLLOUT_AVAILABILITY_VIOLATION",
+              "SERVICE_CAPACITY_COLLAPSE",
+              "TRAFFIC_TO_UNREADY_POD",
+              "ZONE_SURVIVABILITY_VIOLATION"
+            ],
+            "missing": [
+              "cloud.fault.node-drain",
+              "cloud.scheduler.yield"
+            ],
+            "target": {
+              "covered": 20,
+              "ratio": 0.9090909090909091,
+              "total": 22
+            },
+            "transitionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.endpoints-propagated",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded",
+              "cloud.kubelet.image-pulled",
+              "cloud.kubelet.pod-ready",
+              "cloud.kubelet.pod-terminated"
+            ]
+          },
+          "counterexampleLength": {
+            "meanActions": 88.1774193548387,
+            "minimumActions": 50
+          },
+          "evaluatedSchedules": 100,
+          "failureRecall": 0.021240150736553613,
+          "failuresFound": 62,
+          "requestedBudget": 100,
+          "schedulesToFirstCounterexample": 2,
+          "timeToFirstCounterexampleMs": 270.9045,
+          "uniqueFailureClassCount": 5,
+          "uniqueFailureClasses": [
+            "AUTOSCALER_CAPACITY_MISMATCH",
+            "ROLLOUT_AVAILABILITY_VIOLATION",
+            "SERVICE_CAPACITY_COLLAPSE",
+            "TRAFFIC_TO_UNREADY_POD",
+            "ZONE_SURVIVABILITY_VIOLATION"
+          ],
+          "verificationWallTimeMs": 21576.450199999996
+        },
+        "500": {
+          "controllerStateCoverage": {
+            "actionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded"
+            ],
+            "controllerStates": {
+              "count": 1081,
+              "signaturesSha256": "75a2d96cba53e7738b59afc7218a1a6b969f4387b7a906c44491ad94a28cc57a"
+            },
+            "failureClasses": [
+              "AUTOSCALER_CAPACITY_MISMATCH",
+              "ROLLOUT_AVAILABILITY_VIOLATION",
+              "SERVICE_CAPACITY_COLLAPSE",
+              "TRAFFIC_TO_UNREADY_POD",
+              "ZONE_SURVIVABILITY_VIOLATION"
+            ],
+            "missing": [
+              "cloud.fault.node-drain",
+              "cloud.scheduler.yield"
+            ],
+            "target": {
+              "covered": 20,
+              "ratio": 0.9090909090909091,
+              "total": 22
+            },
+            "transitionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.endpoints-propagated",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded",
+              "cloud.kubelet.image-pulled",
+              "cloud.kubelet.pod-ready",
+              "cloud.kubelet.pod-terminated"
+            ]
+          },
+          "counterexampleLength": {
+            "meanActions": 92.1413043478261,
+            "minimumActions": 42
+          },
+          "evaluatedSchedules": 500,
+          "failureRecall": 0.09455292908530319,
+          "failuresFound": 276,
+          "requestedBudget": 500,
+          "schedulesToFirstCounterexample": 2,
+          "timeToFirstCounterexampleMs": 270.9045,
+          "uniqueFailureClassCount": 5,
+          "uniqueFailureClasses": [
+            "AUTOSCALER_CAPACITY_MISMATCH",
+            "ROLLOUT_AVAILABILITY_VIOLATION",
+            "SERVICE_CAPACITY_COLLAPSE",
+            "TRAFFIC_TO_UNREADY_POD",
+            "ZONE_SURVIVABILITY_VIOLATION"
+          ],
+          "verificationWallTimeMs": 96694.54429999997
+        },
+        "1000": {
+          "controllerStateCoverage": {
+            "actionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded"
+            ],
+            "controllerStates": {
+              "count": 1584,
+              "signaturesSha256": "b82dd0b55452938636552a0d4487084207579d5c648e22bca66ea5ec0b43cf92"
+            },
+            "failureClasses": [
+              "AUTOSCALER_CAPACITY_MISMATCH",
+              "ROLLOUT_AVAILABILITY_VIOLATION",
+              "SERVICE_CAPACITY_COLLAPSE",
+              "TRAFFIC_TO_UNREADY_POD",
+              "ZONE_SURVIVABILITY_VIOLATION"
+            ],
+            "missing": [
+              "cloud.fault.node-drain",
+              "cloud.scheduler.yield"
+            ],
+            "target": {
+              "covered": 20,
+              "ratio": 0.9090909090909091,
+              "total": 22
+            },
+            "transitionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.endpoints-propagated",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded",
+              "cloud.kubelet.image-pulled",
+              "cloud.kubelet.pod-ready",
+              "cloud.kubelet.pod-terminated"
+            ]
+          },
+          "counterexampleLength": {
+            "meanActions": 91.21416234887738,
+            "minimumActions": 41
+          },
+          "evaluatedSchedules": 1000,
+          "failureRecall": 0.19835560123329907,
+          "failuresFound": 579,
+          "requestedBudget": 1000,
+          "schedulesToFirstCounterexample": 2,
+          "timeToFirstCounterexampleMs": 270.9045,
+          "uniqueFailureClassCount": 5,
+          "uniqueFailureClasses": [
+            "AUTOSCALER_CAPACITY_MISMATCH",
+            "ROLLOUT_AVAILABILITY_VIOLATION",
+            "SERVICE_CAPACITY_COLLAPSE",
+            "TRAFFIC_TO_UNREADY_POD",
+            "ZONE_SURVIVABILITY_VIOLATION"
+          ],
+          "verificationWallTimeMs": 195182.8192999999
+        },
+        "5000": {
+          "controllerStateCoverage": {
+            "actionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded"
+            ],
+            "controllerStates": {
+              "count": 3279,
+              "signaturesSha256": "322b9b3570d26cfb5e6cea8631f596efb81492c840f4ecbe82b80c9ce5d3e344"
+            },
+            "failureClasses": [
+              "AUTOSCALER_CAPACITY_MISMATCH",
+              "ROLLOUT_AVAILABILITY_VIOLATION",
+              "SERVICE_CAPACITY_COLLAPSE",
+              "TRAFFIC_TO_UNREADY_POD",
+              "ZONE_SURVIVABILITY_VIOLATION"
+            ],
+            "missing": [
+              "cloud.fault.node-drain",
+              "cloud.scheduler.yield"
+            ],
+            "target": {
+              "covered": 20,
+              "ratio": 0.9090909090909091,
+              "total": 22
+            },
+            "transitionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.endpoints-propagated",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded",
+              "cloud.kubelet.image-pulled",
+              "cloud.kubelet.pod-ready",
+              "cloud.kubelet.pod-terminated"
+            ]
+          },
+          "counterexampleLength": {
+            "meanActions": 90.6122848200313,
+            "minimumActions": 40
+          },
+          "evaluatedSchedules": 5000,
+          "failureRecall": 0.8756423432682425,
+          "failuresFound": 2556,
+          "requestedBudget": 5000,
+          "schedulesToFirstCounterexample": 2,
+          "timeToFirstCounterexampleMs": 270.9045,
+          "uniqueFailureClassCount": 5,
+          "uniqueFailureClasses": [
+            "AUTOSCALER_CAPACITY_MISMATCH",
+            "ROLLOUT_AVAILABILITY_VIOLATION",
+            "SERVICE_CAPACITY_COLLAPSE",
+            "TRAFFIC_TO_UNREADY_POD",
+            "ZONE_SURVIVABILITY_VIOLATION"
+          ],
+          "verificationWallTimeMs": 724781.7173
+        }
+      },
+      "candidateSchedules": 5838,
+      "totalCounterexamples": 2919
+    },
+    "gnnRewiredEdges": {
+      "budgets": {
+        "100": {
+          "controllerStateCoverage": {
+            "actionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded"
+            ],
+            "controllerStates": {
+              "count": 541,
+              "signaturesSha256": "67706b844a1003613b18c01754007bdbde11b66d1f2128d88f3a88f2a4748620"
+            },
+            "failureClasses": [
+              "AUTOSCALER_CAPACITY_MISMATCH",
+              "ROLLOUT_AVAILABILITY_VIOLATION",
+              "SERVICE_CAPACITY_COLLAPSE",
+              "TRAFFIC_TO_UNREADY_POD",
+              "ZONE_SURVIVABILITY_VIOLATION"
+            ],
+            "missing": [
+              "cloud.fault.node-drain",
+              "cloud.scheduler.yield"
+            ],
+            "target": {
+              "covered": 20,
+              "ratio": 0.9090909090909091,
+              "total": 22
+            },
+            "transitionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.endpoints-propagated",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded",
+              "cloud.kubelet.image-pulled",
+              "cloud.kubelet.pod-ready",
+              "cloud.kubelet.pod-terminated"
+            ]
+          },
+          "counterexampleLength": {
+            "meanActions": 89.22641509433963,
+            "minimumActions": 48
+          },
+          "evaluatedSchedules": 100,
+          "failureRecall": 0.01815690304898938,
+          "failuresFound": 53,
+          "requestedBudget": 100,
+          "schedulesToFirstCounterexample": 4,
+          "timeToFirstCounterexampleMs": 384.895,
+          "uniqueFailureClassCount": 5,
+          "uniqueFailureClasses": [
+            "AUTOSCALER_CAPACITY_MISMATCH",
+            "ROLLOUT_AVAILABILITY_VIOLATION",
+            "SERVICE_CAPACITY_COLLAPSE",
+            "TRAFFIC_TO_UNREADY_POD",
+            "ZONE_SURVIVABILITY_VIOLATION"
+          ],
+          "verificationWallTimeMs": 17377.6425
+        },
+        "500": {
+          "controllerStateCoverage": {
+            "actionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded"
+            ],
+            "controllerStates": {
+              "count": 1496,
+              "signaturesSha256": "36f0935ddc3ae4c9a7e531290b7051514b3654758b70c1f71e806f3250dd8e71"
+            },
+            "failureClasses": [
+              "AUTOSCALER_CAPACITY_MISMATCH",
+              "ROLLOUT_AVAILABILITY_VIOLATION",
+              "SERVICE_CAPACITY_COLLAPSE",
+              "TRAFFIC_TO_UNREADY_POD",
+              "ZONE_SURVIVABILITY_VIOLATION"
+            ],
+            "missing": [
+              "cloud.fault.node-drain",
+              "cloud.scheduler.yield"
+            ],
+            "target": {
+              "covered": 20,
+              "ratio": 0.9090909090909091,
+              "total": 22
+            },
+            "transitionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.endpoints-propagated",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded",
+              "cloud.kubelet.image-pulled",
+              "cloud.kubelet.pod-ready",
+              "cloud.kubelet.pod-terminated"
+            ]
+          },
+          "counterexampleLength": {
+            "meanActions": 93.31395348837209,
+            "minimumActions": 42
+          },
+          "evaluatedSchedules": 500,
+          "failureRecall": 0.08838643371017471,
+          "failuresFound": 258,
+          "requestedBudget": 500,
+          "schedulesToFirstCounterexample": 4,
+          "timeToFirstCounterexampleMs": 384.895,
+          "uniqueFailureClassCount": 5,
+          "uniqueFailureClasses": [
+            "AUTOSCALER_CAPACITY_MISMATCH",
+            "ROLLOUT_AVAILABILITY_VIOLATION",
+            "SERVICE_CAPACITY_COLLAPSE",
+            "TRAFFIC_TO_UNREADY_POD",
+            "ZONE_SURVIVABILITY_VIOLATION"
+          ],
+          "verificationWallTimeMs": 86734.49799999999
+        },
+        "1000": {
+          "controllerStateCoverage": {
+            "actionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded"
+            ],
+            "controllerStates": {
+              "count": 2120,
+              "signaturesSha256": "360ff8361f28e201c63bf63d0139a000dc1219254c3c385393d46089ea7130f5"
+            },
+            "failureClasses": [
+              "AUTOSCALER_CAPACITY_MISMATCH",
+              "ROLLOUT_AVAILABILITY_VIOLATION",
+              "SERVICE_CAPACITY_COLLAPSE",
+              "TRAFFIC_TO_UNREADY_POD",
+              "ZONE_SURVIVABILITY_VIOLATION"
+            ],
+            "missing": [
+              "cloud.fault.node-drain",
+              "cloud.scheduler.yield"
+            ],
+            "target": {
+              "covered": 20,
+              "ratio": 0.9090909090909091,
+              "total": 22
+            },
+            "transitionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.endpoints-propagated",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded",
+              "cloud.kubelet.image-pulled",
+              "cloud.kubelet.pod-ready",
+              "cloud.kubelet.pod-terminated"
+            ]
+          },
+          "counterexampleLength": {
+            "meanActions": 93.65973534971644,
+            "minimumActions": 41
+          },
+          "evaluatedSchedules": 1000,
+          "failureRecall": 0.18122644741349778,
+          "failuresFound": 529,
+          "requestedBudget": 1000,
+          "schedulesToFirstCounterexample": 4,
+          "timeToFirstCounterexampleMs": 384.895,
+          "uniqueFailureClassCount": 5,
+          "uniqueFailureClasses": [
+            "AUTOSCALER_CAPACITY_MISMATCH",
+            "ROLLOUT_AVAILABILITY_VIOLATION",
+            "SERVICE_CAPACITY_COLLAPSE",
+            "TRAFFIC_TO_UNREADY_POD",
+            "ZONE_SURVIVABILITY_VIOLATION"
+          ],
+          "verificationWallTimeMs": 175167.76499999998
+        },
+        "5000": {
+          "controllerStateCoverage": {
+            "actionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded"
+            ],
+            "controllerStates": {
+              "count": 3283,
+              "signaturesSha256": "180250f4e94b79412d3f2c94aebac049ad1e693995c0f6d34f85c5ba2017368e"
+            },
+            "failureClasses": [
+              "AUTOSCALER_CAPACITY_MISMATCH",
+              "ROLLOUT_AVAILABILITY_VIOLATION",
+              "SERVICE_CAPACITY_COLLAPSE",
+              "TRAFFIC_TO_UNREADY_POD",
+              "ZONE_SURVIVABILITY_VIOLATION"
+            ],
+            "missing": [
+              "cloud.fault.node-drain",
+              "cloud.scheduler.yield"
+            ],
+            "target": {
+              "covered": 20,
+              "ratio": 0.9090909090909091,
+              "total": 22
+            },
+            "transitionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.endpoints-propagated",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded",
+              "cloud.kubelet.image-pulled",
+              "cloud.kubelet.pod-ready",
+              "cloud.kubelet.pod-terminated"
+            ]
+          },
+          "counterexampleLength": {
+            "meanActions": 90.86611700039262,
+            "minimumActions": 40
+          },
+          "evaluatedSchedules": 5000,
+          "failureRecall": 0.8725590955806783,
+          "failuresFound": 2547,
+          "requestedBudget": 5000,
+          "schedulesToFirstCounterexample": 4,
+          "timeToFirstCounterexampleMs": 384.895,
+          "uniqueFailureClassCount": 5,
+          "uniqueFailureClasses": [
+            "AUTOSCALER_CAPACITY_MISMATCH",
+            "ROLLOUT_AVAILABILITY_VIOLATION",
+            "SERVICE_CAPACITY_COLLAPSE",
+            "TRAFFIC_TO_UNREADY_POD",
+            "ZONE_SURVIVABILITY_VIOLATION"
+          ],
+          "verificationWallTimeMs": 727192.8784999998
+        }
+      },
+      "candidateSchedules": 5838,
+      "totalCounterexamples": 2919
+    },
+    "heuristic": {
+      "budgets": {
+        "100": {
+          "controllerStateCoverage": {
+            "actionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded"
+            ],
+            "controllerStates": {
+              "count": 309,
+              "signaturesSha256": "d453adcbff3c708f27e70ca32dfdd319d8d33523f5dfe006194d7e377a24a3c2"
+            },
+            "failureClasses": [
+              "AUTOSCALER_CAPACITY_MISMATCH",
+              "ROLLOUT_AVAILABILITY_VIOLATION",
+              "SERVICE_CAPACITY_COLLAPSE",
+              "TRAFFIC_TO_UNREADY_POD",
+              "ZONE_SURVIVABILITY_VIOLATION"
+            ],
+            "missing": [
+              "cloud.fault.node-drain",
+              "cloud.scheduler.yield"
+            ],
+            "target": {
+              "covered": 20,
+              "ratio": 0.9090909090909091,
+              "total": 22
+            },
+            "transitionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.endpoints-propagated",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded",
+              "cloud.kubelet.image-pulled",
+              "cloud.kubelet.pod-ready",
+              "cloud.kubelet.pod-terminated"
+            ]
+          },
+          "counterexampleLength": {
+            "meanActions": 92.78571428571429,
+            "minimumActions": 44
+          },
+          "evaluatedSchedules": 100,
+          "failureRecall": 0.014388489208633094,
+          "failuresFound": 42,
+          "requestedBudget": 100,
+          "schedulesToFirstCounterexample": 3,
+          "timeToFirstCounterexampleMs": 957.3688999999999,
+          "uniqueFailureClassCount": 5,
+          "uniqueFailureClasses": [
+            "AUTOSCALER_CAPACITY_MISMATCH",
+            "ROLLOUT_AVAILABILITY_VIOLATION",
+            "SERVICE_CAPACITY_COLLAPSE",
+            "TRAFFIC_TO_UNREADY_POD",
+            "ZONE_SURVIVABILITY_VIOLATION"
+          ],
+          "verificationWallTimeMs": 13116.491000000002
+        },
+        "500": {
+          "controllerStateCoverage": {
+            "actionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded"
+            ],
+            "controllerStates": {
+              "count": 707,
+              "signaturesSha256": "9da712976898bd886439ef489f502ccda0960e6b6710f273891d0cccc48d6b98"
+            },
+            "failureClasses": [
+              "AUTOSCALER_CAPACITY_MISMATCH",
+              "ROLLOUT_AVAILABILITY_VIOLATION",
+              "SERVICE_CAPACITY_COLLAPSE",
+              "TRAFFIC_TO_UNREADY_POD",
+              "ZONE_SURVIVABILITY_VIOLATION"
+            ],
+            "missing": [
+              "cloud.fault.node-drain",
+              "cloud.scheduler.yield"
+            ],
+            "target": {
+              "covered": 20,
+              "ratio": 0.9090909090909091,
+              "total": 22
+            },
+            "transitionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.endpoints-propagated",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded",
+              "cloud.kubelet.image-pulled",
+              "cloud.kubelet.pod-ready",
+              "cloud.kubelet.pod-terminated"
+            ]
+          },
+          "counterexampleLength": {
+            "meanActions": 90.19409282700423,
+            "minimumActions": 42
+          },
+          "evaluatedSchedules": 500,
+          "failureRecall": 0.08119218910585817,
+          "failuresFound": 237,
+          "requestedBudget": 500,
+          "schedulesToFirstCounterexample": 3,
+          "timeToFirstCounterexampleMs": 957.3688999999999,
+          "uniqueFailureClassCount": 5,
+          "uniqueFailureClasses": [
+            "AUTOSCALER_CAPACITY_MISMATCH",
+            "ROLLOUT_AVAILABILITY_VIOLATION",
+            "SERVICE_CAPACITY_COLLAPSE",
+            "TRAFFIC_TO_UNREADY_POD",
+            "ZONE_SURVIVABILITY_VIOLATION"
+          ],
+          "verificationWallTimeMs": 60279.82240000001
+        },
+        "1000": {
+          "controllerStateCoverage": {
+            "actionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded"
+            ],
+            "controllerStates": {
+              "count": 913,
+              "signaturesSha256": "a2b0735c4a684be1eb6c28f3d270bc728ba0c7a099b7523489c47884d706a3e4"
+            },
+            "failureClasses": [
+              "AUTOSCALER_CAPACITY_MISMATCH",
+              "ROLLOUT_AVAILABILITY_VIOLATION",
+              "SERVICE_CAPACITY_COLLAPSE",
+              "TRAFFIC_TO_UNREADY_POD",
+              "ZONE_SURVIVABILITY_VIOLATION"
+            ],
+            "missing": [
+              "cloud.fault.node-drain",
+              "cloud.scheduler.yield"
+            ],
+            "target": {
+              "covered": 20,
+              "ratio": 0.9090909090909091,
+              "total": 22
+            },
+            "transitionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.endpoints-propagated",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded",
+              "cloud.kubelet.image-pulled",
+              "cloud.kubelet.pod-ready",
+              "cloud.kubelet.pod-terminated"
+            ]
+          },
+          "counterexampleLength": {
+            "meanActions": 90.47474747474747,
+            "minimumActions": 40
+          },
+          "evaluatedSchedules": 1000,
+          "failureRecall": 0.1695786228160329,
+          "failuresFound": 495,
+          "requestedBudget": 1000,
+          "schedulesToFirstCounterexample": 3,
+          "timeToFirstCounterexampleMs": 957.3688999999999,
+          "uniqueFailureClassCount": 5,
+          "uniqueFailureClasses": [
+            "AUTOSCALER_CAPACITY_MISMATCH",
+            "ROLLOUT_AVAILABILITY_VIOLATION",
+            "SERVICE_CAPACITY_COLLAPSE",
+            "TRAFFIC_TO_UNREADY_POD",
+            "ZONE_SURVIVABILITY_VIOLATION"
+          ],
+          "verificationWallTimeMs": 122927.18869999996
+        },
+        "5000": {
+          "controllerStateCoverage": {
+            "actionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded"
+            ],
+            "controllerStates": {
+              "count": 3231,
+              "signaturesSha256": "6faebeb0617d3f1ef2799c05232c7698d6cb23886b1d4a1b825c0e4a82675e67"
+            },
+            "failureClasses": [
+              "AUTOSCALER_CAPACITY_MISMATCH",
+              "ROLLOUT_AVAILABILITY_VIOLATION",
+              "SERVICE_CAPACITY_COLLAPSE",
+              "TRAFFIC_TO_UNREADY_POD",
+              "ZONE_SURVIVABILITY_VIOLATION"
+            ],
+            "missing": [
+              "cloud.fault.node-drain",
+              "cloud.scheduler.yield"
+            ],
+            "target": {
+              "covered": 20,
+              "ratio": 0.9090909090909091,
+              "total": 22
+            },
+            "transitionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.endpoints-propagated",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded",
+              "cloud.kubelet.image-pulled",
+              "cloud.kubelet.pod-ready",
+              "cloud.kubelet.pod-terminated"
+            ]
+          },
+          "counterexampleLength": {
+            "meanActions": 90.02365930599369,
+            "minimumActions": 40
+          },
+          "evaluatedSchedules": 5000,
+          "failureRecall": 0.868790681740322,
+          "failuresFound": 2536,
+          "requestedBudget": 5000,
+          "schedulesToFirstCounterexample": 3,
+          "timeToFirstCounterexampleMs": 957.3688999999999,
+          "uniqueFailureClassCount": 5,
+          "uniqueFailureClasses": [
+            "AUTOSCALER_CAPACITY_MISMATCH",
+            "ROLLOUT_AVAILABILITY_VIOLATION",
+            "SERVICE_CAPACITY_COLLAPSE",
+            "TRAFFIC_TO_UNREADY_POD",
+            "ZONE_SURVIVABILITY_VIOLATION"
+          ],
+          "verificationWallTimeMs": 697750.3340000005
+        }
+      },
+      "candidateSchedules": 5838,
+      "totalCounterexamples": 2919
+    },
+    "logistic": {
+      "budgets": {
+        "100": {
+          "controllerStateCoverage": {
+            "actionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded"
+            ],
+            "controllerStates": {
+              "count": 228,
+              "signaturesSha256": "d50c87acd2c0fd4d900be66696a202bf32bb762dc654a107879aec868eee7d66"
+            },
+            "failureClasses": [
+              "ROLLOUT_AVAILABILITY_VIOLATION",
+              "SERVICE_CAPACITY_COLLAPSE",
+              "TRAFFIC_TO_UNREADY_POD"
+            ],
+            "missing": [
+              "cloud.fault.node-drain",
+              "cloud.scheduler.yield"
+            ],
+            "target": {
+              "covered": 20,
+              "ratio": 0.9090909090909091,
+              "total": 22
+            },
+            "transitionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.endpoints-propagated",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded",
+              "cloud.kubelet.image-pulled",
+              "cloud.kubelet.pod-ready",
+              "cloud.kubelet.pod-terminated"
+            ]
+          },
+          "counterexampleLength": {
+            "meanActions": 92.06666666666666,
+            "minimumActions": 45
+          },
+          "evaluatedSchedules": 100,
+          "failureRecall": 0.010277492291880781,
+          "failuresFound": 30,
+          "requestedBudget": 100,
+          "schedulesToFirstCounterexample": 2,
+          "timeToFirstCounterexampleMs": 562.2592999999999,
+          "uniqueFailureClassCount": 3,
+          "uniqueFailureClasses": [
+            "ROLLOUT_AVAILABILITY_VIOLATION",
+            "SERVICE_CAPACITY_COLLAPSE",
+            "TRAFFIC_TO_UNREADY_POD"
+          ],
+          "verificationWallTimeMs": 13054.357799999996
+        },
+        "500": {
+          "controllerStateCoverage": {
+            "actionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded"
+            ],
+            "controllerStates": {
+              "count": 852,
+              "signaturesSha256": "532379bf4b498e047d2d11c886571fb93f2958d325c85cdfe7b1cd19e8db071e"
+            },
+            "failureClasses": [
+              "AUTOSCALER_CAPACITY_MISMATCH",
+              "ROLLOUT_AVAILABILITY_VIOLATION",
+              "SERVICE_CAPACITY_COLLAPSE",
+              "TRAFFIC_TO_UNREADY_POD",
+              "ZONE_SURVIVABILITY_VIOLATION"
+            ],
+            "missing": [
+              "cloud.fault.node-drain",
+              "cloud.scheduler.yield"
+            ],
+            "target": {
+              "covered": 20,
+              "ratio": 0.9090909090909091,
+              "total": 22
+            },
+            "transitionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.endpoints-propagated",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded",
+              "cloud.kubelet.image-pulled",
+              "cloud.kubelet.pod-ready",
+              "cloud.kubelet.pod-terminated"
+            ]
+          },
+          "counterexampleLength": {
+            "meanActions": 90.78099173553719,
+            "minimumActions": 40
+          },
+          "evaluatedSchedules": 500,
+          "failureRecall": 0.0829051044878383,
+          "failuresFound": 242,
+          "requestedBudget": 500,
+          "schedulesToFirstCounterexample": 2,
+          "timeToFirstCounterexampleMs": 562.2592999999999,
+          "uniqueFailureClassCount": 5,
+          "uniqueFailureClasses": [
+            "AUTOSCALER_CAPACITY_MISMATCH",
+            "ROLLOUT_AVAILABILITY_VIOLATION",
+            "SERVICE_CAPACITY_COLLAPSE",
+            "TRAFFIC_TO_UNREADY_POD",
+            "ZONE_SURVIVABILITY_VIOLATION"
+          ],
+          "verificationWallTimeMs": 70494.51449999998
+        },
+        "1000": {
+          "controllerStateCoverage": {
+            "actionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded"
+            ],
+            "controllerStates": {
+              "count": 1379,
+              "signaturesSha256": "e1b52fc6f4ed26dd9ebefd3fd7b96508f6e1f5d68f63a3d3c8bbf4861f4145ee"
+            },
+            "failureClasses": [
+              "AUTOSCALER_CAPACITY_MISMATCH",
+              "ROLLOUT_AVAILABILITY_VIOLATION",
+              "SERVICE_CAPACITY_COLLAPSE",
+              "TRAFFIC_TO_UNREADY_POD",
+              "ZONE_SURVIVABILITY_VIOLATION"
+            ],
+            "missing": [
+              "cloud.fault.node-drain",
+              "cloud.scheduler.yield"
+            ],
+            "target": {
+              "covered": 20,
+              "ratio": 0.9090909090909091,
+              "total": 22
+            },
+            "transitionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.endpoints-propagated",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded",
+              "cloud.kubelet.image-pulled",
+              "cloud.kubelet.pod-ready",
+              "cloud.kubelet.pod-terminated"
+            ]
+          },
+          "counterexampleLength": {
+            "meanActions": 91.79303278688525,
+            "minimumActions": 40
+          },
+          "evaluatedSchedules": 1000,
+          "failureRecall": 0.1671805412812607,
+          "failuresFound": 488,
+          "requestedBudget": 1000,
+          "schedulesToFirstCounterexample": 2,
+          "timeToFirstCounterexampleMs": 562.2592999999999,
+          "uniqueFailureClassCount": 5,
+          "uniqueFailureClasses": [
+            "AUTOSCALER_CAPACITY_MISMATCH",
+            "ROLLOUT_AVAILABILITY_VIOLATION",
+            "SERVICE_CAPACITY_COLLAPSE",
+            "TRAFFIC_TO_UNREADY_POD",
+            "ZONE_SURVIVABILITY_VIOLATION"
+          ],
+          "verificationWallTimeMs": 141506.6120999998
+        },
+        "5000": {
+          "controllerStateCoverage": {
+            "actionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded"
+            ],
+            "controllerStates": {
+              "count": 3248,
+              "signaturesSha256": "143057c9983508e85a8c45fc88a5cabd525566c922220d3867cd01c4c25a6d2c"
+            },
+            "failureClasses": [
+              "AUTOSCALER_CAPACITY_MISMATCH",
+              "ROLLOUT_AVAILABILITY_VIOLATION",
+              "SERVICE_CAPACITY_COLLAPSE",
+              "TRAFFIC_TO_UNREADY_POD",
+              "ZONE_SURVIVABILITY_VIOLATION"
+            ],
+            "missing": [
+              "cloud.fault.node-drain",
+              "cloud.scheduler.yield"
+            ],
+            "target": {
+              "covered": 20,
+              "ratio": 0.9090909090909091,
+              "total": 22
+            },
+            "transitionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.endpoints-propagated",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded",
+              "cloud.kubelet.image-pulled",
+              "cloud.kubelet.pod-ready",
+              "cloud.kubelet.pod-terminated"
+            ]
+          },
+          "counterexampleLength": {
+            "meanActions": 90.51789976133652,
+            "minimumActions": 40
+          },
+          "evaluatedSchedules": 5000,
+          "failureRecall": 0.8612538540596094,
+          "failuresFound": 2514,
+          "requestedBudget": 5000,
+          "schedulesToFirstCounterexample": 2,
+          "timeToFirstCounterexampleMs": 562.2592999999999,
+          "uniqueFailureClassCount": 5,
+          "uniqueFailureClasses": [
+            "AUTOSCALER_CAPACITY_MISMATCH",
+            "ROLLOUT_AVAILABILITY_VIOLATION",
+            "SERVICE_CAPACITY_COLLAPSE",
+            "TRAFFIC_TO_UNREADY_POD",
+            "ZONE_SURVIVABILITY_VIOLATION"
+          ],
+          "verificationWallTimeMs": 714997.0063000019
+        }
+      },
+      "candidateSchedules": 5838,
+      "totalCounterexamples": 2919
+    },
+    "pooledMlp": {
+      "budgets": {
+        "100": {
+          "controllerStateCoverage": {
+            "actionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded"
+            ],
+            "controllerStates": {
+              "count": 281,
+              "signaturesSha256": "8968e01dda2d148554763cfe8b42f1ff4525892b7e7d8dafd888e71be9d26e4e"
+            },
+            "failureClasses": [
+              "AUTOSCALER_CAPACITY_MISMATCH",
+              "ROLLOUT_AVAILABILITY_VIOLATION",
+              "SERVICE_CAPACITY_COLLAPSE",
+              "TRAFFIC_TO_UNREADY_POD",
+              "ZONE_SURVIVABILITY_VIOLATION"
+            ],
+            "missing": [
+              "cloud.fault.node-drain",
+              "cloud.scheduler.yield"
+            ],
+            "target": {
+              "covered": 20,
+              "ratio": 0.9090909090909091,
+              "total": 22
+            },
+            "transitionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.endpoints-propagated",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded",
+              "cloud.kubelet.image-pulled",
+              "cloud.kubelet.pod-ready",
+              "cloud.kubelet.pod-terminated"
+            ]
+          },
+          "counterexampleLength": {
+            "meanActions": 83.06,
+            "minimumActions": 41
+          },
+          "evaluatedSchedules": 100,
+          "failureRecall": 0.0171291538198013,
+          "failuresFound": 50,
+          "requestedBudget": 100,
+          "schedulesToFirstCounterexample": 1,
+          "timeToFirstCounterexampleMs": 237.3901,
+          "uniqueFailureClassCount": 5,
+          "uniqueFailureClasses": [
+            "AUTOSCALER_CAPACITY_MISMATCH",
+            "ROLLOUT_AVAILABILITY_VIOLATION",
+            "SERVICE_CAPACITY_COLLAPSE",
+            "TRAFFIC_TO_UNREADY_POD",
+            "ZONE_SURVIVABILITY_VIOLATION"
+          ],
+          "verificationWallTimeMs": 19726.77030000001
+        },
+        "500": {
+          "controllerStateCoverage": {
+            "actionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded"
+            ],
+            "controllerStates": {
+              "count": 759,
+              "signaturesSha256": "85294550c7ddc083f6ae619a31c3d516c92ba4b80d972f63956b2095172a6341"
+            },
+            "failureClasses": [
+              "AUTOSCALER_CAPACITY_MISMATCH",
+              "ROLLOUT_AVAILABILITY_VIOLATION",
+              "SERVICE_CAPACITY_COLLAPSE",
+              "TRAFFIC_TO_UNREADY_POD",
+              "ZONE_SURVIVABILITY_VIOLATION"
+            ],
+            "missing": [
+              "cloud.fault.node-drain",
+              "cloud.scheduler.yield"
+            ],
+            "target": {
+              "covered": 20,
+              "ratio": 0.9090909090909091,
+              "total": 22
+            },
+            "transitionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.endpoints-propagated",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded",
+              "cloud.kubelet.image-pulled",
+              "cloud.kubelet.pod-ready",
+              "cloud.kubelet.pod-terminated"
+            ]
+          },
+          "counterexampleLength": {
+            "meanActions": 87.07142857142857,
+            "minimumActions": 41
+          },
+          "evaluatedSchedules": 500,
+          "failureRecall": 0.09592326139088729,
+          "failuresFound": 280,
+          "requestedBudget": 500,
+          "schedulesToFirstCounterexample": 1,
+          "timeToFirstCounterexampleMs": 237.3901,
+          "uniqueFailureClassCount": 5,
+          "uniqueFailureClasses": [
+            "AUTOSCALER_CAPACITY_MISMATCH",
+            "ROLLOUT_AVAILABILITY_VIOLATION",
+            "SERVICE_CAPACITY_COLLAPSE",
+            "TRAFFIC_TO_UNREADY_POD",
+            "ZONE_SURVIVABILITY_VIOLATION"
+          ],
+          "verificationWallTimeMs": 93271.67300000001
+        },
+        "1000": {
+          "controllerStateCoverage": {
+            "actionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded"
+            ],
+            "controllerStates": {
+              "count": 1368,
+              "signaturesSha256": "a03253370cbc23ae406adf64ffed2991e0e2b8aaef5b2c1a59c96c89858627b8"
+            },
+            "failureClasses": [
+              "AUTOSCALER_CAPACITY_MISMATCH",
+              "ROLLOUT_AVAILABILITY_VIOLATION",
+              "SERVICE_CAPACITY_COLLAPSE",
+              "TRAFFIC_TO_UNREADY_POD",
+              "ZONE_SURVIVABILITY_VIOLATION"
+            ],
+            "missing": [
+              "cloud.fault.node-drain",
+              "cloud.scheduler.yield"
+            ],
+            "target": {
+              "covered": 20,
+              "ratio": 0.9090909090909091,
+              "total": 22
+            },
+            "transitionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.endpoints-propagated",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded",
+              "cloud.kubelet.image-pulled",
+              "cloud.kubelet.pod-ready",
+              "cloud.kubelet.pod-terminated"
+            ]
+          },
+          "counterexampleLength": {
+            "meanActions": 89.44933078393882,
+            "minimumActions": 41
+          },
+          "evaluatedSchedules": 1000,
+          "failureRecall": 0.17917094895512162,
+          "failuresFound": 523,
+          "requestedBudget": 1000,
+          "schedulesToFirstCounterexample": 1,
+          "timeToFirstCounterexampleMs": 237.3901,
+          "uniqueFailureClassCount": 5,
+          "uniqueFailureClasses": [
+            "AUTOSCALER_CAPACITY_MISMATCH",
+            "ROLLOUT_AVAILABILITY_VIOLATION",
+            "SERVICE_CAPACITY_COLLAPSE",
+            "TRAFFIC_TO_UNREADY_POD",
+            "ZONE_SURVIVABILITY_VIOLATION"
+          ],
+          "verificationWallTimeMs": 189025.3421
+        },
+        "5000": {
+          "controllerStateCoverage": {
+            "actionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded"
+            ],
+            "controllerStates": {
+              "count": 3274,
+              "signaturesSha256": "49139930fe388710a009aba944fb378477e746abb472eff53398bdcba04a80e8"
+            },
+            "failureClasses": [
+              "AUTOSCALER_CAPACITY_MISMATCH",
+              "ROLLOUT_AVAILABILITY_VIOLATION",
+              "SERVICE_CAPACITY_COLLAPSE",
+              "TRAFFIC_TO_UNREADY_POD",
+              "ZONE_SURVIVABILITY_VIOLATION"
+            ],
+            "missing": [
+              "cloud.fault.node-drain",
+              "cloud.scheduler.yield"
+            ],
+            "target": {
+              "covered": 20,
+              "ratio": 0.9090909090909091,
+              "total": 22
+            },
+            "transitionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.endpoints-propagated",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded",
+              "cloud.kubelet.image-pulled",
+              "cloud.kubelet.pod-ready",
+              "cloud.kubelet.pod-terminated"
+            ]
+          },
+          "counterexampleLength": {
+            "meanActions": 90.41028708133972,
+            "minimumActions": 40
+          },
+          "evaluatedSchedules": 5000,
+          "failureRecall": 0.8591983556012333,
+          "failuresFound": 2508,
+          "requestedBudget": 5000,
+          "schedulesToFirstCounterexample": 1,
+          "timeToFirstCounterexampleMs": 237.3901,
+          "uniqueFailureClassCount": 5,
+          "uniqueFailureClasses": [
+            "AUTOSCALER_CAPACITY_MISMATCH",
+            "ROLLOUT_AVAILABILITY_VIOLATION",
+            "SERVICE_CAPACITY_COLLAPSE",
+            "TRAFFIC_TO_UNREADY_POD",
+            "ZONE_SURVIVABILITY_VIOLATION"
+          ],
+          "verificationWallTimeMs": 725231.6373000008
+        }
+      },
+      "candidateSchedules": 5838,
+      "totalCounterexamples": 2919
+    },
+    "random": {
+      "budgets": {
+        "100": {
+          "controllerStateCoverage": {
+            "actionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded"
+            ],
+            "controllerStates": {
+              "count": 553,
+              "signaturesSha256": "9e1e4f4ba82f43ded05c432fb550991a25052851bad65454c781eebfcd9ddfe1"
+            },
+            "failureClasses": [
+              "AUTOSCALER_CAPACITY_MISMATCH",
+              "ROLLOUT_AVAILABILITY_VIOLATION",
+              "SERVICE_CAPACITY_COLLAPSE",
+              "TRAFFIC_TO_UNREADY_POD",
+              "ZONE_SURVIVABILITY_VIOLATION"
+            ],
+            "missing": [
+              "cloud.fault.node-drain",
+              "cloud.scheduler.yield"
+            ],
+            "target": {
+              "covered": 20,
+              "ratio": 0.9090909090909091,
+              "total": 22
+            },
+            "transitionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.endpoints-propagated",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded",
+              "cloud.kubelet.image-pulled",
+              "cloud.kubelet.pod-ready",
+              "cloud.kubelet.pod-terminated"
+            ]
+          },
+          "counterexampleLength": {
+            "meanActions": 86.6,
+            "minimumActions": 40
+          },
+          "evaluatedSchedules": 100,
+          "failureRecall": 0.0171291538198013,
+          "failuresFound": 50,
+          "requestedBudget": 100,
+          "schedulesToFirstCounterexample": 6,
+          "timeToFirstCounterexampleMs": 552.0236,
+          "uniqueFailureClassCount": 5,
+          "uniqueFailureClasses": [
+            "AUTOSCALER_CAPACITY_MISMATCH",
+            "ROLLOUT_AVAILABILITY_VIOLATION",
+            "SERVICE_CAPACITY_COLLAPSE",
+            "TRAFFIC_TO_UNREADY_POD",
+            "ZONE_SURVIVABILITY_VIOLATION"
+          ],
+          "verificationWallTimeMs": 13532.476200000001
+        },
+        "500": {
+          "controllerStateCoverage": {
+            "actionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded"
+            ],
+            "controllerStates": {
+              "count": 1415,
+              "signaturesSha256": "a5442c5b866ce574d0c8fe450c43f9aae81e436e7f956f889806daf9de72f648"
+            },
+            "failureClasses": [
+              "AUTOSCALER_CAPACITY_MISMATCH",
+              "ROLLOUT_AVAILABILITY_VIOLATION",
+              "SERVICE_CAPACITY_COLLAPSE",
+              "TRAFFIC_TO_UNREADY_POD",
+              "ZONE_SURVIVABILITY_VIOLATION"
+            ],
+            "missing": [
+              "cloud.fault.node-drain",
+              "cloud.scheduler.yield"
+            ],
+            "target": {
+              "covered": 20,
+              "ratio": 0.9090909090909091,
+              "total": 22
+            },
+            "transitionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.endpoints-propagated",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded",
+              "cloud.kubelet.image-pulled",
+              "cloud.kubelet.pod-ready",
+              "cloud.kubelet.pod-terminated"
+            ]
+          },
+          "counterexampleLength": {
+            "meanActions": 90.98425196850394,
+            "minimumActions": 40
+          },
+          "evaluatedSchedules": 500,
+          "failureRecall": 0.08701610140459061,
+          "failuresFound": 254,
+          "requestedBudget": 500,
+          "schedulesToFirstCounterexample": 6,
+          "timeToFirstCounterexampleMs": 552.0236,
+          "uniqueFailureClassCount": 5,
+          "uniqueFailureClasses": [
+            "AUTOSCALER_CAPACITY_MISMATCH",
+            "ROLLOUT_AVAILABILITY_VIOLATION",
+            "SERVICE_CAPACITY_COLLAPSE",
+            "TRAFFIC_TO_UNREADY_POD",
+            "ZONE_SURVIVABILITY_VIOLATION"
+          ],
+          "verificationWallTimeMs": 71928.526
+        },
+        "1000": {
+          "controllerStateCoverage": {
+            "actionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded"
+            ],
+            "controllerStates": {
+              "count": 1914,
+              "signaturesSha256": "9da72a8aa006061d4ca584a80d9ad268f4213106580a1fde00f5c24180380488"
+            },
+            "failureClasses": [
+              "AUTOSCALER_CAPACITY_MISMATCH",
+              "ROLLOUT_AVAILABILITY_VIOLATION",
+              "SERVICE_CAPACITY_COLLAPSE",
+              "TRAFFIC_TO_UNREADY_POD",
+              "ZONE_SURVIVABILITY_VIOLATION"
+            ],
+            "missing": [
+              "cloud.fault.node-drain",
+              "cloud.scheduler.yield"
+            ],
+            "target": {
+              "covered": 20,
+              "ratio": 0.9090909090909091,
+              "total": 22
+            },
+            "transitionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.endpoints-propagated",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded",
+              "cloud.kubelet.image-pulled",
+              "cloud.kubelet.pod-ready",
+              "cloud.kubelet.pod-terminated"
+            ]
+          },
+          "counterexampleLength": {
+            "meanActions": 89.30595482546201,
+            "minimumActions": 40
+          },
+          "evaluatedSchedules": 1000,
+          "failureRecall": 0.1668379582048647,
+          "failuresFound": 487,
+          "requestedBudget": 1000,
+          "schedulesToFirstCounterexample": 6,
+          "timeToFirstCounterexampleMs": 552.0236,
+          "uniqueFailureClassCount": 5,
+          "uniqueFailureClasses": [
+            "AUTOSCALER_CAPACITY_MISMATCH",
+            "ROLLOUT_AVAILABILITY_VIOLATION",
+            "SERVICE_CAPACITY_COLLAPSE",
+            "TRAFFIC_TO_UNREADY_POD",
+            "ZONE_SURVIVABILITY_VIOLATION"
+          ],
+          "verificationWallTimeMs": 145271.2477000001
+        },
+        "5000": {
+          "controllerStateCoverage": {
+            "actionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded"
+            ],
+            "controllerStates": {
+              "count": 3220,
+              "signaturesSha256": "24ddaff540ea6ff4d3efb763a0de433ed881a0771320544b22261187ef26d783"
+            },
+            "failureClasses": [
+              "AUTOSCALER_CAPACITY_MISMATCH",
+              "ROLLOUT_AVAILABILITY_VIOLATION",
+              "SERVICE_CAPACITY_COLLAPSE",
+              "TRAFFIC_TO_UNREADY_POD",
+              "ZONE_SURVIVABILITY_VIOLATION"
+            ],
+            "missing": [
+              "cloud.fault.node-drain",
+              "cloud.scheduler.yield"
+            ],
+            "target": {
+              "covered": 20,
+              "ratio": 0.9090909090909091,
+              "total": 22
+            },
+            "transitionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.endpoints-propagated",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded",
+              "cloud.kubelet.image-pulled",
+              "cloud.kubelet.pod-ready",
+              "cloud.kubelet.pod-terminated"
+            ]
+          },
+          "counterexampleLength": {
+            "meanActions": 89.72723626153228,
+            "minimumActions": 40
+          },
+          "evaluatedSchedules": 5000,
+          "failureRecall": 0.8540596094552929,
+          "failuresFound": 2493,
+          "requestedBudget": 5000,
+          "schedulesToFirstCounterexample": 6,
+          "timeToFirstCounterexampleMs": 552.0236,
+          "uniqueFailureClassCount": 5,
+          "uniqueFailureClasses": [
+            "AUTOSCALER_CAPACITY_MISMATCH",
+            "ROLLOUT_AVAILABILITY_VIOLATION",
+            "SERVICE_CAPACITY_COLLAPSE",
+            "TRAFFIC_TO_UNREADY_POD",
+            "ZONE_SURVIVABILITY_VIOLATION"
+          ],
+          "verificationWallTimeMs": 700964.3579999991
+        }
+      },
+      "candidateSchedules": 5838,
+      "totalCounterexamples": 2919
+    }
+  },
+  "schemaVersion": 1,
+  "verificationBudgets": [
+    100,
+    500,
+    1000,
+    5000
+  ],
+  "phase": "II-B.2",
+  "safetyAuthority": "deterministic-node-verifier",
+  "frozenCorpus": {
+    "freezeFile": "CLOUDPROOF-PHASE-II-A2-CORPUS-FREEZE.json",
+    "freezeDigest": "fceaf60b5d66a8a5543b80615482965b64dde4946d9588bb868613a57f19d6b8",
+    "generatorCommitSha": "42fda40db8ee4ae72c914d71e08dd5faef21f3f6",
+    "files": {
+      "trajectories.jsonl": "9d1b55f606986f6a08af4fea807e829444fe4a5155920c916abbf03be244ddff",
+      "counterfactual-pairs.jsonl": "547e27db11595417f9fec5e0006edfb963fe27b603d2157b405cc79f7e235c22"
+    }
+  },
+  "candidateSplits": [
+    "validation",
+    "test",
+    "ood"
+  ],
+  "pool": {
+    "schedules": 5838,
+    "counterexamples": 2919,
+    "bySplit": {
+      "validation": {
+        "schedules": 2720,
+        "counterexamples": 1360
+      },
+      "test": {
+        "schedules": 1510,
+        "counterexamples": 755
+      },
+      "ood": {
+        "schedules": 1608,
+        "counterexamples": 804
+      }
+    }
+  },
+  "replayFingerprintsVerified": 5838,
+  "uniqueInferenceRequests": 62039,
+  "scorers": {
+    "gnn": {
+      "modelDir": "artifacts/cloudproof/phase-ii-b2/models/gnn-full-k5",
+      "edgeMode": "full",
+      "edgeSeed": null,
+      "inferenceWallTimeMs": 71613.1491
+    },
+    "gnnRandomizedEdges": {
+      "modelDir": "artifacts/cloudproof/phase-ii-b2/models/gnn-full-k5",
+      "edgeMode": "randomized-edges",
+      "edgeSeed": 1729,
+      "inferenceWallTimeMs": 116039.8647
+    },
+    "gnnRewiredEdges": {
+      "modelDir": "artifacts/cloudproof/phase-ii-b2/models/gnn-full-k5",
+      "edgeMode": "rewired-edges",
+      "edgeSeed": 1729,
+      "inferenceWallTimeMs": 67858.1439
+    },
+    "gnnNoEdges": {
+      "modelDir": "artifacts/cloudproof/phase-ii-b2/models/gnn-full-k5",
+      "edgeMode": "no-edges",
+      "edgeSeed": 1729,
+      "inferenceWallTimeMs": 34043.4284
+    },
+    "pooledMlp": {
+      "modelDir": "artifacts/cloudproof/phase-ii-b2/models/pooled-mlp-k5",
+      "edgeMode": "full",
+      "edgeSeed": null,
+      "inferenceWallTimeMs": 39871.2605
+    },
+    "gnnClockBlind": {
+      "modelDir": "artifacts/cloudproof/phase-ii-b2/models/gnn-clock-blind-k5",
+      "edgeMode": "full",
+      "edgeSeed": null,
+      "inferenceWallTimeMs": 53202.2999
+    }
+  },
+  "logisticBaseline": "corpus evaluation.json models[5]",
+  "scheduleRiskRule": "maximum scorer risk over the schedule's position-free actions against the initial graph",
+  "determinism": "rankings are deterministic given the scores; only the random baseline is seeded (1337); no repeated random trials are claimed",
+  "relationalOnlyFlatFeatures": {
+    "validRelationalPairs": 1111,
+    "flatFeaturesIdentical": 1111
+  },
+  "phaseOneReplay": {
+    "file": "artifacts\\cloudproof\\failure-1337.json",
+    "byteIdentical": true,
+    "sameFailure": true,
+    "violationClass": "ROLLOUT_AVAILABILITY_VIOLATION"
+  },
+  "wallTimeMs": 1465205.6036,
+  "fullCoverageExport": "raw/fixed-budget-full.json"
+}

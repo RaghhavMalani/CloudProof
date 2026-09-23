@@ -122,6 +122,212 @@ class CorpusManifest:
         }
 
 
+CAUSAL_MANIFEST_KIND = "cloudproof.causal-corpus-manifest"
+CAUSAL_MANIFEST_SCHEMA_VERSION = 3
+CAUSAL_SPLIT_POLICY = "topology-holdout-v2"
+CAUSAL_AUXILIARY_FILES = {"pairs": "counterfactual-pairs.jsonl", "trajectories": "trajectories.jsonl"}
+CAUSAL_REQUIRED_EXCLUSIONS = {
+    "nextState",
+    "labels",
+    "trajectoryOutcome",
+    "failureClass",
+    "metadata",
+    "nuisance",
+    "placementKind",
+    "scenarioFamily",
+    "difficultyTier",
+}
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+class CausalCorpusManifest:
+    """Phase II-A.2 causal corpus (schema 3, ``topology-holdout-v2``).
+
+    Exposes the same surface as :class:`CorpusManifest` so the unchanged training
+    loop can consume corpus v2, plus the auxiliary pair and trajectory files and a
+    check against the committed freeze record.
+    """
+
+    def __init__(self, directory: str | Path) -> None:
+        self.directory = Path(directory).resolve()
+        manifest_file = self.directory / "manifest.json"
+        if not manifest_file.is_file():
+            raise FileNotFoundError(f"missing causal corpus manifest: {manifest_file}")
+        self.value = json.loads(manifest_file.read_text(encoding="utf-8"))
+        self._validate_contract()
+
+    def _validate_contract(self) -> None:
+        value = self.value
+        if value.get("kind") != CAUSAL_MANIFEST_KIND:
+            raise ValueError("unsupported CloudProof causal corpus manifest kind")
+        if value.get("schemaVersion") != CAUSAL_MANIFEST_SCHEMA_VERSION:
+            raise ValueError("Phase II-B.2 requires causal corpus schema version 3")
+        if value.get("splitPolicy") != CAUSAL_SPLIT_POLICY:
+            raise ValueError("Phase II-B.2 requires topology-holdout-v2")
+        features = value.get("features") or {}
+        if features.get("boundary") != "state-and-candidate-action-only":
+            raise ValueError("manifest violates the state + candidate action feature boundary")
+        if not CAUSAL_REQUIRED_EXCLUSIONS.issubset(set(features.get("excluded") or [])):
+            raise ValueError("manifest is missing required leakage exclusions")
+        if features.get("rowsCarryNextState") is not False:
+            raise ValueError("causal corpus rows must not carry the next state")
+        label = value.get("label") or {}
+        if label.get("defaultHorizon") != 5 or list(label.get("horizons") or []) != [1, 5, 10, 20]:
+            raise ValueError("causal corpus label contract changed (K = 5 default, horizons 1/5/10/20)")
+        if (value.get("generator") or {}).get("outcomeBlind") is not True:
+            raise ValueError("causal corpus generation must be outcome-blind")
+        if not ((value.get("acceptance") or {}).get("passed")):
+            raise ValueError("causal corpus did not pass its acceptance gates")
+        catalog = (value.get("parameters") or {}).get("topologyCatalog") or []
+        split_ids = {
+            split: {entry["topologyId"] for entry in catalog if entry.get("split") == split}
+            for split in SPLIT_NAMES
+        }
+        if any(not ids for ids in split_ids.values()):
+            raise ValueError("train, validation, test, and OOD topologies are all required")
+        flattened = [item for split in SPLIT_NAMES for item in split_ids[split]]
+        if len(flattened) != len(set(flattened)):
+            raise ValueError("topology IDs overlap across splits")
+        train_replicas = [
+            entry["topology"]["initialReplicas"] for entry in catalog if entry.get("split") == "train"
+        ]
+        ood_replicas = [
+            entry["topology"]["initialReplicas"] for entry in catalog if entry.get("split") == "ood"
+        ]
+        if not all(3 <= value <= 6 for value in train_replicas):
+            raise ValueError("training topology contract must remain at 3-6 replicas")
+        if not all(8 <= value <= 12 for value in ood_replicas):
+            raise ValueError("OOD topology contract must remain at 8-12 replicas")
+        files = value.get("files") or {}
+        for filename in [*DATASET_FILENAMES.values(), *CAUSAL_AUXILIARY_FILES.values()]:
+            if not (files.get(filename) or {}).get("sha256"):
+                raise ValueError(f"manifest has no SHA-256 for {filename}")
+
+    def topology_splits(self) -> dict[str, str]:
+        catalog = (self.value.get("parameters") or {}).get("topologyCatalog") or []
+        return {entry["topologyId"]: entry["split"] for entry in catalog}
+
+    def path_for(self, split: str) -> Path:
+        if split not in DATASET_FILENAMES:
+            raise ValueError(f"unsupported split: {split}")
+        path = self.directory / DATASET_FILENAMES[split]
+        if not path.is_file():
+            raise FileNotFoundError(path)
+        return path
+
+    def auxiliary_path(self, role: str) -> Path:
+        if role not in CAUSAL_AUXILIARY_FILES:
+            raise ValueError(f"unsupported auxiliary file: {role}")
+        path = self.directory / CAUSAL_AUXILIARY_FILES[role]
+        if not path.is_file():
+            raise FileNotFoundError(path)
+        return path
+
+    def all_files(self) -> dict[str, Path]:
+        names = [*DATASET_FILENAMES.values(), *CAUSAL_AUXILIARY_FILES.values()]
+        return {name: self.directory / name for name in sorted(names)}
+
+    def verify_hashes(self) -> dict[str, str]:
+        """Recompute every recorded SHA-256 (transitions, pairs, trajectories)."""
+        verified = {}
+        files = self.value.get("files") or {}
+        for filename, path in self.all_files().items():
+            expected = (files.get(filename) or {}).get("sha256")
+            if not path.is_file():
+                raise FileNotFoundError(path)
+            actual = _sha256(path)
+            if actual != expected:
+                raise ValueError(f"SHA-256 mismatch for {filename}: {actual} != {expected}")
+            expected_bytes = (files.get(filename) or {}).get("bytes")
+            if expected_bytes is not None and path.stat().st_size != expected_bytes:
+                raise ValueError(f"byte-count mismatch for {filename}")
+            verified[filename] = actual
+        return verified
+
+    def verify_freeze(self, freeze_path: str | Path, verified: dict[str, str] | None = None) -> dict[str, Any]:
+        """Check this corpus against the committed freeze record and abort on any drift."""
+        freeze = json.loads(Path(freeze_path).read_text(encoding="utf-8"))
+        if freeze.get("kind") != "cloudproof.causal-corpus-freeze":
+            raise ValueError("unsupported freeze record kind")
+        if freeze.get("corpus") != self.directory.name:
+            raise ValueError(f"freeze record is for corpus {freeze.get('corpus')!r}, not {self.directory.name!r}")
+        if freeze.get("manifestKind") != self.value.get("kind"):
+            raise ValueError("freeze record manifest kind differs")
+        if freeze.get("manifestSchemaVersion") != self.value.get("schemaVersion"):
+            raise ValueError("freeze record manifest schema version differs")
+        if freeze.get("splitPolicy") != self.value.get("splitPolicy"):
+            raise ValueError("freeze record split policy differs")
+        for key in ("id", "version", "commitSha", "outcomeBlind"):
+            if (freeze.get("generator") or {}).get(key) != (self.value.get("generator") or {}).get(key):
+                raise ValueError(f"freeze record generator.{key} differs")
+        if freeze.get("seeds") != self.value.get("seeds"):
+            raise ValueError("freeze record seeds differ")
+        if freeze.get("counts") != self.value.get("counts"):
+            raise ValueError("freeze record counts differ")
+        if not (freeze.get("acceptance") or {}).get("passed"):
+            raise ValueError("freeze record does not carry a passed acceptance")
+        verified = verified if verified is not None else self.verify_hashes()
+        frozen_files = freeze.get("files") or {}
+        if set(frozen_files) != set(self.all_files()):
+            raise ValueError("freeze record and corpus directory list different files")
+        for filename, metadata in frozen_files.items():
+            if metadata.get("sha256") != verified[filename]:
+                raise ValueError(f"frozen SHA-256 differs for {filename}")
+            if metadata.get("bytes") != self.all_files()[filename].stat().st_size:
+                raise ValueError(f"frozen byte count differs for {filename}")
+            manifest_entry = (self.value.get("files") or {}).get(filename) or {}
+            if manifest_entry.get("sha256") != metadata.get("sha256"):
+                raise ValueError(f"manifest and freeze record disagree on {filename}")
+        return {
+            "freezeFile": Path(freeze_path).as_posix(),
+            "freezeDigest": _sha256(Path(freeze_path)),
+            "corpus": freeze.get("corpus"),
+            "generatorCommitSha": (freeze.get("generator") or {}).get("commitSha"),
+            "seeds": freeze.get("seeds"),
+            "files": {name: {"sha256": verified[name], "bytes": frozen_files[name].get("bytes")} for name in sorted(frozen_files)},
+            "acceptancePassed": True,
+        }
+
+    def artifact_contract(self) -> dict[str, Any]:
+        files = self.value.get("files") or {}
+        return {
+            "datasetKind": self.value["kind"],
+            "datasetSchemaVersion": self.value.get("schemaVersion"),
+            "generatorCommitSha": (self.value.get("generator") or {}).get("commitSha"),
+            "splitPolicy": self.value["splitPolicy"],
+            "featureBoundary": self.value["features"]["boundary"],
+            "label": self.value.get("label"),
+            "files": {
+                name: {"sha256": metadata.get("sha256"), "bytes": metadata.get("bytes")}
+                for name, metadata in sorted(files.items())
+                if name.startswith("transitions-")
+            },
+            "auxiliaryFiles": {
+                name: {"sha256": metadata.get("sha256"), "bytes": metadata.get("bytes")}
+                for name, metadata in sorted(files.items())
+                if name in CAUSAL_AUXILIARY_FILES.values()
+            },
+        }
+
+
+def open_corpus_manifest(directory: str | Path) -> CorpusManifest | CausalCorpusManifest:
+    """Dispatch on the manifest kind so v1 tooling and the v2 corpus share one loader."""
+    manifest_file = Path(directory) / "manifest.json"
+    if not manifest_file.is_file():
+        raise FileNotFoundError(f"missing CloudProof manifest: {manifest_file}")
+    kind = json.loads(manifest_file.read_text(encoding="utf-8")).get("kind")
+    if kind == CAUSAL_MANIFEST_KIND:
+        return CausalCorpusManifest(directory)
+    return CorpusManifest(directory)
+
+
 def iter_jsonl(path: str | Path) -> Iterator[dict[str, Any]]:
     with Path(path).open("r", encoding="utf-8") as handle:
         for line_number, line in enumerate(handle, start=1):
@@ -133,11 +339,14 @@ def iter_jsonl(path: str | Path) -> Iterator[dict[str, Any]]:
                 raise ValueError(f"invalid JSON at {path}:{line_number}") from error
 
 
-def label_balance(path: str | Path, max_records: int | None = None) -> LabelBalance:
+def label_balance(
+    path: str | Path, max_records: int | None = None, label_horizon: int | None = None
+) -> LabelBalance:
+    reader = CloudProofTensorizer(label_horizon=label_horizon)
     positive = 0
     total = 0
     for record in iter_jsonl(path):
-        label = bool((record.get("labels") or {}).get("sloViolationWithinKTransitions"))
+        label = bool(reader.record_label(record))
         positive += int(label)
         total += 1
         if max_records is not None and total >= max_records:
