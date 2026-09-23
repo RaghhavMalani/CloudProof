@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#5b1019">
-  <title>miniRaft · Agent Reliability Lab</title>
+  <title>CloudProof · Agent Reliability Lab</title>
   <meta name="description" content="Deterministic fault testing for autonomous AI agents: replay crashes, reconcile ambiguous tool effects, and detect semantic snapshot drift.">
   <link rel="stylesheet" href="flight-deck.css">
 </head>
@@ -12,7 +12,7 @@
   <a class="skip-link" href="#agent-lab">Skip to agent reliability lab</a>
   <div class="noise" aria-hidden="true"></div>
   <header class="topbar">
-    <div class="brand"><span class="mark">mR</span><div><strong>miniRaft Agent Reliability Lab</strong><small>find the schedule where your agent does the wrong thing</small></div></div>
+    <div class="brand"><span class="mark">mR</span><div><strong>CloudProof Agent Reliability Lab</strong><small>find the schedule where your agent does the wrong thing</small></div></div>
     <div class="telemetry" aria-label="Execution telemetry">
       <div><small>execution</small><b id="metric-execution">SIM · SEED 42</b></div>
       <div><small>runtime</small><b id="metric-quorum">snapshot pinned · effect ledger durable</b></div>
@@ -27,7 +27,7 @@
     <div class="hero-copy">
       <div class="hero-kicker"><span></span> VERIFIABLE RUNTIME FOR AUTONOMOUS AGENTS <b>SEED 42</b></div>
       <h1 id="quick-start-title">Find the schedule where<br><em>your agent does the wrong thing.</em></h1>
-      <p>Lose a payment reply, crash the worker, deploy a new policy, and race a second agent. miniRaft replays the failure under one semantic snapshot and proves the refund happened once.</p>
+      <p>Lose a payment reply, crash the worker, deploy a new policy, and race a second agent. CloudProof replays the failure under one semantic snapshot and proves the refund happened once.</p>
       <div class="hero-actions">
         <button class="hero-chaos" id="hero-chaos"><span class="chaos-icon">&times;</span><span><b>LOSE THE TOOL RESPONSE</b><small>run the agent failure sequence</small></span></button>
         <button class="hero-explore" id="dismiss-intro"><b>EXPLORE THE LAB</b><span>&darr;</span></button>
@@ -120,7 +120,7 @@
         <p>The local script creates a four-node kind cluster and loads locally built images. The production manifest targets dedicated consensus nodes and gp3 volumes.</p>
         <ul><li>StatefulSet + stable DNS + PVC per replica</li><li>required pod anti-affinity + quorum PDB</li><li>two gateways behind one Service</li></ul>
         <code>bash tools/kind-up.sh</code>
-        <div class="runtime-actions"><button class="primary" data-copy-command="bash tools/kind-up.sh">COPY LOCAL CLUSTER COMMAND</button><button class="secondary" data-copy-command="kubectl apply -f k8s/miniraft.yaml">COPY PRODUCTION APPLY</button></div>
+        <div class="runtime-actions"><button class="primary" data-copy-command="bash tools/kind-up.sh">COPY LOCAL CLUSTER COMMAND</button><button class="secondary" data-copy-command="kubectl apply -f k8s/cloudproof-raft.yaml">COPY PRODUCTION APPLY</button></div>
       </article>
     </div>
     <footer class="launchpad-foot"><b>WHY ALL THREE?</b><span>Simulation makes correctness reproducible. Compose exposes process, network, and persistence behavior. Kubernetes exposes scheduling, identity, readiness, storage, and safe disruption behavior.</span></footer>

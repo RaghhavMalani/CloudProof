@@ -20,7 +20,7 @@ const { searchMultiAgentSchedules } = require('../sim/multi-agent-search');
 const { INITIAL_RESOURCE, decideAgent } = require('../sim/multi-agent-scenario');
 const { RaftAgentClient, AgentCommandError, requestJson } = require('./agent-raft-client');
 
-const PROJECT = process.env.AGENT_RAFT_COMPOSE_PROJECT || 'miniraft-agent-stage4-test';
+const PROJECT = process.env.AGENT_RAFT_COMPOSE_PROJECT || 'cloudproof-agent-stage4-test';
 const REPLICA_URLS = ['http://127.0.0.1:15001', 'http://127.0.0.1:15002', 'http://127.0.0.1:15003'];
 const PROVIDER_URL = 'http://127.0.0.1:16000';
 const COMPOSE_ENV = {

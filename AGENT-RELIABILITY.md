@@ -4,7 +4,7 @@
 
 An autonomous agent is a distributed workflow with a nondeterministic decision-maker. Reliability therefore depends on more than model quality: the runtime must make tool effects, checkpoints, semantic dependencies, retries, and concurrent workers observable and testable.
 
-miniRaft's job is to answer:
+CloudProof's job is to answer:
 
 > Under crashes, ambiguous tool results, resource deployments, and concurrency, did the workflow produce each authorized observable effect at most once and in causal order?
 

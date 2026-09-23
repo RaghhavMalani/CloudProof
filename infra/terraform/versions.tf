@@ -27,7 +27,7 @@ provider "aws" {
 
   default_tags {
     tags = {
-      Project     = "miniraft"
+      Project     = "cloudproof"
       Environment = var.environment
       ManagedBy   = "terraform"
     }

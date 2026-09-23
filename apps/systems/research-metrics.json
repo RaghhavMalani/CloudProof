@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "kind": "miniraft.research-metrics",
+  "kind": "cloudproof.research-metrics",
   "measuredAt": "2026-08-19T06:20:43.736Z",
   "question": "Can deterministic simulation and automated failure reduction make distributed-system correctness bugs reproducible and understandable?",
   "environment": {

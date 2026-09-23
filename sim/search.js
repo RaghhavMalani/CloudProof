@@ -179,7 +179,7 @@ async function search(options = {}) {
         const explanation = explainFailure(replay);
         const artifact = {
             schemaVersion: 1,
-            kind: 'miniraft.failure-artifact',
+            kind: 'cloudproof.failure-artifact',
             createdAt: new Date().toISOString(),
             expectedFailure: result.failure,
             schedule: replay.schedule,

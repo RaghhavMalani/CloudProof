@@ -171,7 +171,7 @@ async function deployedRun() {
 
     return {
         schemaVersion: 1,
-        kind: 'miniraft.reality-run',
+        kind: 'cloudproof.reality-run',
         runId: recorder.runId,
         workload: 'configuration',
         recordedAt: new Date().toISOString(),
@@ -192,7 +192,7 @@ function simulatedRun() {
     const result = runWorkload(getWorkload('configuration'), { seed: 42 });
     return {
         schemaVersion: 1,
-        kind: 'miniraft.simulation-run',
+        kind: 'cloudproof.simulation-run',
         runId: result.events[0].runId,
         workload: 'configuration',
         source: 'deterministic-in-memory',

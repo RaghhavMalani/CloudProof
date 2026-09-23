@@ -85,7 +85,7 @@ test('a recorded runtime decision tape replays without sampling new randomness',
 test('the shrinker preserves the exact failure signature while deleting noise', async () => {
     const schedule = {
         schemaVersion: 1,
-        kind: 'miniraft.materialized-schedule',
+        kind: 'cloudproof.materialized-schedule',
         seed: 1,
         config: { nodes: 3, spares: 0, clients: 2, drop: 0.2 },
         decisions: { generation: {}, runtime: {} },

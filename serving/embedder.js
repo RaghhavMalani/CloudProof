@@ -42,7 +42,7 @@ const path = require('path');
 const DEFAULT_DIM = 384;
 
 class HashEmbedder {
-    constructor({ dim = DEFAULT_DIM, seed = 'miniraft' } = {}) {
+    constructor({ dim = DEFAULT_DIM, seed = 'cloudproof' } = {}) {
         this.dim = dim;
         this.backend = 'hash';
         this.seed = seed;

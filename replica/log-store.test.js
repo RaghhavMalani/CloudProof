@@ -7,7 +7,7 @@ const test = require('node:test');
 const { LogStore } = require('./log-store');
 
 function temporaryLog(name) {
-    const directory = fs.mkdtempSync(path.join(os.tmpdir(), `miniraft-${name}-`));
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), `cloudproof-${name}-`));
     return {
         directory,
         file: path.join(directory, 'raft.log'),

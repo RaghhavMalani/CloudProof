@@ -1,4 +1,4 @@
-# miniRaft Agent Reliability Lab
+# CloudProof Agent Reliability Lab
 
 **Jepsen-style fault testing for autonomous AI agents.** Find the schedule where an agent performs the wrong side effect, replay it deterministically, explain the causal chain, and turn it into a regression test.
 
@@ -15,9 +15,9 @@ The second vertical slice puts three individually correct agents over the same v
 - Semantic snapshots: versioned model, prompt, policy, retrieval index, and tool-schema resources with configurable resume decisions.
 - Versioned shared resources: durable business state, execution-scoped read/write sets, and atomic resource-version fencing before effect authorization.
 - Deterministic refund workload: one causal trace with execution-scoped invariants and plain-English replay.
-- Decision tapes, fault schedules, invariant checking, causal flight recording, and trace shrinking from the existing miniRaft lab.
+- Decision tapes, fault schedules, invariant checking, causal flight recording, and trace shrinking from the existing CloudProof lab.
 
-> **Current milestone:** miniRaft now searches interleavings among three
+> **Current milestone:** CloudProof now searches interleavings among three
 > autonomous workflows over shared order state, kills four deliberate race
 > mutants, shrinks each violation to six causal actions, and fences the promoted
 > race in the live Raft cluster. See
@@ -70,7 +70,7 @@ The Flight Deck runs eleven deterministic scenarios through one causal event int
 Autonomous agent / recorded decision tape
                  │ logical action intent
                  ▼
-       miniRaft agent runtime
+       CloudProof agent runtime
           │              │
           ▼              ▼
  semantic snapshot    effect ledger
@@ -258,7 +258,7 @@ schema, mutants, dataset contract, and sim-to-real workflow.
 
 ### CheckQuorum: the important distinction
 
-miniRaft does not claim full CheckQuorum semantics. An isolated leader retains
+CloudProof does not claim full CheckQuorum semantics. An isolated leader retains
 its LEADER role until it sees a higher term. Quorum-aware readiness, leader
 leases, ReadIndex, and commit rules still prevent it from safely serving reads
 or committing writes after majority contact is lost. PreVote and the recent-
@@ -288,15 +288,15 @@ difference between the browser simulator, Compose cluster, and Kubernetes.
 
 The checked-in manifest expects the two images produced by the GitHub Actions workflow:
 
-- `ghcr.io/raghhavmalani/miniraft-replica:latest`
-- `ghcr.io/raghhavmalani/miniraft-gateway:latest`
+- `ghcr.io/raghhavmalani/cloudproof-replica:latest`
+- `ghcr.io/raghhavmalani/cloudproof-gateway:latest`
 
 Deploy:
 
 ```bash
-kubectl apply -f k8s/miniraft.yaml
-kubectl -n miniraft get pods
-kubectl -n miniraft get service gateway
+kubectl apply -f k8s/cloudproof-raft.yaml
+kubectl -n cloudproof-raft get pods
+kubectl -n cloudproof-raft get service gateway
 ```
 
 The replica StatefulSet provides:
@@ -316,13 +316,13 @@ The gateway deployment runs two replicas behind one Service. Redis pub/sub fans 
 Each replica exposes Prometheus text format at `/metrics`:
 
 ```text
-miniraft_elections_total
-miniraft_prevotes_total
-miniraft_current_term
-miniraft_log_length
-miniraft_commit_index
-miniraft_ready
-miniraft_commit_latency_ms
+cloudproof_elections_total
+cloudproof_prevotes_total
+cloudproof_current_term
+cloudproof_log_length
+cloudproof_commit_index
+cloudproof_ready
+cloudproof_commit_latency_ms
 ```
 
 For the local Compose network, a ready-to-use scrape configuration is in `monitoring/prometheus.yml`.
@@ -357,12 +357,12 @@ On pushes to `main`, CI runs the Raft and autonomous-search gates, builds every 
 ## Project layout
 
 ```text
-miniRaft/
+cloudproof/
 ├── .github/workflows/ci.yml
 ├── docker-compose.yml
 ├── frontend/                  # cinematic consensus-lab UI
 ├── gateway/                   # HTTP/WebSocket routing + Redis fan-out
-├── k8s/miniraft.yaml          # StatefulSet, PVCs, gateways, Redis, Services
+├── k8s/cloudproof-raft.yaml   # StatefulSet, PVCs, gateways, Redis, Services
 ├── monitoring/prometheus.yml
 └── replica/
     ├── raft.js                # consensus engine

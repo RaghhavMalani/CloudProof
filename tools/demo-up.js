@@ -192,7 +192,7 @@ async function waitFor(url, timeoutMs = 20000) {
 
     console.log(`
   ┌──────────────────────────────────────────────────────┐
-  │  miniRaft is running                                 │
+  │  CloudProof is running                               │
   │                                                      │
   │    dashboard   http://localhost:${String(DASHBOARD_PORT).padEnd(21)}│
   │    replicas    :5001  :5002  :5003                   │

@@ -277,7 +277,7 @@ function encodeMatrix(rows, cols, data) {
 }
 
 function decodeMatrix(buffer) {
-    if (buffer.readUInt32LE(0) !== MAGIC) throw new Error('not a miniRaft artifact');
+    if (buffer.readUInt32LE(0) !== MAGIC) throw new Error('not a CloudProof artifact');
     const rows = buffer.readUInt32LE(8);
     const cols = buffer.readUInt32LE(12);
     const body = buffer.subarray(16);
@@ -303,7 +303,7 @@ function encodeShard(ids, dim, vectors) {
 }
 
 function decodeShard(buffer) {
-    if (buffer.readUInt32LE(0) !== MAGIC) throw new Error('not a miniRaft artifact');
+    if (buffer.readUInt32LE(0) !== MAGIC) throw new Error('not a CloudProof artifact');
     const idLength = buffer.readUInt32LE(8);
     const dim = buffer.readUInt32LE(12);
     const ids = JSON.parse(buffer.subarray(16, 16 + idLength).toString('utf8'));

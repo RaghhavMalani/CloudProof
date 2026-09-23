@@ -240,7 +240,7 @@ function materializeCounterexample(id, seed = 42) {
             });
         }
     }
-    return { schemaVersion: 1, kind: 'miniraft.bug-museum-schedule', seed, mutantId: id, actions };
+    return { schemaVersion: 1, kind: 'cloudproof.bug-museum-schedule', seed, mutantId: id, actions };
 }
 
 function containsWitness(mutant, actions) {

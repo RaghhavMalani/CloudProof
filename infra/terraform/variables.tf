@@ -55,7 +55,7 @@ variable "environment" {
 variable "cluster_name" {
   description = "EKS cluster name."
   type        = string
-  default     = "miniraft"
+  default     = "cloudproof"
 }
 
 variable "kubernetes_version" {
@@ -134,13 +134,13 @@ variable "system_node_count" {
 variable "serving_namespace" {
   description = "Namespace whose pods are scheduled onto Fargate."
   type        = string
-  default     = "miniraft-serving"
+  default     = "cloudproof-serving"
 }
 
 variable "consensus_namespace" {
   description = "Namespace for the Raft StatefulSet and gateway."
   type        = string
-  default     = "miniraft"
+  default     = "cloudproof-raft"
 }
 
 variable "enable_nat_gateway" {

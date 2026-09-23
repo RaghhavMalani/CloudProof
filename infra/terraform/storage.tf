@@ -75,7 +75,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "artifacts" {
 
 resource "aws_secretsmanager_secret" "app" {
   name        = "${local.name}/app"
-  description = "Application secrets for the miniRaft serving tier."
+  description = "Application secrets for the CloudProof serving tier."
 
   # A lab cluster gets destroyed and rebuilt often, and the default 30-day
   # recovery window means the name stays reserved and the next apply fails.

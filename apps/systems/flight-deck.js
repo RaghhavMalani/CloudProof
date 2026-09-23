@@ -2,8 +2,8 @@
   'use strict';
 
   const $ = (id) => document.getElementById(id);
-  const api = window.miniRaft?.workloads;
-  const plain = window.miniRaft?.plainEnglish;
+  const api = window.cloudProof?.workloads;
+  const plain = window.cloudProof?.plainEnglish;
   if (!api || !plain) {
     const error = document.createElement('section');
     error.className = 'boot-error';

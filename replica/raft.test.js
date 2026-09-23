@@ -23,7 +23,7 @@ function slowTransport(latencyMs) {
 }
 
 function temporaryState(name) {
-    const directory = fs.mkdtempSync(path.join(os.tmpdir(), `miniraft-${name}-`));
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), `cloudproof-${name}-`));
     return {
         directory,
         file: path.join(directory, 'state.json'),

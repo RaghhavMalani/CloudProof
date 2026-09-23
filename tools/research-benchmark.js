@@ -98,7 +98,7 @@ async function main() {
     const unrecordedMedian = median(unrecordedTimes);
     const report = {
         schemaVersion: 1,
-        kind: 'miniraft.research-metrics',
+        kind: 'cloudproof.research-metrics',
         measuredAt: new Date().toISOString(),
         question: 'Can deterministic simulation and automated failure reduction make distributed-system correctness bugs reproducible and understandable?',
         environment: { node: process.version, platform: process.platform, arch: process.arch, runs: RUNS },

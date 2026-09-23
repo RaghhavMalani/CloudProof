@@ -19,7 +19,7 @@ apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
 metadata:
   name: embedding
-  namespace: miniraft-serving
+  namespace: cloudproof-serving
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
@@ -73,7 +73,7 @@ spec:
         # idle fleet read as zero — genuinely below threshold — instead of
         # broken.
         query: |
-          histogram_quantile(0.99, sum(rate(embedding_query_latency_ms_bucket{namespace="miniraft-serving"}[1m])) by (le)) or vector(0)
+          histogram_quantile(0.99, sum(rate(embedding_query_latency_ms_bucket{namespace="cloudproof-serving"}[1m])) by (le)) or vector(0)
 
     # A second trigger on throughput. p99 alone is a lagging signal: it only
     # rises once pods are already struggling, so by the time it crosses the
@@ -88,4 +88,4 @@ spec:
         serverAddress: http://prometheus.monitoring.svc:9090
         threshold: "40"
         query: |
-          sum(rate(embedding_queries_total{namespace="miniraft-serving"}[1m])) or vector(0)
+          sum(rate(embedding_queries_total{namespace="cloudproof-serving"}[1m])) or vector(0)

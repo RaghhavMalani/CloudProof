@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "kind": "miniraft.reality-run",
+  "kind": "cloudproof.reality-run",
   "runId": "docker-watch-1787120431330",
   "workload": "configuration",
   "recordedAt": "2026-08-19T06:20:32.271Z",

@@ -113,8 +113,8 @@ const percentile = (values, p) => {
     console.log(`\ndone — ${sent} requests, ${errors} errors`);
     console.log(`
 While that ran, worth watching:
-  kubectl -n miniraft-serving get statefulset embedding -w
-  kubectl -n miniraft-serving get hpa
+  kubectl -n cloudproof-serving get statefulset embedding -w
+  kubectl -n cloudproof-serving get hpa
   Grafana → "Serving pods and throughput"
 
 Expect pods to climb one at a time during the ramp, then stay up for a while

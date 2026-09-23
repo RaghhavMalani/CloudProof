@@ -108,7 +108,7 @@ spec:
     spec:
       serviceAccountName: prometheus
       nodeSelector:
-        miniraft.io/tier: system
+        cloudproof.io/tier: system
       containers:
         - name: prometheus
           image: prom/prometheus:v2.54.1
@@ -164,7 +164,7 @@ data:
   dashboards.yaml: |
     apiVersion: 1
     providers:
-      - name: miniraft
+      - name: cloudproof
         folder: ''
         type: file
         options:
@@ -176,10 +176,10 @@ metadata:
   name: grafana-dashboard
   namespace: monitoring
 data:
-  miniraft.json: |
+  cloudproof.json: |
     {
-      "title": "miniRaft",
-      "uid": "miniraft",
+      "title": "CloudProof",
+      "uid": "cloudproof",
       "timezone": "browser",
       "refresh": "5s",
       "time": { "from": "now-15m", "to": "now" },
@@ -187,19 +187,19 @@ data:
         {
           "type": "timeseries", "title": "Raft term by replica",
           "gridPos": { "h": 7, "w": 8, "x": 0, "y": 0 },
-          "targets": [{ "expr": "miniraft_current_term", "legendFormat": "{{replica}}" }],
+          "targets": [{ "expr": "cloudproof_current_term", "legendFormat": "{{replica}}" }],
           "description": "Terms should be flat and identical. A staircase means repeated elections, which usually means the election timeout is too tight for the network."
         },
         {
           "type": "timeseries", "title": "Commit index by replica",
           "gridPos": { "h": 7, "w": 8, "x": 8, "y": 0 },
-          "targets": [{ "expr": "miniraft_commit_index", "legendFormat": "{{replica}}" }],
+          "targets": [{ "expr": "cloudproof_commit_index", "legendFormat": "{{replica}}" }],
           "description": "Followers trail the leader by roughly one heartbeat. A follower that stops tracking is falling behind or partitioned."
         },
         {
           "type": "timeseries", "title": "Elections started",
           "gridPos": { "h": 7, "w": 8, "x": 16, "y": 0 },
-          "targets": [{ "expr": "increase(miniraft_elections_total[1m])", "legendFormat": "{{replica}}" }],
+          "targets": [{ "expr": "increase(cloudproof_elections_total[1m])", "legendFormat": "{{replica}}" }],
           "description": "Should be zero in steady state."
         },
         {
@@ -223,7 +223,7 @@ data:
         {
           "type": "timeseries", "title": "Active leases",
           "gridPos": { "h": 7, "w": 8, "x": 0, "y": 15 },
-          "targets": [{ "expr": "miniraft_leases_active", "legendFormat": "{{replica}}" }],
+          "targets": [{ "expr": "cloudproof_leases_active", "legendFormat": "{{replica}}" }],
           "description": "Every replica must agree. Divergence here would mean the state machines have diverged, which is the failure the logical clock exists to prevent."
         },
         {
@@ -255,7 +255,7 @@ spec:
       labels: { app: grafana }
     spec:
       nodeSelector:
-        miniraft.io/tier: system
+        cloudproof.io/tier: system
       containers:
         - name: grafana
           image: grafana/grafana:11.2.0

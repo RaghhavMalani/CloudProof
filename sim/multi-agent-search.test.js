@@ -95,7 +95,7 @@ test('benchmark reports a perfect mutant kill rate and zero corrected-runtime vi
 });
 
 test('saved counterexample artifact replays byte-identically', async () => {
-    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'miniraft-multi-agent-artifact-'));
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'cloudproof-multi-agent-artifact-'));
     const file = path.join(directory, 'over-compensation.json');
     try {
         const outcome = await searchMultiAgentSchedules({

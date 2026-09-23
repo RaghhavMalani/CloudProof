@@ -7,7 +7,7 @@
  * the version string, so re-running produces byte-identical objects and the
  * checksums in the manifest stay valid.
  *
- *   ARTIFACT_BUCKET=miniraft-artifacts S3_ENDPOINT=http://minio.minio.svc:9000 \
+ *   ARTIFACT_BUCKET=cloudproof-artifacts S3_ENDPOINT=http://minio.minio.svc:9000 \
  *   SEED_VERSIONS=v1,v2 node tools/seed-artifacts.js
  */
 

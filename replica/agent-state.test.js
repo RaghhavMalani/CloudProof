@@ -136,7 +136,7 @@ test('semantic conflict and approved transition are consensus state', () => {
 });
 
 test('Raft restart rebuilds AgentExecution entirely from committed entries', async () => {
-    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'miniraft-agent-replay-'));
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'cloudproof-agent-replay-'));
     const storagePath = path.join(directory, 'state.json');
     try {
         const first = new RaftNode({

@@ -23,11 +23,11 @@
 #   ./tools/kind-up.sh --down   tear it down
 set -euo pipefail
 
-CLUSTER=miniraft
+CLUSTER=cloudproof
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-IMAGE_SERVING=miniraft-embedding:local
-IMAGE_REPLICA=miniraft-replica:local
-IMAGE_GATEWAY=miniraft-gateway:local
+IMAGE_SERVING=cloudproof-embedding:local
+IMAGE_REPLICA=cloudproof-replica:local
+IMAGE_GATEWAY=cloudproof-gateway:local
 KEDA_VERSION="${KEDA_VERSION:-2.16.0}"
 
 if [[ "${1:-}" == "--down" ]]; then
@@ -53,7 +53,7 @@ echo "==> building images (first run pulls base layers; give it a few minutes)"
 # gateway/Dockerfile does `COPY gateway/package.json` and needs the repo root.
 docker build -f "$ROOT/Dockerfile.serving" -t "$IMAGE_SERVING" "$ROOT"
 docker build -f "$ROOT/replica/Dockerfile" -t "$IMAGE_REPLICA" "$ROOT/replica"
-# The gateway is not used by the dashboard demo, but k8s/miniraft.yaml deploys
+# The gateway is not used by the dashboard demo, but k8s/cloudproof-raft.yaml deploys
 # it. Skipping the build leaves a pod in ImagePullBackOff trying to reach a
 # registry that has never been pushed to — which looks like a cluster fault
 # rather than a missing build step.
@@ -73,18 +73,18 @@ echo "==> deploying the consensus tier"
 # The base manifest pins gp3 and a registry image; kind has neither. `standard`
 # is kind's default StorageClass, backed by local-path-provisioner.
 sed -e "s|storageClassName: gp3|storageClassName: standard|" \
-    -e "s|image: ghcr.io/raghhavmalani/miniraft-replica:latest|image: ${IMAGE_REPLICA}|" \
-    -e "s|image: ghcr.io/raghhavmalani/miniraft-gateway:latest|image: ${IMAGE_GATEWAY}|" \
+    -e "s|image: ghcr.io/raghhavmalani/cloudproof-replica:latest|image: ${IMAGE_REPLICA}|" \
+    -e "s|image: ghcr.io/raghhavmalani/cloudproof-gateway:latest|image: ${IMAGE_GATEWAY}|" \
     -e "s|imagePullPolicy: Always|imagePullPolicy: IfNotPresent|" \
-    "$ROOT/k8s/miniraft.yaml" | kubectl apply -f -
+    "$ROOT/k8s/cloudproof-raft.yaml" | kubectl apply -f -
 
 echo "    waiting for a quorum to form..."
-kubectl -n miniraft rollout status statefulset/raft --timeout=240s
+kubectl -n cloudproof-raft rollout status statefulset/raft --timeout=240s
 
 echo "==> deploying the serving tier"
 kubectl apply -f "$ROOT/k8s/local/serving-local.yaml"
-kubectl -n miniraft-serving rollout status statefulset/embedding --timeout=180s || true
-kubectl -n miniraft-serving rollout status deploy/dashboard --timeout=120s
+kubectl -n cloudproof-serving rollout status statefulset/embedding --timeout=180s || true
+kubectl -n cloudproof-serving rollout status deploy/dashboard --timeout=120s
 
 echo "==> deploying Prometheus and Grafana"
 kubectl apply -f "$ROOT/k8s/local/monitoring.yaml"
@@ -111,35 +111,35 @@ echo "==> publishing v1"
 # The Job ships in serving-local.yaml and has already been applied; just wait
 # for it. It stages the manifest, waits for all three pods to preload, then
 # flips model/current.
-kubectl -n miniraft-serving wait --for=condition=complete job/publish-v1 --timeout=240s \
-  || { echo "    rollout did not complete — kubectl -n miniraft-serving logs job/publish-v1"; }
+kubectl -n cloudproof-serving wait --for=condition=complete job/publish-v1 --timeout=240s \
+  || { echo "    rollout did not complete — kubectl -n cloudproof-serving logs job/publish-v1"; }
 
 cat <<EOF
 
-  ┌────────────────────────────────────────────────────────┐
-  │  miniRaft is running on Kubernetes.  Cost: \$0.         │
-  │                                                        │
-  │    dashboard   http://localhost:8080                   │
-  │    Grafana     http://localhost:3000                   │
-  │    MinIO       http://localhost:9090                   │
-  │                (miniraft / miniraft-local-dev)         │
-  │                                                        │
-  │  Worth looking at:                                     │
-  │    kubectl get pods -A -o wide                         │
-  │      → raft-0/1/2 each on a different consensus node   │
-  │    kubectl -n miniraft delete pod raft-0               │
-  │      → watch the PVC survive and the log recover       │
-  │    kubectl describe node -l miniraft.io/tier=consensus │
-  │      → the taint that keeps serving pods off           │
-  │                                                        │
-  │  Autoscaling demo:                                     │
-  │    node tools/loadgen.js --targets http://localhost:8080│
-  │    kubectl -n miniraft-serving get hpa -w              │
-  │                                                        │
-  │  CloudProof sim-to-real replay:                        │
-  │    node tools/cloudproof-kind-replay.js <artifact>     │
-  │                                                        │
-  │  ./tools/kind-up.sh --down   to remove everything      │
-  └────────────────────────────────────────────────────────┘
+  ┌──────────────────────────────────────────────────────────┐
+  │  CloudProof is running on Kubernetes.  Cost: \$0.         │
+  │                                                          │
+  │    dashboard   http://localhost:8080                     │
+  │    Grafana     http://localhost:3000                     │
+  │    MinIO       http://localhost:9090                     │
+  │                (cloudproof / cloudproof-local-dev)       │
+  │                                                          │
+  │  Worth looking at:                                       │
+  │    kubectl get pods -A -o wide                           │
+  │      → raft-0/1/2 each on a different consensus node     │
+  │    kubectl -n cloudproof-raft delete pod raft-0          │
+  │      → watch the PVC survive and the log recover         │
+  │    kubectl describe node -l cloudproof.io/tier=consensus │
+  │      → the taint that keeps serving pods off             │
+  │                                                          │
+  │  Autoscaling demo:                                       │
+  │    node tools/loadgen.js --targets http://localhost:8080 │
+  │    kubectl -n cloudproof-serving get hpa -w              │
+  │                                                          │
+  │  CloudProof sim-to-real replay:                          │
+  │    node tools/cloudproof-kind-replay.js <artifact>       │
+  │                                                          │
+  │  ./tools/kind-up.sh --down   to remove everything        │
+  └──────────────────────────────────────────────────────────┘
 
 EOF

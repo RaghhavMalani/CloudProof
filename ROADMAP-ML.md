@@ -1,4 +1,4 @@
-# miniRaft → a streaming ML platform with provable correctness
+# CloudProof → a streaming ML platform with provable correctness
 
 ## The thesis
 

@@ -15,9 +15,9 @@ test('browser bundle exposes every runnable workload', () => {
     // Kept in step with packages/workloads deliberately: the browser bundle
     // silently shipping fewer workloads than the source defines is exactly the
     // drift this test exists to catch.
-    assert.equal(browser.miniRaft.workloads.WORKLOADS.length, 11);
-    for (const workload of browser.miniRaft.workloads.WORKLOADS) {
-        const result = browser.miniRaft.workloads.runWorkload(workload, { seed: 42 });
+    assert.equal(browser.cloudProof.workloads.WORKLOADS.length, 11);
+    for (const workload of browser.cloudProof.workloads.WORKLOADS) {
+        const result = browser.cloudProof.workloads.runWorkload(workload, { seed: 42 });
         assert.ok(result.events.length > 0, `${workload.id} should produce a trace`);
         assert.ok(result.visualization.nodes.length > 0, `${workload.id} should visualize nodes`);
     }
@@ -34,7 +34,7 @@ test('browser entry point distinguishes simulation, Docker, and Kubernetes', () 
 });
 
 test('Kubernetes manifest protects consensus and gateway availability', () => {
-    const manifest = fs.readFileSync(path.join(__dirname, '..', 'k8s', 'miniraft.yaml'), 'utf8');
+    const manifest = fs.readFileSync(path.join(__dirname, '..', 'k8s', 'cloudproof-raft.yaml'), 'utf8');
     assert.match(manifest, /kind: StatefulSet/);
     assert.match(manifest, /volumeClaimTemplates:/);
     assert.match(manifest, /name: raft-quorum[\s\S]*minAvailable: 2/);
@@ -143,7 +143,7 @@ test('Flight Deck boots into the refund agent and wires its primary controls', (
     vm.runInNewContext(bundle, context, { filename: 'bundle.js' });
     // The tab buttons must exist before the deck boots, because renderTabs wires
     // its handlers once through querySelectorAll('[data-workload]').
-    for (const workload of browser.miniRaft.workloads.WORKLOADS) tabFor(workload.id);
+    for (const workload of browser.cloudProof.workloads.WORKLOADS) tabFor(workload.id);
     vm.runInNewContext(deck, context, { filename: 'flight-deck.js' });
 
     assert.equal(get('workload-name').textContent, 'Autonomous refund agent');
@@ -157,7 +157,7 @@ test('Flight Deck boots into the refund agent and wires its primary controls', (
     // The briefing panel leads with the failure a reader would recognise, not
     // with the formal question. Asserted against the module rather than a
     // pinned phrase so rewording the copy is not a test failure.
-    const brief = browser.miniRaft.plainEnglish.briefFor('agent-refund');
+    const brief = browser.cloudProof.plainEnglish.briefFor('agent-refund');
     assert.equal(get('workload-headline').textContent, brief.headline);
     assert.equal(get('workload-symptom').textContent, brief.symptom);
     assert.equal(get('workload-rule').textContent, brief.rule);
@@ -180,10 +180,10 @@ test('Flight Deck boots into the refund agent and wires its primary controls', (
     // workloads silently rendered jargon inside a box headed "IN PLAIN
     // ENGLISH". Walk every event of every workload through the actual UI code
     // path and require a sentence at each step.
-    for (const workload of browser.miniRaft.workloads.WORKLOADS) {
+    for (const workload of browser.cloudProof.workloads.WORKLOADS) {
         tabFor(workload.id).onclick();
 
-        const workloadBrief = browser.miniRaft.plainEnglish.briefFor(workload.id);
+        const workloadBrief = browser.cloudProof.plainEnglish.briefFor(workload.id);
         assert.equal(get('workload-headline').textContent, workloadBrief.headline,
             `${workload.id} did not render its brief`);
 

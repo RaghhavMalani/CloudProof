@@ -184,7 +184,7 @@ test('resource state and execution plans replay byte-identically', () => {
 });
 
 test('Raft restart rebuilds versioned resources and their authorizing execution', async () => {
-    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'miniraft-multi-agent-replay-'));
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'cloudproof-multi-agent-replay-'));
     const storagePath = path.join(directory, 'state.json');
     const commands = [
         {

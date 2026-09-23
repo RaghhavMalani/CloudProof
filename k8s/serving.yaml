@@ -1,6 +1,6 @@
 # Serving tier — stateless embedding pods on Fargate.
 #
-# The namespace and the `miniraft.io/tier: serving` label together match the
+# The namespace and the `cloudproof.io/tier: serving` label together match the
 # Fargate profile created by Terraform. A pod that fails to match the selector
 # does not error: it stays Pending forever with no node to schedule onto, which
 # is a confusing failure mode worth knowing about in advance.
@@ -10,18 +10,18 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: miniraft-serving
+  name: cloudproof-serving
   labels:
-    miniraft.io/tier: serving
+    cloudproof.io/tier: serving
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: embedding
-  namespace: miniraft-serving
+  namespace: cloudproof-serving
 spec:
   selector:
-    app.kubernetes.io/name: miniraft
+    app.kubernetes.io/name: cloudproof
     app.kubernetes.io/component: embedding
   ports:
     - name: http
@@ -32,14 +32,14 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: embedding
-  namespace: miniraft-serving
+  namespace: cloudproof-serving
 spec:
   # The floor, not the target. KEDA drives the replica count from p99 query
   # latency; this value only matters at first apply and after a scale-to-zero.
   replicas: 2
   selector:
     matchLabels:
-      app.kubernetes.io/name: miniraft
+      app.kubernetes.io/name: cloudproof
       app.kubernetes.io/component: embedding
   strategy:
     rollingUpdate:
@@ -50,9 +50,9 @@ spec:
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: miniraft
+        app.kubernetes.io/name: cloudproof
         app.kubernetes.io/component: embedding
-        miniraft.io/tier: serving
+        cloudproof.io/tier: serving
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/path: /metrics
@@ -67,7 +67,7 @@ spec:
       terminationGracePeriodSeconds: 20
       containers:
         - name: embedding
-          image: ghcr.io/raghhavmalani/miniraft-embedding:latest
+          image: ghcr.io/raghhavmalani/cloudproof-embedding:latest
           imagePullPolicy: Always
           ports:
             - name: http
@@ -80,7 +80,7 @@ spec:
                 fieldRef:
                   fieldPath: metadata.name
             - name: RAFT_REPLICAS_URLS
-              value: "http://raft-0.raft.miniraft:5000,http://raft-1.raft.miniraft:5000,http://raft-2.raft.miniraft:5000"
+              value: "http://raft-0.raft.cloudproof-raft:5000,http://raft-1.raft.cloudproof-raft:5000,http://raft-2.raft.cloudproof-raft:5000"
             - name: ARTIFACT_BUCKET
               valueFrom:
                 configMapKeyRef:
@@ -139,7 +139,7 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: rollout-v1
-  namespace: miniraft
+  namespace: cloudproof-raft
 spec:
   backoffLimit: 2
   template:
@@ -147,15 +147,15 @@ spec:
       restartPolicy: Never
       serviceAccountName: indexer
       nodeSelector:
-        miniraft.io/tier: consensus
+        cloudproof.io/tier: consensus
       tolerations:
-        - key: miniraft.io/tier
+        - key: cloudproof.io/tier
           operator: Equal
           value: consensus
           effect: NoSchedule
       containers:
         - name: rollout
-          image: ghcr.io/raghhavmalani/miniraft-embedding:latest
+          image: ghcr.io/raghhavmalani/cloudproof-embedding:latest
           command: ["node", "serving/rollout-cli.js"]
           env:
             - name: MODEL_VERSION
@@ -163,4 +163,4 @@ spec:
             - name: EXPECTED_PODS
               value: "2"
             - name: RAFT_REPLICAS_URLS
-              value: "http://raft-0.raft.miniraft:5000,http://raft-1.raft.miniraft:5000,http://raft-2.raft.miniraft:5000"
+              value: "http://raft-0.raft.cloudproof-raft:5000,http://raft-1.raft.cloudproof-raft:5000,http://raft-2.raft.cloudproof-raft:5000"

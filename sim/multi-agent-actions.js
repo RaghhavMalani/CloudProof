@@ -20,8 +20,8 @@ function validateMultiAgentSchedule(schedule) {
     if (!schedule || schedule.schemaVersion !== MULTI_AGENT_SCHEDULE_SCHEMA_VERSION) {
         throw new TypeError('unsupported or missing multi-agent schedule schemaVersion');
     }
-    if (schedule.kind !== 'miniraft.multi-agent-schedule') {
-        throw new TypeError('schedule kind must be miniraft.multi-agent-schedule');
+    if (schedule.kind !== 'cloudproof.multi-agent-schedule') {
+        throw new TypeError('schedule kind must be cloudproof.multi-agent-schedule');
     }
     if (!Number.isInteger(schedule.seed)) throw new TypeError('schedule seed must be an integer');
     if (!Array.isArray(schedule.actions)) throw new TypeError('schedule actions must be an array');

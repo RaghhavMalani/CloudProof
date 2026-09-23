@@ -75,7 +75,7 @@ function materializeMultiAgentSchedule(seed, options = {}) {
 
     const schedule = {
         schemaVersion: MULTI_AGENT_SCHEDULE_SCHEMA_VERSION,
-        kind: 'miniraft.multi-agent-schedule',
+        kind: 'cloudproof.multi-agent-schedule',
         seed,
         scenario: 'shared-order-financial-resolution',
         runtime,

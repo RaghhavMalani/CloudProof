@@ -1,6 +1,6 @@
-# Running and deploying miniRaft
+# Running and deploying CloudProof
 
-miniRaft has three deliberately different execution surfaces. Do not confuse a
+CloudProof has three deliberately different execution surfaces. Do not confuse a
 green browser simulation with a passing container or Kubernetes run.
 
 | Surface | What actually runs | What it proves |
@@ -59,14 +59,14 @@ cluster with `bash tools/kind-up.sh --down`.
 
 ## Production Kubernetes
 
-`k8s/miniraft.yaml` intentionally targets dedicated consensus nodes and `gp3`
+`k8s/cloudproof-raft.yaml` intentionally targets dedicated consensus nodes and `gp3`
 volumes. Before applying it, provide the published images, a `gp3` StorageClass,
-and three nodes labelled and tainted for `miniraft.io/tier=consensus`.
+and three nodes labelled and tainted for `cloudproof.io/tier=consensus`.
 
 ```bash
-kubectl apply -f k8s/miniraft.yaml
-kubectl -n miniraft get pods,pvc,pdb
-kubectl -n miniraft get service gateway
+kubectl apply -f k8s/cloudproof-raft.yaml
+kubectl -n cloudproof-raft get pods,pvc,pdb
+kubectl -n cloudproof-raft get service gateway
 ```
 
 ## Static browser hosting

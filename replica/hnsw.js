@@ -741,7 +741,7 @@ class HnswIndex {
         }
 
         const state = {
-            format: 'miniraft-hnsw',
+            format: 'cloudproof-hnsw',
             version: 1,
             params: this._paramsHeader(),
             entryPoint: this.entryPoint,
@@ -785,7 +785,7 @@ class HnswIndex {
             throw new Error('invalid HNSW snapshot: ' + error.message);
         }
 
-        snapshotAssert(state && state.format === 'miniraft-hnsw', 'unknown format');
+        snapshotAssert(state && state.format === 'cloudproof-hnsw', 'unknown format');
         snapshotAssert(state.version === 1, 'unsupported version');
         snapshotAssert(state.params && typeof state.params === 'object', 'missing params header');
 
