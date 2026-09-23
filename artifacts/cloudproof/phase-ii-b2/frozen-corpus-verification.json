@@ -1,6 +1,6 @@
 {
   "corpus": "artifacts/cloudproof/causal-corpus-v2",
-  "elapsedSeconds": 43.87722490000306,
+  "elapsedSeconds": 44.15004500000214,
   "freeze": {
     "acceptancePassed": true,
     "corpus": "causal-corpus-v2",
@@ -67,7 +67,7 @@
     "splitPolicy": "topology-holdout-v2"
   },
   "pairs": {
-    "invalid": 112,
+    "invalid": 56,
     "relationalOnly": {
       "discordantByFamily": {
         "capacity-distribution": 1,

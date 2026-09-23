@@ -18,6 +18,7 @@ Sub-commands (run from the repository root)::
     python -m ml.cloudproof.phase_ii_b2 train    --corpus DIR --freeze FILE --out ROOT
     python -m ml.cloudproof.phase_ii_b2 evaluate --corpus DIR --freeze FILE --out ROOT
     python -m ml.cloudproof.phase_ii_b2 pairs    --corpus DIR --freeze FILE --out ROOT
+    python -m ml.cloudproof.phase_ii_b2 pair-audit --corpus DIR --freeze FILE --out ROOT
     python -m ml.cloudproof.phase_ii_b2 report   --corpus DIR --freeze FILE --out ROOT
 """
 
@@ -246,6 +247,20 @@ def _pair_groups(path: Path) -> dict[str, dict[str, dict]]:
     return grouped
 
 
+def _count_pair(pair_counts: Counter, valid: bool, change: str) -> None:
+    """Count a pair once by validity and, when valid, once by outcome change.
+
+    An invalid pair's outcome change is the string ``"invalid"``, so counting the
+    change unconditionally would count every invalid pair twice.
+    """
+    pair_counts["total"] += 1
+    if valid:
+        pair_counts["valid"] += 1
+        pair_counts[change] += 1
+    else:
+        pair_counts["invalid"] += 1
+
+
 def _riskier_variant(pair: dict[str, dict]) -> str | None:
     unsafe_a = bool(pair["A"]["labels"]["trajectoryUnsafe"])
     unsafe_b = bool(pair["B"]["labels"]["trajectoryUnsafe"])
@@ -406,11 +421,9 @@ def verify_corpus(corpus_directory: str | Path, freeze_path: str | Path, *, samp
             raise ValueError(f"{pair_id}: members do not share the exogenous schedule")
         if topology_splits.get(a["topologyId"]) != a["split"]:
             raise ValueError(f"{pair_id}: pair split does not match the topology catalog")
-        pair_counts["total"] += 1
         valid = bool(a["metadata"]["valid"])
-        pair_counts["valid" if valid else "invalid"] += 1
         change = a["metadata"]["outcomeChange"]
-        pair_counts[change] += 1
+        _count_pair(pair_counts, valid, change)
         riskier = _riskier_variant(pair) if valid else None
         if valid and (riskier is not None) != bool(a["metadata"]["discordant"]):
             raise ValueError(f"{pair_id}: discordant flag disagrees with the trajectory labels")
@@ -430,6 +443,8 @@ def verify_corpus(corpus_directory: str | Path, freeze_path: str | Path, *, samp
                 flips_by_split[a["split"]] += 1
                 relational_flip_ids.append(f"{pair_id}:{a['family']}:{change}:{riskier}")
     frozen_pairs = freeze["sanity"]["counterfactualPairs"]
+    if pair_counts["valid"] + pair_counts["invalid"] != pair_counts["total"]:
+        raise ValueError("pair validity counts do not sum to the pair total")
     if pair_counts["total"] != frozen_pairs["counts"]["total"] or pair_counts["valid"] != frozen_pairs["counts"]["valid"]:
         raise ValueError("pair counts differ from the freeze record")
     if relational["valid"] != frozen_pairs["relationalOnly"]["validPairs"]:
@@ -1507,6 +1522,205 @@ def pairs_command(args: argparse.Namespace) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Per-pair audit of the attribution test
+# ---------------------------------------------------------------------------
+
+# Added after the verdict was recorded. It exports the per-pair margins behind the
+# 173-pair statistics, re-derives those statistics and requires them to equal the
+# committed ranking, asserts that every arm whose inputs are identical by
+# construction ties every pair, and reports held-out subsets. The subsets are a
+# post-hoc descriptive analysis: they are not attribution criteria and cannot
+# change the verdict.
+POST_HOC_SUBSETS = {
+    "allDecisivePairs": ("train", "validation", "test", "ood"),
+    "trainTopologies": ("train",),
+    "heldOutTopologies": ("validation", "test", "ood"),
+    "unseenTopologies": ("test", "ood"),
+}
+
+
+def _decisive_entries(table: list[dict]) -> list[dict]:
+    return [entry for entry in table if entry["relationalOnly"] and entry["valid"] and entry["riskier"] is not None]
+
+
+def _signed_margins(entries: list[dict], scores: dict[str, dict[str, float]]) -> list[float]:
+    """Riskier-member score minus safer-member score, one value per pair."""
+    return [
+        scores[entry["pairId"]][entry["riskier"]] - scores[entry["pairId"]]["B" if entry["riskier"] == "A" else "A"]
+        for entry in entries
+    ]
+
+
+def _tie_aware_units(margins: Iterable[float]) -> list[float]:
+    return [1.0 if margin > TIE_TOLERANCE else 0.0 if margin < -TIE_TOLERANCE else 0.5 for margin in margins]
+
+
+def _subset_comparison(left_units: list[float], right_units: list[float], mask: list[bool]) -> dict:
+    """Paired tie-aware accuracy difference on the pairs selected by ``mask``."""
+    left = [unit for unit, keep in zip(left_units, mask, strict=True) if keep]
+    right = [unit for unit, keep in zip(right_units, mask, strict=True) if keep]
+    interval = paired_bootstrap_difference(left, right, **PAIR_BOOTSTRAP)
+    return {
+        "controlTieAwareAccuracy": float(np.mean(right)),
+        "difference": float(np.mean(left) - np.mean(right)),
+        "pairedBootstrap95": [interval["lower"], interval["upper"]],
+        "excludesZero": interval["excludesZero"],
+    }
+
+
+def pair_audit_command(args: argparse.Namespace) -> None:
+    torch.set_num_threads(args.threads)
+    root = Path(args.out)
+    manifest = CausalCorpusManifest(args.corpus)
+    verified = manifest.verify_hashes()
+    manifest.verify_freeze(args.freeze, verified)
+    ranking = _read_json(root / "counterfactual-ranking.json")
+    tests = _read_json(root / "statistical-tests.json")
+    verification = _read_json(root / "frozen-corpus-verification.json")
+    if ranking is None or tests is None or verification is None:
+        raise FileNotFoundError("pair-audit reads the verify and pairs outputs; run those commands first")
+    table, groups = _pair_table(manifest)
+    entries = _decisive_entries(table)
+    digest = _digest_text("\n".join(sorted(
+        f"{entry['pairId']}:{entry['family']}:{entry['outcomeChange']}:{entry['riskier']}" for entry in entries
+    )))
+    if digest != verification["pairs"]["relationalOnly"]["discordantPairDigest"]:
+        raise ValueError("decisive pair set differs from the frozen-corpus verification digest")
+    decisive_groups = {entry["pairId"]: groups[entry["pairId"]] for entry in entries}
+
+    started = time.perf_counter()
+    arms: dict[str, list[float]] = {}
+    reproduction: dict[str, dict] = {}
+    for model in PRIMARY_MODELS:
+        artifact = artifact_name(model, PRIMARY_HORIZON)
+        config, models = load_artifact(root / "models" / artifact, "cpu")
+        tensorizer = tensorizer_for_config(config)
+        for mode, seed in _mode_plan(model):
+            key = mode if mode not in SEEDED_EDGE_MODES else f"{mode}@{seed}"
+            arm = f"{artifact}|{key}"
+            scores = _score_pairs(models, decisive_groups, tensorizer, mode, seed, args.batch_size)
+            arms[arm] = _signed_margins(entries, scores)
+            recomputed = _ranking(entries, scores, "riskier")
+            committed = ranking["artifacts"][artifact][key]["relationalOnly"]
+            counts_equal = all(recomputed[field] == committed[field] for field in ("pairs", "correct", "wrong", "ties"))
+            interval_deviation = max(
+                abs(recomputed["bootstrap95TieAware"][bound] - committed["bootstrap95TieAware"][bound])
+                for bound in ("lower", "upper")
+            )
+            reproduction[arm] = {
+                "countsEqual": counts_equal,
+                "tieAwareAccuracy": recomputed["tieAwareAccuracy"],
+                "maximumIntervalDeviation": interval_deviation,
+                "meanMarginDeviation": abs(recomputed["margins"]["mean"] - committed["margins"]["mean"]),
+            }
+            if not counts_equal or interval_deviation > 1e-9:
+                raise ValueError(f"{arm}: per-pair re-scoring does not reproduce counterfactual-ranking.json")
+
+    # Pooled inputs are identical by corpus construction, so these arms must tie every pair.
+    tied = (
+        f"{artifact_name('pooled-mlp', PRIMARY_HORIZON)}|full",
+        f"{artifact_name('gnn-full', PRIMARY_HORIZON)}|no-edges",
+        f"{artifact_name('gnn-clock-blind', PRIMARY_HORIZON)}|no-edges",
+    )
+    tied_by_construction = {}
+    for arm in tied:
+        widest = max(abs(margin) for margin in arms[arm])
+        if widest > TIE_TOLERANCE:
+            raise ValueError(f"{arm}: inputs are identical by construction, yet a pair margin reaches {widest}")
+        tied_by_construction[arm] = {"pairs": len(arms[arm]), "maximumAbsoluteMargin": widest}
+
+    splits = [entry["split"] for entry in entries]
+    families = [entry["family"] for entry in entries]
+    subsets: dict[str, dict] = {}
+    for name, members in POST_HOC_SUBSETS.items():
+        mask = [split in members for split in splits]
+        result: dict[str, Any] = {
+            "splits": list(members),
+            "pairs": sum(mask),
+            "families": dict(sorted(Counter(family for family, keep in zip(families, mask) if keep).items())),
+            "models": {},
+        }
+        for model in ("gnn-full", "gnn-clock-blind"):
+            artifact = artifact_name(model, PRIMARY_HORIZON)
+            units = _tie_aware_units(arms[f"{artifact}|full"])
+            selected = [unit for unit, keep in zip(units, mask) if keep]
+            correct = selected.count(1.0)
+            wrong = selected.count(0.0)
+            interval = bootstrap_mean(selected, **PAIR_BOOTSTRAP)
+            result["models"][artifact] = {
+                "correct": correct,
+                "wrong": wrong,
+                "ties": len(selected) - correct - wrong,
+                "tieAwareAccuracy": float(np.mean(selected)),
+                "bootstrap95TieAware": [interval["lower"], interval["upper"]],
+                "binomialTiesExcludedP": binomial_two_sided(correct, correct + wrong) if correct + wrong else None,
+                "versusSeededControls": {
+                    f"{mode}@{seed}": _subset_comparison(units, _tie_aware_units(arms[f"{artifact}|{mode}@{seed}"]), mask)
+                    for mode in SEEDED_EDGE_MODES
+                    for seed in EDGE_SEEDS
+                },
+            }
+        subsets[name] = result
+
+    minimum_drop = ATTRIBUTION_CRITERIA["edgeDestructionMinimumDrop"]
+    seeded = subsets["allDecisivePairs"]["models"][artifact_name("gnn-full", PRIMARY_HORIZON)]["versusSeededControls"]
+    strict_controls = {
+        key: value["difference"] >= minimum_drop and value["excludesZero"] for key, value in seeded.items()
+    }
+    json_dump(root / "pair-audit.json", {
+        "kind": "cloudproof.phase-ii-b2-pair-audit",
+        "schemaVersion": 1,
+        "phase": PHASE,
+        "role": (
+            "added after the verdict: per-pair margins behind the primary statistics, a reproduction check against "
+            "counterfactual-ranking.json, tie assertions for arms whose inputs are identical by construction, and a "
+            "post-hoc held-out subset analysis that is not an attribution criterion and cannot change the verdict"
+        ),
+        "verdict": tests["attribution"]["graphAttribution"],
+        "tieTolerance": TIE_TOLERANCE,
+        "pairBootstrap": PAIR_BOOTSTRAP,
+        "decisivePairs": len(entries),
+        "decisivePairDigest": digest,
+        "reproduction": reproduction,
+        "tiedByConstruction": tied_by_construction,
+        "strictEdgeDestructionReading": {
+            "rule": (
+                f"every seeded edge-randomization control of the full GNN, individually, loses >= {minimum_drop} "
+                "tie-aware accuracy with a paired interval excluding zero on all decisive pairs"
+            ),
+            "controls": strict_controls,
+            "passed": all(strict_controls.values()),
+        },
+        "postHocSubsets": subsets,
+        "pairs": [
+            {
+                "pairId": entry["pairId"],
+                "family": entry["family"],
+                "split": entry["split"],
+                "outcomeChange": entry["outcomeChange"],
+                "riskier": entry["riskier"],
+                "margins": {arm: margins[index] for arm, margins in arms.items()},
+            }
+            for index, entry in enumerate(entries)
+        ],
+        "elapsedSeconds": time.perf_counter() - started,
+    })
+    print(json.dumps({
+        "decisivePairs": len(entries),
+        "reproducedArms": sum(item["countsEqual"] for item in reproduction.values()),
+        "tiedByConstruction": {arm: value["maximumAbsoluteMargin"] for arm, value in tied_by_construction.items()},
+        "strictEdgeDestructionReading": all(strict_controls.values()),
+        "unseenTopologies": {
+            artifact: {
+                "tieAwareAccuracy": round(values["tieAwareAccuracy"], 4),
+                "versusSeededControls": {key: round(item["difference"], 4) for key, item in values["versusSeededControls"].items()},
+            }
+            for artifact, values in subsets["unseenTopologies"]["models"].items()
+        },
+    }, indent=2))
+
+
+# ---------------------------------------------------------------------------
 # Experiment-level config, clock-blind summary and manifest
 # ---------------------------------------------------------------------------
 
@@ -1734,6 +1948,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     pairs.add_argument("--batch-size", type=int, default=128)
     pairs.add_argument("--threads", type=int, default=1)
 
+    audit = subparsers.add_parser(
+        "pair-audit", help="export per-pair margins, re-check the pair statistics, report post-hoc held-out subsets"
+    )
+    _add_corpus_arguments(audit)
+    audit.add_argument("--batch-size", type=int, default=128)
+    audit.add_argument("--threads", type=int, default=1)
+
     report = subparsers.add_parser("report", help="write config.json, clock-blind.json and manifest.json")
     _add_corpus_arguments(report)
     return parser.parse_args(argv)
@@ -1757,6 +1978,8 @@ def main(argv: list[str] | None = None) -> None:
         evaluate_one_command(args)
     elif args.command == "pairs":
         pairs_command(args)
+    elif args.command == "pair-audit":
+        pair_audit_command(args)
     elif args.command == "report":
         report_command(args)
     else:  # pragma: no cover - argparse enforces the choice

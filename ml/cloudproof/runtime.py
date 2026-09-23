@@ -20,9 +20,11 @@ from .tensorize import CloudProofTensorizer, GraphSample, collate_graphs
 def json_dump(path: str | Path, value: dict) -> None:
     destination = Path(path)
     destination.parent.mkdir(parents=True, exist_ok=True)
+    # LF on every platform: the bytes are hashed into manifests and must match the committed blobs.
     destination.write_text(
         json.dumps(value, indent=2, sort_keys=True, allow_nan=False) + "\n",
         encoding="utf-8",
+        newline="\n",
     )
 
 

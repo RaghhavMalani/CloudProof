@@ -350,11 +350,13 @@ On the 173 relational-only pairs, a topology-blind model **cannot** do better th
 | Pooled MLP (topology-blind) | 0 | 173 | **50.0%** | — | — |
 | **Full GNN** | **151** | 0 | **87.3%** | [82.1%, 91.9%] | **7.4 × 10⁻²⁵** |
 | GNN with all edges removed | 0 | 173 | 50.0% | — | — |
+| GNN with edges permuted, degrees kept (3 seeds) | 110–113 | 34–36 | 73.7–75.1% | lower bounds ≥ 68.2% | < 10⁻¹¹ |
 | GNN with edges uniformly rewired (3 seeds) | 80–95 | 0 | 46.2–54.9% | spans chance | 0.22–0.88 |
 | **Clock-blind GNN** (absolute-time features masked) | **153** | 0 | **88.4%** | [83.8%, 93.1%] | 1.5 × 10⁻²⁶ |
-| GNN heads trained independently for K = 1, 10, 20 | 150–154 | 0 | **86.7–89.0%** | lower bounds ≥ 81.5% | — |
 
-All five criteria were **fixed in code before training** and all five passed:
+*Secondary, exploratory and outside the claim:* GNN heads trained independently for K = 1, 10 and 20 rank the same pairs at 86.7–89.0%, and every pooled head ties them.
+
+The test itself (173 pairs, pooled MLP ≈ 50%, randomized-edge control, clock-blind ablation) was **pre-registered in a commit before training** (`7dee7eb`). The five numeric criteria below were constants in the driver for the first pair evaluation and were committed together with the results. All five passed:
 1. the GNN beats chance with a CI lower bound above 0.5 and *p* < 0.01;
 2. the pooled MLP is at chance;
 3. destroying the edges costs at least 10 points, with a paired-bootstrap interval that excludes zero;
@@ -369,16 +371,18 @@ All five criteria were **fixed in code before training** and all five passed:
 | Degree-preserving permutation | **96.5%** (untouched; 95.3–96.5% over 3 seeds) | **55.5%** (destroyed; 50.9–55.5% over 3 seeds) |
 | Uniform rewiring | 46.5% (destroyed) | 43.6% (destroyed) |
 
-Node-concentration is a **degree** effect: how many pods sit on the node that crashes. Readiness-wiring is an **endpoint-identity** effect: which zone the not-yet-ready pods are wired to. This also explains why the earlier audit's only edge control, a degree-preserving permutation, could not detect the effect.
+Node-concentration is a **degree** effect: how many pods sit on the node that crashes. Readiness-wiring is an **endpoint-identity** effect: which zone the not-yet-ready pods are wired to. This also explains why the earlier audit's only randomization control, a degree-preserving permutation, could not detect the effect.
 
 **Where the claim stops (and why that matters):**
 - **Natural data.** On ordinary validation, test and OOD transitions, the topology-blind MLP matches the GNN in AUROC (test 0.787 vs 0.790; OOD 0.712 vs 0.722). The GNN is markedly better calibrated out of distribution (NLL 0.48 vs 0.71).
 - **Fixed-budget verification.** On a matched 50/50 pool of 5,838 held-out schedules, **deterministic coverage-guided search beat every learned prioritizer** below a budget of 5,000 (608 vs 582 counterexamples at budget 1,000). The learned GNN ranker still sits 5.7 standard deviations above an uninformative ranking.
-- **The supported claim is exactly this:** *relational topology contributes predictive information for CloudProof's controlled Kubernetes topology interventions.*
+- **Mostly degree-level.** A degree-preserving permutation keeps 73.7–75.1%. On the 45 pairs from topologies never used in training or model selection, the GNN's lead over that control (+0.02 to +0.08) is not distinguishable from zero (a post-hoc audit).
+- **A per-family preference, not the causal outcome.** All nine unsafe→safe flips are ranked wrong.
+- **The supported claim is exactly this:** *on controlled CloudProof Kubernetes interventions where pooled features are identical, relational message passing provides predictive information about simulator-derived safety outcomes.* Deterministic CloudProof remains the verifier.
 
 ### Rigour, in practice
 
-- **Pre-registration:** architecture, recipe, seeds, edge modes, masked features, trajectory rule and pass/fail criteria were constants written to disk before any model saw test data.
+- **Pre-registration:** the relational-only test and its controls were committed before training. Architecture, recipe, seeds and masked features were written to each model's config before training. Edge modes, the trajectory rule and the numeric pass/fail criteria were driver constants, committed together with the results. An independent audit re-derived the 173 pairs and reproduced every pair statistic exactly.
 - **Leakage controls:** training reads only the train split. Validation is used only for early stopping. The member-training process cannot even *address* the test and OOD files, and a unit test proves that pair labels never reach the features.
 - **Uncertainty:**
   - pairwise results use a 10,000-resample pair bootstrap, Wilson intervals, and exact binomial and McNemar tests;
