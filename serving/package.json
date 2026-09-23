@@ -1,5 +1,5 @@
 {
-  "name": "@miniraft/serving",
+  "name": "@cloudproof/serving",
   "version": "1.0.0",
   "private": true,
   "description": "Stateless embedding service: watches consensus for the model manifest, preloads into a shadow slot, activates by pointer swap",

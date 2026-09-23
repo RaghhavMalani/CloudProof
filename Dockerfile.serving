@@ -3,7 +3,7 @@
 # artifact seed job. Keeping them in one image means one `kind load` instead of
 # three, and guarantees all three are built from the same commit.
 #
-#   docker build -f Dockerfile.serving -t miniraft-embedding:local .
+#   docker build -f Dockerfile.serving -t cloudproof-embedding:local .
 #
 # Layout inside the image mirrors the repo, so `require('../serving/...')` from
 # tools/ resolves exactly as it does locally. node_modules sits at /app so Node

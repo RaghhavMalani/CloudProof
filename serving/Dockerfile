@@ -8,7 +8,7 @@
 #
 # Build from the repository root instead:
 #
-#   docker build -f Dockerfile.serving -t miniraft-embedding:local .
+#   docker build -f Dockerfile.serving -t cloudproof-embedding:local .
 #
 # Kept as a signpost rather than deleted, because the path is referenced in
 # older notes and a missing file is a worse error message than this one.

@@ -1,5 +1,7 @@
 'use strict';
 
+const { nodeNameList, normalizePlacement, zoneName } = require('./placement');
+
 const POD_PHASE = Object.freeze({
     PENDING: 'PENDING',
     STARTING: 'STARTING',
@@ -144,38 +146,68 @@ function pdb(topology = {}) {
     };
 }
 
-function zoneName(index) {
-    return `zone-${String.fromCharCode(97 + index)}`;
-}
 
-function nodeNames(topology) {
-    const slotsPerNode = Math.max(1, Math.min(
-        Math.floor(topology.nodeCpuMillicores / topology.podCpuMillicores),
-        Math.floor(topology.nodeMemoryMb / topology.podMemoryMb),
-    ));
-    const nodesPerZone = Math.max(1, Math.ceil(topology.initialReplicas
-        / (slotsPerNode * Math.max(1, topology.zones - 1))));
-    const names = [];
-    for (let zoneIndex = 0; zoneIndex < topology.zones; zoneIndex += 1) {
-        const base = `node-${String.fromCharCode(97 + zoneIndex)}`;
-        for (let ordinal = 1; ordinal <= nodesPerZone; ordinal += 1) {
-            names.push({ name: ordinal === 1 ? base : `${base}-${ordinal}`, zone: zoneName(zoneIndex) });
-        }
+// Without a placement, pods are dealt round-robin over the node list exactly as
+// before Phase II-A.2, which keeps every earlier replay fingerprint intact. With
+// one, pod ordinals are still assigned in order but each zone receives its
+// requested share, dealt round-robin over that zone's own nodes.
+function podNodeNames(topology, names, placement) {
+    if (!placement) return names.map((item) => item.name);
+    if (placement.podsPerNode) {
+        const assignments = [];
+        placement.podsPerNode.forEach((count, nodeIndex) => {
+            for (let local = 0; local < count; local += 1) assignments.push(names[nodeIndex].name);
+        });
+        return assignments;
     }
-    return names;
+    const byZone = Array.from({ length: topology.zones }, (_, zoneIndex) => (
+        names.filter((item) => item.zone === zoneName(zoneIndex)).map((item) => item.name)
+    ));
+    const assignments = [];
+    placement.podsPerZone.forEach((count, zoneIndex) => {
+        for (let local = 0; local < count; local += 1) {
+            assignments.push(byZone[zoneIndex][local % byZone[zoneIndex].length]);
+        }
+    });
+    return assignments;
 }
 
-function createCloudResources(topology, traffic = {}) {
-    const names = nodeNames(topology);
+// The first `startingPerZone[z]` pods dealt to zone z begin STARTING: running
+// on their node but not ready and not an endpoint. The pod multiset is the
+// same whichever zone holds them; only the readiness-to-zone wiring moves.
+function applyStartingPods(pods, names, placement) {
+    if (!placement?.startingPerZone) return new Set();
+    const zoneOf = new Map(names.map((item) => [`node/${item.name}`, item.zone]));
+    const remaining = placement.startingPerZone.slice();
+    const starting = new Set();
+    for (const item of pods) {
+        const zoneIndex = zoneOf.get(item.nodeId).charCodeAt(5) - 97;
+        if (remaining[zoneIndex] <= 0) continue;
+        remaining[zoneIndex] -= 1;
+        item.phase = POD_PHASE.STARTING;
+        item.ready = false;
+        item.readyAtMs = null;
+        starting.add(item.id);
+    }
+    return starting;
+}
+
+function createCloudResources(topology, traffic = {}, placement = null) {
+    const normalized = normalizePlacement(topology, placement);
+    const names = nodeNameList(topology, normalized?.nodesPerZone || null);
+    const podNodes = podNodeNames(topology, names, normalized);
     const pods = Array.from({ length: topology.initialReplicas }, (_, index) => (
-        pod(index + 1, names[index % names.length].name, 'v41', topology)
+        pod(index + 1, podNodes[index % podNodes.length], 'v41', topology)
     ));
+    const starting = applyStartingPods(pods, names, normalized);
+    const api = service(topology);
+    api.observed.endpointPodIds = api.observed.endpointPodIds.filter((podId) => !starting.has(podId));
     return {
         zones: Array.from({ length: topology.zones }, (_, index) => zone(zoneName(index))),
         nodes: names.map((item) => node(item.name, item.zone, topology)),
         pods,
         deployments: [deployment(topology)],
-        services: [service(topology)],
+        services: [api],
         hpas: [hpa(topology, traffic)],
         pdbs: [pdb(topology)],
     };

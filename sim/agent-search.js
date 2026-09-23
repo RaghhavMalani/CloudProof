@@ -137,7 +137,7 @@ function describeAction(action) {
 function createArtifact({ settings, seed, foundAfter, original, shrink, replay }) {
     return {
         schemaVersion: 1,
-        kind: 'miniraft.agent-failure-artifact',
+        kind: 'cloudproof.agent-failure-artifact',
         createdAt: new Date().toISOString(),
         workflow: settings.workflow,
         mutant: settings.mutant,

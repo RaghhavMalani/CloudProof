@@ -22,8 +22,8 @@ stringData:
   # Local-only credentials, committed on purpose so the demo is one command.
   # On EKS there is no equivalent Secret at all: the serving pods get temporary
   # credentials from IRSA and nothing static exists to leak.
-  accessKey: miniraft
-  secretKey: miniraft-local-dev
+  accessKey: cloudproof
+  secretKey: cloudproof-local-dev
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -43,7 +43,7 @@ spec:
       # System tier: MinIO is not consensus and must not consume a node the
       # Raft StatefulSet needs.
       nodeSelector:
-        miniraft.io/tier: system
+        cloudproof.io/tier: system
       containers:
         - name: minio
           # Pinned. `:latest` on an object store is how a demo that worked last
@@ -114,14 +114,14 @@ spec:
     spec:
       restartPolicy: OnFailure
       nodeSelector:
-        miniraft.io/tier: system
+        cloudproof.io/tier: system
       containers:
         - name: seed
-          image: miniraft-embedding:local
+          image: cloudproof-embedding:local
           imagePullPolicy: IfNotPresent
           command: ["node", "tools/seed-artifacts.js"]
           env:
-            - { name: ARTIFACT_BUCKET, value: miniraft-artifacts }
+            - { name: ARTIFACT_BUCKET, value: cloudproof-artifacts }
             - { name: S3_ENDPOINT, value: "http://minio.minio.svc:9000" }
             - { name: AWS_REGION, value: us-east-1 }
             - { name: SEED_VERSIONS, value: "v1,v2" }

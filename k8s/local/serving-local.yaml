@@ -13,24 +13,24 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: miniraft-serving
+  name: cloudproof-serving
   labels:
-    miniraft.io/tier: serving
+    cloudproof.io/tier: serving
 ---
 apiVersion: v1
 kind: Secret
 metadata:
   name: minio-credentials
-  namespace: miniraft-serving
+  namespace: cloudproof-serving
 stringData:
-  accessKey: miniraft
-  secretKey: miniraft-local-dev
+  accessKey: cloudproof
+  secretKey: cloudproof-local-dev
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: embedding
-  namespace: miniraft-serving
+  namespace: cloudproof-serving
   # No eks.amazonaws.com/role-arn annotation: there is no IAM here. This is the
   # single biggest thing the local cluster cannot prove.
 ---
@@ -38,10 +38,10 @@ apiVersion: v1
 kind: Service
 metadata:
   name: embedding
-  namespace: miniraft-serving
+  namespace: cloudproof-serving
 spec:
   selector:
-    app.kubernetes.io/name: miniraft
+    app.kubernetes.io/name: cloudproof
     app.kubernetes.io/component: embedding
   ports:
     - { name: http, port: 7000, targetPort: http }
@@ -50,7 +50,7 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: embedding
-  namespace: miniraft-serving
+  namespace: cloudproof-serving
 spec:
   # A StatefulSet rather than a Deployment, purely so each pod gets a stable
   # ordinal to derive its SHARD_ID from. On EKS the shard assignment comes from
@@ -61,14 +61,14 @@ spec:
   podManagementPolicy: Parallel
   selector:
     matchLabels:
-      app.kubernetes.io/name: miniraft
+      app.kubernetes.io/name: cloudproof
       app.kubernetes.io/component: embedding
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: miniraft
+        app.kubernetes.io/name: cloudproof
         app.kubernetes.io/component: embedding
-        miniraft.io/tier: serving
+        cloudproof.io/tier: serving
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/path: /metrics
@@ -79,11 +79,11 @@ spec:
       # tainted and nothing here tolerates it — the same separation Fargate
       # enforces in the cloud, achieved differently.
       nodeSelector:
-        miniraft.io/tier: system
+        cloudproof.io/tier: system
       terminationGracePeriodSeconds: 20
       containers:
         - name: embedding
-          image: miniraft-embedding:local
+          image: cloudproof-embedding:local
           imagePullPolicy: IfNotPresent
           command:
             - /bin/sh
@@ -102,7 +102,7 @@ spec:
           env:
             - { name: PORT, value: "7000" }
             - { name: SHARD_COUNT, value: "3" }
-            - { name: ARTIFACT_BUCKET, value: miniraft-artifacts }
+            - { name: ARTIFACT_BUCKET, value: cloudproof-artifacts }
             - { name: S3_ENDPOINT, value: "http://minio.minio.svc:9000" }
             - { name: AWS_REGION, value: us-east-1 }
             - name: POD_ID
@@ -112,7 +112,7 @@ spec:
             - name: AWS_SECRET_ACCESS_KEY
               valueFrom: { secretKeyRef: { name: minio-credentials, key: secretKey } }
             - name: RAFT_REPLICAS_URLS
-              value: "http://raft-0.raft.miniraft.svc:5000,http://raft-1.raft.miniraft.svc:5000,http://raft-2.raft.miniraft.svc:5000"
+              value: "http://raft-0.raft.cloudproof-raft.svc:5000,http://raft-1.raft.cloudproof-raft.svc:5000,http://raft-2.raft.cloudproof-raft.svc:5000"
           livenessProbe:
             httpGet: { path: /healthz, port: http }
             initialDelaySeconds: 10
@@ -141,20 +141,20 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: dashboard
-  namespace: miniraft-serving
+  namespace: cloudproof-serving
 spec:
   replicas: 1
   selector:
     matchLabels: { app: dashboard }
   template:
     metadata:
-      labels: { app: dashboard, miniraft.io/tier: serving }
+      labels: { app: dashboard, cloudproof.io/tier: serving }
     spec:
       nodeSelector:
-        miniraft.io/tier: system
+        cloudproof.io/tier: system
       containers:
         - name: dashboard
-          image: miniraft-embedding:local
+          image: cloudproof-embedding:local
           imagePullPolicy: IfNotPresent
           command: ["node", "tools/dashboard.js"]
           ports:
@@ -162,10 +162,10 @@ spec:
           env:
             - { name: DASHBOARD_PORT, value: "8080" }
             - name: RAFT_REPLICAS_URLS
-              value: "http://raft-0.raft.miniraft.svc:5000,http://raft-1.raft.miniraft.svc:5000,http://raft-2.raft.miniraft.svc:5000"
+              value: "http://raft-0.raft.cloudproof-raft.svc:5000,http://raft-1.raft.cloudproof-raft.svc:5000,http://raft-2.raft.cloudproof-raft.svc:5000"
             - name: SERVING_URLS
-              value: "http://embedding-0.embedding.miniraft-serving.svc:7000,http://embedding-1.embedding.miniraft-serving.svc:7000,http://embedding-2.embedding.miniraft-serving.svc:7000"
-            - { name: ARTIFACT_BUCKET, value: miniraft-artifacts }
+              value: "http://embedding-0.embedding.cloudproof-serving.svc:7000,http://embedding-1.embedding.cloudproof-serving.svc:7000,http://embedding-2.embedding.cloudproof-serving.svc:7000"
+            - { name: ARTIFACT_BUCKET, value: cloudproof-artifacts }
             - { name: S3_ENDPOINT, value: "http://minio.minio.svc:9000" }
             - { name: AWS_REGION, value: us-east-1 }
             - name: AWS_ACCESS_KEY_ID
@@ -180,7 +180,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: dashboard
-  namespace: miniraft-serving
+  namespace: cloudproof-serving
 spec:
   type: NodePort
   selector: { app: dashboard }
@@ -197,17 +197,17 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: publish-v1
-  namespace: miniraft-serving
+  namespace: cloudproof-serving
 spec:
   backoffLimit: 4
   template:
     spec:
       restartPolicy: OnFailure
       nodeSelector:
-        miniraft.io/tier: system
+        cloudproof.io/tier: system
       containers:
         - name: rollout
-          image: miniraft-embedding:local
+          image: cloudproof-embedding:local
           imagePullPolicy: IfNotPresent
           command: ["node", "serving/rollout-cli.js"]
           env:
@@ -216,7 +216,7 @@ spec:
             # exactly this many preload acknowledgements before it flips.
             - { name: EXPECTED_PODS, value: "3" }
             - { name: ROLLOUT_TIMEOUT_MS, value: "180000" }
-            - { name: ARTIFACT_BUCKET, value: miniraft-artifacts }
+            - { name: ARTIFACT_BUCKET, value: cloudproof-artifacts }
             - { name: S3_ENDPOINT, value: "http://minio.minio.svc:9000" }
             - { name: AWS_REGION, value: us-east-1 }
             - name: AWS_ACCESS_KEY_ID
@@ -224,4 +224,4 @@ spec:
             - name: AWS_SECRET_ACCESS_KEY
               valueFrom: { secretKeyRef: { name: minio-credentials, key: secretKey } }
             - name: RAFT_REPLICAS_URLS
-              value: "http://raft-0.raft.miniraft.svc:5000,http://raft-1.raft.miniraft.svc:5000,http://raft-2.raft.miniraft.svc:5000"
+              value: "http://raft-0.raft.cloudproof-raft.svc:5000,http://raft-1.raft.cloudproof-raft.svc:5000,http://raft-2.raft.cloudproof-raft.svc:5000"

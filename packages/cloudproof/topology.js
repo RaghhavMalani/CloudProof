@@ -148,6 +148,39 @@ const TOPOLOGY_CATALOG = Object.freeze([
         serviceMinimumReady: 8 }),
 ]);
 
+// Phase II-B examined test topologies K-M and OOD-A-D while selecting and
+// reporting models, so they can no longer serve as untouched holdouts. The v2
+// catalog keeps A-H for training, demotes I-M to validation, and reserves
+// topologies that no earlier phase ever generated for test and OOD.
+const SPLIT_POLICY_V2 = 'topology-holdout-v2';
+
+const TOPOLOGY_CATALOG_V2 = Object.freeze([
+    ...TOPOLOGY_CATALOG.filter((entry) => entry.split === 'train'),
+    ...TOPOLOGY_CATALOG.filter((entry) => ['validation', 'test'].includes(entry.split))
+        .map((entry) => catalogEntry(entry.label, 'validation', entry.topology)),
+    catalogEntry('N', 'test', { initialReplicas: 5, zones: 3, maxUnavailable: 1, maxSurge: 1,
+        pdbMinAvailable: 3, hpaMinReplicas: 2, hpaMaxReplicas: 10, hpaTarget: 65,
+        serviceMinimumReady: 3 }),
+    catalogEntry('O', 'test', { initialReplicas: 6, zones: 2, maxUnavailable: 2, maxSurge: 0,
+        pdbMinAvailable: 3, hpaMinReplicas: 3, hpaMaxReplicas: 9, hpaTarget: 75,
+        serviceMinimumReady: 3 }),
+    catalogEntry('P', 'test', { initialReplicas: 4, zones: 3, maxUnavailable: 1, maxSurge: 0,
+        pdbMinAvailable: 2, hpaMinReplicas: 2, hpaMaxReplicas: 8, hpaTarget: 55,
+        serviceMinimumReady: 2 }),
+    catalogEntry('OOD-E', 'ood', { initialReplicas: 9, zones: 3, maxUnavailable: 1, maxSurge: 2,
+        pdbMinAvailable: 6, hpaMinReplicas: 4, hpaMaxReplicas: 18, hpaTarget: 60,
+        serviceMinimumReady: 6 }),
+    catalogEntry('OOD-F', 'ood', { initialReplicas: 10, zones: 2, maxUnavailable: 2, maxSurge: 1,
+        pdbMinAvailable: 7, hpaMinReplicas: 5, hpaMaxReplicas: 20, hpaTarget: 70,
+        serviceMinimumReady: 7 }),
+    catalogEntry('OOD-G', 'ood', { initialReplicas: 8, zones: 3, maxUnavailable: 0, maxSurge: 1,
+        pdbMinAvailable: 6, hpaMinReplicas: 4, hpaMaxReplicas: 16, hpaTarget: 80,
+        serviceMinimumReady: 5 }),
+    catalogEntry('OOD-H', 'ood', { initialReplicas: 12, zones: 3, maxUnavailable: 1, maxSurge: 0,
+        pdbMinAvailable: 9, hpaMinReplicas: 6, hpaMaxReplicas: 24, hpaTarget: 50,
+        serviceMinimumReady: 9 }),
+]);
+
 function assertDisjointTopologySplits(entries = TOPOLOGY_CATALOG) {
     const owners = new Map();
     for (const entry of entries) {
@@ -161,12 +194,15 @@ function assertDisjointTopologySplits(entries = TOPOLOGY_CATALOG) {
 }
 
 assertDisjointTopologySplits();
+assertDisjointTopologySplits(TOPOLOGY_CATALOG_V2);
 
 module.exports = {
     DATASET_SCHEMA_VERSION,
     DEFAULT_TOPOLOGY,
     SPLIT_POLICY,
+    SPLIT_POLICY_V2,
     TOPOLOGY_CATALOG,
+    TOPOLOGY_CATALOG_V2,
     TOPOLOGY_SCHEMA_VERSION,
     assertDisjointTopologySplits,
     normalizeTopology,

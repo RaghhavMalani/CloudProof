@@ -1,7 +1,7 @@
 (() => {
   'use strict';
-  const { SimCluster } = miniRaft.cluster;
-  const { ScenarioRunner, parseScenario, serializeScenario, branchScenario } = miniRaft.scenario;
+  const { SimCluster } = cloudProof.cluster;
+  const { ScenarioRunner, parseScenario, serializeScenario, branchScenario } = cloudProof.scenario;
   const NS = 'http://www.w3.org/2000/svg';
   const POS = [{x:450,y:92},{x:215,y:365},{x:685,y:365}];
   const $ = (id) => document.getElementById(id);
@@ -197,7 +197,7 @@
   $('copy-seed').onclick=async()=>{await navigator.clipboard.writeText(replayUrl());toast('Replay URL copied')};
   document.getElementById('import-trace').onclick=()=>document.getElementById('trace-file').click();
   document.getElementById('trace-file').onchange=(event)=>loadArtifactFile(event.target.files?.[0]);
-  $('export-trace').onclick=()=>{if(!cluster?.recorder)return;const blob=new Blob([JSON.stringify(cluster.recorder.export(),null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`miniraft-trace-seed-${seed}.json`;a.click();URL.revokeObjectURL(a.href)};
+  $('export-trace').onclick=()=>{if(!cluster?.recorder)return;const blob=new Blob([JSON.stringify(cluster.recorder.export(),null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`cloudproof-trace-seed-${seed}.json`;a.click();URL.revokeObjectURL(a.href)};
   addEventListener('keydown',e=>{if(e.code==='Space'&&e.target.tagName!=='TEXTAREA'){e.preventDefault();$('play-pause').click()}if(e.key==='ArrowRight'&&paused)$('step').click()});
 
   renderTimer=setInterval(renderMetrics,160);

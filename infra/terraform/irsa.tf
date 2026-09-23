@@ -67,7 +67,7 @@ data "aws_iam_policy_document" "serving" {
 
 resource "aws_iam_policy" "serving" {
   name        = "${local.name}-serving"
-  description = "Read-only access to miniRaft index artifacts and app secrets."
+  description = "Read-only access to CloudProof index artifacts and app secrets."
   policy      = data.aws_iam_policy_document.serving.json
 
   tags = local.tags
@@ -133,7 +133,7 @@ data "aws_iam_policy_document" "indexer" {
 
 resource "aws_iam_policy" "indexer" {
   name        = "${local.name}-indexer"
-  description = "Write access to miniRaft index artifacts."
+  description = "Write access to CloudProof index artifacts."
   policy      = data.aws_iam_policy_document.indexer.json
 
   tags = local.tags

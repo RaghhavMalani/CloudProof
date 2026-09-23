@@ -37,9 +37,9 @@ const { getCloudMutant } = require('./cloud-mutants');
 
 class CloudRuntimeSimulation {
     constructor({ seed = 1337, mutant = 'correct', topology = null, traffic = null,
-        horizonTransitions = null } = {}) {
+        horizonTransitions = null, placement = null } = {}) {
         this.state = topology
-            ? createCloudState({ seed, topology, traffic: traffic || {} })
+            ? createCloudState({ seed, topology, traffic: traffic || {}, placement })
             : createFlagshipState({ seed });
         this.clock = new VirtualClock(0);
         this.rng = new Rng(seed);
@@ -336,7 +336,9 @@ async function runCloudSchedule(input, options = {}) {
         mutant: options.mutant || schedule.runtime || 'correct',
         topology: schedule.topology?.maxUnavailable === undefined ? null : schedule.topology,
         traffic: schedule.scenarioParameters?.traffic || null,
-        horizonTransitions: schedule.strategy === 'research-corpus' ? 5 : null,
+        placement: schedule.scenarioParameters?.placement || null,
+        horizonTransitions: options.horizonTransitions
+            ?? (schedule.strategy === 'research-corpus' ? 5 : null),
     });
     for (const action of schedule.actions) await simulation.execute(action);
     const finalState = simulation.export();

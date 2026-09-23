@@ -43,7 +43,7 @@ const clients = new Set();
 // Optional Redis fan-out lets multiple gateway replicas share one commit
 // stream. Without REDIS_URL the service falls back to in-process broadcast.
 const REDIS_URL = process.env.REDIS_URL || '';
-const COMMIT_CHANNEL = 'miniraft:commits';
+const COMMIT_CHANNEL = 'cloudproof:commits';
 let redisPublisher = null;
 let redisSubscriber = null;
 

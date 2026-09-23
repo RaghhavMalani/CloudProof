@@ -1,0 +1,877 @@
+{
+  "attribution": {
+    "allowedClaim": "Relational topology contributes predictive information for CloudProof's controlled Kubernetes topology interventions.",
+    "conditions": {
+      "1_fullGnnAboveChance": {
+        "binomialTiesExcludedP": 7.4272517562084805e-25,
+        "bootstrap95": [
+          0.8208092485549133,
+          0.9190751445086706
+        ],
+        "passed": true,
+        "tieAwareAccuracy": 0.8728323699421965
+      },
+      "2_pooledMlpAtChance": {
+        "passed": true,
+        "tieAwareAccuracy": 0.5,
+        "ties": 173
+      },
+      "3_edgeDestructionRemovesAdvantage": {
+        "controls": {
+          "gnn-full-k5 vs gnn-full-k5[collapsed-edge-types]": {
+            "drop": 0.1329479768786127,
+            "pairedBootstrap95": [
+              0.06358381502890173,
+              0.2023121387283237
+            ],
+            "passed": true
+          },
+          "gnn-full-k5 vs gnn-full-k5[no-edges]": {
+            "drop": 0.3728323699421965,
+            "pairedBootstrap95": [
+              0.3208092485549133,
+              0.4190751445086705
+            ],
+            "passed": true
+          },
+          "gnn-full-k5 vs gnn-full-k5[random-relation-labels]": {
+            "drop": -0.034682080924855585,
+            "pairedBootstrap95": [
+              -0.08670520231213873,
+              0.017341040462427744
+            ],
+            "passed": false
+          },
+          "gnn-full-k5 vs gnn-full-k5[randomized-edges@1729]": {
+            "drop": 0.1271676300578034,
+            "pairedBootstrap95": [
+              0.06647398843930635,
+              0.1907514450867052
+            ],
+            "passed": true
+          },
+          "gnn-full-k5 vs gnn-full-k5[randomized-edges@2729]": {
+            "drop": 0.13583815028901725,
+            "pairedBootstrap95": [
+              0.07514450867052024,
+              0.19653179190751446
+            ],
+            "passed": true
+          },
+          "gnn-full-k5 vs gnn-full-k5[randomized-edges@3729]": {
+            "drop": 0.12138728323699421,
+            "pairedBootstrap95": [
+              0.05491329479768786,
+              0.18786127167630057
+            ],
+            "passed": true
+          },
+          "gnn-full-k5 vs gnn-full-k5[rewired-edges@1729]": {
+            "drop": 0.4104046242774566,
+            "pairedBootstrap95": [
+              0.3236994219653179,
+              0.49710982658959535
+            ],
+            "passed": true
+          },
+          "gnn-full-k5 vs gnn-full-k5[rewired-edges@2729]": {
+            "drop": 0.3815028901734104,
+            "pairedBootstrap95": [
+              0.2832369942196532,
+              0.47398843930635837
+            ],
+            "passed": true
+          },
+          "gnn-full-k5 vs gnn-full-k5[rewired-edges@3729]": {
+            "drop": 0.32369942196531787,
+            "pairedBootstrap95": [
+              0.23699421965317918,
+              0.41040462427745666
+            ],
+            "passed": true
+          }
+        },
+        "passed": true
+      },
+      "4_survivesClockBlind": {
+        "bootstrap95": [
+          0.8380057803468209,
+          0.930635838150289
+        ],
+        "passed": true,
+        "tieAwareAccuracy": 0.884393063583815
+      },
+      "5_intervalsDeterminate": {
+        "fullGnnInterval": [
+          0.8208092485549133,
+          0.9190751445086706
+        ],
+        "fullGnnIntervalExcludesChance": true,
+        "fullGnnIntervalWidth": 0.09826589595375723,
+        "fullGnnLowerAbovePooledUpper": true,
+        "passed": true,
+        "someDestroyedControlDifferenceExcludesZero": true
+      }
+    },
+    "criteria": {
+      "clockBlindIntervalMustExcludeChance": true,
+      "clockBlindMinimumTieAwareAccuracy": 0.6,
+      "edgeDestructionDifferenceIntervalMustExcludeZero": true,
+      "edgeDestructionMinimumDrop": 0.1,
+      "fullGnnBinomialAlpha": 0.01,
+      "fullGnnIntervalMustExcludeChance": true,
+      "fullGnnMinimumTieAwareAccuracy": 0.6,
+      "pooledMlpChanceBand": [
+        0.4,
+        0.6
+      ],
+      "primaryAccuracy": "tie-aware pairwise accuracy = (correct + 0.5 * ties) / pairs",
+      "primaryPairSet": "relational-only, valid, trajectory-outcome discordant pairs",
+      "tieTolerance": 1e-06
+    },
+    "graphAttribution": "PASSED"
+  },
+  "comparisons": {
+    "gnn-full-k5 vs gnn-clock-blind-k5": {
+      "mcnemarExactStrict": {
+        "discordant": 4,
+        "leftOnly": 1,
+        "pValue": 0.6249999999999994,
+        "rightOnly": 3
+      },
+      "pairedBootstrap95": {
+        "excludesZero": false,
+        "lower": -0.03468208092485549,
+        "mean": -0.011560693641618497,
+        "resamples": 10000,
+        "seed": 20260922,
+        "units": 173,
+        "upper": 0.011560693641618497
+      },
+      "tieAwareAccuracyDifference": -0.011560693641618491
+    },
+    "gnn-full-k5 vs gnn-full-k5[collapsed-edge-types]": {
+      "mcnemarExactStrict": {
+        "discordant": 41,
+        "leftOnly": 32,
+        "pValue": 0.000430857042374554,
+        "rightOnly": 9
+      },
+      "pairedBootstrap95": {
+        "excludesZero": true,
+        "lower": 0.06358381502890173,
+        "mean": 0.1329479768786127,
+        "resamples": 10000,
+        "seed": 20260922,
+        "units": 173,
+        "upper": 0.2023121387283237
+      },
+      "tieAwareAccuracyDifference": 0.1329479768786127
+    },
+    "gnn-full-k5 vs gnn-full-k5[no-edges]": {
+      "mcnemarExactStrict": {
+        "discordant": 151,
+        "leftOnly": 151,
+        "pValue": 7.006492321624104e-46,
+        "rightOnly": 0
+      },
+      "pairedBootstrap95": {
+        "excludesZero": true,
+        "lower": 0.3208092485549133,
+        "mean": 0.37283236994219654,
+        "resamples": 10000,
+        "seed": 20260922,
+        "units": 173,
+        "upper": 0.4190751445086705
+      },
+      "tieAwareAccuracyDifference": 0.3728323699421965
+    },
+    "gnn-full-k5 vs gnn-full-k5[random-relation-labels]": {
+      "mcnemarExactStrict": {
+        "discordant": 22,
+        "leftOnly": 8,
+        "pValue": 0.2862787246704092,
+        "rightOnly": 14
+      },
+      "pairedBootstrap95": {
+        "excludesZero": false,
+        "lower": -0.08670520231213873,
+        "mean": -0.03468208092485549,
+        "resamples": 10000,
+        "seed": 20260922,
+        "units": 173,
+        "upper": 0.017341040462427744
+      },
+      "tieAwareAccuracyDifference": -0.034682080924855585
+    },
+    "gnn-full-k5 vs gnn-full-k5[randomized-edges@1729]": {
+      "mcnemarExactStrict": {
+        "discordant": 54,
+        "leftOnly": 47,
+        "pValue": 2.2918642095248127e-08,
+        "rightOnly": 7
+      },
+      "pairedBootstrap95": {
+        "excludesZero": true,
+        "lower": 0.06647398843930635,
+        "mean": 0.12716763005780346,
+        "resamples": 10000,
+        "seed": 20260922,
+        "units": 173,
+        "upper": 0.1907514450867052
+      },
+      "tieAwareAccuracyDifference": 0.1271676300578034
+    },
+    "gnn-full-k5 vs gnn-full-k5[randomized-edges@2729]": {
+      "mcnemarExactStrict": {
+        "discordant": 53,
+        "leftOnly": 47,
+        "pValue": 5.8053224449850446e-09,
+        "rightOnly": 6
+      },
+      "pairedBootstrap95": {
+        "excludesZero": true,
+        "lower": 0.07514450867052024,
+        "mean": 0.13583815028901733,
+        "resamples": 10000,
+        "seed": 20260922,
+        "units": 173,
+        "upper": 0.19653179190751446
+      },
+      "tieAwareAccuracyDifference": 0.13583815028901725
+    },
+    "gnn-full-k5 vs gnn-full-k5[randomized-edges@3729]": {
+      "mcnemarExactStrict": {
+        "discordant": 54,
+        "leftOnly": 46,
+        "pValue": 1.384335497345223e-07,
+        "rightOnly": 8
+      },
+      "pairedBootstrap95": {
+        "excludesZero": true,
+        "lower": 0.05491329479768786,
+        "mean": 0.12138728323699421,
+        "resamples": 10000,
+        "seed": 20260922,
+        "units": 173,
+        "upper": 0.18786127167630057
+      },
+      "tieAwareAccuracyDifference": 0.12138728323699421
+    },
+    "gnn-full-k5 vs gnn-full-k5[rewired-edges@1729]": {
+      "mcnemarExactStrict": {
+        "discordant": 87,
+        "leftOnly": 79,
+        "pValue": 8.377941473729842e-16,
+        "rightOnly": 8
+      },
+      "pairedBootstrap95": {
+        "excludesZero": true,
+        "lower": 0.3236994219653179,
+        "mean": 0.41040462427745666,
+        "resamples": 10000,
+        "seed": 20260922,
+        "units": 173,
+        "upper": 0.49710982658959535
+      },
+      "tieAwareAccuracyDifference": 0.4104046242774566
+    },
+    "gnn-full-k5 vs gnn-full-k5[rewired-edges@2729]": {
+      "mcnemarExactStrict": {
+        "discordant": 92,
+        "leftOnly": 79,
+        "pValue": 1.0733747410748e-12,
+        "rightOnly": 13
+      },
+      "pairedBootstrap95": {
+        "excludesZero": true,
+        "lower": 0.2832369942196532,
+        "mean": 0.3815028901734104,
+        "resamples": 10000,
+        "seed": 20260922,
+        "units": 173,
+        "upper": 0.47398843930635837
+      },
+      "tieAwareAccuracyDifference": 0.3815028901734104
+    },
+    "gnn-full-k5 vs gnn-full-k5[rewired-edges@3729]": {
+      "mcnemarExactStrict": {
+        "discordant": 76,
+        "leftOnly": 66,
+        "pValue": 2.96004643922584e-11,
+        "rightOnly": 10
+      },
+      "pairedBootstrap95": {
+        "excludesZero": true,
+        "lower": 0.23699421965317918,
+        "mean": 0.3236994219653179,
+        "resamples": 10000,
+        "seed": 20260922,
+        "units": 173,
+        "upper": 0.41040462427745666
+      },
+      "tieAwareAccuracyDifference": 0.32369942196531787
+    },
+    "gnn-full-k5 vs pooled-mlp-k5": {
+      "mcnemarExactStrict": {
+        "discordant": 151,
+        "leftOnly": 151,
+        "pValue": 7.006492321624104e-46,
+        "rightOnly": 0
+      },
+      "pairedBootstrap95": {
+        "excludesZero": true,
+        "lower": 0.3208092485549133,
+        "mean": 0.37283236994219654,
+        "resamples": 10000,
+        "seed": 20260922,
+        "units": 173,
+        "upper": 0.4190751445086705
+      },
+      "tieAwareAccuracyDifference": 0.3728323699421965
+    }
+  },
+  "kind": "cloudproof.phase-ii-b2-statistical-tests",
+  "methods": {
+    "chanceTest": "exact two-sided binomial test against 0.5, reported with ties excluded and with ties counted as wrong",
+    "fixedBudget": "deterministic ranking given the scores; only the random baseline has a seed (1337); no repeated trials are claimed",
+    "modelComparison": "paired bootstrap of the tie-aware accuracy difference over the same pairs plus an exact McNemar test on strict outcomes",
+    "pairwiseInterval": "percentile bootstrap over pairs (10,000 resamples, seed 20260922) of tie-aware accuracy; Wilson 95% interval alongside",
+    "transitionAuroc": "percentile bootstrap resampling trajectories (1,000 resamples) because rows of one trajectory are not independent"
+  },
+  "phase": "II-B.2",
+  "primary": {
+    "gnn-clock-blind-k5": {
+      "binomialTiesAsWrong": {
+        "pValue": 1.4505999908657647e-26,
+        "successes": 153,
+        "trials": 173
+      },
+      "binomialTiesExcluded": {
+        "pValue": 1.4505999908657647e-26,
+        "successes": 153,
+        "trials": 173
+      },
+      "bootstrap95TieAware": {
+        "lower": 0.8380057803468209,
+        "mean": 0.884393063583815,
+        "resamples": 10000,
+        "seed": 20260922,
+        "units": 173,
+        "upper": 0.930635838150289
+      },
+      "byDirection": {
+        "safe->unsafe": {
+          "correct": 153,
+          "pairs": 164,
+          "tieAwareAccuracy": 0.9329268292682927,
+          "ties": 0
+        },
+        "unsafe->safe": {
+          "correct": 0,
+          "pairs": 9,
+          "tieAwareAccuracy": 0.0,
+          "ties": 0
+        }
+      },
+      "correct": 153,
+      "exactTies": 0,
+      "marginBootstrap95": {
+        "lower": 0.07434290826342183,
+        "mean": 0.08812677343456732,
+        "resamples": 10000,
+        "seed": 20260922,
+        "units": 173,
+        "upper": 0.10193035691287475
+      },
+      "margins": {
+        "maximum": 0.22227728366851807,
+        "mean": 0.08812677343456732,
+        "median": 0.06512701511383057,
+        "minimum": -0.26467370986938477
+      },
+      "pairs": 173,
+      "strictAccuracy": 0.884393063583815,
+      "tieAwareAccuracy": 0.884393063583815,
+      "ties": 0,
+      "wilson95TieAware": [
+        0.8281819315949569,
+        0.923904150972669
+      ],
+      "wrong": 20
+    },
+    "gnn-full-k1": {
+      "binomialTiesAsWrong": {
+        "pValue": 1.8684347678331658e-27,
+        "successes": 154,
+        "trials": 173
+      },
+      "binomialTiesExcluded": {
+        "pValue": 1.8684347678331658e-27,
+        "successes": 154,
+        "trials": 173
+      },
+      "bootstrap95TieAware": {
+        "lower": 0.8439306358381503,
+        "mean": 0.8901734104046243,
+        "resamples": 10000,
+        "seed": 20260922,
+        "units": 173,
+        "upper": 0.9364161849710982
+      },
+      "byDirection": {
+        "safe->unsafe": {
+          "correct": 154,
+          "pairs": 164,
+          "tieAwareAccuracy": 0.9390243902439024,
+          "ties": 0
+        },
+        "unsafe->safe": {
+          "correct": 0,
+          "pairs": 9,
+          "tieAwareAccuracy": 0.0,
+          "ties": 0
+        }
+      },
+      "correct": 154,
+      "exactTies": 0,
+      "marginBootstrap95": {
+        "lower": 0.07329364505117339,
+        "mean": 0.09045095285239248,
+        "resamples": 10000,
+        "seed": 20260922,
+        "units": 173,
+        "upper": 0.10609263168766318
+      },
+      "margins": {
+        "maximum": 0.3835994601249695,
+        "mean": 0.09045095285239248,
+        "median": 0.11353009939193726,
+        "minimum": -0.36422914266586304
+      },
+      "pairs": 173,
+      "strictAccuracy": 0.8901734104046243,
+      "tieAwareAccuracy": 0.8901734104046243,
+      "ties": 0,
+      "wilson95TieAware": [
+        0.8348412270888746,
+        0.9285544206301443
+      ],
+      "wrong": 19
+    },
+    "gnn-full-k10": {
+      "binomialTiesAsWrong": {
+        "pValue": 1.8684347678331658e-27,
+        "successes": 154,
+        "trials": 173
+      },
+      "binomialTiesExcluded": {
+        "pValue": 1.8684347678331658e-27,
+        "successes": 154,
+        "trials": 173
+      },
+      "bootstrap95TieAware": {
+        "lower": 0.8439306358381503,
+        "mean": 0.8901734104046243,
+        "resamples": 10000,
+        "seed": 20260922,
+        "units": 173,
+        "upper": 0.9364161849710982
+      },
+      "byDirection": {
+        "safe->unsafe": {
+          "correct": 154,
+          "pairs": 164,
+          "tieAwareAccuracy": 0.9390243902439024,
+          "ties": 0
+        },
+        "unsafe->safe": {
+          "correct": 0,
+          "pairs": 9,
+          "tieAwareAccuracy": 0.0,
+          "ties": 0
+        }
+      },
+      "correct": 154,
+      "exactTies": 0,
+      "marginBootstrap95": {
+        "lower": 0.0742100787946599,
+        "mean": 0.08563105960112775,
+        "resamples": 10000,
+        "seed": 20260922,
+        "units": 173,
+        "upper": 0.09654761842220504
+      },
+      "margins": {
+        "maximum": 0.18597412109375,
+        "mean": 0.08563105960112775,
+        "median": 0.09273219108581543,
+        "minimum": -0.19807952642440796
+      },
+      "pairs": 173,
+      "strictAccuracy": 0.8901734104046243,
+      "tieAwareAccuracy": 0.8901734104046243,
+      "ties": 0,
+      "wilson95TieAware": [
+        0.8348412270888746,
+        0.9285544206301443
+      ],
+      "wrong": 19
+    },
+    "gnn-full-k20": {
+      "binomialTiesAsWrong": {
+        "pValue": 4.919158589150357e-24,
+        "successes": 150,
+        "trials": 173
+      },
+      "binomialTiesExcluded": {
+        "pValue": 4.919158589150357e-24,
+        "successes": 150,
+        "trials": 173
+      },
+      "bootstrap95TieAware": {
+        "lower": 0.815028901734104,
+        "mean": 0.8670520231213873,
+        "resamples": 10000,
+        "seed": 20260922,
+        "units": 173,
+        "upper": 0.9132947976878613
+      },
+      "byDirection": {
+        "safe->unsafe": {
+          "correct": 143,
+          "pairs": 164,
+          "tieAwareAccuracy": 0.8719512195121951,
+          "ties": 0
+        },
+        "unsafe->safe": {
+          "correct": 7,
+          "pairs": 9,
+          "tieAwareAccuracy": 0.7777777777777778,
+          "ties": 0
+        }
+      },
+      "correct": 150,
+      "exactTies": 0,
+      "marginBootstrap95": {
+        "lower": 0.04028446255520934,
+        "mean": 0.04623040496613938,
+        "resamples": 10000,
+        "seed": 20260922,
+        "units": 173,
+        "upper": 0.052191488705360126
+      },
+      "margins": {
+        "maximum": 0.10066300630569458,
+        "mean": 0.04623040496613938,
+        "median": 0.04583841562271118,
+        "minimum": -0.08422842621803284
+      },
+      "pairs": 173,
+      "strictAccuracy": 0.8670520231213873,
+      "tieAwareAccuracy": 0.8670520231213873,
+      "ties": 0,
+      "wilson95TieAware": [
+        0.808407194291826,
+        0.9097501928216215
+      ],
+      "wrong": 23
+    },
+    "gnn-full-k5": {
+      "binomialTiesAsWrong": {
+        "pValue": 7.4272517562084805e-25,
+        "successes": 151,
+        "trials": 173
+      },
+      "binomialTiesExcluded": {
+        "pValue": 7.4272517562084805e-25,
+        "successes": 151,
+        "trials": 173
+      },
+      "bootstrap95TieAware": {
+        "lower": 0.8208092485549133,
+        "mean": 0.8728323699421965,
+        "resamples": 10000,
+        "seed": 20260922,
+        "units": 173,
+        "upper": 0.9190751445086706
+      },
+      "byDirection": {
+        "safe->unsafe": {
+          "correct": 151,
+          "pairs": 164,
+          "tieAwareAccuracy": 0.9207317073170732,
+          "ties": 0
+        },
+        "unsafe->safe": {
+          "correct": 0,
+          "pairs": 9,
+          "tieAwareAccuracy": 0.0,
+          "ties": 0
+        }
+      },
+      "correct": 151,
+      "exactTies": 0,
+      "marginBootstrap95": {
+        "lower": 0.060108985030496054,
+        "mean": 0.07296960848259788,
+        "resamples": 10000,
+        "seed": 20260922,
+        "units": 173,
+        "upper": 0.0855430396607501
+      },
+      "margins": {
+        "maximum": 0.19563710689544678,
+        "mean": 0.07296960848259788,
+        "median": 0.06469696760177612,
+        "minimum": -0.20890992879867554
+      },
+      "pairs": 173,
+      "strictAccuracy": 0.8728323699421965,
+      "tieAwareAccuracy": 0.8728323699421965,
+      "ties": 0,
+      "wilson95TieAware": [
+        0.814966861730172,
+        0.9145000905346681
+      ],
+      "wrong": 22
+    },
+    "pooled-mlp-k1": {
+      "binomialTiesAsWrong": {
+        "pValue": 1.6704779438076297e-52,
+        "successes": 0,
+        "trials": 173
+      },
+      "binomialTiesExcluded": {
+        "pValue": null,
+        "successes": 0,
+        "trials": 0
+      },
+      "bootstrap95TieAware": {
+        "lower": 0.5,
+        "mean": 0.5,
+        "resamples": 10000,
+        "seed": 20260922,
+        "units": 173,
+        "upper": 0.5
+      },
+      "byDirection": {
+        "safe->unsafe": {
+          "correct": 0,
+          "pairs": 164,
+          "tieAwareAccuracy": 0.5,
+          "ties": 164
+        },
+        "unsafe->safe": {
+          "correct": 0,
+          "pairs": 9,
+          "tieAwareAccuracy": 0.5,
+          "ties": 9
+        }
+      },
+      "correct": 0,
+      "exactTies": 173,
+      "marginBootstrap95": {
+        "lower": 0.0,
+        "mean": 0.0,
+        "resamples": 10000,
+        "seed": 20260922,
+        "units": 173,
+        "upper": 0.0
+      },
+      "margins": {
+        "maximum": 0.0,
+        "mean": 0.0,
+        "median": 0.0,
+        "minimum": 0.0
+      },
+      "pairs": 173,
+      "strictAccuracy": 0.0,
+      "tieAwareAccuracy": 0.5,
+      "ties": 173,
+      "wilson95TieAware": [
+        0.4263070315353688,
+        0.5736929684646312
+      ],
+      "wrong": 0
+    },
+    "pooled-mlp-k10": {
+      "binomialTiesAsWrong": {
+        "pValue": 1.6704779438076297e-52,
+        "successes": 0,
+        "trials": 173
+      },
+      "binomialTiesExcluded": {
+        "pValue": null,
+        "successes": 0,
+        "trials": 0
+      },
+      "bootstrap95TieAware": {
+        "lower": 0.5,
+        "mean": 0.5,
+        "resamples": 10000,
+        "seed": 20260922,
+        "units": 173,
+        "upper": 0.5
+      },
+      "byDirection": {
+        "safe->unsafe": {
+          "correct": 0,
+          "pairs": 164,
+          "tieAwareAccuracy": 0.5,
+          "ties": 164
+        },
+        "unsafe->safe": {
+          "correct": 0,
+          "pairs": 9,
+          "tieAwareAccuracy": 0.5,
+          "ties": 9
+        }
+      },
+      "correct": 0,
+      "exactTies": 173,
+      "marginBootstrap95": {
+        "lower": 0.0,
+        "mean": 0.0,
+        "resamples": 10000,
+        "seed": 20260922,
+        "units": 173,
+        "upper": 0.0
+      },
+      "margins": {
+        "maximum": 0.0,
+        "mean": 0.0,
+        "median": 0.0,
+        "minimum": 0.0
+      },
+      "pairs": 173,
+      "strictAccuracy": 0.0,
+      "tieAwareAccuracy": 0.5,
+      "ties": 173,
+      "wilson95TieAware": [
+        0.4263070315353688,
+        0.5736929684646312
+      ],
+      "wrong": 0
+    },
+    "pooled-mlp-k20": {
+      "binomialTiesAsWrong": {
+        "pValue": 1.6704779438076297e-52,
+        "successes": 0,
+        "trials": 173
+      },
+      "binomialTiesExcluded": {
+        "pValue": null,
+        "successes": 0,
+        "trials": 0
+      },
+      "bootstrap95TieAware": {
+        "lower": 0.5,
+        "mean": 0.5,
+        "resamples": 10000,
+        "seed": 20260922,
+        "units": 173,
+        "upper": 0.5
+      },
+      "byDirection": {
+        "safe->unsafe": {
+          "correct": 0,
+          "pairs": 164,
+          "tieAwareAccuracy": 0.5,
+          "ties": 164
+        },
+        "unsafe->safe": {
+          "correct": 0,
+          "pairs": 9,
+          "tieAwareAccuracy": 0.5,
+          "ties": 9
+        }
+      },
+      "correct": 0,
+      "exactTies": 173,
+      "marginBootstrap95": {
+        "lower": 0.0,
+        "mean": 0.0,
+        "resamples": 10000,
+        "seed": 20260922,
+        "units": 173,
+        "upper": 0.0
+      },
+      "margins": {
+        "maximum": 0.0,
+        "mean": 0.0,
+        "median": 0.0,
+        "minimum": 0.0
+      },
+      "pairs": 173,
+      "strictAccuracy": 0.0,
+      "tieAwareAccuracy": 0.5,
+      "ties": 173,
+      "wilson95TieAware": [
+        0.4263070315353688,
+        0.5736929684646312
+      ],
+      "wrong": 0
+    },
+    "pooled-mlp-k5": {
+      "binomialTiesAsWrong": {
+        "pValue": 1.6704779438076297e-52,
+        "successes": 0,
+        "trials": 173
+      },
+      "binomialTiesExcluded": {
+        "pValue": null,
+        "successes": 0,
+        "trials": 0
+      },
+      "bootstrap95TieAware": {
+        "lower": 0.5,
+        "mean": 0.5,
+        "resamples": 10000,
+        "seed": 20260922,
+        "units": 173,
+        "upper": 0.5
+      },
+      "byDirection": {
+        "safe->unsafe": {
+          "correct": 0,
+          "pairs": 164,
+          "tieAwareAccuracy": 0.5,
+          "ties": 164
+        },
+        "unsafe->safe": {
+          "correct": 0,
+          "pairs": 9,
+          "tieAwareAccuracy": 0.5,
+          "ties": 9
+        }
+      },
+      "correct": 0,
+      "exactTies": 173,
+      "marginBootstrap95": {
+        "lower": 0.0,
+        "mean": 0.0,
+        "resamples": 10000,
+        "seed": 20260922,
+        "units": 173,
+        "upper": 0.0
+      },
+      "margins": {
+        "maximum": 0.0,
+        "mean": 0.0,
+        "median": 0.0,
+        "minimum": 0.0
+      },
+      "pairs": 173,
+      "strictAccuracy": 0.0,
+      "tieAwareAccuracy": 0.5,
+      "ties": 173,
+      "wilson95TieAware": [
+        0.4263070315353688,
+        0.5736929684646312
+      ],
+      "wrong": 0
+    }
+  },
+  "schemaVersion": 1
+}

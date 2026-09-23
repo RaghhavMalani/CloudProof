@@ -2,8 +2,8 @@
   'use strict';
 
   const $ = (id) => document.getElementById(id);
-  const api = window.miniRaft?.workloads;
-  const plain = window.miniRaft?.plainEnglish;
+  const api = window.cloudProof?.workloads;
+  const plain = window.cloudProof?.plainEnglish;
   if (!api || !plain) {
     const error = document.createElement('section');
     error.className = 'boot-error';
@@ -543,7 +543,7 @@
 (() => {
   'use strict';
 
-  const api = window.miniRaft?.bugMuseum;
+  const api = window.cloudProof?.bugMuseum;
   if (!api) return;
 
   const $ = (id) => document.getElementById(id);
@@ -576,7 +576,7 @@
       <aside class="museum-catalog">
         <div class="catalog-head">
           <div class="museum-seal">BM</div>
-          <div><small>MINIRAFT COLLECTION</small><b>Seeded specimens</b></div>
+          <div><small>CLOUDPROOF COLLECTION</small><b>Seeded specimens</b></div>
         </div>
         <div class="catalog-intro">
           <span class="live-dot"></span> EXECUTABLE EXHIBITS
@@ -865,7 +865,7 @@
       $('mode-museum').classList.add('active');
       $('mode-engineer').classList.remove('active');
       document.querySelector('.brand strong').textContent = 'Bug Museum';
-      document.querySelector('.brand small').textContent = 'miniRaft executable failure archive';
+      document.querySelector('.brand small').textContent = 'CloudProof executable failure archive';
       if (!currentResult()) {
         setTimeout(() => {
           state.results.set(state.selectedId, api.evaluateMutant(state.selectedId, { seed }));
@@ -878,7 +878,7 @@
       $('mode-engineer').classList.add('active');
       $('mode-museum').classList.remove('active');
       document.querySelector('.brand strong').textContent = 'Consensus Flight Deck';
-      document.querySelector('.brand small').textContent = 'miniRaft deterministic systems lab';
+      document.querySelector('.brand small').textContent = 'CloudProof deterministic systems lab';
       stopPlayback();
     };
     $('arm-mutant').onchange = (event) => {

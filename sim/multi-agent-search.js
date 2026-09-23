@@ -70,7 +70,7 @@ function writeJson(file, value) {
 function createArtifact({ settings, foundAfter, original, minimized, replay }) {
     return {
         schemaVersion: 1,
-        kind: 'miniraft.multi-agent-counterexample',
+        kind: 'cloudproof.multi-agent-counterexample',
         scenario: 'shared-order-financial-resolution',
         mutant: settings.mutant,
         strategy: settings.strategy,

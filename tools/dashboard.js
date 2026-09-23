@@ -166,11 +166,11 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, () => {
     note('dashboard started', 'ok');
-    console.log(`\n  miniRaft dashboard → http://localhost:${PORT}\n`);
+    console.log(`\n  CloudProof dashboard → http://localhost:${PORT}\n`);
 });
 
 const PAGE = `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>miniRaft</title>
+<html lang="en"><head><meta charset="utf-8"><title>CloudProof</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
 :root{--bg:#0d1117;--panel:#161b22;--line:#30363d;--dim:#8b949e;--fg:#e6edf3;
@@ -213,7 +213,7 @@ color:var(--accent);border:1px solid var(--accent);font-size:11px}
 pre{margin:8px 0 0;font-size:11px;color:var(--dim);max-height:150px;overflow:auto;white-space:pre-wrap}
 </style></head><body>
 <header>
-  <h1>miniRaft</h1>
+  <h1>CloudProof</h1>
   <span class="sub" id="summary">connecting…</span>
 </header>
 <main>

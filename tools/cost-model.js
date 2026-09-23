@@ -154,7 +154,7 @@ function sparkline(rows, key, height = 12) {
     const fixed = fixedMonthly(o);
     const fixedTotal = Object.values(fixed).reduce((a, b) => a + b, 0);
 
-    console.log('miniRaft cost model — LIST PRICES FROM MEMORY, VERIFY BEFORE QUOTING\n');
+    console.log('CloudProof cost model — LIST PRICES FROM MEMORY, VERIFY BEFORE QUOTING\n');
     console.log('fixed monthly floor (bills at zero QPS):');
     for (const [name, value] of Object.entries(fixed)) {
         console.log(`  ${name.padEnd(18)} $${value.toFixed(2).padStart(8)}`);

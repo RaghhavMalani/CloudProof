@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>miniRaft — watch a distributed system survive being broken</title>
+<title>CloudProof — watch a distributed system survive being broken</title>
 <meta name="description" content="A hand-written Raft consensus engine replicating a vector index. Real code, running in your browser. Cut a node off and watch the survivors elect a new leader.">
 <style>
 :root{
@@ -128,7 +128,7 @@ footer{padding:6px 30px 52px;color:var(--faint);font-size:11.5px;max-width:1440p
 <div class="grain"></div>
 
 <header>
-  <h1>miniRaft</h1>
+  <h1>CloudProof</h1>
   <div class="sub">Three replicas running a <b>hand-written Raft consensus engine</b>, each building its own
   <b>vector index</b> from the replicated log. This is the real engine — not a diagram — running in your browser.
   Cut a node off and watch the survivors elect a new leader.</div>
@@ -178,7 +178,7 @@ footer{padding:6px 30px 52px;color:var(--faint);font-size:11.5px;max-width:1440p
 
 <script src="bundle.js"></script>
 <script>
-const { SimCluster } = miniRaft.cluster;
+const { SimCluster } = cloudProof.cluster;
 const DIM = 64;
 const SAMPLES = ['a golden retriever running through a field','a small dog playing fetch in the park','a cat sleeping on a windowsill','a tabby kitten chasing yarn','a red sports car on a mountain road','a vintage motorcycle outside a cafe','freshly baked sourdough bread','a bowl of ramen with a soft egg','snow covered peaks at sunrise','a long sandy beach at low tide','a crowded subway platform','an empty library reading room','circuit boards under a microscope','a server rack with blinking lights','handwritten notes and coffee','a violin resting on sheet music'];
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;

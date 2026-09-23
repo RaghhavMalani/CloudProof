@@ -46,6 +46,25 @@ jobs:
           --iterations 10
           --budgets 2,4,8
           --out artifacts/cloudproof/research-ci
+      - name: CloudProof Phase II-A.2 causal corpus smoke gate
+        run: >-
+          node tools/cloudproof-causal-corpus.js
+          --simulations 160
+          --seed 61000
+          --minimum-trajectories 160
+          --minimum-matched-pairs 4
+          --minimum-discordant-pairs 0
+          --minimum-relational-discordant-pairs 0
+          --minimum-horizon-positives 1
+          --max-class-share 1
+          --pairs 96
+          --budgets 2,4,8
+          --workers 2
+          --shortcut-auroc-hard-max 1
+          --shortcut-split-max 1
+          --permutation-mean-band 1
+          --permutation-trial-band 1
+          --out artifacts/cloudproof/causal-corpus-ci
       # Every source file, found rather than listed. The previous version named
       # raft.js and index.js explicitly, so log-store.js and state-machine.js
       # were never checked once they were split out — the same class of omission
@@ -105,12 +124,12 @@ jobs:
           file: ${{ matrix.dockerfile }}
           load: true
           push: false
-          tags: miniraft-${{ matrix.component }}:${{ github.sha }}
+          tags: cloudproof-${{ matrix.component }}:${{ github.sha }}
           cache-from: type=gha,scope=${{ matrix.component }}
           cache-to: type=gha,mode=max,scope=${{ matrix.component }}
       - uses: aquasecurity/trivy-action@v0.36.0
         with:
-          image-ref: miniraft-${{ matrix.component }}:${{ github.sha }}
+          image-ref: cloudproof-${{ matrix.component }}:${{ github.sha }}
           format: table
           exit-code: "1"
           ignore-unfixed: true
@@ -122,8 +141,8 @@ jobs:
           file: ${{ matrix.dockerfile }}
           push: true
           tags: |
-            ghcr.io/raghhavmalani/miniraft-${{ matrix.component }}:latest
-            ghcr.io/raghhavmalani/miniraft-${{ matrix.component }}:${{ github.sha }}
+            ghcr.io/raghhavmalani/cloudproof-${{ matrix.component }}:latest
+            ghcr.io/raghhavmalani/cloudproof-${{ matrix.component }}:${{ github.sha }}
           cache-from: type=gha,scope=${{ matrix.component }}
 
   agent-raft-compose:

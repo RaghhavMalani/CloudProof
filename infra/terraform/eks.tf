@@ -48,7 +48,7 @@ module "eks" {
       # CoreDNS is a Deployment. It cannot tolerate the consensus taint, which
       # is exactly why the system node group exists.
       configuration_values = jsonencode({
-        nodeSelector = { "miniraft.io/tier" = "system" }
+        nodeSelector = { "cloudproof.io/tier" = "system" }
       })
     }
     kube-proxy = { most_recent = true }
@@ -64,7 +64,7 @@ module "eks" {
       service_account_role_arn = module.ebs_csi_irsa.iam_role_arn
       configuration_values = jsonencode({
         controller = {
-          nodeSelector = { "miniraft.io/tier" = "system" }
+          nodeSelector = { "cloudproof.io/tier" = "system" }
         }
       })
     }
@@ -80,7 +80,7 @@ module "eks" {
       desired_size   = var.system_node_count
 
       labels = {
-        "miniraft.io/tier" = "system"
+        "cloudproof.io/tier" = "system"
       }
     }
 
@@ -99,12 +99,12 @@ module "eks" {
       capacity_type = "ON_DEMAND"
 
       labels = {
-        "miniraft.io/tier" = "consensus"
+        "cloudproof.io/tier" = "consensus"
       }
 
       taints = {
         consensus = {
-          key    = "miniraft.io/tier"
+          key    = "cloudproof.io/tier"
           value  = "consensus"
           effect = "NO_SCHEDULE"
         }
@@ -136,7 +136,7 @@ module "eks" {
       selectors = [
         {
           namespace = var.serving_namespace
-          labels    = { "miniraft.io/tier" = "serving" }
+          labels    = { "cloudproof.io/tier" = "serving" }
         }
       ]
       # Fargate is private-subnet only.
@@ -181,7 +181,7 @@ resource "kubernetes_storage_class_v1" "gp3" {
 resource "kubernetes_namespace_v1" "serving" {
   metadata {
     name   = var.serving_namespace
-    labels = { "miniraft.io/tier" = "serving" }
+    labels = { "cloudproof.io/tier" = "serving" }
   }
 
   depends_on = [module.eks]

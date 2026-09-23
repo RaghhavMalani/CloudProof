@@ -35,8 +35,8 @@ function validateAgentSchedule(schedule) {
     if (!schedule || schedule.schemaVersion !== AGENT_SCHEDULE_SCHEMA_VERSION) {
         throw new TypeError('unsupported or missing agent schedule schemaVersion');
     }
-    if (schedule.kind !== 'miniraft.agent-schedule') {
-        throw new TypeError('schedule kind must be miniraft.agent-schedule');
+    if (schedule.kind !== 'cloudproof.agent-schedule') {
+        throw new TypeError('schedule kind must be cloudproof.agent-schedule');
     }
     if (!Number.isInteger(schedule.seed)) throw new TypeError('schedule seed must be an integer');
     if (typeof schedule.workflow !== 'string' || schedule.workflow.length === 0) {

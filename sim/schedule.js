@@ -118,7 +118,7 @@ function materializeSchedule(seed, options = {}) {
     add({ type: 'control', kind: 'recover-all' });
     return {
         schemaVersion: SCHEDULE_SCHEMA_VERSION,
-        kind: 'miniraft.materialized-schedule',
+        kind: 'cloudproof.materialized-schedule',
         seed,
         config,
         actions,

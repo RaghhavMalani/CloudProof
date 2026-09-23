@@ -1,0 +1,106 @@
+{
+  "kind": "cloudproof.phase-ii-b-bounded-results",
+  "schemaVersion": 1,
+  "status": "bounded-study-not-full-acceptance",
+  "safetyAuthority": "deterministic-node-verifier",
+  "modelRole": "schedule-risk-ranking-only",
+  "dataset": {
+    "directory": "artifacts/cloudproof/research-dataset",
+    "manifestHashesVerified": true,
+    "splitPolicy": "topology-holdout-v1",
+    "splitsChanged": false
+  },
+  "training": {
+    "artifactDirectory": "artifacts/cloudproof/models/gnn-bounded-study",
+    "ensembleSeeds": [1337, 2027, 4099, 7919, 104729],
+    "epochs": 3,
+    "maxTrainRecords": 10000,
+    "maxValidationRecords": 5000,
+    "loss": "weighted-bce",
+    "device": "cpu"
+  },
+  "evaluation": {
+    "maxRecordsPerSplit": 5000,
+    "validation": {
+      "count": 5000,
+      "positiveRate": 0.0864,
+      "auroc": 0.9664711641369916,
+      "auprc": 0.8063582393878306,
+      "brier": 0.04191647728321193,
+      "ece": 0.046967133955167086,
+      "nll": 0.14356407298817356,
+      "meanUncertainty": 0.03110765838842599
+    },
+    "test": {
+      "count": 5000,
+      "positiveRate": 0.0818,
+      "auroc": 0.9827375661640533,
+      "auprc": 0.8998138568040261,
+      "brier": 0.030593744635012392,
+      "ece": 0.045651141522736714,
+      "nll": 0.1061697642975618,
+      "meanUncertainty": 0.026626249444573112
+    },
+    "ood": {
+      "count": 5000,
+      "positiveRate": 0.0818,
+      "auroc": 0.9840758920796988,
+      "auprc": 0.8948978796276039,
+      "brier": 0.026731711839595426,
+      "ece": 0.01965116593141538,
+      "nll": 0.09381860861754736,
+      "meanUncertainty": 0.01829959778017492
+    }
+  },
+  "controlledZoneConcentration": {
+    "balancedRisk": 0.9273132085800171,
+    "concentratedRisk": 0.9266132116317749,
+    "riskDelta": -0.0006999969482421875,
+    "ranksConcentratedHigher": false,
+    "finding": "The bounded main model did not demonstrate the intended topology-equivalence effect."
+  },
+  "fixedBudget": {
+    "candidateSchedules": 5292,
+    "totalCounterexamples": 2646,
+    "uniqueInferenceRequests": 738,
+    "budgets": [100, 500, 1000, 5000],
+    "failuresFound": {
+      "random": [50, 251, 518, 2505],
+      "coverageGuided": [53, 251, 479, 2499],
+      "heuristic": [100, 346, 549, 2578],
+      "logistic": [0, 98, 249, 2354],
+      "gnn": [100, 490, 929, 2597]
+    }
+  },
+  "boundedAblation": {
+    "epochs": 1,
+    "maxTrainRecords": 2000,
+    "maxValidationRecords": 1000,
+    "maxEvaluationRecordsPerSplit": 1000,
+    "test": {
+      "full": {"auroc": 0.7834009149511333, "auprc": 0.3948812150641338, "nll": 0.6279765036292877},
+      "no-edge-types": {"auroc": 0.7798268870867124, "auprc": 0.40083252977015493, "nll": 0.6508195822519776},
+      "no-action-embedding": {"auroc": 0.7117903930131004, "auprc": 0.29053398502428046, "nll": 0.6802190315486862},
+      "no-zone-relations": {"auroc": 0.7827250987731337, "auprc": 0.40818004687551956, "nll": 0.6452655793804996},
+      "flat-mlp": {"auroc": 0.8283296943231441, "auprc": 0.5481153951142618, "nll": 0.6848851072122154}
+    },
+    "controlledRiskDelta": {
+      "full": 0.002940237522125244,
+      "no-edge-types": 0.005146384239196777,
+      "no-action-embedding": 0.002112269401550293,
+      "no-zone-relations": 0.0,
+      "flat-mlp": 0.0
+    },
+    "finding": "Directional only: the one-epoch slice does not establish that edge typing or topology caused the fixed-budget gain."
+  },
+  "conclusions": [
+    "The bounded GNN beat Logistic and Heuristic at budgets 500, 1000, and 5000 on the exact held-out schedule benchmark.",
+    "The bounded main model failed the controlled zone-concentration ranking test.",
+    "The bounded ablation is mixed and is not sufficient evidence that relational topology caused the benchmark gain."
+  ],
+  "fullAcceptanceOutstanding": [
+    "Train the five-member ensemble on the complete train split.",
+    "Report uncapped validation, test, and OOD metrics.",
+    "Run the complete five-variant ablation campaign and repeat the controlled topology experiment."
+  ]
+}

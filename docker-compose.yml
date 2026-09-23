@@ -1,4 +1,4 @@
-name: miniraft
+name: cloudproof
 
 networks:
   raft-net:

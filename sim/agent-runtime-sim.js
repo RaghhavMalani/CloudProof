@@ -542,7 +542,7 @@ function runAgentSchedule(input, options = {}) {
     const specification = simulation.workflow;
     const evaluated = evaluateAgentInvariants(simulation.invariantWorld(), specification);
     const finalState = simulation.export();
-    const trace = { schemaVersion: 1, kind: 'miniraft.agent-trace', events: clone(simulation.trace) };
+    const trace = { schemaVersion: 1, kind: 'cloudproof.agent-trace', events: clone(simulation.trace) };
     const replayFingerprint = digest({
         failure: evaluated.failure?.fingerprint || null,
         finalState,

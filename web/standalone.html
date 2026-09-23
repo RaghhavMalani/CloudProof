@@ -4,13 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#5b1019">
-  <title>miniRaft · Distributed Systems Flight Deck</title>
+  <title>CloudProof · Distributed Systems Flight Deck</title>
   <link rel="stylesheet" href="flight-deck.css">
 </head>
 <body data-theme="emirates">
   <div class="noise" aria-hidden="true"></div>
   <header class="topbar">
-    <div class="brand"><span class="mark">mR</span><div><strong>miniRaft Systems Lab</strong><small>simulate · run in Docker · deploy to Kubernetes</small></div></div>
+    <div class="brand"><span class="mark">mR</span><div><strong>CloudProof Systems Lab</strong><small>simulate · run in Docker · deploy to Kubernetes</small></div></div>
     <div class="telemetry" aria-label="Execution telemetry">
       <div><small>execution</small><b id="metric-execution">SIM · SEED 42</b></div>
       <div><small>quorum</small><b id="metric-quorum">3 live · 2 required · 3 configured</b></div>
@@ -47,7 +47,7 @@
         <p>The local script creates a four-node kind cluster and loads locally built images. The production manifest targets dedicated consensus nodes and gp3 volumes.</p>
         <ul><li>StatefulSet + stable DNS + PVC per replica</li><li>required pod anti-affinity + quorum PDB</li><li>two gateways behind one Service</li></ul>
         <code>bash tools/kind-up.sh</code>
-        <div class="runtime-actions"><button class="primary" data-copy-command="bash tools/kind-up.sh">COPY LOCAL CLUSTER COMMAND</button><button class="secondary" data-copy-command="kubectl apply -f k8s/miniraft.yaml">COPY PRODUCTION APPLY</button></div>
+        <div class="runtime-actions"><button class="primary" data-copy-command="bash tools/kind-up.sh">COPY LOCAL CLUSTER COMMAND</button><button class="secondary" data-copy-command="kubectl apply -f k8s/cloudproof-raft.yaml">COPY PRODUCTION APPLY</button></div>
       </article>
     </div>
     <footer class="launchpad-foot"><b>WHY ALL THREE?</b><span>Simulation makes correctness reproducible. Compose exposes process, network, and persistence behavior. Kubernetes exposes scheduling, identity, readiness, storage, and safe disruption behavior.</span></footer>
@@ -984,7 +984,7 @@ class HnswIndex {
         }
 
         const state = {
-            format: 'miniraft-hnsw',
+            format: 'cloudproof-hnsw',
             version: 1,
             params: this._paramsHeader(),
             entryPoint: this.entryPoint,
@@ -1024,7 +1024,7 @@ class HnswIndex {
             throw new Error('invalid HNSW snapshot: ' + error.message);
         }
 
-        snapshotAssert(state && state.format === 'miniraft-hnsw', 'unknown format');
+        snapshotAssert(state && state.format === 'cloudproof-hnsw', 'unknown format');
         snapshotAssert(state.version === 1, 'unsupported version');
         snapshotAssert(state.params && typeof state.params === 'object', 'missing params header');
 
@@ -6883,7 +6883,7 @@ function materializeCounterexample(id, seed = 42) {
             });
         }
     }
-    return { schemaVersion: 1, kind: 'miniraft.bug-museum-schedule', seed, mutantId: id, actions };
+    return { schemaVersion: 1, kind: 'cloudproof.bug-museum-schedule', seed, mutantId: id, actions };
 }
 
 function containsWitness(mutant, actions) {
@@ -7065,7 +7065,7 @@ module.exports = {
 
 };
 
-global.miniRaft = {
+global.cloudProof = {
   cluster: __require('web/entry.js', 'sim/cluster.js'),
   simulator: __require('web/entry.js', 'sim/simulator.js'),
   linearizability: __require('web/entry.js', 'sim/linearizability.js'),

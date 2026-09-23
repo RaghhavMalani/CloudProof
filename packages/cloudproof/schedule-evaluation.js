@@ -122,16 +122,25 @@ function evaluateSchedulePrioritizers(candidates, model, options = {}) {
         .sort((left, right) => left - right);
     if (budgets.length === 0) throw new TypeError('at least one positive verification budget is required');
     const heuristic = { score: heuristicRiskScore };
+    const methods = {
+        random: evaluateRanking(randomRanking(candidates, options.randomSeed ?? 1337), budgets),
+        coverageGuided: evaluateRanking(coverageRanking(candidates), budgets),
+        heuristic: evaluateRanking(riskRanking(candidates, heuristic), budgets),
+        logistic: evaluateRanking(riskRanking(candidates, model), budgets),
+    };
+    for (const [name, scorer] of Object.entries(options.additionalScorers || {})
+        .sort(([left], [right]) => left.localeCompare(right))) {
+        if (Object.hasOwn(methods, name)) throw new TypeError(`risk scorer name is reserved: ${name}`);
+        if (!scorer || typeof scorer.score !== 'function') {
+            throw new TypeError(`additional risk scorer ${name} must implement score()`);
+        }
+        methods[name] = evaluateRanking(riskRanking(candidates, scorer), budgets);
+    }
     return stable({
         kind: 'cloudproof.schedule-prioritizer-evaluation',
         schemaVersion: 1,
         verificationBudgets: budgets,
-        methods: {
-            random: evaluateRanking(randomRanking(candidates, options.randomSeed ?? 1337), budgets),
-            coverageGuided: evaluateRanking(coverageRanking(candidates), budgets),
-            heuristic: evaluateRanking(riskRanking(candidates, heuristic), budgets),
-            logistic: evaluateRanking(riskRanking(candidates, model), budgets),
-        },
+        methods,
     });
 }
 

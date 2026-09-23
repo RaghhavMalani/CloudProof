@@ -1,0 +1,789 @@
+{
+  "bestEpoch": 5,
+  "bestValidationNll": 0.09728179452566066,
+  "history": [
+    {
+      "epoch": 1,
+      "trainLoss": 0.6197584472770938,
+      "validation": {
+        "auprc": 0.45004777523293,
+        "auroc": 0.9634458312107319,
+        "brier": 0.05634264937474282,
+        "calibration": [
+          {
+            "count": 32515,
+            "lower": 0.0,
+            "meanPredicted": 0.008788741847186513,
+            "observedRate": 6.151007227433493e-05,
+            "upper": 0.1
+          },
+          {
+            "count": 4577,
+            "lower": 0.1,
+            "meanPredicted": 0.1447806473327355,
+            "observedRate": 0.007646930303692375,
+            "upper": 0.2
+          },
+          {
+            "count": 2350,
+            "lower": 0.2,
+            "meanPredicted": 0.25179875991445905,
+            "observedRate": 0.01702127659574468,
+            "upper": 0.3
+          },
+          {
+            "count": 3229,
+            "lower": 0.3,
+            "meanPredicted": 0.3470650696281901,
+            "observedRate": 0.00712294828120161,
+            "upper": 0.4
+          },
+          {
+            "count": 1504,
+            "lower": 0.4,
+            "meanPredicted": 0.44561387279487036,
+            "observedRate": 0.05851063829787234,
+            "upper": 0.5
+          },
+          {
+            "count": 939,
+            "lower": 0.5,
+            "meanPredicted": 0.5433676073345514,
+            "observedRate": 0.10436634717784878,
+            "upper": 0.6
+          },
+          {
+            "count": 517,
+            "lower": 0.6,
+            "meanPredicted": 0.6524320073007845,
+            "observedRate": 0.1276595744680851,
+            "upper": 0.7
+          },
+          {
+            "count": 1067,
+            "lower": 0.7,
+            "meanPredicted": 0.7536513524404059,
+            "observedRate": 0.15370196813495782,
+            "upper": 0.8
+          },
+          {
+            "count": 997,
+            "lower": 0.8,
+            "meanPredicted": 0.8541594117790191,
+            "observedRate": 0.3119358074222668,
+            "upper": 0.9
+          },
+          {
+            "count": 642,
+            "lower": 0.9,
+            "meanPredicted": 0.9270180493500374,
+            "observedRate": 0.6199376947040498,
+            "upper": 1.0
+          }
+        ],
+        "count": 48337,
+        "ece": 0.10767007612506067,
+        "nll": 0.1798247663454377,
+        "positiveRate": 0.025342905020998407
+      }
+    },
+    {
+      "epoch": 2,
+      "trainLoss": 0.4045606895815518,
+      "validation": {
+        "auprc": 0.42231437752759804,
+        "auroc": 0.959989040445521,
+        "brier": 0.0688948637979457,
+        "calibration": [
+          {
+            "count": 34856,
+            "lower": 0.0,
+            "meanPredicted": 0.009335264933747896,
+            "observedRate": 0.0005164103741106266,
+            "upper": 0.1
+          },
+          {
+            "count": 3278,
+            "lower": 0.1,
+            "meanPredicted": 0.14835743425167355,
+            "observedRate": 0.010982306284319707,
+            "upper": 0.2
+          },
+          {
+            "count": 2744,
+            "lower": 0.2,
+            "meanPredicted": 0.24664730035072688,
+            "observedRate": 0.013848396501457727,
+            "upper": 0.3
+          },
+          {
+            "count": 1617,
+            "lower": 0.3,
+            "meanPredicted": 0.3444024641792496,
+            "observedRate": 0.019789734075448363,
+            "upper": 0.4
+          },
+          {
+            "count": 835,
+            "lower": 0.4,
+            "meanPredicted": 0.4423729367598802,
+            "observedRate": 0.03592814371257485,
+            "upper": 0.5
+          },
+          {
+            "count": 574,
+            "lower": 0.5,
+            "meanPredicted": 0.547105575583953,
+            "observedRate": 0.04355400696864112,
+            "upper": 0.6
+          },
+          {
+            "count": 489,
+            "lower": 0.6,
+            "meanPredicted": 0.6505256343960518,
+            "observedRate": 0.0736196319018405,
+            "upper": 0.7
+          },
+          {
+            "count": 790,
+            "lower": 0.7,
+            "meanPredicted": 0.7539482660685913,
+            "observedRate": 0.11772151898734177,
+            "upper": 0.8
+          },
+          {
+            "count": 883,
+            "lower": 0.8,
+            "meanPredicted": 0.8525990172798744,
+            "observedRate": 0.15855039637599094,
+            "upper": 0.9
+          },
+          {
+            "count": 2271,
+            "lower": 0.9,
+            "meanPredicted": 0.9476211204344037,
+            "observedRate": 0.34214002642007924,
+            "upper": 1.0
+          }
+        ],
+        "count": 48337,
+        "ece": 0.11011116340497236,
+        "nll": 0.22468843454552442,
+        "positiveRate": 0.025342905020998407
+      }
+    },
+    {
+      "epoch": 3,
+      "trainLoss": 0.3564591506244478,
+      "validation": {
+        "auprc": 0.489622712748028,
+        "auroc": 0.9667425258437558,
+        "brier": 0.04226431211523556,
+        "calibration": [
+          {
+            "count": 39378,
+            "lower": 0.0,
+            "meanPredicted": 0.008562743977386331,
+            "observedRate": 0.0008380313880847174,
+            "upper": 0.1
+          },
+          {
+            "count": 2497,
+            "lower": 0.1,
+            "meanPredicted": 0.14149231278674337,
+            "observedRate": 0.01682018422106528,
+            "upper": 0.2
+          },
+          {
+            "count": 1171,
+            "lower": 0.2,
+            "meanPredicted": 0.2433708139482876,
+            "observedRate": 0.03842869342442357,
+            "upper": 0.3
+          },
+          {
+            "count": 764,
+            "lower": 0.3,
+            "meanPredicted": 0.3472155951236555,
+            "observedRate": 0.06675392670157068,
+            "upper": 0.4
+          },
+          {
+            "count": 898,
+            "lower": 0.4,
+            "meanPredicted": 0.4507691524673942,
+            "observedRate": 0.09242761692650334,
+            "upper": 0.5
+          },
+          {
+            "count": 819,
+            "lower": 0.5,
+            "meanPredicted": 0.5548068636502975,
+            "observedRate": 0.1111111111111111,
+            "upper": 0.6
+          },
+          {
+            "count": 652,
+            "lower": 0.6,
+            "meanPredicted": 0.6438035845208022,
+            "observedRate": 0.12576687116564417,
+            "upper": 0.7
+          },
+          {
+            "count": 424,
+            "lower": 0.7,
+            "meanPredicted": 0.7497010105904544,
+            "observedRate": 0.18632075471698112,
+            "upper": 0.8
+          },
+          {
+            "count": 586,
+            "lower": 0.8,
+            "meanPredicted": 0.855351625550729,
+            "observedRate": 0.19283276450511946,
+            "upper": 0.9
+          },
+          {
+            "count": 1148,
+            "lower": 0.9,
+            "meanPredicted": 0.9550343120555014,
+            "observedRate": 0.5278745644599303,
+            "upper": 1.0
+          }
+        ],
+        "count": 48337,
+        "ece": 0.06641239844908883,
+        "nll": 0.13656708251776212,
+        "positiveRate": 0.025342905020998407
+      }
+    },
+    {
+      "epoch": 4,
+      "trainLoss": 0.30930424071465673,
+      "validation": {
+        "auprc": 0.5102798780701896,
+        "auroc": 0.9660220889170748,
+        "brier": 0.03444989875648459,
+        "calibration": [
+          {
+            "count": 40797,
+            "lower": 0.0,
+            "meanPredicted": 0.0073875989121489445,
+            "observedRate": 0.0012010687060323062,
+            "upper": 0.1
+          },
+          {
+            "count": 1926,
+            "lower": 0.1,
+            "meanPredicted": 0.1432376141279843,
+            "observedRate": 0.029075804776739357,
+            "upper": 0.2
+          },
+          {
+            "count": 881,
+            "lower": 0.2,
+            "meanPredicted": 0.24273187810054025,
+            "observedRate": 0.07491486946651532,
+            "upper": 0.3
+          },
+          {
+            "count": 721,
+            "lower": 0.3,
+            "meanPredicted": 0.34632230912762774,
+            "observedRate": 0.09292649098474341,
+            "upper": 0.4
+          },
+          {
+            "count": 839,
+            "lower": 0.4,
+            "meanPredicted": 0.4624403621002375,
+            "observedRate": 0.07747318235995232,
+            "upper": 0.5
+          },
+          {
+            "count": 1149,
+            "lower": 0.5,
+            "meanPredicted": 0.5333374851262497,
+            "observedRate": 0.1279373368146214,
+            "upper": 0.6
+          },
+          {
+            "count": 419,
+            "lower": 0.6,
+            "meanPredicted": 0.6467210688852751,
+            "observedRate": 0.1957040572792363,
+            "upper": 0.7
+          },
+          {
+            "count": 334,
+            "lower": 0.7,
+            "meanPredicted": 0.7474984482019961,
+            "observedRate": 0.2155688622754491,
+            "upper": 0.8
+          },
+          {
+            "count": 450,
+            "lower": 0.8,
+            "meanPredicted": 0.8506223310364617,
+            "observedRate": 0.24666666666666667,
+            "upper": 0.9
+          },
+          {
+            "count": 821,
+            "lower": 0.9,
+            "meanPredicted": 0.96056840037893,
+            "observedRate": 0.6211936662606578,
+            "upper": 1.0
+          }
+        ],
+        "count": 48337,
+        "ece": 0.051899212540478315,
+        "nll": 0.11154388502901953,
+        "positiveRate": 0.025342905020998407
+      }
+    },
+    {
+      "epoch": 5,
+      "trainLoss": 0.2808203155722219,
+      "validation": {
+        "auprc": 0.5108716164327137,
+        "auroc": 0.9609491147452358,
+        "brier": 0.029873355060483192,
+        "calibration": [
+          {
+            "count": 41956,
+            "lower": 0.0,
+            "meanPredicted": 0.00591374495287291,
+            "observedRate": 0.003169987606063495,
+            "upper": 0.1
+          },
+          {
+            "count": 1491,
+            "lower": 0.1,
+            "meanPredicted": 0.14082762341644042,
+            "observedRate": 0.04627766599597585,
+            "upper": 0.2
+          },
+          {
+            "count": 636,
+            "lower": 0.2,
+            "meanPredicted": 0.24353945484888628,
+            "observedRate": 0.03930817610062893,
+            "upper": 0.3
+          },
+          {
+            "count": 510,
+            "lower": 0.3,
+            "meanPredicted": 0.3497454666623882,
+            "observedRate": 0.0392156862745098,
+            "upper": 0.4
+          },
+          {
+            "count": 588,
+            "lower": 0.4,
+            "meanPredicted": 0.45642353158418825,
+            "observedRate": 0.08673469387755102,
+            "upper": 0.5
+          },
+          {
+            "count": 1648,
+            "lower": 0.5,
+            "meanPredicted": 0.5264317056580076,
+            "observedRate": 0.14987864077669902,
+            "upper": 0.6
+          },
+          {
+            "count": 267,
+            "lower": 0.6,
+            "meanPredicted": 0.6488616888442736,
+            "observedRate": 0.17228464419475656,
+            "upper": 0.7
+          },
+          {
+            "count": 263,
+            "lower": 0.7,
+            "meanPredicted": 0.7528217849622661,
+            "observedRate": 0.19771863117870722,
+            "upper": 0.8
+          },
+          {
+            "count": 365,
+            "lower": 0.8,
+            "meanPredicted": 0.8498857112780009,
+            "observedRate": 0.3972602739726027,
+            "upper": 0.9
+          },
+          {
+            "count": 613,
+            "lower": 0.9,
+            "meanPredicted": 0.9591810115009887,
+            "observedRate": 0.7128874388254486,
+            "upper": 1.0
+          }
+        ],
+        "count": 48337,
+        "ece": 0.04079097344823491,
+        "nll": 0.09728179452566066,
+        "positiveRate": 0.025342905020998407
+      }
+    },
+    {
+      "epoch": 6,
+      "trainLoss": 0.2657402184947399,
+      "validation": {
+        "auprc": 0.45880265373057616,
+        "auroc": 0.9621363160648875,
+        "brier": 0.04195066067678962,
+        "calibration": [
+          {
+            "count": 40965,
+            "lower": 0.0,
+            "meanPredicted": 0.005687184083916977,
+            "observedRate": 0.0022214085194678383,
+            "upper": 0.1
+          },
+          {
+            "count": 1666,
+            "lower": 0.1,
+            "meanPredicted": 0.1428717338532603,
+            "observedRate": 0.029411764705882353,
+            "upper": 0.2
+          },
+          {
+            "count": 728,
+            "lower": 0.2,
+            "meanPredicted": 0.2439788535523873,
+            "observedRate": 0.024725274725274724,
+            "upper": 0.3
+          },
+          {
+            "count": 472,
+            "lower": 0.3,
+            "meanPredicted": 0.34993854386069007,
+            "observedRate": 0.036016949152542374,
+            "upper": 0.4
+          },
+          {
+            "count": 539,
+            "lower": 0.4,
+            "meanPredicted": 0.4506653129833306,
+            "observedRate": 0.10760667903525047,
+            "upper": 0.5
+          },
+          {
+            "count": 1421,
+            "lower": 0.5,
+            "meanPredicted": 0.5388549728178793,
+            "observedRate": 0.12526389866291343,
+            "upper": 0.6
+          },
+          {
+            "count": 423,
+            "lower": 0.6,
+            "meanPredicted": 0.648861363001749,
+            "observedRate": 0.16548463356973994,
+            "upper": 0.7
+          },
+          {
+            "count": 368,
+            "lower": 0.7,
+            "meanPredicted": 0.7499653214345807,
+            "observedRate": 0.17119565217391305,
+            "upper": 0.8
+          },
+          {
+            "count": 526,
+            "lower": 0.8,
+            "meanPredicted": 0.8521849762350887,
+            "observedRate": 0.1844106463878327,
+            "upper": 0.9
+          },
+          {
+            "count": 1229,
+            "lower": 0.9,
+            "meanPredicted": 0.960196394761274,
+            "observedRate": 0.4751830756712775,
+            "upper": 1.0
+          }
+        ],
+        "count": 48337,
+        "ece": 0.057434163979078634,
+        "nll": 0.13624766314613612,
+        "positiveRate": 0.025342905020998407
+      }
+    },
+    {
+      "epoch": 7,
+      "trainLoss": 0.26083545691349946,
+      "validation": {
+        "auprc": 0.4380651790372386,
+        "auroc": 0.963931222514477,
+        "brier": 0.04415922163243671,
+        "calibration": [
+          {
+            "count": 42303,
+            "lower": 0.0,
+            "meanPredicted": 0.005152309276769153,
+            "observedRate": 0.00260028839562206,
+            "upper": 0.1
+          },
+          {
+            "count": 950,
+            "lower": 0.1,
+            "meanPredicted": 0.13823188416267695,
+            "observedRate": 0.03684210526315789,
+            "upper": 0.2
+          },
+          {
+            "count": 373,
+            "lower": 0.2,
+            "meanPredicted": 0.24749649138297217,
+            "observedRate": 0.04289544235924933,
+            "upper": 0.3
+          },
+          {
+            "count": 273,
+            "lower": 0.3,
+            "meanPredicted": 0.34973358387475484,
+            "observedRate": 0.054945054945054944,
+            "upper": 0.4
+          },
+          {
+            "count": 404,
+            "lower": 0.4,
+            "meanPredicted": 0.457035166054669,
+            "observedRate": 0.09900990099009901,
+            "upper": 0.5
+          },
+          {
+            "count": 1295,
+            "lower": 0.5,
+            "meanPredicted": 0.532579653051369,
+            "observedRate": 0.11969111969111969,
+            "upper": 0.6
+          },
+          {
+            "count": 275,
+            "lower": 0.6,
+            "meanPredicted": 0.6461985958706249,
+            "observedRate": 0.20727272727272728,
+            "upper": 0.7
+          },
+          {
+            "count": 372,
+            "lower": 0.7,
+            "meanPredicted": 0.7493009306089853,
+            "observedRate": 0.1639784946236559,
+            "upper": 0.8
+          },
+          {
+            "count": 405,
+            "lower": 0.8,
+            "meanPredicted": 0.8530667020950788,
+            "observedRate": 0.18518518518518517,
+            "upper": 0.9
+          },
+          {
+            "count": 1687,
+            "lower": 0.9,
+            "meanPredicted": 0.9653651993799012,
+            "observedRate": 0.3918197984588026,
+            "upper": 1.0
+          }
+        ],
+        "count": 48337,
+        "ece": 0.054138908341732815,
+        "nll": 0.15092036887588217,
+        "positiveRate": 0.025342905020998407
+      }
+    },
+    {
+      "epoch": 8,
+      "trainLoss": 0.24509455613958156,
+      "validation": {
+        "auprc": 0.5037264867292779,
+        "auroc": 0.9630307110108435,
+        "brier": 0.034866498751596406,
+        "calibration": [
+          {
+            "count": 42052,
+            "lower": 0.0,
+            "meanPredicted": 0.005257578979066834,
+            "observedRate": 0.0028298297346142872,
+            "upper": 0.1
+          },
+          {
+            "count": 1232,
+            "lower": 0.1,
+            "meanPredicted": 0.14407265957977092,
+            "observedRate": 0.03977272727272727,
+            "upper": 0.2
+          },
+          {
+            "count": 631,
+            "lower": 0.2,
+            "meanPredicted": 0.24249148250759686,
+            "observedRate": 0.030110935023771792,
+            "upper": 0.3
+          },
+          {
+            "count": 427,
+            "lower": 0.3,
+            "meanPredicted": 0.3531184754829496,
+            "observedRate": 0.0585480093676815,
+            "upper": 0.4
+          },
+          {
+            "count": 1560,
+            "lower": 0.4,
+            "meanPredicted": 0.456674789197934,
+            "observedRate": 0.11153846153846154,
+            "upper": 0.5
+          },
+          {
+            "count": 429,
+            "lower": 0.5,
+            "meanPredicted": 0.5408210359809004,
+            "observedRate": 0.19114219114219114,
+            "upper": 0.6
+          },
+          {
+            "count": 211,
+            "lower": 0.6,
+            "meanPredicted": 0.6513675287436534,
+            "observedRate": 0.1895734597156398,
+            "upper": 0.7
+          },
+          {
+            "count": 258,
+            "lower": 0.7,
+            "meanPredicted": 0.7574658465477847,
+            "observedRate": 0.1821705426356589,
+            "upper": 0.8
+          },
+          {
+            "count": 391,
+            "lower": 0.8,
+            "meanPredicted": 0.8521270739757801,
+            "observedRate": 0.18925831202046037,
+            "upper": 0.9
+          },
+          {
+            "count": 1146,
+            "lower": 0.9,
+            "meanPredicted": 0.9665683080908724,
+            "observedRate": 0.5200698080279232,
+            "upper": 1.0
+          }
+        ],
+        "count": 48337,
+        "ece": 0.04542155164530281,
+        "nll": 0.11848536434665216,
+        "positiveRate": 0.025342905020998407
+      }
+    },
+    {
+      "epoch": 9,
+      "trainLoss": 0.2329970954751434,
+      "validation": {
+        "auprc": 0.49568460751787025,
+        "auroc": 0.965628965799259,
+        "brier": 0.03657777187514599,
+        "calibration": [
+          {
+            "count": 42666,
+            "lower": 0.0,
+            "meanPredicted": 0.004844453615880574,
+            "observedRate": 0.0026719167486991984,
+            "upper": 0.1
+          },
+          {
+            "count": 984,
+            "lower": 0.1,
+            "meanPredicted": 0.1407770646084857,
+            "observedRate": 0.04573170731707317,
+            "upper": 0.2
+          },
+          {
+            "count": 346,
+            "lower": 0.2,
+            "meanPredicted": 0.24367522663636015,
+            "observedRate": 0.05491329479768786,
+            "upper": 0.3
+          },
+          {
+            "count": 366,
+            "lower": 0.3,
+            "meanPredicted": 0.35577782939692015,
+            "observedRate": 0.08196721311475409,
+            "upper": 0.4
+          },
+          {
+            "count": 1032,
+            "lower": 0.4,
+            "meanPredicted": 0.45853803277939786,
+            "observedRate": 0.08624031007751938,
+            "upper": 0.5
+          },
+          {
+            "count": 726,
+            "lower": 0.5,
+            "meanPredicted": 0.5254855898129381,
+            "observedRate": 0.1859504132231405,
+            "upper": 0.6
+          },
+          {
+            "count": 191,
+            "lower": 0.6,
+            "meanPredicted": 0.6566629225670979,
+            "observedRate": 0.18848167539267016,
+            "upper": 0.7
+          },
+          {
+            "count": 296,
+            "lower": 0.7,
+            "meanPredicted": 0.753515441876811,
+            "observedRate": 0.18243243243243243,
+            "upper": 0.8
+          },
+          {
+            "count": 385,
+            "lower": 0.8,
+            "meanPredicted": 0.8520945784333465,
+            "observedRate": 0.21038961038961038,
+            "upper": 0.9
+          },
+          {
+            "count": 1345,
+            "lower": 0.9,
+            "meanPredicted": 0.966117670766483,
+            "observedRate": 0.462453531598513,
+            "upper": 1.0
+          }
+        ],
+        "count": 48337,
+        "ece": 0.04479810622176605,
+        "nll": 0.12431451520117022,
+        "positiveRate": 0.025342905020998407
+      }
+    }
+  ],
+  "horizon": 1,
+  "index": 3,
+  "model": "gnn-full",
+  "pid": 39216,
+  "posWeight": 40.85025524673851,
+  "seed": 7919,
+  "splitDigests": {
+    "train": "64f41d0de1c0fed9a455bb344bfb273cd54bd9d7930aa4597163668d71ddbfbc",
+    "validation": "4d35134206a5bcb3f5ea30c57155238210526d72634ca1ac277702a67390116c"
+  },
+  "tensorizer": {
+    "clockBlind": false,
+    "labelField": "labels.horizons.1",
+    "labelHorizon": 1,
+    "maskedFields": []
+  },
+  "torchThreads": 1,
+  "trainingSeconds": 1278.762346800002
+}

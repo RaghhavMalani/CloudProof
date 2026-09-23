@@ -88,7 +88,7 @@ function explainFailure(result) {
         teachingPoint: teachingPoint(failure),
         regression: {
             assertion: 'replay result failure.signature equals ' + failure.signature,
-            artifactKind: 'miniraft.failure-artifact',
+            artifactKind: 'cloudproof.failure-artifact',
         },
     };
 }

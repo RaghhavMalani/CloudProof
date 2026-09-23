@@ -110,7 +110,7 @@ function materializeAgentSchedule(seed, options = {}) {
 
     const schedule = {
         schemaVersion: AGENT_SCHEDULE_SCHEMA_VERSION,
-        kind: 'miniraft.agent-schedule',
+        kind: 'cloudproof.agent-schedule',
         seed,
         workflow,
         runtime: options.runtime || 'correct',

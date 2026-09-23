@@ -39,9 +39,9 @@ spec:
         cloudproof.io/version: v41
     spec:
       nodeSelector:
-        miniraft.io/tier: consensus
+        cloudproof.io/tier: consensus
       tolerations:
-        - key: miniraft.io/tier
+        - key: cloudproof.io/tier
           operator: Equal
           value: consensus
           effect: NoSchedule

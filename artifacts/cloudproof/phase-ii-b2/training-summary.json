@@ -1,0 +1,162 @@
+{
+  "artifacts": {
+    "gnn-clock-blind-k5": {
+      "bestEpochs": [
+        4,
+        7,
+        7,
+        6,
+        7
+      ],
+      "trainingSecondsTotal": 19586.564313300012,
+      "validationAuroc": 0.7906914102382276,
+      "validationNll": 0.3124951603830954
+    },
+    "gnn-full-k1": {
+      "bestEpochs": [
+        5,
+        6,
+        7,
+        5,
+        2
+      ],
+      "trainingSecondsTotal": 6293.959365800001,
+      "validationAuroc": 0.9665033303183729,
+      "validationNll": 0.09951258503055899
+    },
+    "gnn-full-k10": {
+      "bestEpochs": [
+        6,
+        3,
+        3,
+        6,
+        7
+      ],
+      "trainingSecondsTotal": 4159.494167500008,
+      "validationAuroc": 0.7149760813169447,
+      "validationNll": 0.4050772458339663
+    },
+    "gnn-full-k20": {
+      "bestEpochs": [
+        2,
+        5,
+        3,
+        4,
+        2
+      ],
+      "trainingSecondsTotal": 6642.470689199996,
+      "validationAuroc": 0.6716580197992285,
+      "validationNll": 0.49143748998718695
+    },
+    "gnn-full-k5": {
+      "bestEpochs": [
+        4,
+        7,
+        7,
+        6,
+        7
+      ],
+      "trainingSecondsTotal": 23833.79565809999,
+      "validationAuroc": 0.7930951584140932,
+      "validationNll": 0.3101452720173083
+    },
+    "pooled-mlp-k1": {
+      "bestEpochs": [
+        3,
+        3,
+        3,
+        4,
+        2
+      ],
+      "trainingSecondsTotal": 4517.816923300001,
+      "validationAuroc": 0.9690702918966874,
+      "validationNll": 0.10057007292818872
+    },
+    "pooled-mlp-k10": {
+      "bestEpochs": [
+        6,
+        8,
+        6,
+        1,
+        4
+      ],
+      "trainingSecondsTotal": 3862.8179112,
+      "validationAuroc": 0.7381536118377839,
+      "validationNll": 0.3953439319496565
+    },
+    "pooled-mlp-k20": {
+      "bestEpochs": [
+        2,
+        5,
+        6,
+        6,
+        7
+      ],
+      "trainingSecondsTotal": 6924.830718600002,
+      "validationAuroc": 0.6935407530474651,
+      "validationNll": 0.47650943906534754
+    },
+    "pooled-mlp-k5": {
+      "bestEpochs": [
+        9,
+        8,
+        7,
+        1,
+        4
+      ],
+      "trainingSecondsTotal": 19461.463590700063,
+      "validationAuroc": 0.793524029955984,
+      "validationNll": 0.3102821951978245
+    }
+  },
+  "kind": "cloudproof.phase-ii-b2-training-summary",
+  "runs": [
+    {
+      "completed": true,
+      "concurrency": 12,
+      "horizons": [
+        5
+      ],
+      "memberProcessesLaunched": 15,
+      "models": [
+        "gnn-full",
+        "pooled-mlp",
+        "gnn-clock-blind"
+      ],
+      "wallSeconds": 7791.672123000026
+    },
+    {
+      "completed": false,
+      "concurrency": 10,
+      "horizons": [
+        1,
+        10,
+        20
+      ],
+      "memberProcessesLaunched": 30,
+      "models": [
+        "gnn-full",
+        "pooled-mlp"
+      ],
+      "note": "orchestrator killed by a session teardown after 19 members had written weights and records; wall time not recorded",
+      "wallSeconds": null
+    },
+    {
+      "completed": true,
+      "concurrency": 11,
+      "horizons": [
+        1,
+        10,
+        20
+      ],
+      "memberProcessesLaunched": 11,
+      "models": [
+        "gnn-full",
+        "pooled-mlp"
+      ],
+      "note": "resume: the 19 finished members were skipped (weights and member record both present)",
+      "wallSeconds": 2035.7644306000002
+    }
+  ],
+  "schemaVersion": 2
+}

@@ -254,7 +254,7 @@ function runMultiAgentSchedule(input, options = {}) {
     const finalState = simulation.export();
     const trace = {
         schemaVersion: 1,
-        kind: 'miniraft.multi-agent-trace',
+        kind: 'cloudproof.multi-agent-trace',
         events: clone(simulation.trace),
     };
     const replayFingerprint = digest({

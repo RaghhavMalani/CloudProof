@@ -1,5 +1,5 @@
 /**
- * script.js — miniRaft Drawing Board Client (v2)
+ * script.js — CloudProof Drawing Board Client (v2)
  *
  * Accuracy:
  *  - Stroke IDs prevent double-count + double-render of own strokes
@@ -22,8 +22,8 @@ const pendingStrokeIds = new Set();
 const pendingCommands = new Map();
 const pendingStartedAt = new Map();
 
-const CLIENT_ID_KEY = 'miniraft-client-id';
-const CLIENT_SEQ_KEY = 'miniraft-client-sequence';
+const CLIENT_ID_KEY = 'cloudproof-client-id';
+const CLIENT_SEQ_KEY = 'cloudproof-client-sequence';
 const fallbackId = `client-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 const clientId = localStorage.getItem(CLIENT_ID_KEY) ||
     (globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : fallbackId);
@@ -720,5 +720,5 @@ document.addEventListener('keydown', (event) => {
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
 setWsStatus('error');
-logEvent('info', 'BOOT', 'miniRaft consensus lab initialized · restoring durable cluster state');
+logEvent('info', 'BOOT', 'CloudProof consensus lab initialized · restoring durable cluster state');
 connectWS();

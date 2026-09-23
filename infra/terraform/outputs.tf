@@ -36,8 +36,8 @@ output "app_secret_arn" {
 output "consensus_node_selector" {
   description = "Node selector and toleration the Raft StatefulSet must carry."
   value = {
-    nodeSelector = { "miniraft.io/tier" = "consensus" }
-    toleration   = "miniraft.io/tier=consensus:NoSchedule"
+    nodeSelector = { "cloudproof.io/tier" = "consensus" }
+    toleration   = "cloudproof.io/tier=consensus:NoSchedule"
   }
 }
 

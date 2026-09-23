@@ -8,7 +8,7 @@ knowledge of the conversation that produced it.
 ## Your role
 
 You are implementing Stage 1 of a staged plan inside an existing repository at
-`D:\College_Projects\miniRAFT_project` (a hand-written Raft consensus engine that
+`D:\College_Projects\cloudproof` (a hand-written Raft consensus engine that
 has grown into a distributed-systems laboratory). The full plan lives in
 `ROADMAP-ML.md`. **Read that file first.** This prompt covers Stage 1 only.
 

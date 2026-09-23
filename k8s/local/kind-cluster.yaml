@@ -10,7 +10,7 @@
 #   kind create cluster --config k8s/local/kind-cluster.yaml
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
-name: miniraft
+name: cloudproof
 
 nodes:
   # The control plane doubles as the system tier so this is four containers
@@ -19,7 +19,7 @@ nodes:
   # somewhere untainted to land, exactly as they do on EKS.
   - role: control-plane
     labels:
-      miniraft.io/tier: system
+      cloudproof.io/tier: system
     kubeadmConfigPatches:
       # One patch, not two. kind applies these as strategic merges and two
       # blocks of the same kind is asking for one to silently win.
@@ -34,7 +34,7 @@ nodes:
         nodeRegistration:
           taints: []
           kubeletExtraArgs:
-            node-labels: "miniraft.io/tier=system"
+            node-labels: "cloudproof.io/tier=system"
     extraPortMappings:
       # The dashboard, reachable at http://localhost:8080 without a
       # port-forward that dies whenever the pod restarts.
@@ -56,40 +56,40 @@ nodes:
   # see once on purpose.
   - role: worker
     labels:
-      miniraft.io/tier: consensus
+      cloudproof.io/tier: consensus
     kubeadmConfigPatches:
       - |
         kind: JoinConfiguration
         nodeRegistration:
           kubeletExtraArgs:
-            node-labels: "miniraft.io/tier=consensus,cloudproof.io/node=node-a,topology.kubernetes.io/zone=zone-a"
+            node-labels: "cloudproof.io/tier=consensus,cloudproof.io/node=node-a,topology.kubernetes.io/zone=zone-a"
           taints:
-            - key: "miniraft.io/tier"
+            - key: "cloudproof.io/tier"
               value: "consensus"
               effect: "NoSchedule"
   - role: worker
     labels:
-      miniraft.io/tier: consensus
+      cloudproof.io/tier: consensus
     kubeadmConfigPatches:
       - |
         kind: JoinConfiguration
         nodeRegistration:
           kubeletExtraArgs:
-            node-labels: "miniraft.io/tier=consensus,cloudproof.io/node=node-b,topology.kubernetes.io/zone=zone-b"
+            node-labels: "cloudproof.io/tier=consensus,cloudproof.io/node=node-b,topology.kubernetes.io/zone=zone-b"
           taints:
-            - key: "miniraft.io/tier"
+            - key: "cloudproof.io/tier"
               value: "consensus"
               effect: "NoSchedule"
   - role: worker
     labels:
-      miniraft.io/tier: consensus
+      cloudproof.io/tier: consensus
     kubeadmConfigPatches:
       - |
         kind: JoinConfiguration
         nodeRegistration:
           kubeletExtraArgs:
-            node-labels: "miniraft.io/tier=consensus,cloudproof.io/node=node-c,topology.kubernetes.io/zone=zone-c"
+            node-labels: "cloudproof.io/tier=consensus,cloudproof.io/node=node-c,topology.kubernetes.io/zone=zone-c"
           taints:
-            - key: "miniraft.io/tier"
+            - key: "cloudproof.io/tier"
               value: "consensus"
               effect: "NoSchedule"

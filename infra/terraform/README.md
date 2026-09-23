@@ -1,4 +1,4 @@
-# miniRaft infrastructure
+# CloudProof infrastructure
 
 Split-tier EKS: one cluster, one Terraform state, two compute models chosen for
 what each tier actually needs.
@@ -19,7 +19,7 @@ per-pod billing and, more importantly, gives up the ability to measure a
 genuine cold start, since nothing ever actually starts cold.
 
 The taint is what keeps the split honest. Consensus nodes carry
-`miniraft.io/tier=consensus:NoSchedule`, so only pods that explicitly tolerate
+`cloudproof.io/tier=consensus:NoSchedule`, so only pods that explicitly tolerate
 it land there. That in turn forces a small untainted `system` node group,
 because CoreDNS and the EBS CSI controller are Deployments, not DaemonSets, and
 will not tolerate a custom taint — without somewhere untainted to land, DNS
@@ -31,8 +31,8 @@ never goes ready and the cluster is inert.
 terraform init -backend-config=backend.hcl
 terraform plan -out=tfplan
 terraform apply tfplan
-aws eks update-kubeconfig --region ap-south-1 --name miniraft-dev
-kubectl apply -f ../../k8s/miniraft.yaml
+aws eks update-kubeconfig --region ap-south-1 --name cloudproof-dev
+kubectl apply -f ../../k8s/cloudproof-raft.yaml
 ```
 
 `fixed_monthly_cost_floor_usd` in the outputs is the always-on cost before a

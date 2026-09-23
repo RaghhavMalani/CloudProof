@@ -1,0 +1,1695 @@
+{
+  "architectureIdentical": true,
+  "attribution": {
+    "allowedClaim": "Relational topology contributes predictive information for CloudProof's controlled Kubernetes topology interventions.",
+    "conditions": {
+      "1_fullGnnAboveChance": {
+        "binomialTiesExcludedP": 7.4272517562084805e-25,
+        "bootstrap95": [
+          0.8208092485549133,
+          0.9190751445086706
+        ],
+        "passed": true,
+        "tieAwareAccuracy": 0.8728323699421965
+      },
+      "2_pooledMlpAtChance": {
+        "passed": true,
+        "tieAwareAccuracy": 0.5,
+        "ties": 173
+      },
+      "3_edgeDestructionRemovesAdvantage": {
+        "controls": {
+          "gnn-full-k5 vs gnn-full-k5[collapsed-edge-types]": {
+            "drop": 0.1329479768786127,
+            "pairedBootstrap95": [
+              0.06358381502890173,
+              0.2023121387283237
+            ],
+            "passed": true
+          },
+          "gnn-full-k5 vs gnn-full-k5[no-edges]": {
+            "drop": 0.3728323699421965,
+            "pairedBootstrap95": [
+              0.3208092485549133,
+              0.4190751445086705
+            ],
+            "passed": true
+          },
+          "gnn-full-k5 vs gnn-full-k5[random-relation-labels]": {
+            "drop": -0.034682080924855585,
+            "pairedBootstrap95": [
+              -0.08670520231213873,
+              0.017341040462427744
+            ],
+            "passed": false
+          },
+          "gnn-full-k5 vs gnn-full-k5[randomized-edges@1729]": {
+            "drop": 0.1271676300578034,
+            "pairedBootstrap95": [
+              0.06647398843930635,
+              0.1907514450867052
+            ],
+            "passed": true
+          },
+          "gnn-full-k5 vs gnn-full-k5[randomized-edges@2729]": {
+            "drop": 0.13583815028901725,
+            "pairedBootstrap95": [
+              0.07514450867052024,
+              0.19653179190751446
+            ],
+            "passed": true
+          },
+          "gnn-full-k5 vs gnn-full-k5[randomized-edges@3729]": {
+            "drop": 0.12138728323699421,
+            "pairedBootstrap95": [
+              0.05491329479768786,
+              0.18786127167630057
+            ],
+            "passed": true
+          },
+          "gnn-full-k5 vs gnn-full-k5[rewired-edges@1729]": {
+            "drop": 0.4104046242774566,
+            "pairedBootstrap95": [
+              0.3236994219653179,
+              0.49710982658959535
+            ],
+            "passed": true
+          },
+          "gnn-full-k5 vs gnn-full-k5[rewired-edges@2729]": {
+            "drop": 0.3815028901734104,
+            "pairedBootstrap95": [
+              0.2832369942196532,
+              0.47398843930635837
+            ],
+            "passed": true
+          },
+          "gnn-full-k5 vs gnn-full-k5[rewired-edges@3729]": {
+            "drop": 0.32369942196531787,
+            "pairedBootstrap95": [
+              0.23699421965317918,
+              0.41040462427745666
+            ],
+            "passed": true
+          }
+        },
+        "passed": true
+      },
+      "4_survivesClockBlind": {
+        "bootstrap95": [
+          0.8380057803468209,
+          0.930635838150289
+        ],
+        "passed": true,
+        "tieAwareAccuracy": 0.884393063583815
+      },
+      "5_intervalsDeterminate": {
+        "fullGnnInterval": [
+          0.8208092485549133,
+          0.9190751445086706
+        ],
+        "fullGnnIntervalExcludesChance": true,
+        "fullGnnIntervalWidth": 0.09826589595375723,
+        "fullGnnLowerAbovePooledUpper": true,
+        "passed": true,
+        "someDestroyedControlDifferenceExcludesZero": true
+      }
+    },
+    "criteria": {
+      "clockBlindIntervalMustExcludeChance": true,
+      "clockBlindMinimumTieAwareAccuracy": 0.6,
+      "edgeDestructionDifferenceIntervalMustExcludeZero": true,
+      "edgeDestructionMinimumDrop": 0.1,
+      "fullGnnBinomialAlpha": 0.01,
+      "fullGnnIntervalMustExcludeChance": true,
+      "fullGnnMinimumTieAwareAccuracy": 0.6,
+      "pooledMlpChanceBand": [
+        0.4,
+        0.6
+      ],
+      "primaryAccuracy": "tie-aware pairwise accuracy = (correct + 0.5 * ties) / pairs",
+      "primaryPairSet": "relational-only, valid, trajectory-outcome discordant pairs",
+      "tieTolerance": 1e-06
+    },
+    "graphAttribution": "PASSED"
+  },
+  "edgeDestruction": {
+    "gnn-clock-blind-k5": {
+      "collapsed-edge-types": {
+        "ood": {
+          "auprc": 0.022744538486711097,
+          "auroc": 0.030860338154502176,
+          "brier": -0.026521727776414955,
+          "ece": -0.023180679217256278,
+          "nll": -0.0657522112211551
+        },
+        "test": {
+          "auprc": -0.10819081593394853,
+          "auroc": -0.04175021161010606,
+          "brier": 0.018475239468979346,
+          "ece": 0.04637709545919655,
+          "nll": 0.058222791793720474
+        },
+        "validation": {
+          "auprc": -0.13137355426247005,
+          "auroc": -0.055345721493184175,
+          "brier": 0.031713956360633136,
+          "ece": 0.0742678745228052,
+          "nll": 0.08769204156424892
+        }
+      },
+      "no-edges": {
+        "ood": {
+          "auprc": 0.0009644692673485278,
+          "auroc": 0.022254785640100305,
+          "brier": 0.04163138416200668,
+          "ece": 0.08197756714558957,
+          "nll": 0.09424064352279338
+        },
+        "test": {
+          "auprc": -0.14343296732213032,
+          "auroc": -0.04925344676435772,
+          "brier": 0.055729251432459284,
+          "ece": 0.13044518212277567,
+          "nll": 0.16134033748479587
+        },
+        "validation": {
+          "auprc": -0.17950634729503867,
+          "auroc": -0.08909077872811755,
+          "brier": 0.09334327043476576,
+          "ece": 0.17853253264604646,
+          "nll": 0.24099552127620405
+        }
+      },
+      "random-relation-labels": {
+        "ood": {
+          "auprc": -0.012452148048285039,
+          "auroc": 0.0029106400371419205,
+          "brier": -0.016011428925484683,
+          "ece": -0.017396805073436605,
+          "nll": -0.04449700489994124
+        },
+        "test": {
+          "auprc": -0.1795070781923557,
+          "auroc": -0.06917179798899131,
+          "brier": 0.021177441294616198,
+          "ece": 0.049090512236272504,
+          "nll": 0.06668151880022521
+        },
+        "validation": {
+          "auprc": -0.21521684326666238,
+          "auroc": -0.12559520690653247,
+          "brier": 0.035091551717367706,
+          "ece": 0.07542068031303514,
+          "nll": 0.09896112255775502
+        }
+      },
+      "randomized-edges@1729": {
+        "ood": {
+          "auprc": -0.0004044378753310096,
+          "auroc": 0.0003334433807649084,
+          "brier": -0.0008691269636771082,
+          "ece": -0.0019934858746744055,
+          "nll": -0.002282681749803228
+        },
+        "test": {
+          "auprc": -0.006986300053140271,
+          "auroc": -0.0024505654323323522,
+          "brier": 0.0006508229970346863,
+          "ece": -0.0008625582025843098,
+          "nll": 0.0013072652073958246
+        },
+        "validation": {
+          "auprc": -0.0016396777541335394,
+          "auroc": -0.00032783408078862486,
+          "brier": 0.0002513657324819951,
+          "ece": -0.00037401700506836666,
+          "nll": 0.0004649331058811934
+        }
+      },
+      "randomized-edges@2729": {
+        "ood": {
+          "auprc": -0.0005549684123761223,
+          "auroc": 0.000650608701750599,
+          "brier": -0.0008533646639000136,
+          "ece": -0.001970609988359351,
+          "nll": -0.0021707557247416798
+        },
+        "test": {
+          "auprc": -0.007343609477449942,
+          "auroc": -0.0027942663106368393,
+          "brier": 0.00060632488504056,
+          "ece": -0.0008547462321306376,
+          "nll": 0.0014054029104516585
+        },
+        "validation": {
+          "auprc": -0.00039592479783373546,
+          "auroc": -0.0009866605486421598,
+          "brier": 0.0001622618503096529,
+          "ece": -0.0004682197128648702,
+          "nll": 0.00022319238068718716
+        }
+      },
+      "randomized-edges@3729": {
+        "ood": {
+          "auprc": 0.000390997195058862,
+          "auroc": 0.0004902954973960982,
+          "brier": -0.0007909897428245438,
+          "ece": -0.0018351728300577408,
+          "nll": -0.0020842282958213887
+        },
+        "test": {
+          "auprc": -0.007642504859111776,
+          "auroc": -0.003402236053394514,
+          "brier": 0.0006900331407995591,
+          "ece": -0.0009303642268208151,
+          "nll": 0.0015633806442209575
+        },
+        "validation": {
+          "auprc": -0.0013409248377391214,
+          "auroc": -0.0002331352742568349,
+          "brier": 0.00025658329517930234,
+          "ece": -0.0003506433161423739,
+          "nll": 0.0004929299607198123
+        }
+      },
+      "rewired-edges@1729": {
+        "ood": {
+          "auprc": -0.024608144066173065,
+          "auroc": -0.008706134586829783,
+          "brier": 0.0843891861372014,
+          "ece": 0.11753052145344456,
+          "nll": 0.2151297522600537
+        },
+        "test": {
+          "auprc": -0.15881926622464754,
+          "auroc": -0.05190251946472424,
+          "brier": 0.06557903518482862,
+          "ece": 0.11070941952239285,
+          "nll": 0.19204077384219204
+        },
+        "validation": {
+          "auprc": -0.1470411071720242,
+          "auroc": -0.04377492165007302,
+          "brier": 0.07350382800336108,
+          "ece": 0.11788637352794473,
+          "nll": 0.21920484552768682
+        }
+      },
+      "rewired-edges@2729": {
+        "ood": {
+          "auprc": -0.022510131734675837,
+          "auroc": -0.007836391031703638,
+          "brier": 0.08364520148974211,
+          "ece": 0.11699505762869267,
+          "nll": 0.21342248582788637
+        },
+        "test": {
+          "auprc": -0.163859443708597,
+          "auroc": -0.0478791089573406,
+          "brier": 0.0649245985418384,
+          "ece": 0.11068193387489966,
+          "nll": 0.19125591364630778
+        },
+        "validation": {
+          "auprc": -0.14521860401708508,
+          "auroc": -0.03995881858310879,
+          "brier": 0.07267266692237984,
+          "ece": 0.11774536520187012,
+          "nll": 0.21687347376050514
+        }
+      },
+      "rewired-edges@3729": {
+        "ood": {
+          "auprc": -0.02932171217231172,
+          "auroc": -0.004792461222090982,
+          "brier": 0.08374888218222554,
+          "ece": 0.11724177643255296,
+          "nll": 0.21446956380783178
+        },
+        "test": {
+          "auprc": -0.15426677248018345,
+          "auroc": -0.04567601785959996,
+          "brier": 0.06337377642076018,
+          "ece": 0.1086736912647461,
+          "nll": 0.18608045596466433
+        },
+        "validation": {
+          "auprc": -0.14337114751944863,
+          "auroc": -0.04435367261582823,
+          "brier": 0.0738356027557569,
+          "ece": 0.11860340023128912,
+          "nll": 0.22076306914360622
+        }
+      }
+    },
+    "gnn-full-k5": {
+      "collapsed-edge-types": {
+        "ood": {
+          "auprc": 0.010482430524260039,
+          "auroc": 0.01957917114376473,
+          "brier": -0.004806360083089156,
+          "ece": 0.011332141226580772,
+          "nll": -0.01285943165624509
+        },
+        "test": {
+          "auprc": -0.11275404361505087,
+          "auroc": -0.037548930440705286,
+          "brier": 0.02145914969314988,
+          "ece": 0.057927213624458226,
+          "nll": 0.0679007052405265
+        },
+        "validation": {
+          "auprc": -0.1419167656889139,
+          "auroc": -0.05445645202611493,
+          "brier": 0.027620541744573665,
+          "ece": 0.07040396586043876,
+          "nll": 0.080861247819013
+        }
+      },
+      "no-edges": {
+        "ood": {
+          "auprc": -0.013317456332229444,
+          "auroc": 0.008013731777120503,
+          "brier": 0.043518778232994326,
+          "ece": 0.08257119788202327,
+          "nll": 0.10205023702848237
+        },
+        "test": {
+          "auprc": -0.1527513736204715,
+          "auroc": -0.0557645045603018,
+          "brier": 0.04853078624608313,
+          "ece": 0.11313270997318524,
+          "nll": 0.141934271963573
+        },
+        "validation": {
+          "auprc": -0.18650208552830855,
+          "auroc": -0.09991963795166936,
+          "brier": 0.07036353076971552,
+          "ece": 0.14209647188509741,
+          "nll": 0.18781618720275983
+        }
+      },
+      "random-relation-labels": {
+        "ood": {
+          "auprc": -0.010354232954752213,
+          "auroc": 0.005709961050889278,
+          "brier": -0.03887764783049352,
+          "ece": -0.05701947006616134,
+          "nll": -0.0973019932704825
+        },
+        "test": {
+          "auprc": -0.1419420033489885,
+          "auroc": -0.04508760777727017,
+          "brier": 0.004818563268845638,
+          "ece": 0.007553058020802597,
+          "nll": 0.020303141107660738
+        },
+        "validation": {
+          "auprc": -0.19209068438765323,
+          "auroc": -0.08947620545276702,
+          "brier": 0.008041872613186882,
+          "ece": 0.020625073123389265,
+          "nll": 0.031182364862231637
+        }
+      },
+      "randomized-edges@1729": {
+        "ood": {
+          "auprc": -0.0010409011341260543,
+          "auroc": 9.563044327620673e-05,
+          "brier": -0.0005992674136209297,
+          "ece": -0.0016479145223755598,
+          "nll": -0.0017626183488739788
+        },
+        "test": {
+          "auprc": -0.007226952957506305,
+          "auroc": -0.0026047821002406213,
+          "brier": 0.0008165811050005051,
+          "ece": -0.000373421074676375,
+          "nll": 0.0017839428506700172
+        },
+        "validation": {
+          "auprc": -0.002271139479854911,
+          "auroc": -0.0003164478041238761,
+          "brier": 0.0003814626974727453,
+          "ece": -3.913500864430319e-05,
+          "nll": 0.0008303874130282662
+        }
+      },
+      "randomized-edges@2729": {
+        "ood": {
+          "auprc": -0.0012150332008102616,
+          "auroc": 0.0005665657443802985,
+          "brier": -0.000616576930851237,
+          "ece": -0.001629080630534574,
+          "nll": -0.001736564712216615
+        },
+        "test": {
+          "auprc": -0.006907850103958668,
+          "auroc": -0.002804463335988938,
+          "brier": 0.0007794891633582657,
+          "ece": -0.00037485720174859627,
+          "nll": 0.0018465779801268845
+        },
+        "validation": {
+          "auprc": -0.0008866113261720154,
+          "auroc": -0.0008342462927215522,
+          "brier": 0.00029136579164779075,
+          "ece": -0.00011893109462085549,
+          "nll": 0.0006054750985607926
+        }
+      },
+      "randomized-edges@3729": {
+        "ood": {
+          "auprc": -0.0001646374713324128,
+          "auroc": 0.0003330896929683025,
+          "brier": -0.0005442089448224885,
+          "ece": -0.0015182453232738258,
+          "nll": -0.0016327200563280297
+        },
+        "test": {
+          "auprc": -0.008234709445858301,
+          "auroc": -0.0035331480068443444,
+          "brier": 0.0008395779664171626,
+          "ece": -0.00044367936461429947,
+          "nll": 0.001986328776085844
+        },
+        "validation": {
+          "auprc": -0.0017247779992077827,
+          "auroc": -0.00022070042731292538,
+          "brier": 0.0003748589897674265,
+          "ece": -2.4053537166057737e-05,
+          "nll": 0.0008590034683982339
+        }
+      },
+      "rewired-edges@1729": {
+        "ood": {
+          "auprc": -0.031148862949481826,
+          "auroc": -0.01622721294791063,
+          "brier": 0.08244093262493851,
+          "ece": 0.11258491524790226,
+          "nll": 0.20933613654836847
+        },
+        "test": {
+          "auprc": -0.15627732023152066,
+          "auroc": -0.049259898735679375,
+          "brier": 0.06028058529829777,
+          "ece": 0.10003275441773403,
+          "nll": 0.17200065561938344
+        },
+        "validation": {
+          "auprc": -0.14019251163737143,
+          "auroc": -0.04279278916167539,
+          "brier": 0.06811481167432237,
+          "ece": 0.10998924724631429,
+          "nll": 0.19548689971912908
+        }
+      },
+      "rewired-edges@2729": {
+        "ood": {
+          "auprc": -0.029213983339882232,
+          "auroc": -0.01558295378422192,
+          "brier": 0.08178862409515447,
+          "ece": 0.11208095154844427,
+          "nll": 0.20781508715037156
+        },
+        "test": {
+          "auprc": -0.16078514653184708,
+          "auroc": -0.04708405145067762,
+          "brier": 0.059803076678296624,
+          "ece": 0.10004086887284507,
+          "nll": 0.1714502575388926
+        },
+        "validation": {
+          "auprc": -0.1392401261373383,
+          "auroc": -0.0408297364958633,
+          "brier": 0.06750706190495742,
+          "ece": 0.1099030810358387,
+          "nll": 0.19409349887858734
+        }
+      },
+      "rewired-edges@3729": {
+        "ood": {
+          "auprc": -0.034665734419214084,
+          "auroc": -0.01293580273437045,
+          "brier": 0.08196802484050339,
+          "ece": 0.11241380680369134,
+          "nll": 0.20859435952780314
+        },
+        "test": {
+          "auprc": -0.15133335182137433,
+          "auroc": -0.044848001937027315,
+          "brier": 0.05816385809453645,
+          "ece": 0.09801778975484939,
+          "nll": 0.1665418266334664
+        },
+        "validation": {
+          "auprc": -0.13680288519944217,
+          "auroc": -0.0437041667726783,
+          "brier": 0.06822936478497232,
+          "ece": 0.11041501675195584,
+          "nll": 0.19615927538845185
+        }
+      }
+    }
+  },
+  "fixedBudget": {
+    "gnn": {
+      "budgets": {
+        "100": {
+          "controllerStateCoverage": {
+            "actionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded"
+            ],
+            "controllerStates": {
+              "count": 499,
+              "signaturesSha256": "6a6862d79561b26a4a98cb709dfdeb91eda2fbbea3c4d76deb9dfcf706de74ec"
+            },
+            "failureClasses": [
+              "AUTOSCALER_CAPACITY_MISMATCH",
+              "ROLLOUT_AVAILABILITY_VIOLATION",
+              "SERVICE_CAPACITY_COLLAPSE",
+              "TRAFFIC_TO_UNREADY_POD",
+              "ZONE_SURVIVABILITY_VIOLATION"
+            ],
+            "missing": [
+              "cloud.fault.node-drain",
+              "cloud.scheduler.yield"
+            ],
+            "target": {
+              "covered": 20,
+              "ratio": 0.9090909090909091,
+              "total": 22
+            },
+            "transitionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.endpoints-propagated",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded",
+              "cloud.kubelet.image-pulled",
+              "cloud.kubelet.pod-ready",
+              "cloud.kubelet.pod-terminated"
+            ]
+          },
+          "counterexampleLength": {
+            "meanActions": 87.90322580645162,
+            "minimumActions": 44
+          },
+          "evaluatedSchedules": 100,
+          "failureRecall": 0.021240150736553613,
+          "failuresFound": 62,
+          "requestedBudget": 100,
+          "schedulesToFirstCounterexample": 2,
+          "timeToFirstCounterexampleMs": 270.9045,
+          "uniqueFailureClassCount": 5,
+          "uniqueFailureClasses": [
+            "AUTOSCALER_CAPACITY_MISMATCH",
+            "ROLLOUT_AVAILABILITY_VIOLATION",
+            "SERVICE_CAPACITY_COLLAPSE",
+            "TRAFFIC_TO_UNREADY_POD",
+            "ZONE_SURVIVABILITY_VIOLATION"
+          ],
+          "verificationWallTimeMs": 21812.058699999994
+        },
+        "1000": {
+          "controllerStateCoverage": {
+            "actionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded"
+            ],
+            "controllerStates": {
+              "count": 1583,
+              "signaturesSha256": "fdf1925f1842ae1cbfc5c4f4edb45045c8f5022ea6e3bf204dc4073b5f2ad95e"
+            },
+            "failureClasses": [
+              "AUTOSCALER_CAPACITY_MISMATCH",
+              "ROLLOUT_AVAILABILITY_VIOLATION",
+              "SERVICE_CAPACITY_COLLAPSE",
+              "TRAFFIC_TO_UNREADY_POD",
+              "ZONE_SURVIVABILITY_VIOLATION"
+            ],
+            "missing": [
+              "cloud.fault.node-drain",
+              "cloud.scheduler.yield"
+            ],
+            "target": {
+              "covered": 20,
+              "ratio": 0.9090909090909091,
+              "total": 22
+            },
+            "transitionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.endpoints-propagated",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded",
+              "cloud.kubelet.image-pulled",
+              "cloud.kubelet.pod-ready",
+              "cloud.kubelet.pod-terminated"
+            ]
+          },
+          "counterexampleLength": {
+            "meanActions": 91.07731958762886,
+            "minimumActions": 41
+          },
+          "evaluatedSchedules": 1000,
+          "failureRecall": 0.19938335046248715,
+          "failuresFound": 582,
+          "requestedBudget": 1000,
+          "schedulesToFirstCounterexample": 2,
+          "timeToFirstCounterexampleMs": 270.9045,
+          "uniqueFailureClassCount": 5,
+          "uniqueFailureClasses": [
+            "AUTOSCALER_CAPACITY_MISMATCH",
+            "ROLLOUT_AVAILABILITY_VIOLATION",
+            "SERVICE_CAPACITY_COLLAPSE",
+            "TRAFFIC_TO_UNREADY_POD",
+            "ZONE_SURVIVABILITY_VIOLATION"
+          ],
+          "verificationWallTimeMs": 194799.95399999994
+        },
+        "500": {
+          "controllerStateCoverage": {
+            "actionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded"
+            ],
+            "controllerStates": {
+              "count": 1082,
+              "signaturesSha256": "3ae414f9bf2a4c3bd9c7c8f585117410808cce453c893407c5ff491d30f94494"
+            },
+            "failureClasses": [
+              "AUTOSCALER_CAPACITY_MISMATCH",
+              "ROLLOUT_AVAILABILITY_VIOLATION",
+              "SERVICE_CAPACITY_COLLAPSE",
+              "TRAFFIC_TO_UNREADY_POD",
+              "ZONE_SURVIVABILITY_VIOLATION"
+            ],
+            "missing": [
+              "cloud.fault.node-drain",
+              "cloud.scheduler.yield"
+            ],
+            "target": {
+              "covered": 20,
+              "ratio": 0.9090909090909091,
+              "total": 22
+            },
+            "transitionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.endpoints-propagated",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded",
+              "cloud.kubelet.image-pulled",
+              "cloud.kubelet.pod-ready",
+              "cloud.kubelet.pod-terminated"
+            ]
+          },
+          "counterexampleLength": {
+            "meanActions": 91.94945848375451,
+            "minimumActions": 42
+          },
+          "evaluatedSchedules": 500,
+          "failureRecall": 0.09489551216169921,
+          "failuresFound": 277,
+          "requestedBudget": 500,
+          "schedulesToFirstCounterexample": 2,
+          "timeToFirstCounterexampleMs": 270.9045,
+          "uniqueFailureClassCount": 5,
+          "uniqueFailureClasses": [
+            "AUTOSCALER_CAPACITY_MISMATCH",
+            "ROLLOUT_AVAILABILITY_VIOLATION",
+            "SERVICE_CAPACITY_COLLAPSE",
+            "TRAFFIC_TO_UNREADY_POD",
+            "ZONE_SURVIVABILITY_VIOLATION"
+          ],
+          "verificationWallTimeMs": 96966.60989999998
+        },
+        "5000": {
+          "controllerStateCoverage": {
+            "actionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded"
+            ],
+            "controllerStates": {
+              "count": 3273,
+              "signaturesSha256": "bebfa003aeafe7ed6ef0e8094ffdd60c47d6557e022df836725c87739f61bac2"
+            },
+            "failureClasses": [
+              "AUTOSCALER_CAPACITY_MISMATCH",
+              "ROLLOUT_AVAILABILITY_VIOLATION",
+              "SERVICE_CAPACITY_COLLAPSE",
+              "TRAFFIC_TO_UNREADY_POD",
+              "ZONE_SURVIVABILITY_VIOLATION"
+            ],
+            "missing": [
+              "cloud.fault.node-drain",
+              "cloud.scheduler.yield"
+            ],
+            "target": {
+              "covered": 20,
+              "ratio": 0.9090909090909091,
+              "total": 22
+            },
+            "transitionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.endpoints-propagated",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded",
+              "cloud.kubelet.image-pulled",
+              "cloud.kubelet.pod-ready",
+              "cloud.kubelet.pod-terminated"
+            ]
+          },
+          "counterexampleLength": {
+            "meanActions": 90.52340093603745,
+            "minimumActions": 40
+          },
+          "evaluatedSchedules": 5000,
+          "failureRecall": 0.8783830078794107,
+          "failuresFound": 2564,
+          "requestedBudget": 5000,
+          "schedulesToFirstCounterexample": 2,
+          "timeToFirstCounterexampleMs": 270.9045,
+          "uniqueFailureClassCount": 5,
+          "uniqueFailureClasses": [
+            "AUTOSCALER_CAPACITY_MISMATCH",
+            "ROLLOUT_AVAILABILITY_VIOLATION",
+            "SERVICE_CAPACITY_COLLAPSE",
+            "TRAFFIC_TO_UNREADY_POD",
+            "ZONE_SURVIVABILITY_VIOLATION"
+          ],
+          "verificationWallTimeMs": 725471.1940999991
+        }
+      },
+      "candidateSchedules": 5838,
+      "totalCounterexamples": 2919
+    },
+    "gnnClockBlind": {
+      "budgets": {
+        "100": {
+          "controllerStateCoverage": {
+            "actionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded"
+            ],
+            "controllerStates": {
+              "count": 452,
+              "signaturesSha256": "9d517992e3c7e9a7930c26d3e627b413fc18dc6d2a8df75ff55bf9c0eead0652"
+            },
+            "failureClasses": [
+              "AUTOSCALER_CAPACITY_MISMATCH",
+              "ROLLOUT_AVAILABILITY_VIOLATION",
+              "SERVICE_CAPACITY_COLLAPSE",
+              "TRAFFIC_TO_UNREADY_POD",
+              "ZONE_SURVIVABILITY_VIOLATION"
+            ],
+            "missing": [
+              "cloud.fault.node-drain",
+              "cloud.scheduler.yield"
+            ],
+            "target": {
+              "covered": 20,
+              "ratio": 0.9090909090909091,
+              "total": 22
+            },
+            "transitionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.endpoints-propagated",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded",
+              "cloud.kubelet.image-pulled",
+              "cloud.kubelet.pod-ready",
+              "cloud.kubelet.pod-terminated"
+            ]
+          },
+          "counterexampleLength": {
+            "meanActions": 92.6470588235294,
+            "minimumActions": 50
+          },
+          "evaluatedSchedules": 100,
+          "failureRecall": 0.017471736896197326,
+          "failuresFound": 51,
+          "requestedBudget": 100,
+          "schedulesToFirstCounterexample": 2,
+          "timeToFirstCounterexampleMs": 270.9045,
+          "uniqueFailureClassCount": 5,
+          "uniqueFailureClasses": [
+            "AUTOSCALER_CAPACITY_MISMATCH",
+            "ROLLOUT_AVAILABILITY_VIOLATION",
+            "SERVICE_CAPACITY_COLLAPSE",
+            "TRAFFIC_TO_UNREADY_POD",
+            "ZONE_SURVIVABILITY_VIOLATION"
+          ],
+          "verificationWallTimeMs": 18664.571800000005
+        },
+        "1000": {
+          "controllerStateCoverage": {
+            "actionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded"
+            ],
+            "controllerStates": {
+              "count": 1466,
+              "signaturesSha256": "6a984acd4d410c9598451fb2a34260ced77de4feb934926f93d6f4ea44634457"
+            },
+            "failureClasses": [
+              "AUTOSCALER_CAPACITY_MISMATCH",
+              "ROLLOUT_AVAILABILITY_VIOLATION",
+              "SERVICE_CAPACITY_COLLAPSE",
+              "TRAFFIC_TO_UNREADY_POD",
+              "ZONE_SURVIVABILITY_VIOLATION"
+            ],
+            "missing": [
+              "cloud.fault.node-drain",
+              "cloud.scheduler.yield"
+            ],
+            "target": {
+              "covered": 20,
+              "ratio": 0.9090909090909091,
+              "total": 22
+            },
+            "transitionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.endpoints-propagated",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded",
+              "cloud.kubelet.image-pulled",
+              "cloud.kubelet.pod-ready",
+              "cloud.kubelet.pod-terminated"
+            ]
+          },
+          "counterexampleLength": {
+            "meanActions": 90.64840989399293,
+            "minimumActions": 41
+          },
+          "evaluatedSchedules": 1000,
+          "failureRecall": 0.19390202124015074,
+          "failuresFound": 566,
+          "requestedBudget": 1000,
+          "schedulesToFirstCounterexample": 2,
+          "timeToFirstCounterexampleMs": 270.9045,
+          "uniqueFailureClassCount": 5,
+          "uniqueFailureClasses": [
+            "AUTOSCALER_CAPACITY_MISMATCH",
+            "ROLLOUT_AVAILABILITY_VIOLATION",
+            "SERVICE_CAPACITY_COLLAPSE",
+            "TRAFFIC_TO_UNREADY_POD",
+            "ZONE_SURVIVABILITY_VIOLATION"
+          ],
+          "verificationWallTimeMs": 191846.10900000014
+        },
+        "500": {
+          "controllerStateCoverage": {
+            "actionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded"
+            ],
+            "controllerStates": {
+              "count": 1057,
+              "signaturesSha256": "06062e435bbd36e62f6f20795deb261ce94697c14d2f803301f7a72002cd92de"
+            },
+            "failureClasses": [
+              "AUTOSCALER_CAPACITY_MISMATCH",
+              "ROLLOUT_AVAILABILITY_VIOLATION",
+              "SERVICE_CAPACITY_COLLAPSE",
+              "TRAFFIC_TO_UNREADY_POD",
+              "ZONE_SURVIVABILITY_VIOLATION"
+            ],
+            "missing": [
+              "cloud.fault.node-drain",
+              "cloud.scheduler.yield"
+            ],
+            "target": {
+              "covered": 20,
+              "ratio": 0.9090909090909091,
+              "total": 22
+            },
+            "transitionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.endpoints-propagated",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded",
+              "cloud.kubelet.image-pulled",
+              "cloud.kubelet.pod-ready",
+              "cloud.kubelet.pod-terminated"
+            ]
+          },
+          "counterexampleLength": {
+            "meanActions": 90.48821548821549,
+            "minimumActions": 42
+          },
+          "evaluatedSchedules": 500,
+          "failureRecall": 0.10174717368961973,
+          "failuresFound": 297,
+          "requestedBudget": 500,
+          "schedulesToFirstCounterexample": 2,
+          "timeToFirstCounterexampleMs": 270.9045,
+          "uniqueFailureClassCount": 5,
+          "uniqueFailureClasses": [
+            "AUTOSCALER_CAPACITY_MISMATCH",
+            "ROLLOUT_AVAILABILITY_VIOLATION",
+            "SERVICE_CAPACITY_COLLAPSE",
+            "TRAFFIC_TO_UNREADY_POD",
+            "ZONE_SURVIVABILITY_VIOLATION"
+          ],
+          "verificationWallTimeMs": 95405.59430000001
+        },
+        "5000": {
+          "controllerStateCoverage": {
+            "actionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded"
+            ],
+            "controllerStates": {
+              "count": 3280,
+              "signaturesSha256": "15f711823f25f9012295d1cf5834c5a5203566db8621eaeef567e926c4ba3387"
+            },
+            "failureClasses": [
+              "AUTOSCALER_CAPACITY_MISMATCH",
+              "ROLLOUT_AVAILABILITY_VIOLATION",
+              "SERVICE_CAPACITY_COLLAPSE",
+              "TRAFFIC_TO_UNREADY_POD",
+              "ZONE_SURVIVABILITY_VIOLATION"
+            ],
+            "missing": [
+              "cloud.fault.node-drain",
+              "cloud.scheduler.yield"
+            ],
+            "target": {
+              "covered": 20,
+              "ratio": 0.9090909090909091,
+              "total": 22
+            },
+            "transitionTypes": [
+              "cloud.action.advance-time",
+              "cloud.action.drain-node",
+              "cloud.action.recover-node",
+              "cloud.action.roll-back",
+              "cloud.action.roll-out",
+              "cloud.action.scale",
+              "cloud.action.traffic-spike",
+              "cloud.controller.deployment",
+              "cloud.controller.endpoints",
+              "cloud.controller.endpoints-propagated",
+              "cloud.controller.hpa",
+              "cloud.controller.kubelet",
+              "cloud.controller.pdb",
+              "cloud.controller.scheduler",
+              "cloud.fault.controller-restart",
+              "cloud.fault.endpoint-propagation-delay",
+              "cloud.fault.hpa-stale-metric",
+              "cloud.fault.image-pull-delay",
+              "cloud.fault.node-crash",
+              "cloud.fault.readiness-delay",
+              "cloud.fault.zone-degraded",
+              "cloud.kubelet.image-pulled",
+              "cloud.kubelet.pod-ready",
+              "cloud.kubelet.pod-terminated"
+            ]
+          },
+          "counterexampleLength": {
+            "meanActions": 90.48449612403101,
+            "minimumActions": 40
+          },
+          "evaluatedSchedules": 5000,
+          "failureRecall": 0.8838643371017472,
+          "failuresFound": 2580,
+          "requestedBudget": 5000,
+          "schedulesToFirstCounterexample": 2,
+          "timeToFirstCounterexampleMs": 270.9045,
+          "uniqueFailureClassCount": 5,
+          "uniqueFailureClasses": [
+            "AUTOSCALER_CAPACITY_MISMATCH",
+            "ROLLOUT_AVAILABILITY_VIOLATION",
+            "SERVICE_CAPACITY_COLLAPSE",
+            "TRAFFIC_TO_UNREADY_POD",
+            "ZONE_SURVIVABILITY_VIOLATION"
+          ],
+          "verificationWallTimeMs": 725705.1367999978
+        }
+      },
+      "candidateSchedules": 5838,
+      "totalCounterexamples": 2919
+    }
+  },
+  "keptFields": "every other encoded feature, including durations (ms, delayMs, durationMs) and version numbers",
+  "kind": "cloudproof.phase-ii-b2-clock-blind",
+  "maskedFields": [
+    "HPA.sampled_at",
+    "action.atMs"
+  ],
+  "phase": "II-B.2",
+  "relationalOnlyPairs": {
+    "gnn-clock-blind-k5": {
+      "collapsed-edge-types": {
+        "bootstrap95TieAware": {
+          "lower": 0.6416184971098265,
+          "mean": 0.7109826589595376,
+          "resamples": 10000,
+          "seed": 20260922,
+          "units": 173,
+          "upper": 0.7745664739884393
+        },
+        "correct": 123,
+        "pairs": 173,
+        "strictAccuracy": 0.7109826589595376,
+        "tieAwareAccuracy": 0.7109826589595376,
+        "ties": 0
+      },
+      "full": {
+        "bootstrap95TieAware": {
+          "lower": 0.8380057803468209,
+          "mean": 0.884393063583815,
+          "resamples": 10000,
+          "seed": 20260922,
+          "units": 173,
+          "upper": 0.930635838150289
+        },
+        "correct": 153,
+        "pairs": 173,
+        "strictAccuracy": 0.884393063583815,
+        "tieAwareAccuracy": 0.884393063583815,
+        "ties": 0
+      },
+      "no-edges": {
+        "bootstrap95TieAware": {
+          "lower": 0.5,
+          "mean": 0.5,
+          "resamples": 10000,
+          "seed": 20260922,
+          "units": 173,
+          "upper": 0.5
+        },
+        "correct": 0,
+        "pairs": 173,
+        "strictAccuracy": 0.0,
+        "tieAwareAccuracy": 0.5,
+        "ties": 173
+      },
+      "random-relation-labels": {
+        "bootstrap95TieAware": {
+          "lower": 0.2254335260115607,
+          "mean": 0.28901734104046245,
+          "resamples": 10000,
+          "seed": 20260922,
+          "units": 173,
+          "upper": 0.3583815028901734
+        },
+        "correct": 50,
+        "pairs": 173,
+        "strictAccuracy": 0.28901734104046245,
+        "tieAwareAccuracy": 0.28901734104046245,
+        "ties": 0
+      },
+      "randomized-edges@1729": {
+        "bootstrap95TieAware": {
+          "lower": 0.6820809248554913,
+          "mean": 0.7398843930635838,
+          "resamples": 10000,
+          "seed": 20260922,
+          "units": 173,
+          "upper": 0.7976878612716763
+        },
+        "correct": 110,
+        "pairs": 173,
+        "strictAccuracy": 0.6358381502890174,
+        "tieAwareAccuracy": 0.7398843930635838,
+        "ties": 36
+      },
+      "randomized-edges@2729": {
+        "bootstrap95TieAware": {
+          "lower": 0.6820809248554913,
+          "mean": 0.7369942196531792,
+          "resamples": 10000,
+          "seed": 20260922,
+          "units": 173,
+          "upper": 0.791907514450867
+        },
+        "correct": 110,
+        "pairs": 173,
+        "strictAccuracy": 0.6358381502890174,
+        "tieAwareAccuracy": 0.7369942196531792,
+        "ties": 35
+      },
+      "randomized-edges@3729": {
+        "bootstrap95TieAware": {
+          "lower": 0.6907514450867052,
+          "mean": 0.7456647398843931,
+          "resamples": 10000,
+          "seed": 20260922,
+          "units": 173,
+          "upper": 0.8005780346820809
+        },
+        "correct": 112,
+        "pairs": 173,
+        "strictAccuracy": 0.6473988439306358,
+        "tieAwareAccuracy": 0.7456647398843931,
+        "ties": 34
+      },
+      "rewired-edges@1729": {
+        "bootstrap95TieAware": {
+          "lower": 0.3988439306358382,
+          "mean": 0.4682080924855491,
+          "resamples": 10000,
+          "seed": 20260922,
+          "units": 173,
+          "upper": 0.5433526011560693
+        },
+        "correct": 81,
+        "pairs": 173,
+        "strictAccuracy": 0.4682080924855491,
+        "tieAwareAccuracy": 0.4682080924855491,
+        "ties": 0
+      },
+      "rewired-edges@2729": {
+        "bootstrap95TieAware": {
+          "lower": 0.43352601156069365,
+          "mean": 0.5086705202312138,
+          "resamples": 10000,
+          "seed": 20260922,
+          "units": 173,
+          "upper": 0.5838150289017341
+        },
+        "correct": 88,
+        "pairs": 173,
+        "strictAccuracy": 0.5086705202312138,
+        "tieAwareAccuracy": 0.5086705202312138,
+        "ties": 0
+      },
+      "rewired-edges@3729": {
+        "bootstrap95TieAware": {
+          "lower": 0.4913294797687861,
+          "mean": 0.5664739884393064,
+          "resamples": 10000,
+          "seed": 20260922,
+          "units": 173,
+          "upper": 0.6416184971098265
+        },
+        "correct": 98,
+        "pairs": 173,
+        "strictAccuracy": 0.5664739884393064,
+        "tieAwareAccuracy": 0.5664739884393064,
+        "ties": 0
+      }
+    },
+    "gnn-full-k5": {
+      "collapsed-edge-types": {
+        "bootstrap95TieAware": {
+          "lower": 0.6705202312138728,
+          "mean": 0.7398843930635838,
+          "resamples": 10000,
+          "seed": 20260922,
+          "units": 173,
+          "upper": 0.8034682080924855
+        },
+        "correct": 128,
+        "pairs": 173,
+        "strictAccuracy": 0.7398843930635838,
+        "tieAwareAccuracy": 0.7398843930635838,
+        "ties": 0
+      },
+      "full": {
+        "bootstrap95TieAware": {
+          "lower": 0.8208092485549133,
+          "mean": 0.8728323699421965,
+          "resamples": 10000,
+          "seed": 20260922,
+          "units": 173,
+          "upper": 0.9190751445086706
+        },
+        "correct": 151,
+        "pairs": 173,
+        "strictAccuracy": 0.8728323699421965,
+        "tieAwareAccuracy": 0.8728323699421965,
+        "ties": 0
+      },
+      "no-edges": {
+        "bootstrap95TieAware": {
+          "lower": 0.5,
+          "mean": 0.5,
+          "resamples": 10000,
+          "seed": 20260922,
+          "units": 173,
+          "upper": 0.5
+        },
+        "correct": 0,
+        "pairs": 173,
+        "strictAccuracy": 0.0,
+        "tieAwareAccuracy": 0.5,
+        "ties": 173
+      },
+      "random-relation-labels": {
+        "bootstrap95TieAware": {
+          "lower": 0.861271676300578,
+          "mean": 0.9075144508670521,
+          "resamples": 10000,
+          "seed": 20260922,
+          "units": 173,
+          "upper": 0.9479768786127167
+        },
+        "correct": 157,
+        "pairs": 173,
+        "strictAccuracy": 0.9075144508670521,
+        "tieAwareAccuracy": 0.9075144508670521,
+        "ties": 0
+      },
+      "randomized-edges@1729": {
+        "bootstrap95TieAware": {
+          "lower": 0.6878612716763006,
+          "mean": 0.7456647398843931,
+          "resamples": 10000,
+          "seed": 20260922,
+          "units": 173,
+          "upper": 0.8005780346820809
+        },
+        "correct": 111,
+        "pairs": 173,
+        "strictAccuracy": 0.6416184971098265,
+        "tieAwareAccuracy": 0.7456647398843931,
+        "ties": 36
+      },
+      "randomized-edges@2729": {
+        "bootstrap95TieAware": {
+          "lower": 0.6820809248554913,
+          "mean": 0.7369942196531792,
+          "resamples": 10000,
+          "seed": 20260922,
+          "units": 173,
+          "upper": 0.791907514450867
+        },
+        "correct": 110,
+        "pairs": 173,
+        "strictAccuracy": 0.6358381502890174,
+        "tieAwareAccuracy": 0.7369942196531792,
+        "ties": 35
+      },
+      "randomized-edges@3729": {
+        "bootstrap95TieAware": {
+          "lower": 0.6965317919075145,
+          "mean": 0.7514450867052023,
+          "resamples": 10000,
+          "seed": 20260922,
+          "units": 173,
+          "upper": 0.8063583815028902
+        },
+        "correct": 113,
+        "pairs": 173,
+        "strictAccuracy": 0.653179190751445,
+        "tieAwareAccuracy": 0.7514450867052023,
+        "ties": 34
+      },
+      "rewired-edges@1729": {
+        "bootstrap95TieAware": {
+          "lower": 0.3930635838150289,
+          "mean": 0.4624277456647399,
+          "resamples": 10000,
+          "seed": 20260922,
+          "units": 173,
+          "upper": 0.5375722543352601
+        },
+        "correct": 80,
+        "pairs": 173,
+        "strictAccuracy": 0.4624277456647399,
+        "tieAwareAccuracy": 0.4624277456647399,
+        "ties": 0
+      },
+      "rewired-edges@2729": {
+        "bootstrap95TieAware": {
+          "lower": 0.4161849710982659,
+          "mean": 0.4913294797687861,
+          "resamples": 10000,
+          "seed": 20260922,
+          "units": 173,
+          "upper": 0.5664739884393064
+        },
+        "correct": 85,
+        "pairs": 173,
+        "strictAccuracy": 0.4913294797687861,
+        "tieAwareAccuracy": 0.4913294797687861,
+        "ties": 0
+      },
+      "rewired-edges@3729": {
+        "bootstrap95TieAware": {
+          "lower": 0.47398843930635837,
+          "mean": 0.5491329479768786,
+          "resamples": 10000,
+          "seed": 20260922,
+          "units": 173,
+          "upper": 0.6242774566473989
+        },
+        "correct": 95,
+        "pairs": 173,
+        "strictAccuracy": 0.5491329479768786,
+        "tieAwareAccuracy": 0.5491329479768786,
+        "ties": 0
+      }
+    }
+  },
+  "schemaVersion": 1,
+  "trajectoryMetrics": {
+    "gnn-clock-blind-k5": {
+      "ood": {
+        "auprc": 0.5955435391550429,
+        "auroc": 0.6453792913541744,
+        "brier": 0.3252089955114655
+      },
+      "test": {
+        "auprc": 0.7760406441644141,
+        "auroc": 0.7712600324547169,
+        "brier": 0.20353153085787495
+      },
+      "validation": {
+        "auprc": 0.7214597514639506,
+        "auroc": 0.7099548551038062,
+        "brier": 0.2352503004831545
+      }
+    },
+    "gnn-full-k5": {
+      "ood": {
+        "auprc": 0.6098403317245494,
+        "auroc": 0.6478699475260513,
+        "brier": 0.31888898557734335
+      },
+      "test": {
+        "auprc": 0.7727377124536852,
+        "auroc": 0.7708372439805272,
+        "brier": 0.20485954350935526
+      },
+      "validation": {
+        "auprc": 0.720193041886835,
+        "auroc": 0.7116422469723184,
+        "brier": 0.2328694050561063
+      }
+    }
+  },
+  "transitionMetrics": {
+    "gnn-clock-blind-k5": {
+      "ood": {
+        "auprc": 0.2253801763485061,
+        "auroc": 0.7112899148889055,
+        "brier": 0.1571993912510389,
+        "ece": 0.2668674084799586,
+        "nll": 0.4961190203021728
+      },
+      "test": {
+        "auprc": 0.3681772292345473,
+        "auroc": 0.7868901550621187,
+        "brier": 0.06941408906154496,
+        "ece": 0.10045724400781741,
+        "nll": 0.25933748649347066
+      },
+      "validation": {
+        "auprc": 0.3610164430438393,
+        "auroc": 0.7906914921085797,
+        "brier": 0.08913540806449055,
+        "ece": 0.1366813269209115,
+        "nll": 0.31249516072979533
+      }
+    },
+    "gnn-full-k5": {
+      "ood": {
+        "auprc": 0.23284408891453395,
+        "auroc": 0.7220771232072113,
+        "brier": 0.15299964295517987,
+        "ece": 0.26194125246423805,
+        "nll": 0.48289974446583295
+      },
+      "test": {
+        "auprc": 0.3710624277048315,
+        "auroc": 0.7904080705953163,
+        "brier": 0.07074512158773658,
+        "ece": 0.1039849989048416,
+        "nll": 0.2621917679741904
+      },
+      "validation": {
+        "auprc": 0.3640745391163577,
+        "auroc": 0.7930951426697948,
+        "brier": 0.08856798252349812,
+        "ece": 0.1371415561968097,
+        "nll": 0.31014527188487623
+      }
+    }
+  }
+}
