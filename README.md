@@ -1,8 +1,4 @@
-<<<<<<< Updated upstream
-# miniRaft Agent Reliability Lab
-=======
 # CloudProof
->>>>>>> Stashed changes
 
 **Deterministic simulation testing for distributed systems, autonomous AI agents and Kubernetes operations: a hand-written Raft engine at the bottom, a statistically validated graph neural network at the top, and one idea connecting them.**
 
@@ -19,20 +15,6 @@
 
 ## Contents
 
-<<<<<<< Updated upstream
-- `AgentExecution`: portable checkpoints containing the workflow cursor, state, semantic snapshot, history, and effect ledger.
-- `EffectLedger`: stable effect identities and explicit `INTENT_RECORDED`, `RECONCILIATION_REQUIRED`, `RESULT_RECORDED`, and `EFFECT_COMMITTED` states.
-- Semantic snapshots: versioned model, prompt, policy, retrieval index, and tool-schema resources with configurable resume decisions.
-- Versioned shared resources: durable business state, execution-scoped read/write sets, and atomic resource-version fencing before effect authorization.
-- Deterministic refund workload: one causal trace with execution-scoped invariants and plain-English replay.
-- Decision tapes, fault schedules, invariant checking, causal flight recording, and trace shrinking from the existing miniRaft lab.
-
-> **Current milestone:** miniRaft now searches interleavings among three
-> autonomous workflows over shared order state, kills four deliberate race
-> mutants, shrinks each violation to six causal actions, and fences the promoted
-> race in the live Raft cluster. See
-> [MULTI-AGENT-RACE-DETECTION.md](MULTI-AGENT-RACE-DETECTION.md).
-=======
 1. [At a glance](#at-a-glance)
 2. [The thesis](#the-thesis)
 3. [System architecture](#system-architecture)
@@ -53,7 +35,6 @@
 18. [Honest limits](#honest-limits)
 
 ---
->>>>>>> Stashed changes
 
 ## At a glance
 
@@ -290,27 +271,7 @@ Each decision is valid on its own. Together they over-compensate the customer.
 **Fix: semantic optimistic concurrency inside the Raft state machine.** Each execution durably records a `readSet` (the resource versions it reasoned over) and a `writeSet` of deterministic operations (`set`, `increment`, `append-unique`). The transition `agent.effect.authorize-resource` validates every read version atomically **before** authorizing the effect or applying any write:
 
 ```text
-<<<<<<< Updated upstream
-Autonomous agent / recorded decision tape
-                 │ logical action intent
-                 ▼
-       miniRaft agent runtime
-          │              │
-          ▼              ▼
- semantic snapshot    effect ledger
- model · prompt       intent · result
- policy · retrieval  reconciliation · commit
- tools · schemas          │
-          └──────┬────────┘
-                 ▼
- durable checkpoint boundary
-                 │
-        deterministic fault lab
-                 │
-     invariants · replay · shrink
-=======
 RESOURCE_VERSION_CONFLICT   expected order:4821@17   actual order:4821@18   decision REVALIDATE
->>>>>>> Stashed changes
 ```
 
 | Race mutant | Broken boundary | Failure class |
@@ -578,32 +539,7 @@ node tools/agent-raft-compose-test.js
 node tools/cloudproof.js search --seed 1337 --runs 1
 node tools/cloudproof.js replay --file artifacts/cloudproof/failure-1337.json
 
-<<<<<<< Updated upstream
-See [CLOUDPROOF.md](CLOUDPROOF.md) for the modeled Kubernetes boundary, graph
-schema, mutants, dataset contract, and sim-to-real workflow.
-
-### CheckQuorum: the important distinction
-
-miniRaft does not claim full CheckQuorum semantics. An isolated leader retains
-its LEADER role until it sees a higher term. Quorum-aware readiness, leader
-leases, ReadIndex, and commit rules still prevent it from safely serving reads
-or committing writes after majority contact is lost. PreVote and the recent-
-leader vote rule prevent isolated or removed followers from needlessly
-disrupting a healthy term.
-
-That behavior is safe for the interfaces exposed here, but it is observably
-different from an implementation that automatically demotes a leader after a
-quorum timeout. The status API labels it accurately as quorum-aware serving and
-disruption prevention.
-
-## Kubernetes
-
-For a complete local Kubernetes deployment, use the checked-in kind harness:
-
-```bash
-=======
 # Full local Kubernetes (kind): StatefulSet, PVCs, KEDA, Prometheus, Grafana
->>>>>>> Stashed changes
 bash tools/kind-up.sh
 
 # Graph-learning attribution pipeline (needs the frozen corpus; see CLOUDPROOF-PHASE-II-B2.md)
@@ -618,60 +554,7 @@ node --test sim/*.test.js packages/*/*.test.js refund-provider/*.test.js tools/*
 python ml/cloudproof/tests/run_tests.py
 ```
 
-<<<<<<< Updated upstream
-It builds and side-loads local images, creates three consensus worker nodes,
-adapts the production storage class, deploys the system, and waits for the
-StatefulSets and Deployments. It requires Docker, `kind`, `kubectl`, and Bash.
-This is the easiest way to see stable pod identities, PVC recovery, required
-anti-affinity, readiness gating, and quorum-safe PodDisruptionBudgets working
-without a cloud account. See [README-DEPLOY.md](README-DEPLOY.md) for the exact
-difference between the browser simulator, Compose cluster, and Kubernetes.
-
-The checked-in manifest expects the two images produced by the GitHub Actions workflow:
-
-- `ghcr.io/raghhavmalani/miniraft-replica:latest`
-- `ghcr.io/raghhavmalani/miniraft-gateway:latest`
-
-Deploy:
-
-```bash
-kubectl apply -f k8s/miniraft.yaml
-kubectl -n miniraft get pods
-kubectl -n miniraft get service gateway
-```
-
-The replica StatefulSet provides:
-
-- stable identities such as `raft-0.raft`;
-- headless-service peer discovery;
-- a dedicated 1 Gi PVC per node;
-- `/health` liveness and `/ready` quorum-lease readiness probes;
-- Prometheus scrape annotations on `/metrics`;
-- a PodDisruptionBudget that preserves the two-member quorum during voluntary maintenance;
-- non-root containers with dropped Linux capabilities and read-only root filesystems.
-
-The gateway deployment runs two replicas behind one Service. Redis pub/sub fans committed entries across both WebSocket client sets.
-
-## Metrics
-
-Each replica exposes Prometheus text format at `/metrics`:
-
-```text
-miniraft_elections_total
-miniraft_prevotes_total
-miniraft_current_term
-miniraft_log_length
-miniraft_commit_index
-miniraft_ready
-miniraft_commit_latency_ms
-```
-
-For the local Compose network, a ready-to-use scrape configuration is in `monitoring/prometheus.yml`.
-
-Useful endpoints:
-=======
 **Replica HTTP API**
->>>>>>> Stashed changes
 
 | Endpoint | Purpose |
 |---|---|
@@ -685,20 +568,6 @@ Useful endpoints:
 ## Repository map
 
 ```text
-<<<<<<< Updated upstream
-miniRaft/
-├── .github/workflows/ci.yml
-├── docker-compose.yml
-├── frontend/                  # cinematic consensus-lab UI
-├── gateway/                   # HTTP/WebSocket routing + Redis fan-out
-├── k8s/miniraft.yaml          # StatefulSet, PVCs, gateways, Redis, Services
-├── monitoring/prometheus.yml
-└── replica/
-    ├── raft.js                # consensus engine
-    ├── raft.test.js           # protocol-focused tests
-    ├── index.js               # RPC, health, readiness, metrics
-    └── docker-entrypoint.sh   # StatefulSet peer discovery
-=======
 cloudproof/
 ├── replica/            Raft engine, durable log store, state machines, HNSW, quantization, BM25
 ├── gateway/            WebSocket/HTTP routing, leader discovery, Redis commit fan-out
@@ -716,7 +585,6 @@ cloudproof/
 ├── infra/terraform/    Split-tier EKS, IRSA, S3, Secrets Manager, cost guard
 ├── tools/              CLIs: search, benchmarks, corpus, freeze, kind replay, cold-start, cost model
 └── artifacts/          Committed counterexamples, fixtures and research results
->>>>>>> Stashed changes
 ```
 
 ---
