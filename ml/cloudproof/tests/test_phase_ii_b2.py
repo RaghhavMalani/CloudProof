@@ -3,6 +3,7 @@ destruction, label selection, model-selection isolation and the pairwise metric.
 
 from __future__ import annotations
 
+from collections import Counter
 from copy import deepcopy
 import hashlib
 import json
@@ -30,11 +31,16 @@ from ml.cloudproof.phase_ii_b2 import (
     PRIMARY_HORIZON,
     TIE_TOLERANCE,
     _attribution_verdict,
+    _count_pair,
+    _decisive_entries,
     _mode_plan,
     _paired_comparison,
     _ranking,
     _relational_pair_checks,
     _riskier_variant,
+    _signed_margins,
+    _subset_comparison,
+    _tie_aware_units,
     parse_args,
 )
 from ml.cloudproof.runtime import tensorizer_for_config
@@ -430,6 +436,36 @@ class PairwiseMetricTests(unittest.TestCase):
         self.assertEqual(verdict["graphAttribution"], "FAILED")
         self.assertFalse(verdict["conditions"]["1_fullGnnAboveChance"]["passed"])
         self.assertTrue(verdict["conditions"]["2_pooledMlpAtChance"]["passed"])
+
+    def test_invalid_pairs_are_counted_once(self) -> None:
+        counts = Counter()
+        for valid, change in ((True, "same"), (True, "safe->unsafe"), (False, "invalid"), (False, "invalid")):
+            _count_pair(counts, valid, change)
+        self.assertEqual((counts["total"], counts["valid"], counts["invalid"]), (4, 2, 2))
+        self.assertEqual((counts["same"], counts["safe->unsafe"]), (1, 1))
+
+    def test_pair_audit_margins_units_and_subset_comparison(self) -> None:
+        entries = [
+            {"pairId": "p1", "riskier": "B", "relationalOnly": True, "valid": True},
+            {"pairId": "p2", "riskier": "A", "relationalOnly": True, "valid": True},
+            {"pairId": "p3", "riskier": None, "relationalOnly": True, "valid": True},    # concordant
+            {"pairId": "p4", "riskier": "B", "relationalOnly": False, "valid": True},    # placement family
+            {"pairId": "p5", "riskier": "B", "relationalOnly": True, "valid": False},
+            {"pairId": "p6", "riskier": "B", "relationalOnly": True, "valid": True},
+        ]
+        decisive = _decisive_entries(entries)
+        self.assertEqual([entry["pairId"] for entry in decisive], ["p1", "p2", "p6"])
+        scores = {"p1": {"A": 0.2, "B": 0.7}, "p2": {"A": 0.1, "B": 0.4}, "p6": {"A": 0.3, "B": 0.3 + 1e-8}}
+        margins = _signed_margins(decisive, scores)
+        self.assertAlmostEqual(margins[0], 0.5)
+        self.assertAlmostEqual(margins[1], -0.3)
+        self.assertEqual(_tie_aware_units(margins), [1.0, 0.0, 0.5])
+        comparison = _subset_comparison([1.0, 1.0, 0.5], [0.5, 1.0, 0.0], [True, False, True])
+        self.assertAlmostEqual(comparison["controlTieAwareAccuracy"], 0.25)
+        self.assertAlmostEqual(comparison["difference"], 0.5)
+        self.assertEqual(len(comparison["pairedBootstrap95"]), 2)
+        with self.assertRaises(ValueError):
+            _subset_comparison([1.0, 0.0], [0.5, 0.5], [True])
 
 
 class StatisticsTests(unittest.TestCase):

@@ -3,3 +3,6 @@
 Dockerfile text eol=lf
 *.yml text eol=lf
 *.yaml text eol=lf
+# Hashed research records must check out byte-identical on every platform.
+CLOUDPROOF-PHASE-II-A2-CORPUS-FREEZE.json text eol=lf
+artifacts/cloudproof/phase-ii-b2/**/*.json text eol=lf
