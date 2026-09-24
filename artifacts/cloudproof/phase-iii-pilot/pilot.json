@@ -1,0 +1,1103 @@
+{
+  "elapsedSeconds": 99.636,
+  "kind": "cloudproof.phase-iii-pilot",
+  "natural": {
+    "T1": {
+      "incidentClasses": {
+        "INSTANCE_LOSS": 12,
+        "OVERLOAD": 6,
+        "STORAGE_UNAVAILABLE": 1
+      },
+      "medianFirstIncident": 18,
+      "rows": 1018,
+      "split": "train",
+      "trajectories": 30,
+      "unsafe": 19,
+      "unsafeRate": 0.6333333333333333
+    },
+    "T2": {
+      "incidentClasses": {
+        "CACHE_STAMPEDE": 2,
+        "INSTANCE_LOSS": 10,
+        "OVERLOAD": 5
+      },
+      "medianFirstIncident": 27,
+      "rows": 1148,
+      "split": "train",
+      "trajectories": 30,
+      "unsafe": 17,
+      "unsafeRate": 0.5666666666666667
+    },
+    "T3": {
+      "incidentClasses": {
+        "INSTANCE_LOSS": 11,
+        "OVERLOAD": 8
+      },
+      "medianFirstIncident": 30,
+      "rows": 1115,
+      "split": "train",
+      "trajectories": 30,
+      "unsafe": 19,
+      "unsafeRate": 0.6333333333333333
+    },
+    "T4": {
+      "incidentClasses": {
+        "INSTANCE_LOSS": 14,
+        "OVERLOAD": 4
+      },
+      "medianFirstIncident": 22,
+      "rows": 1068,
+      "split": "train",
+      "trajectories": 30,
+      "unsafe": 18,
+      "unsafeRate": 0.6
+    },
+    "T5": {
+      "incidentClasses": {
+        "CACHE_STAMPEDE": 1,
+        "INSTANCE_LOSS": 14,
+        "OVERLOAD": 3,
+        "QUEUE_BACKPRESSURE": 1
+      },
+      "medianFirstIncident": 26,
+      "rows": 1012,
+      "split": "train",
+      "trajectories": 30,
+      "unsafe": 19,
+      "unsafeRate": 0.6333333333333333
+    },
+    "T6": {
+      "incidentClasses": {
+        "CACHE_STAMPEDE": 1,
+        "INSTANCE_LOSS": 12,
+        "OVERLOAD": 5,
+        "QUEUE_BACKPRESSURE": 2,
+        "STORAGE_UNAVAILABLE": 2
+      },
+      "medianFirstIncident": 20,
+      "rows": 963,
+      "split": "train",
+      "trajectories": 30,
+      "unsafe": 22,
+      "unsafeRate": 0.7333333333333333
+    },
+    "T7": {
+      "incidentClasses": {
+        "CACHE_STAMPEDE": 1,
+        "INSTANCE_LOSS": 12,
+        "OVERLOAD": 5,
+        "QUEUE_BACKPRESSURE": 1,
+        "STORAGE_UNAVAILABLE": 1
+      },
+      "medianFirstIncident": 27,
+      "rows": 1036,
+      "split": "train",
+      "trajectories": 30,
+      "unsafe": 20,
+      "unsafeRate": 0.6666666666666666
+    },
+    "T8": {
+      "incidentClasses": {
+        "CACHE_STAMPEDE": 2,
+        "INSTANCE_LOSS": 4,
+        "OVERLOAD": 12
+      },
+      "medianFirstIncident": 30,
+      "rows": 1178,
+      "split": "train",
+      "trajectories": 30,
+      "unsafe": 18,
+      "unsafeRate": 0.6
+    },
+    "V1": {
+      "incidentClasses": {
+        "CACHE_STAMPEDE": 2,
+        "INSTANCE_LOSS": 11,
+        "OVERLOAD": 5
+      },
+      "medianFirstIncident": 26,
+      "rows": 1081,
+      "split": "validation",
+      "trajectories": 30,
+      "unsafe": 18,
+      "unsafeRate": 0.6
+    },
+    "V2": {
+      "incidentClasses": {
+        "INSTANCE_LOSS": 9,
+        "OVERLOAD": 7,
+        "QUEUE_BACKPRESSURE": 3
+      },
+      "medianFirstIncident": 33,
+      "rows": 1194,
+      "split": "validation",
+      "trajectories": 30,
+      "unsafe": 19,
+      "unsafeRate": 0.6333333333333333
+    }
+  },
+  "pairs": {
+    "cells": {
+      "cache-backing|T1": {
+        "bothSafe": 5,
+        "bothUnsafe": 0,
+        "canonicalRiskier": 12,
+        "decisive": 25,
+        "failedAssertions": {},
+        "hops": {
+          "3": 25
+        },
+        "incidentClasses": {
+          "CACHE_STAMPEDE": 25
+        },
+        "pairs": 30,
+        "riskierIsExposed": 25,
+        "valid": 30
+      },
+      "cache-backing|T2": {
+        "bothSafe": 9,
+        "bothUnsafe": 0,
+        "canonicalRiskier": 7,
+        "decisive": 21,
+        "failedAssertions": {},
+        "hops": {
+          "3": 21
+        },
+        "incidentClasses": {
+          "CACHE_STAMPEDE": 21
+        },
+        "pairs": 30,
+        "riskierIsExposed": 21,
+        "valid": 30
+      },
+      "cache-backing|T3": {
+        "bothSafe": 5,
+        "bothUnsafe": 0,
+        "canonicalRiskier": 14,
+        "decisive": 25,
+        "failedAssertions": {},
+        "hops": {
+          "3": 25
+        },
+        "incidentClasses": {
+          "CACHE_STAMPEDE": 25
+        },
+        "pairs": 30,
+        "riskierIsExposed": 25,
+        "valid": 30
+      },
+      "cache-backing|T4": {
+        "bothSafe": 3,
+        "bothUnsafe": 0,
+        "canonicalRiskier": 15,
+        "decisive": 27,
+        "failedAssertions": {},
+        "hops": {
+          "3": 27
+        },
+        "incidentClasses": {
+          "CACHE_STAMPEDE": 27
+        },
+        "pairs": 30,
+        "riskierIsExposed": 27,
+        "valid": 30
+      },
+      "cache-backing|T5": {
+        "bothSafe": 6,
+        "bothUnsafe": 0,
+        "canonicalRiskier": 13,
+        "decisive": 24,
+        "failedAssertions": {},
+        "hops": {
+          "3": 24
+        },
+        "incidentClasses": {
+          "CACHE_STAMPEDE": 24
+        },
+        "pairs": 30,
+        "riskierIsExposed": 24,
+        "valid": 30
+      },
+      "cache-backing|T6": {
+        "bothSafe": 10,
+        "bothUnsafe": 0,
+        "canonicalRiskier": 14,
+        "decisive": 20,
+        "failedAssertions": {},
+        "hops": {
+          "3": 20
+        },
+        "incidentClasses": {
+          "CACHE_STAMPEDE": 20
+        },
+        "pairs": 30,
+        "riskierIsExposed": 20,
+        "valid": 30
+      },
+      "cache-backing|T7": {
+        "bothSafe": 9,
+        "bothUnsafe": 0,
+        "canonicalRiskier": 15,
+        "decisive": 21,
+        "failedAssertions": {},
+        "hops": {
+          "3": 21
+        },
+        "incidentClasses": {
+          "CACHE_STAMPEDE": 21
+        },
+        "pairs": 30,
+        "riskierIsExposed": 21,
+        "valid": 30
+      },
+      "cache-backing|T8": {
+        "bothSafe": 7,
+        "bothUnsafe": 0,
+        "canonicalRiskier": 13,
+        "decisive": 23,
+        "failedAssertions": {},
+        "hops": {
+          "3": 23
+        },
+        "incidentClasses": {
+          "CACHE_STAMPEDE": 23
+        },
+        "pairs": 30,
+        "riskierIsExposed": 23,
+        "valid": 30
+      },
+      "cache-backing|V1": {
+        "bothSafe": 4,
+        "bothUnsafe": 0,
+        "canonicalRiskier": 11,
+        "decisive": 26,
+        "failedAssertions": {},
+        "hops": {
+          "3": 26
+        },
+        "incidentClasses": {
+          "CACHE_STAMPEDE": 26
+        },
+        "pairs": 30,
+        "riskierIsExposed": 26,
+        "valid": 30
+      },
+      "cache-backing|V2": {
+        "bothSafe": 7,
+        "bothUnsafe": 0,
+        "canonicalRiskier": 11,
+        "decisive": 23,
+        "failedAssertions": {},
+        "hops": {
+          "3": 23
+        },
+        "incidentClasses": {
+          "CACHE_STAMPEDE": 23
+        },
+        "pairs": 30,
+        "riskierIsExposed": 23,
+        "valid": 30
+      },
+      "call-dependency|T1": {
+        "bothSafe": 11,
+        "bothUnsafe": 0,
+        "canonicalRiskier": 9,
+        "decisive": 19,
+        "failedAssertions": {},
+        "hops": {
+          "4": 19
+        },
+        "incidentClasses": {
+          "INSTANCE_LOSS": 19
+        },
+        "pairs": 30,
+        "riskierIsExposed": 19,
+        "valid": 30
+      },
+      "call-dependency|T2": {
+        "bothSafe": 17,
+        "bothUnsafe": 0,
+        "canonicalRiskier": 6,
+        "decisive": 13,
+        "failedAssertions": {},
+        "hops": {
+          "4": 13
+        },
+        "incidentClasses": {
+          "INSTANCE_LOSS": 13
+        },
+        "pairs": 30,
+        "riskierIsExposed": 13,
+        "valid": 30
+      },
+      "call-dependency|T3": {
+        "bothSafe": 13,
+        "bothUnsafe": 0,
+        "canonicalRiskier": 11,
+        "decisive": 17,
+        "failedAssertions": {},
+        "hops": {
+          "4": 17
+        },
+        "incidentClasses": {
+          "INSTANCE_LOSS": 16,
+          "OVERLOAD": 1
+        },
+        "pairs": 30,
+        "riskierIsExposed": 17,
+        "valid": 30
+      },
+      "call-dependency|T4": {
+        "bothSafe": 14,
+        "bothUnsafe": 0,
+        "canonicalRiskier": 9,
+        "decisive": 16,
+        "failedAssertions": {},
+        "hops": {
+          "4": 16
+        },
+        "incidentClasses": {
+          "INSTANCE_LOSS": 16
+        },
+        "pairs": 30,
+        "riskierIsExposed": 16,
+        "valid": 30
+      },
+      "call-dependency|T5": {
+        "bothSafe": 8,
+        "bothUnsafe": 0,
+        "canonicalRiskier": 11,
+        "decisive": 22,
+        "failedAssertions": {},
+        "hops": {
+          "4": 22
+        },
+        "incidentClasses": {
+          "INSTANCE_LOSS": 21,
+          "OVERLOAD": 1
+        },
+        "pairs": 30,
+        "riskierIsExposed": 22,
+        "valid": 30
+      },
+      "call-dependency|T6": {
+        "bothSafe": 8,
+        "bothUnsafe": 0,
+        "canonicalRiskier": 13,
+        "decisive": 22,
+        "failedAssertions": {},
+        "hops": {
+          "4": 22
+        },
+        "incidentClasses": {
+          "INSTANCE_LOSS": 21,
+          "OVERLOAD": 1
+        },
+        "pairs": 30,
+        "riskierIsExposed": 22,
+        "valid": 30
+      },
+      "call-dependency|T7": {
+        "bothSafe": 13,
+        "bothUnsafe": 0,
+        "canonicalRiskier": 10,
+        "decisive": 17,
+        "failedAssertions": {},
+        "hops": {
+          "4": 17
+        },
+        "incidentClasses": {
+          "INSTANCE_LOSS": 15,
+          "OVERLOAD": 2
+        },
+        "pairs": 30,
+        "riskierIsExposed": 17,
+        "valid": 30
+      },
+      "call-dependency|T8": {
+        "bothSafe": 12,
+        "bothUnsafe": 0,
+        "canonicalRiskier": 11,
+        "decisive": 18,
+        "failedAssertions": {},
+        "hops": {
+          "4": 18
+        },
+        "incidentClasses": {
+          "INSTANCE_LOSS": 18
+        },
+        "pairs": 30,
+        "riskierIsExposed": 18,
+        "valid": 30
+      },
+      "call-dependency|V1": {
+        "bothSafe": 11,
+        "bothUnsafe": 0,
+        "canonicalRiskier": 12,
+        "decisive": 19,
+        "failedAssertions": {},
+        "hops": {
+          "4": 19
+        },
+        "incidentClasses": {
+          "INSTANCE_LOSS": 17,
+          "OVERLOAD": 2
+        },
+        "pairs": 30,
+        "riskierIsExposed": 19,
+        "valid": 30
+      },
+      "call-dependency|V2": {
+        "bothSafe": 15,
+        "bothUnsafe": 0,
+        "canonicalRiskier": 9,
+        "decisive": 15,
+        "failedAssertions": {},
+        "hops": {
+          "4": 15
+        },
+        "incidentClasses": {
+          "INSTANCE_LOSS": 13,
+          "OVERLOAD": 2
+        },
+        "pairs": 30,
+        "riskierIsExposed": 15,
+        "valid": 30
+      },
+      "queue-consumer|T1": {
+        "bothSafe": 9,
+        "bothUnsafe": 0,
+        "canonicalRiskier": 10,
+        "decisive": 21,
+        "failedAssertions": {},
+        "hops": {
+          "5": 21
+        },
+        "incidentClasses": {
+          "QUEUE_BACKPRESSURE": 21
+        },
+        "pairs": 30,
+        "riskierIsExposed": 21,
+        "valid": 30
+      },
+      "queue-consumer|T2": {
+        "bothSafe": 8,
+        "bothUnsafe": 0,
+        "canonicalRiskier": 11,
+        "decisive": 22,
+        "failedAssertions": {},
+        "hops": {
+          "5": 22
+        },
+        "incidentClasses": {
+          "QUEUE_BACKPRESSURE": 22
+        },
+        "pairs": 30,
+        "riskierIsExposed": 22,
+        "valid": 30
+      },
+      "queue-consumer|T3": {
+        "bothSafe": 8,
+        "bothUnsafe": 0,
+        "canonicalRiskier": 12,
+        "decisive": 22,
+        "failedAssertions": {},
+        "hops": {
+          "5": 22
+        },
+        "incidentClasses": {
+          "QUEUE_BACKPRESSURE": 22
+        },
+        "pairs": 30,
+        "riskierIsExposed": 22,
+        "valid": 30
+      },
+      "queue-consumer|T4": {
+        "bothSafe": 11,
+        "bothUnsafe": 0,
+        "canonicalRiskier": 5,
+        "decisive": 19,
+        "failedAssertions": {},
+        "hops": {
+          "5": 19
+        },
+        "incidentClasses": {
+          "QUEUE_BACKPRESSURE": 19
+        },
+        "pairs": 30,
+        "riskierIsExposed": 19,
+        "valid": 30
+      },
+      "queue-consumer|T5": {
+        "bothSafe": 8,
+        "bothUnsafe": 0,
+        "canonicalRiskier": 8,
+        "decisive": 22,
+        "failedAssertions": {},
+        "hops": {
+          "5": 22
+        },
+        "incidentClasses": {
+          "QUEUE_BACKPRESSURE": 22
+        },
+        "pairs": 30,
+        "riskierIsExposed": 22,
+        "valid": 30
+      },
+      "queue-consumer|T6": {
+        "bothSafe": 15,
+        "bothUnsafe": 0,
+        "canonicalRiskier": 5,
+        "decisive": 15,
+        "failedAssertions": {},
+        "hops": {
+          "5": 15
+        },
+        "incidentClasses": {
+          "QUEUE_BACKPRESSURE": 15
+        },
+        "pairs": 30,
+        "riskierIsExposed": 15,
+        "valid": 30
+      },
+      "queue-consumer|T7": {
+        "bothSafe": 15,
+        "bothUnsafe": 0,
+        "canonicalRiskier": 12,
+        "decisive": 15,
+        "failedAssertions": {},
+        "hops": {
+          "5": 15
+        },
+        "incidentClasses": {
+          "QUEUE_BACKPRESSURE": 15
+        },
+        "pairs": 30,
+        "riskierIsExposed": 15,
+        "valid": 30
+      },
+      "queue-consumer|T8": {
+        "bothSafe": 12,
+        "bothUnsafe": 0,
+        "canonicalRiskier": 8,
+        "decisive": 18,
+        "failedAssertions": {},
+        "hops": {
+          "5": 18
+        },
+        "incidentClasses": {
+          "QUEUE_BACKPRESSURE": 18
+        },
+        "pairs": 30,
+        "riskierIsExposed": 18,
+        "valid": 30
+      },
+      "queue-consumer|V1": {
+        "bothSafe": 13,
+        "bothUnsafe": 0,
+        "canonicalRiskier": 9,
+        "decisive": 17,
+        "failedAssertions": {},
+        "hops": {
+          "5": 17
+        },
+        "incidentClasses": {
+          "QUEUE_BACKPRESSURE": 17
+        },
+        "pairs": 30,
+        "riskierIsExposed": 17,
+        "valid": 30
+      },
+      "queue-consumer|V2": {
+        "bothSafe": 9,
+        "bothUnsafe": 0,
+        "canonicalRiskier": 10,
+        "decisive": 21,
+        "failedAssertions": {},
+        "hops": {
+          "5": 21
+        },
+        "incidentClasses": {
+          "QUEUE_BACKPRESSURE": 21
+        },
+        "pairs": 30,
+        "riskierIsExposed": 21,
+        "valid": 30
+      },
+      "route-entry|T1": {
+        "bothSafe": 19,
+        "bothUnsafe": 0,
+        "canonicalRiskier": 8,
+        "decisive": 11,
+        "failedAssertions": {},
+        "hops": {
+          "3": 11
+        },
+        "incidentClasses": {
+          "INSTANCE_LOSS": 11
+        },
+        "pairs": 30,
+        "riskierIsExposed": 11,
+        "valid": 30
+      },
+      "route-entry|T2": {
+        "bothSafe": 12,
+        "bothUnsafe": 0,
+        "canonicalRiskier": 13,
+        "decisive": 18,
+        "failedAssertions": {},
+        "hops": {
+          "3": 18
+        },
+        "incidentClasses": {
+          "INSTANCE_LOSS": 16,
+          "OVERLOAD": 2
+        },
+        "pairs": 30,
+        "riskierIsExposed": 18,
+        "valid": 30
+      },
+      "route-entry|T3": {
+        "bothSafe": 14,
+        "bothUnsafe": 0,
+        "canonicalRiskier": 7,
+        "decisive": 16,
+        "failedAssertions": {},
+        "hops": {
+          "3": 16
+        },
+        "incidentClasses": {
+          "INSTANCE_LOSS": 14,
+          "OVERLOAD": 2
+        },
+        "pairs": 30,
+        "riskierIsExposed": 16,
+        "valid": 30
+      },
+      "route-entry|T4": {
+        "bothSafe": 12,
+        "bothUnsafe": 0,
+        "canonicalRiskier": 7,
+        "decisive": 18,
+        "failedAssertions": {},
+        "hops": {
+          "3": 18
+        },
+        "incidentClasses": {
+          "INSTANCE_LOSS": 18
+        },
+        "pairs": 30,
+        "riskierIsExposed": 18,
+        "valid": 30
+      },
+      "route-entry|T5": {
+        "bothSafe": 16,
+        "bothUnsafe": 0,
+        "canonicalRiskier": 9,
+        "decisive": 14,
+        "failedAssertions": {},
+        "hops": {
+          "3": 14
+        },
+        "incidentClasses": {
+          "INSTANCE_LOSS": 14
+        },
+        "pairs": 30,
+        "riskierIsExposed": 14,
+        "valid": 30
+      },
+      "route-entry|T6": {
+        "bothSafe": 9,
+        "bothUnsafe": 0,
+        "canonicalRiskier": 10,
+        "decisive": 21,
+        "failedAssertions": {},
+        "hops": {
+          "3": 21
+        },
+        "incidentClasses": {
+          "INSTANCE_LOSS": 20,
+          "OVERLOAD": 1
+        },
+        "pairs": 30,
+        "riskierIsExposed": 21,
+        "valid": 30
+      },
+      "route-entry|T7": {
+        "bothSafe": 19,
+        "bothUnsafe": 0,
+        "canonicalRiskier": 7,
+        "decisive": 11,
+        "failedAssertions": {},
+        "hops": {
+          "3": 11
+        },
+        "incidentClasses": {
+          "INSTANCE_LOSS": 10,
+          "OVERLOAD": 1
+        },
+        "pairs": 30,
+        "riskierIsExposed": 11,
+        "valid": 30
+      },
+      "route-entry|T8": {
+        "bothSafe": 13,
+        "bothUnsafe": 0,
+        "canonicalRiskier": 10,
+        "decisive": 17,
+        "failedAssertions": {},
+        "hops": {
+          "3": 17
+        },
+        "incidentClasses": {
+          "INSTANCE_LOSS": 16,
+          "OVERLOAD": 1
+        },
+        "pairs": 30,
+        "riskierIsExposed": 17,
+        "valid": 30
+      },
+      "route-entry|V1": {
+        "bothSafe": 11,
+        "bothUnsafe": 0,
+        "canonicalRiskier": 12,
+        "decisive": 19,
+        "failedAssertions": {},
+        "hops": {
+          "3": 19
+        },
+        "incidentClasses": {
+          "INSTANCE_LOSS": 17,
+          "OVERLOAD": 2
+        },
+        "pairs": 30,
+        "riskierIsExposed": 19,
+        "valid": 30
+      },
+      "route-entry|V2": {
+        "bothSafe": 17,
+        "bothUnsafe": 0,
+        "canonicalRiskier": 11,
+        "decisive": 13,
+        "failedAssertions": {},
+        "hops": {
+          "3": 13
+        },
+        "incidentClasses": {
+          "INSTANCE_LOSS": 13
+        },
+        "pairs": 30,
+        "riskierIsExposed": 13,
+        "valid": 30
+      },
+      "storage-zone|T1": {
+        "bothSafe": 0,
+        "bothUnsafe": 0,
+        "canonicalRiskier": 16,
+        "decisive": 30,
+        "failedAssertions": {},
+        "hops": {
+          "5": 30
+        },
+        "incidentClasses": {
+          "STORAGE_UNAVAILABLE": 30
+        },
+        "pairs": 30,
+        "riskierIsExposed": 30,
+        "valid": 30
+      },
+      "storage-zone|T2": {
+        "bothSafe": 0,
+        "bothUnsafe": 0,
+        "canonicalRiskier": 17,
+        "decisive": 30,
+        "failedAssertions": {},
+        "hops": {
+          "5": 30
+        },
+        "incidentClasses": {
+          "STORAGE_UNAVAILABLE": 30
+        },
+        "pairs": 30,
+        "riskierIsExposed": 30,
+        "valid": 30
+      },
+      "storage-zone|T3": {
+        "bothSafe": 0,
+        "bothUnsafe": 0,
+        "canonicalRiskier": 16,
+        "decisive": 30,
+        "failedAssertions": {},
+        "hops": {
+          "5": 30
+        },
+        "incidentClasses": {
+          "STORAGE_UNAVAILABLE": 30
+        },
+        "pairs": 30,
+        "riskierIsExposed": 30,
+        "valid": 30
+      },
+      "storage-zone|T4": {
+        "bothSafe": 0,
+        "bothUnsafe": 0,
+        "canonicalRiskier": 14,
+        "decisive": 30,
+        "failedAssertions": {},
+        "hops": {
+          "5": 30
+        },
+        "incidentClasses": {
+          "STORAGE_UNAVAILABLE": 30
+        },
+        "pairs": 30,
+        "riskierIsExposed": 30,
+        "valid": 30
+      },
+      "storage-zone|T5": {
+        "bothSafe": 0,
+        "bothUnsafe": 0,
+        "canonicalRiskier": 17,
+        "decisive": 30,
+        "failedAssertions": {},
+        "hops": {
+          "5": 30
+        },
+        "incidentClasses": {
+          "STORAGE_UNAVAILABLE": 30
+        },
+        "pairs": 30,
+        "riskierIsExposed": 30,
+        "valid": 30
+      },
+      "storage-zone|T6": {
+        "bothSafe": 0,
+        "bothUnsafe": 0,
+        "canonicalRiskier": 17,
+        "decisive": 30,
+        "failedAssertions": {},
+        "hops": {
+          "5": 30
+        },
+        "incidentClasses": {
+          "STORAGE_UNAVAILABLE": 30
+        },
+        "pairs": 30,
+        "riskierIsExposed": 30,
+        "valid": 30
+      },
+      "storage-zone|T7": {
+        "bothSafe": 0,
+        "bothUnsafe": 4,
+        "canonicalRiskier": 17,
+        "decisive": 26,
+        "failedAssertions": {},
+        "hops": {
+          "5": 26
+        },
+        "incidentClasses": {
+          "STORAGE_UNAVAILABLE": 26
+        },
+        "pairs": 30,
+        "riskierIsExposed": 26,
+        "valid": 30
+      },
+      "storage-zone|T8": {
+        "bothSafe": 0,
+        "bothUnsafe": 0,
+        "canonicalRiskier": 13,
+        "decisive": 30,
+        "failedAssertions": {},
+        "hops": {
+          "5": 30
+        },
+        "incidentClasses": {
+          "STORAGE_UNAVAILABLE": 30
+        },
+        "pairs": 30,
+        "riskierIsExposed": 30,
+        "valid": 30
+      },
+      "storage-zone|V1": {
+        "bothSafe": 0,
+        "bothUnsafe": 11,
+        "canonicalRiskier": 7,
+        "decisive": 19,
+        "failedAssertions": {},
+        "hops": {
+          "4": 1,
+          "5": 18
+        },
+        "incidentClasses": {
+          "STORAGE_UNAVAILABLE": 19
+        },
+        "pairs": 30,
+        "riskierIsExposed": 19,
+        "valid": 30
+      },
+      "storage-zone|V2": {
+        "bothSafe": 0,
+        "bothUnsafe": 0,
+        "canonicalRiskier": 14,
+        "decisive": 30,
+        "failedAssertions": {},
+        "hops": {
+          "5": 30
+        },
+        "incidentClasses": {
+          "STORAGE_UNAVAILABLE": 30
+        },
+        "pairs": 30,
+        "riskierIsExposed": 30,
+        "valid": 30
+      }
+    },
+    "families": {
+      "cache-backing": {
+        "bothSafe": 65,
+        "bothUnsafe": 0,
+        "canonicalRiskier": 125,
+        "canonicalRiskierShare": 0.5319148936170213,
+        "decisive": 235,
+        "decisiveRate": 0.7833333333333333,
+        "failedAssertions": {},
+        "hops": {
+          "3": 235
+        },
+        "incidentClasses": {
+          "CACHE_STAMPEDE": 235
+        },
+        "pairs": 300,
+        "riskierIsExposed": 235,
+        "valid": 300
+      },
+      "call-dependency": {
+        "bothSafe": 122,
+        "bothUnsafe": 0,
+        "canonicalRiskier": 101,
+        "canonicalRiskierShare": 0.5674157303370787,
+        "decisive": 178,
+        "decisiveRate": 0.5933333333333334,
+        "failedAssertions": {},
+        "hops": {
+          "4": 178
+        },
+        "incidentClasses": {
+          "INSTANCE_LOSS": 169,
+          "OVERLOAD": 9
+        },
+        "pairs": 300,
+        "riskierIsExposed": 178,
+        "valid": 300
+      },
+      "queue-consumer": {
+        "bothSafe": 108,
+        "bothUnsafe": 0,
+        "canonicalRiskier": 90,
+        "canonicalRiskierShare": 0.46875,
+        "decisive": 192,
+        "decisiveRate": 0.64,
+        "failedAssertions": {},
+        "hops": {
+          "5": 192
+        },
+        "incidentClasses": {
+          "QUEUE_BACKPRESSURE": 192
+        },
+        "pairs": 300,
+        "riskierIsExposed": 192,
+        "valid": 300
+      },
+      "route-entry": {
+        "bothSafe": 142,
+        "bothUnsafe": 0,
+        "canonicalRiskier": 94,
+        "canonicalRiskierShare": 0.5949367088607594,
+        "decisive": 158,
+        "decisiveRate": 0.5266666666666666,
+        "failedAssertions": {},
+        "hops": {
+          "3": 158
+        },
+        "incidentClasses": {
+          "INSTANCE_LOSS": 149,
+          "OVERLOAD": 9
+        },
+        "pairs": 300,
+        "riskierIsExposed": 158,
+        "valid": 300
+      },
+      "storage-zone": {
+        "bothSafe": 0,
+        "bothUnsafe": 15,
+        "canonicalRiskier": 148,
+        "canonicalRiskierShare": 0.519298245614035,
+        "decisive": 285,
+        "decisiveRate": 0.95,
+        "failedAssertions": {},
+        "hops": {
+          "4": 1,
+          "5": 284
+        },
+        "incidentClasses": {
+          "STORAGE_UNAVAILABLE": 285
+        },
+        "pairs": 300,
+        "riskierIsExposed": 285,
+        "valid": 300
+      }
+    }
+  },
+  "parameters": {
+    "motif": {
+      "highSharePct": [
+        25,
+        40
+      ],
+      "lowSharePct": [
+        5,
+        15
+      ],
+      "queueSeconds": [
+        5,
+        30
+      ],
+      "readerSharePct": [
+        20,
+        30
+      ],
+      "storeUtilization": [
+        60,
+        90
+      ]
+    },
+    "seedsPerFamilyTemplate": 30,
+    "seenTemplates": [
+      "T1",
+      "T2",
+      "T3",
+      "T4",
+      "T5",
+      "T6",
+      "T7",
+      "T8",
+      "V1",
+      "V2"
+    ],
+    "unseenTemplates": [
+      "X1",
+      "X2",
+      "O1",
+      "O2"
+    ],
+    "worldsPerTemplate": 30
+  },
+  "schemaVersion": 1,
+  "scope": "simulator outcomes only; pair outcomes on train and validation templates; no model, score or feature importance",
+  "unseenStructuralValidity": {
+    "errors": 0,
+    "failedAssertions": {},
+    "pairs": 60,
+    "valid": 60
+  }
+}
