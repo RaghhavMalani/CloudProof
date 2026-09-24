@@ -213,15 +213,15 @@
     "withoutChange": []
   },
   "digests": {
-    "bundle": "b3e2b705e356d43bc9d87d37aaa9abf495fed52a7c8d4b572b5c9e579494419f",
+    "bundle": "8090f11090af8b25f9b5d3a8332f6bb9237f0e22a21a7c4e975f83d91556928a",
     "search": "a9f452c27fbdb7c97f4fa49b7ec6a2fb000a800269d93627e65d577017023a4a"
   },
-  "exportedAt": "2026-09-24T04:32:54.243Z",
+  "exportedAt": "2026-09-24T05:07:45.816Z",
   "faultModel": {
     "families": [
-      "zone-degraded",
       "readiness-delay",
-      "traffic-spike"
+      "traffic-spike",
+      "zone-degraded"
     ],
     "maxFaults": 1,
     "variants": [

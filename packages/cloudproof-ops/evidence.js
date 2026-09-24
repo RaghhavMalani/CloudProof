@@ -108,7 +108,7 @@ function buildEvidence({ scenario, config, result, shrink = null, exportedAt = n
         versions: config.versions || {},
         change: config.change,
         changeSummary: changeSummary(config.change),
-        faultModel: { families: config.faults, maxFaults: config.maxFaults, variants: result.faultVariants },
+        faultModel: { families: result.faults, maxFaults: result.maxFaults, variants: result.faultVariants },
         search: {
             seed: result.seed,
             budget: result.budget,

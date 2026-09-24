@@ -13178,7 +13178,8 @@ class VerificationSearch {
             throw new TypeError(`maxFaults must be an integer in [${FAULT_BUDGET.min}, ${FAULT_BUDGET.max}]`);
         }
         this.options = { ...DEFAULTS, ...options };
-        this.config = clone({ scenarioId, world, versions, labels, change, invariants, faults, seed, maxFaults });
+        // Fault families are a set: keep them sorted so every caller records the same thing.
+        this.config = clone({ scenarioId, world, versions, labels, change, invariants, faults: [...new Set(faults)].sort(), seed, maxFaults });
         this.budget = resolveBudget(budget);
         this.world = this.config.world;
         this.slowWorld = faults.includes('readiness-delay') ? applyReadinessDelay(this.world) : null;
@@ -14421,7 +14422,7 @@ function buildEvidence({ scenario, config, result, shrink = null, exportedAt = n
         versions: config.versions || {},
         change: config.change,
         changeSummary: changeSummary(config.change),
-        faultModel: { families: config.faults, maxFaults: config.maxFaults, variants: result.faultVariants },
+        faultModel: { families: result.faults, maxFaults: result.maxFaults, variants: result.faultVariants },
         search: {
             seed: result.seed,
             budget: result.budget,

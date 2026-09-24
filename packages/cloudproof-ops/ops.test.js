@@ -195,6 +195,10 @@ test('evidence bundles hash, replay and re-run; tampering is detected', () => {
     const bundle = JSON.parse(JSON.stringify(ops.evidence.buildEvidence({ scenario, config, result, shrink, exportedAt: '2026-09-24T00:00:00.000Z' })));
     const later = ops.evidence.buildEvidence({ scenario, config, result, shrink, exportedAt: '2027-01-01T00:00:00.000Z' });
     assert.equal(later.digests.bundle, bundle.digests.bundle, 'the export time is not part of the digest');
+    // Fault families are a set: the page (sorted) and the CLI (demo order) must record the same bundle.
+    const reordered = { ...config, faults: config.faults.slice().reverse() };
+    const reorderedResult = ops.verifyChange(reordered);
+    assert.equal(ops.evidence.buildEvidence({ scenario, config: reordered, result: reorderedResult, shrink, exportedAt: null }).digests.bundle, bundle.digests.bundle);
     const verdict = ops.evidence.verifyEvidence(bundle, { rerunSearch: true });
     assert.equal(verdict.ok, true, JSON.stringify(verdict.checks));
     assert.equal(bundle.verdict.status, 'counterexample');
