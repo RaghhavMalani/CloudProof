@@ -3,15 +3,250 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#5b1019">
-  <title>CloudProof · Agent Reliability Lab</title>
-  <meta name="description" content="Deterministic fault testing for autonomous AI agents: replay crashes, reconcile ambiguous tool effects, and detect semantic snapshot drift.">
+  <meta name="theme-color" content="#08090a">
+  <title>CloudProof · Verify the cloud change before production does</title>
+  <meta name="description" content="CloudProof verifies cloud changes against modeled invariants: it explores controller interleavings, infrastructure faults and dependency failures in a deterministic simulator and returns the smallest schedule that violates your SLO. Includes the Agent Reliability Lab.">
   <link rel="stylesheet" href="flight-deck.css">
+  <link rel="stylesheet" href="cloud-ops.css">
 </head>
-<body data-theme="emirates">
-  <a class="skip-link" href="#agent-lab">Skip to agent reliability lab</a>
-  <div class="noise" aria-hidden="true"></div>
-  <header class="topbar">
+<body data-theme="emirates" data-mode="verify">
+  <script>
+    // Decide the product mode from the URL before any other script runs: the
+    // Agent Lab only reads and writes its own URL parameters in agent mode.
+    (function () {
+      var params = new URLSearchParams(location.search);
+      var mode = params.get('mode');
+      var modes = ['verify', 'incident', 'architecture', 'agent', 'research'];
+      document.body.dataset.mode = modes.indexOf(mode) >= 0 ? mode
+        : (params.has('workload') || params.has('museum') || params.has('theme')) ? 'agent' : 'verify';
+    }());
+  </script>
+  <a class="skip-link" id="skip-link" href="#ops-main">Skip to the CloudProof console</a>
+  <header class="product-nav" id="product-nav">
+    <a class="pn-brand" href="?mode=verify"><i aria-hidden="true">CP</i><span>CLOUDPROOF</span></a>
+    <nav aria-label="Product">
+      <button type="button" data-mode-target="verify">VERIFY CHANGE</button>
+      <button type="button" data-mode-target="incident">INCIDENT LAB</button>
+      <button type="button" data-mode-target="architecture">ARCHITECTURE</button>
+      <button type="button" data-mode-target="agent">AGENT LAB</button>
+      <button type="button" data-mode-target="research">RESEARCH</button>
+    </nav>
+    <div class="pn-meta"><b>MODEL</b> CloudProof Mesh · Phase III<br><b>RUNS</b> in this browser · deterministic</div>
+  </header>
+
+  <div class="ops" id="ops-root">
+    <main class="ops-view" id="view-verify" data-view="verify" aria-labelledby="verify-title">
+      <section class="ops-hero">
+        <div class="ops-hero-copy">
+          <p class="ops-kicker">CLOUD CHANGE VERIFICATION · DETERMINISTIC · RUNS IN YOUR BROWSER</p>
+          <h1 id="verify-title">Verify the cloud change<br><em>before production does.</em></h1>
+          <p class="ops-lede">CloudProof explores controller interleavings, infrastructure faults and dependency failures, then returns the smallest schedule that violates your SLO.</p>
+          <p class="ops-fineprint">Verified against modeled invariants and failure semantics (CloudProof Mesh, Phase III), within an explicit search bound. A verdict here is about the model, not a guarantee about production.</p>
+          <div class="ops-demos" id="ops-demos" role="group" aria-label="One-click demos"></div>
+        </div>
+        <ol class="ops-flow" id="ops-flow" aria-label="How a verification runs">
+          <li data-flow="current"><b>Current cloud</b><span>services, zones, placement</span></li>
+          <li data-flow="change"><b>Propose a change</b><span>rollout, scale, drain, failover</span></li>
+          <li data-flow="explore"><b>Explore failures</b><span>faults injected at every step</span></li>
+          <li data-flow="verify"><b>Deterministic verifier</b><span>invariants after every 100 ms tick</span></li>
+          <li data-flow="outcome"><b><i class="pass">Pass</i> or <i class="fail">counterexample</i></b><span>within the explored bound</span></li>
+          <li data-flow="minimal"><b>Minimal failure</b><span>shrunk to its causal core</span></li>
+          <li data-flow="fix"><b>Compare fix</b><span>same faults, candidate configuration</span></li>
+        </ol>
+      </section>
+      <section class="ops-usecases" id="ops-usecases" aria-label="Use cases"></section>
+
+      <div class="ops-workspace" id="ops-main" tabindex="-1">
+        <aside class="ops-panel ops-config" aria-labelledby="config-title">
+          <header class="ops-panel-head"><h2 id="config-title">Change configuration</h2><span class="ops-tag" id="config-tag">CUSTOM</span></header>
+          <div class="ops-body">
+            <div class="ops-field">
+              <label for="scenario-select">Scenario</label>
+              <div class="ops-row"><select id="scenario-select"></select><button type="button" class="ops-btn ghost" id="open-import" title="Import a CloudProof topology">IMPORT</button></div>
+              <p class="ops-help" id="scenario-summary"></p>
+            </div>
+            <div class="ops-field">
+              <label for="change-type">Change type</label>
+              <select id="change-type"></select>
+            </div>
+            <div class="ops-params" id="change-params"></div>
+            <div class="ops-diff" id="change-diff" aria-live="polite"></div>
+            <fieldset class="ops-field">
+              <legend>Fault model</legend>
+              <div class="ops-checks" id="fault-families"></div>
+            </fieldset>
+            <div class="ops-field">
+              <span class="ops-label" id="fault-budget-label">Fault budget (concurrent faults)</span>
+              <div class="ops-seg" id="fault-budget" role="radiogroup" aria-labelledby="fault-budget-label"></div>
+              <p class="ops-help" id="fault-budget-help"></p>
+            </div>
+            <div class="ops-field">
+              <span class="ops-label" id="search-budget-label">Verification budget</span>
+              <div class="ops-seg" id="search-budget" role="radiogroup" aria-labelledby="search-budget-label"></div>
+            </div>
+            <div class="ops-field ops-inline">
+              <label for="seed-input">Seed</label>
+              <input id="seed-input" type="number" min="0" max="4294967295" step="1" value="1337">
+            </div>
+            <details class="ops-field ops-invariants-builder" id="invariant-details">
+              <summary>Invariants <span id="invariant-count"></span></summary>
+              <div id="invariant-builder"></div>
+            </details>
+            <div class="ops-error" id="config-error" role="alert" hidden></div>
+            <div class="ops-actions">
+              <button type="button" class="ops-btn primary" id="verify-run">VERIFY CHANGE</button>
+              <button type="button" class="ops-btn danger" id="verify-cancel" hidden>CANCEL VERIFICATION</button>
+            </div>
+          </div>
+        </aside>
+
+        <section class="ops-panel ops-topology" aria-labelledby="topology-title">
+          <header class="ops-panel-head">
+            <h2 id="topology-title">Service topology</h2>
+            <div class="ops-seg small" id="graph-view" role="radiogroup" aria-label="Graph view">
+              <button type="button" role="radio" data-view="logical" aria-checked="true">LOGICAL</button>
+              <button type="button" role="radio" data-view="placement" aria-checked="false">PLACEMENT</button>
+              <button type="button" role="radio" data-view="failure" aria-checked="false">FAILURE PATH</button>
+            </div>
+          </header>
+          <div class="ops-graph" id="verify-graph"></div>
+          <div class="ops-legend" aria-hidden="true">
+            <span><i class="healthy"></i>serving</span><span><i class="starting"></i>starting</span><span><i class="degraded"></i>degraded</span><span><i class="failed"></i>down</span><span><i class="hard"></i>hard dependency</span><span><i class="soft"></i>soft / async</span>
+          </div>
+          <div class="ops-inspect" id="verify-inspect" aria-live="polite"></div>
+        </section>
+
+        <aside class="ops-panel ops-verdict" aria-labelledby="verdict-title">
+          <header class="ops-panel-head"><h2 id="verdict-title">Verification</h2><span class="ops-tag live">IN-BROWSER SIMULATOR</span></header>
+          <div class="ops-status ready" id="verify-status" role="status" aria-live="polite"></div>
+          <div class="ops-counters" id="verify-counters"></div>
+          <div class="ops-progress" id="verify-progress-wrap"><div id="verify-progress"></div></div>
+          <div class="ops-search" id="verify-search"></div>
+          <h3 class="ops-sub" id="verify-invariants-title">Modeled invariants</h3>
+          <ul class="ops-invariants" id="verify-invariants"></ul>
+          <div class="ops-result" id="verify-result"></div>
+          <div class="ops-evidence">
+            <button type="button" class="ops-btn" id="export-evidence" disabled>EXPORT PROOF BUNDLE</button>
+            <button type="button" class="ops-btn ghost" id="copy-replay">COPY REPLAY URL</button>
+          </div>
+          <p class="ops-evidence-note" id="evidence-note"></p>
+        </aside>
+
+        <section class="ops-panel ops-player" id="verify-player" aria-labelledby="verify-player-title"></section>
+        <section class="ops-panel ops-fix" id="verify-fix" aria-labelledby="verify-fix-title"></section>
+      </div>
+    </main>
+
+    <main class="ops-view" id="view-incident" data-view="incident" aria-labelledby="incident-title" hidden>
+      <header class="ops-view-head">
+        <div>
+          <p class="ops-kicker">INCIDENT LAB · POSTMORTEMS · SRE TRAINING · REPRODUCTION</p>
+          <h1 id="incident-title">Turn a messy outage into its causal core.</h1>
+          <p>Replay a recorded incident on the deterministic simulator, find the first violated invariant, shrink the recording to the actions that matter, and see when the system recovered. Then try a fix against the exact same recording.</p>
+        </div>
+      </header>
+      <div class="ops-workspace">
+        <aside class="ops-panel ops-config" aria-labelledby="incident-source-title">
+          <header class="ops-panel-head"><h2 id="incident-source-title">Incident source</h2></header>
+          <div class="ops-body">
+            <ul class="ops-incidents" id="incident-list"></ul>
+            <div class="ops-field" style="margin-top:14px">
+              <label for="incident-paste">Or paste a CloudProof evidence bundle (JSON)</label>
+              <textarea id="incident-paste" spellcheck="false" placeholder='{"kind": "cloudproof.ops-evidence", ...}'></textarea>
+            </div>
+            <div class="ops-error" id="incident-error" role="alert" hidden></div>
+            <div class="ops-actions">
+              <button type="button" class="ops-btn" id="incident-load-paste">LOAD PASTED BUNDLE</button>
+              <button type="button" class="ops-btn primary" id="incident-replay" disabled>REPLAY INCIDENT</button>
+            </div>
+          </div>
+        </aside>
+        <section class="ops-panel ops-topology" aria-labelledby="incident-topology-title">
+          <header class="ops-panel-head">
+            <h2 id="incident-topology-title">Topology at the selected step</h2>
+            <div class="ops-seg small" id="incident-graph-view" role="radiogroup" aria-label="Graph view">
+              <button type="button" role="radio" data-view="logical" aria-checked="true">LOGICAL</button>
+              <button type="button" role="radio" data-view="placement" aria-checked="false">PLACEMENT</button>
+              <button type="button" role="radio" data-view="failure" aria-checked="false">FAILURE PATH</button>
+            </div>
+          </header>
+          <div class="ops-graph" id="incident-graph"></div>
+          <div class="ops-inspect" id="incident-inspect" aria-live="polite"></div>
+        </section>
+        <aside class="ops-panel ops-verdict ops-summary" aria-labelledby="incident-summary-title">
+          <header class="ops-panel-head"><h2 id="incident-summary-title">Incident summary</h2><span class="ops-tag" id="incident-tag">—</span></header>
+          <div class="ops-status ready" id="incident-status" role="status" aria-live="polite"></div>
+          <dl id="incident-summary"></dl>
+        </aside>
+        <section class="ops-panel ops-player" id="incident-player" aria-labelledby="incident-player-title"></section>
+        <section class="ops-panel ops-fix" id="incident-fix" aria-labelledby="incident-fix-title"></section>
+      </div>
+    </main>
+
+    <main class="ops-view" id="view-architecture" data-view="architecture" aria-labelledby="architecture-title" hidden>
+      <header class="ops-view-head">
+        <div>
+          <p class="ops-kicker">ARCHITECTURE WHAT-IF · PHASE III COUNTERFACTUAL PAIRS</p>
+          <h1 id="architecture-title">Same resources. Same fault. Different dependency wiring.</h1>
+          <p>Two worlds generated by the Phase III pair builder: identical services, replicas, capacities, placement and per-node degrees, differing by one swap inside one relation type. The simulator runs the same fault on both. Only where the failure sits in the graph can explain a different outcome.</p>
+        </div>
+      </header>
+      <div class="ops-arch-controls">
+        <div class="ops-field"><label for="arch-family">Wiring difference</label><select id="arch-family"></select></div>
+        <div class="ops-field"><label for="arch-template">World template</label><select id="arch-template"></select></div>
+        <div class="ops-field"><label for="arch-seed">Start seed</label><input id="arch-seed" type="number" min="1" max="100000" value="1"></div>
+        <button type="button" class="ops-btn" id="arch-find">FIND A DECISIVE PAIR</button>
+        <button type="button" class="ops-btn primary" id="arch-run" disabled>RUN SAME FAILURE ON BOTH</button>
+      </div>
+      <div class="ops-arch-claim" id="arch-claim" aria-live="polite"></div>
+      <div class="ops-arch-pair">
+        <section class="ops-panel" aria-labelledby="arch-a-title">
+          <header class="ops-panel-head"><h2 id="arch-a-title">Topology A</h2><span class="ops-tag" id="arch-a-tag">—</span></header>
+          <div class="ops-graph" id="arch-graph-a"></div>
+          <div class="ops-outcome idle" id="arch-outcome-a" aria-live="polite"></div>
+        </section>
+        <section class="ops-panel" aria-labelledby="arch-b-title">
+          <header class="ops-panel-head"><h2 id="arch-b-title">Topology B</h2><span class="ops-tag" id="arch-b-tag">—</span></header>
+          <div class="ops-graph" id="arch-graph-b"></div>
+          <div class="ops-outcome idle" id="arch-outcome-b" aria-live="polite"></div>
+        </section>
+      </div>
+      <div class="ops-arch-foot">
+        <section class="ops-panel" aria-labelledby="arch-why-title"><header class="ops-panel-head"><h2 id="arch-why-title">Why the outcomes differ</h2><span class="ops-tag" id="arch-step">STEP —</span></header><div class="ops-body" id="arch-why"></div></section>
+        <section class="ops-panel" aria-labelledby="arch-facts-title"><header class="ops-panel-head"><h2 id="arch-facts-title">Pair facts</h2></header><div class="ops-body" id="arch-facts"></div></section>
+      </div>
+    </main>
+
+    <main class="ops-view" id="view-research" data-view="research" aria-labelledby="research-title" hidden>
+      <header class="ops-view-head">
+        <div>
+          <p class="ops-kicker">RESEARCH · WHAT IS MEASURED, WHAT IS NOT</p>
+          <h1 id="research-title">The research behind the console.</h1>
+          <p>The console runs the Phase III multi-service simulator. The research program around it is preregistered and reports negative results as readily as positive ones. Nothing learned is used to decide a verdict.</p>
+        </div>
+      </header>
+      <div class="ops-research" id="research-body"></div>
+    </main>
+
+    <dialog class="ops-dialog" id="import-dialog" aria-labelledby="import-title">
+      <header><h2 id="import-title">IMPORT CLOUD SNAPSHOT</h2><button type="button" class="ops-btn ghost" id="import-close" aria-label="Close import">CLOSE</button></header>
+      <div class="ops-body">
+        <p class="ops-help">Paste a <code>cloudproof.topology</code> v1 document (a simplified, documented format) or a raw <code>cloudproof.mesh-world</code>. Kubernetes YAML is not supported. Download the example to see every field.</p>
+        <label class="ops-label" for="import-text">Topology JSON</label>
+        <textarea id="import-text" spellcheck="false"></textarea>
+        <div id="import-errors" role="alert"></div>
+      </div>
+      <footer>
+        <button type="button" class="ops-btn ghost" id="import-example">DOWNLOAD EXAMPLE</button>
+        <button type="button" class="ops-btn ghost" id="import-fill">PASTE EXAMPLE</button>
+        <button type="button" class="ops-btn primary" id="import-load">VALIDATE AND LOAD</button>
+      </footer>
+    </dialog>
+    <div class="ops-toast" id="ops-toast" role="status" aria-live="polite"></div>
+  </div>
+
+  <div class="noise agent-only" aria-hidden="true"></div>
+  <header class="topbar agent-only">
     <div class="brand"><span class="mark">mR</span><div><strong>CloudProof Agent Reliability Lab</strong><small>find the schedule where your agent does the wrong thing</small></div></div>
     <div class="telemetry" aria-label="Execution telemetry">
       <div><small>execution</small><b id="metric-execution">SIM · SEED 42</b></div>
@@ -22,7 +257,7 @@
     <div class="header-actions"><label class="theme-picker"><span>LIVERY</span><select id="theme-select" aria-label="Airline-inspired colour theme"><option value="emirates">Emirates</option><option value="qatar">Qatar Airways</option><option value="american">American Airlines</option></select></label><button class="tour-open" id="open-guide">WHAT IS THIS?</button><div class="mode"><button class="active">ENGINEER</button><button>BUG MUSEUM</button></div></div>
   </header>
 
-  <section class="quick-start operations-launchpad impact-hero" id="quick-start" aria-labelledby="quick-start-title">
+  <section class="quick-start operations-launchpad impact-hero agent-only" id="quick-start" aria-labelledby="quick-start-title">
     <div class="hero-aurora" aria-hidden="true"></div>
     <div class="hero-copy">
       <div class="hero-kicker"><span></span> VERIFIABLE RUNTIME FOR AUTONOMOUS AGENTS <b>SEED 42</b></div>
@@ -126,10 +361,10 @@
     <footer class="launchpad-foot"><b>WHY ALL THREE?</b><span>Simulation makes correctness reproducible. Compose exposes process, network, and persistence behavior. Kubernetes exposes scheduling, identity, readiness, storage, and safe disruption behavior.</span></footer>
   </section>
 
-  <div class="workload-nav-label"><span>AGENT RELIABILITY + DISTRIBUTED SYSTEMS LAB</span><b>Eleven reproducible failure stories. Start with the autonomous refund agent.</b></div>
-  <nav class="workload-tabs" id="workload-tabs" aria-label="Workloads"></nav>
+  <div class="workload-nav-label agent-only"><span>AGENT RELIABILITY + DISTRIBUTED SYSTEMS LAB</span><b>Eleven reproducible failure stories. Start with the autonomous refund agent.</b></div>
+  <nav class="workload-tabs agent-only" id="workload-tabs" aria-label="Workloads"></nav>
 
-  <main class="deck systems-deck inspector-collapsed" id="agent-lab">
+  <main class="deck systems-deck inspector-collapsed agent-only" id="agent-lab">
     <aside class="briefing panel">
       <div class="eyebrow">WHAT GOES WRONG</div>
       <h1 id="workload-headline">—</h1>
@@ -247,5 +482,7 @@
   <script src="bundle.js"></script>
   <script src="flight-deck.js"></script>
   <script src="research-artifact.js"></script>
+  <script src="cloud-graph.js"></script>
+  <script src="cloud-ops.js"></script>
 </body>
 </html>

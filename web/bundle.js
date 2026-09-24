@@ -70,6 +70,8 @@ function __resolve(from, request) {
   }
   let id = base.join('/');
   if (!__registry[id] && __registry[id + '.js']) id += '.js';
+  // require('../agent-runtime') names a directory, as Node allows.
+  if (!__registry[id] && __registry[id + '/index.js']) id += '/index.js';
   if (!__registry[id]) throw new Error('cannot resolve ' + request + ' from ' + from);
   return { id };
 }
@@ -9688,6 +9690,5389 @@ module.exports = {
 };
 
 };
+__registry["packages/cloudproof-mesh/constants.js"] = function (module, exports, require) {
+'use strict';
+
+// Closed vocabularies of the CloudProof Mesh world (Phase III). The Phase I-II
+// single-service twin in packages/cloudproof is deliberately left untouched.
+
+const NODE_TYPE = Object.freeze({
+    ZONE: 'Zone',
+    NODE: 'Node',
+    POD: 'Pod',
+    SERVICE: 'Service',
+    ROUTE: 'Route',
+    VOLUME: 'Volume',
+});
+
+const RELATION = Object.freeze({
+    LOCATED_IN: 'LOCATED_IN',
+    RUNS_ON: 'RUNS_ON',
+    OWNS: 'OWNS',
+    MOUNTS: 'MOUNTS',
+    ENTERS: 'ENTERS',
+    CALLS: 'CALLS',
+    CALLS_OPTIONAL: 'CALLS_OPTIONAL',
+    READS_THROUGH: 'READS_THROUGH',
+    BACKED_BY: 'BACKED_BY',
+    WRITES: 'WRITES',
+    READS: 'READS',
+    REPLICATES: 'REPLICATES',
+    PUBLISHES: 'PUBLISHES',
+    CONSUMES: 'CONSUMES',
+});
+
+const RELATION_TYPES = Object.freeze(Object.values(RELATION));
+
+const SERVICE_KIND = Object.freeze({
+    API: 'api',
+    CACHE: 'cache',
+    QUEUE: 'queue',
+    WORKER: 'worker',
+    DATABASE: 'database',
+});
+
+// Service-to-service relations and the service kinds each may connect.
+const DEPENDENCY_ENDPOINTS = Object.freeze({
+    CALLS: [['api', 'worker'], ['api']],
+    CALLS_OPTIONAL: [['api', 'worker'], ['api']],
+    READS_THROUGH: [['api', 'worker'], ['cache']],
+    BACKED_BY: [['cache'], ['database']],
+    WRITES: [['api', 'worker'], ['database']],
+    READS: [['api', 'worker'], ['database']],
+    REPLICATES: [['database'], ['database']],
+    PUBLISHES: [['api', 'worker'], ['queue']],
+    CONSUMES: [['worker'], ['queue']],
+});
+
+const POD_PHASE = Object.freeze({
+    RUNNING: 'RUNNING',
+    STARTING: 'STARTING',
+    PENDING: 'PENDING',
+    FAILED: 'FAILED',
+});
+
+const MESH_ACTION = Object.freeze({
+    ADVANCE_TIME: 'mesh.action.advance-time',
+    SCALE: 'mesh.action.scale',
+    TRAFFIC_SHIFT: 'mesh.action.traffic-shift',
+    DRAIN_NODE: 'mesh.action.drain-node',
+    UNCORDON_NODE: 'mesh.action.uncordon-node',
+    RECOVER_NODE: 'mesh.action.recover-node',
+    RECOVER_ZONE: 'mesh.action.recover-zone',
+});
+
+const MESH_FAULT = Object.freeze({
+    NODE_CRASH: 'mesh.fault.node-crash',
+    ZONE_DEGRADED: 'mesh.fault.zone-degraded',
+    POD_CRASH: 'mesh.fault.pod-crash',
+    CACHE_FLUSH: 'mesh.fault.cache-flush',
+    CONSUMER_STALL: 'mesh.fault.consumer-stall',
+    TRAFFIC_SPIKE: 'mesh.fault.traffic-spike',
+});
+
+const ACTION_TYPES = Object.freeze([...Object.values(MESH_ACTION), ...Object.values(MESH_FAULT)]);
+
+const INCIDENT_CLASS = Object.freeze({
+    INSTANCE_LOSS: 'INSTANCE_LOSS',
+    STORAGE_UNAVAILABLE: 'STORAGE_UNAVAILABLE',
+    OVERLOAD: 'OVERLOAD',
+    CACHE_STAMPEDE: 'CACHE_STAMPEDE',
+    QUEUE_BACKPRESSURE: 'QUEUE_BACKPRESSURE',
+});
+
+// Section 3.3 of CLOUDPROOF-PHASE-III-MULTISERVICE.md.
+const TIMING = Object.freeze({
+    tickMs: 100,
+    evictionDelayMs: 2000,
+    rescheduleDelayMs: 800,
+    cacheWarmupMs: 3000,
+    failoverDelayMs: 1500,
+});
+
+const CACHE_MISS_RATIO = Object.freeze({ warm: 0.2, cold: 1.0 });
+
+// Route error budget, in percent of traffic share.
+const ERROR_BUDGET_PCT = 20;
+
+const SLO_INVARIANT = 'mesh.slo.route-error-budget';
+
+module.exports = {
+    ACTION_TYPES,
+    CACHE_MISS_RATIO,
+    DEPENDENCY_ENDPOINTS,
+    ERROR_BUDGET_PCT,
+    INCIDENT_CLASS,
+    MESH_ACTION,
+    MESH_FAULT,
+    NODE_TYPE,
+    POD_PHASE,
+    RELATION,
+    RELATION_TYPES,
+    SERVICE_KIND,
+    SLO_INVARIANT,
+    TIMING,
+};
+
+};
+__registry["packages/cloudproof-mesh/world.js"] = function (module, exports, require) {
+'use strict';
+
+// World specification, validation and request-flow computation for CloudProof
+// Mesh (CLOUDPROOF-PHASE-III-MULTISERVICE.md, section 3).
+
+const { digest } = require('../agent-runtime');
+const {
+    DEPENDENCY_ENDPOINTS,
+    ERROR_BUDGET_PCT,
+    RELATION,
+    SERVICE_KIND,
+} = require('./constants');
+
+const WORLD_KIND = 'cloudproof.mesh-world';
+const WORLD_SCHEMA_VERSION = 1;
+
+function stable(value) {
+    if (Array.isArray(value)) return value.map(stable);
+    if (value && typeof value === 'object') {
+        return Object.fromEntries(Object.keys(value).sort().map((key) => [key, stable(value[key])]));
+    }
+    return value;
+}
+
+function clone(value) {
+    return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
+}
+
+function indexById(items, label) {
+    const map = new Map();
+    for (const item of items) {
+        if (!item || typeof item.id !== 'string' || !item.id) throw new TypeError(`${label} requires string ids`);
+        if (map.has(item.id)) throw new TypeError(`duplicate ${label} id: ${item.id}`);
+        map.set(item.id, item);
+    }
+    return map;
+}
+
+function integerIn(value, name, minimum, maximum = Infinity) {
+    if (!Number.isInteger(value) || value < minimum || value > maximum) {
+        throw new TypeError(`${name} must be an integer in [${minimum}, ${maximum}]`);
+    }
+}
+
+// Request flow runs from routes towards storage. CONSUMES is written
+// worker -> queue but messages flow queue -> worker, so it is reversed here.
+function flowEdges(world) {
+    return world.dependencies.map((edge) => (
+        edge.type === RELATION.CONSUMES ? [edge.to, edge.from] : [edge.from, edge.to]
+    ));
+}
+
+// Kahn's algorithm with ID tie-breaks: sources first, deterministic.
+function flowOrder(world) {
+    const ids = world.services.map((service) => service.id).sort();
+    const indegree = new Map(ids.map((id) => [id, 0]));
+    const next = new Map(ids.map((id) => [id, []]));
+    for (const [from, to] of flowEdges(world)) {
+        next.get(from).push(to);
+        indegree.set(to, indegree.get(to) + 1);
+    }
+    const ready = ids.filter((id) => indegree.get(id) === 0);
+    const order = [];
+    while (ready.length) {
+        ready.sort();
+        const id = ready.shift();
+        order.push(id);
+        for (const to of next.get(id)) {
+            indegree.set(to, indegree.get(to) - 1);
+            if (indegree.get(to) === 0) ready.push(to);
+        }
+    }
+    if (order.length !== ids.length) throw new TypeError('service dependencies must form a directed acyclic graph');
+    return order;
+}
+
+function outgoing(world, serviceId, type = null) {
+    return world.dependencies.filter((edge) => edge.from === serviceId && (!type || edge.type === type));
+}
+
+function incoming(world, serviceId, type = null) {
+    return world.dependencies.filter((edge) => edge.to === serviceId && (!type || edge.type === type));
+}
+
+function backingOf(world, cacheId) {
+    return outgoing(world, cacheId, RELATION.BACKED_BY)[0]?.to || null;
+}
+
+function replicaOf(world, primaryId) {
+    return outgoing(world, primaryId, RELATION.REPLICATES)[0]?.to || null;
+}
+
+function primaryOf(world, replicaId) {
+    return incoming(world, replicaId, RELATION.REPLICATES)[0]?.from || null;
+}
+
+function validateWorld(world) {
+    if (!world || world.kind !== WORLD_KIND || world.schemaVersion !== WORLD_SCHEMA_VERSION) {
+        throw new TypeError(`expected a ${WORLD_KIND} v${WORLD_SCHEMA_VERSION}`);
+    }
+    const zones = indexById(world.zones, 'zone');
+    const nodes = indexById(world.nodes, 'node');
+    const services = indexById(world.services, 'service');
+    const volumes = indexById(world.volumes, 'volume');
+    indexById(world.routes, 'route');
+    for (const node of world.nodes) {
+        if (!zones.has(node.zone)) throw new TypeError(`${node.id} references unknown zone ${node.zone}`);
+        integerIn(node.slots, `${node.id}.slots`, 1, 64);
+    }
+    for (const service of world.services) {
+        if (!Object.values(SERVICE_KIND).includes(service.kind)) throw new TypeError(`${service.id} has unknown kind`);
+        integerIn(service.replicas, `${service.id}.replicas`, 1, 64);
+        integerIn(service.minHealthy, `${service.id}.minHealthy`, 1, service.replicas);
+        integerIn(service.podCapacityRps, `${service.id}.podCapacityRps`, 1);
+        integerIn(service.startupMs, `${service.id}.startupMs`, 0, 60_000);
+        if (service.kind === SERVICE_KIND.DATABASE) {
+            if (!['primary', 'replica'].includes(service.role)) throw new TypeError(`${service.id} needs a database role`);
+            const volume = volumes.get(service.volume);
+            if (!volume || volume.service !== service.id) throw new TypeError(`${service.id} needs its own volume`);
+        } else if (service.role !== null || service.volume !== null) {
+            throw new TypeError(`${service.id}: only databases carry a role and a volume`);
+        }
+        if (service.kind === SERVICE_KIND.QUEUE) integerIn(service.queueCapacity, `${service.id}.queueCapacity`, 1);
+        else if (service.queueCapacity !== null) throw new TypeError(`${service.id}: only queues carry a capacity`);
+    }
+    for (const volume of world.volumes) {
+        if (!zones.has(volume.zone)) throw new TypeError(`${volume.id} references unknown zone`);
+        if (services.get(volume.service)?.kind !== SERVICE_KIND.DATABASE) {
+            throw new TypeError(`${volume.id} must belong to a database`);
+        }
+    }
+    let shares = 0;
+    for (const route of world.routes) {
+        integerIn(route.sharePct, `${route.id}.sharePct`, 1, 100);
+        if (services.get(route.entry)?.kind !== SERVICE_KIND.API) throw new TypeError(`${route.id} must enter an api`);
+        shares += route.sharePct;
+    }
+    if (shares !== 100) throw new TypeError(`route shares must sum to 100, not ${shares}`);
+    const seen = new Set();
+    for (const edge of world.dependencies) {
+        const endpoints = DEPENDENCY_ENDPOINTS[edge.type];
+        if (!endpoints) throw new TypeError(`unknown dependency type ${edge.type}`);
+        const from = services.get(edge.from);
+        const to = services.get(edge.to);
+        if (!from || !to) throw new TypeError(`${edge.type} references an unknown service`);
+        if (edge.from === edge.to) throw new TypeError(`${edge.type} self-loop on ${edge.from}`);
+        if (!endpoints[0].includes(from.kind) || !endpoints[1].includes(to.kind)) {
+            throw new TypeError(`${edge.type} cannot connect ${from.kind} to ${to.kind}`);
+        }
+        const key = `${edge.type}|${edge.from}|${edge.to}`;
+        if (seen.has(key)) throw new TypeError(`duplicate dependency ${key}`);
+        seen.add(key);
+        if (edge.type === RELATION.REPLICATES && (from.role !== 'primary' || to.role !== 'replica')) {
+            throw new TypeError('REPLICATES must run from a primary to a replica');
+        }
+    }
+    for (const service of world.services) {
+        if (service.kind === SERVICE_KIND.CACHE && outgoing(world, service.id, RELATION.BACKED_BY).length !== 1) {
+            throw new TypeError(`${service.id} must be backed by exactly one database`);
+        }
+        if (service.role === 'replica' && incoming(world, service.id, RELATION.REPLICATES).length > 1) {
+            throw new TypeError(`${service.id} replicates more than one primary`);
+        }
+    }
+    flowOrder(world);
+    const used = new Map();
+    for (const service of world.services) {
+        const placement = world.placement[service.id];
+        if (!Array.isArray(placement) || placement.length !== service.replicas) {
+            throw new TypeError(`${service.id} needs one node per replica`);
+        }
+        const volumeZone = service.volume ? volumes.get(service.volume).zone : null;
+        for (const nodeId of placement) {
+            const node = nodes.get(nodeId);
+            if (!node) throw new TypeError(`${service.id} placed on unknown node ${nodeId}`);
+            if (volumeZone && node.zone !== volumeZone) throw new TypeError(`${service.id} placed outside its volume zone`);
+            used.set(nodeId, (used.get(nodeId) || 0) + 1);
+        }
+    }
+    for (const [nodeId, count] of used) {
+        if (count > nodes.get(nodeId).slots) throw new TypeError(`${nodeId} holds ${count} pods over its slots`);
+    }
+    if (!(world.traffic?.rps > 0)) throw new TypeError('traffic.rps must be positive');
+    if (world.errorBudgetPct !== ERROR_BUDGET_PCT) throw new TypeError(`error budget is fixed at ${ERROR_BUDGET_PCT}%`);
+    return true;
+}
+
+function worldDigest(world) {
+    return digest({ kind: WORLD_KIND, world: stable(world) });
+}
+
+/**
+ * Request load per service, from the routes down through the dependency
+ * graph, with every edge at fan-out 1 (section 3.3, rule 4).
+ *
+ * `status` resolves runtime facts; the defaults describe a fully healthy,
+ * warm world, which is what the generator sizes capacities against.
+ */
+function computeLoads(world, status = {}) {
+    const up = status.intrinsicUp || (() => true);
+    const missRatio = status.missRatio || (() => 0.2);
+    const writeTarget = status.writeTarget || ((id) => id);
+    const readTarget = status.readTarget || ((id) => id);
+    const consuming = status.consuming || ((id) => up(id));
+    const rps = status.rps ?? world.traffic.rps;
+    const load = Object.fromEntries(world.services.map((service) => [service.id, 0]));
+    const inflow = {};
+    for (const route of world.routes) load[route.entry] += (route.sharePct / 100) * rps;
+    const byId = new Map(world.services.map((service) => [service.id, service]));
+    for (const id of flowOrder(world)) {
+        const service = byId.get(id);
+        if (!up(id)) continue;
+        if (service.kind === SERVICE_KIND.CACHE) {
+            const backing = backingOf(world, id);
+            if (backing) load[writeTarget(backing)] += load[id] * missRatio(id);
+            continue;
+        }
+        if (service.kind === SERVICE_KIND.QUEUE) {
+            const consumers = incoming(world, id, RELATION.CONSUMES).map((edge) => edge.from).filter(consuming);
+            for (const consumer of consumers) load[consumer] += (inflow[id] || 0) / consumers.length;
+            continue;
+        }
+        for (const edge of outgoing(world, id)) {
+            if (edge.type === RELATION.CALLS || edge.type === RELATION.CALLS_OPTIONAL) load[edge.to] += load[id];
+            else if (edge.type === RELATION.WRITES) load[writeTarget(edge.to)] += load[id];
+            else if (edge.type === RELATION.READS) load[readTarget(edge.to)] += load[id];
+            else if (edge.type === RELATION.READS_THROUGH) {
+                if (up(edge.to)) load[edge.to] += load[id];
+                else load[writeTarget(backingOf(world, edge.to))] += load[id];
+            } else if (edge.type === RELATION.PUBLISHES) {
+                inflow[edge.to] = (inflow[edge.to] || 0) + load[id];
+                load[edge.to] += load[id];
+            }
+        }
+    }
+    return { load, inflow };
+}
+
+module.exports = {
+    WORLD_KIND,
+    WORLD_SCHEMA_VERSION,
+    backingOf,
+    clone,
+    computeLoads,
+    flowOrder,
+    incoming,
+    outgoing,
+    primaryOf,
+    replicaOf,
+    stable,
+    validateWorld,
+    worldDigest,
+};
+
+};
+__registry["packages/cloudproof-mesh/engine.js"] = function (module, exports, require) {
+'use strict';
+
+// Deterministic CloudProof Mesh engine (CLOUDPROOF-PHASE-III-MULTISERVICE.md,
+// sections 3.3-3.5). Every function is a pure function of the state and the
+// action; there is no wall clock and no unseeded randomness.
+
+const {
+    CACHE_MISS_RATIO,
+    INCIDENT_CLASS,
+    MESH_ACTION,
+    MESH_FAULT,
+    POD_PHASE,
+    RELATION,
+    SERVICE_KIND,
+    SLO_INVARIANT,
+    TIMING,
+} = require('./constants');
+const {
+    backingOf,
+    clone,
+    computeLoads,
+    flowOrder,
+    incoming,
+    outgoing,
+    primaryOf,
+    replicaOf,
+    stable,
+    validateWorld,
+} = require('./world');
+
+const STATE_KIND = 'cloudproof.mesh-state';
+
+function serviceMap(world) {
+    return new Map(world.services.map((service) => [service.id, service]));
+}
+
+function nodeReady(state, nodeId) {
+    const node = state.world.nodes.find((candidate) => candidate.id === nodeId);
+    if (!node) return false;
+    return !state.nodes[nodeId].crashed && !state.zones[node.zone].degraded;
+}
+
+function volumeAvailable(state, volumeId) {
+    const volume = state.world.volumes.find((candidate) => candidate.id === volumeId);
+    return Boolean(volume) && !state.zones[volume.zone].degraded;
+}
+
+function podServing(state, pod) {
+    if (pod.phase !== POD_PHASE.RUNNING || !pod.node || !nodeReady(state, pod.node)) return false;
+    const service = state.world.services.find((candidate) => candidate.id === pod.service);
+    return !service.volume || volumeAvailable(state, service.volume);
+}
+
+function podOrdinal(pod) {
+    return Number(pod.id.slice(pod.id.lastIndexOf('-') + 1));
+}
+
+function createMeshState(world) {
+    validateWorld(world);
+    const pods = [];
+    for (const service of world.services.slice().sort((left, right) => left.id.localeCompare(right.id))) {
+        world.placement[service.id].forEach((nodeId, index) => pods.push({
+            id: `pod/${service.id}-${index + 1}`,
+            service: service.id,
+            node: nodeId,
+            phase: POD_PHASE.RUNNING,
+            readyAtMs: 0,
+            restartAtMs: null,
+            unavailableSinceMs: null,
+        }));
+    }
+    const state = {
+        schemaVersion: 1,
+        kind: STATE_KIND,
+        world: stable(clone(world)),
+        clockMs: 0,
+        rps: world.traffic.rps,
+        zones: Object.fromEntries(world.zones.map((zone) => [zone.id, { degraded: false }])),
+        nodes: Object.fromEntries(world.nodes.map((node) => [node.id, { crashed: false, cordoned: false }])),
+        pods,
+        services: Object.fromEntries(world.services.map((service) => [service.id, {
+            desiredReplicas: service.replicas,
+            nextOrdinal: service.replicas + 1,
+            coldUntilMs: 0,
+            coldOnRecovery: false,
+            stalledUntilMs: 0,
+            backlog: 0,
+            downSinceMs: null,
+            promoted: false,
+        }])),
+        derived: null,
+    };
+    propagate(state);
+    return state;
+}
+
+// Section 3.3 rules 3-10, evaluated on the current state.
+function propagate(state) {
+    const world = state.world;
+    const now = state.clockMs;
+    const services = serviceMap(world);
+    const health = {};
+    for (const service of world.services) {
+        const pods = state.pods.filter((pod) => pod.service === service.id);
+        const healthy = pods.filter((pod) => podServing(state, pod)).length;
+        const intrinsicUp = healthy >= service.minHealthy;
+        const storageDown = Boolean(service.volume) && !volumeAvailable(state, service.volume);
+        health[service.id] = {
+            healthy,
+            capacityRps: healthy * service.podCapacityRps,
+            intrinsicUp,
+            reason: intrinsicUp ? null
+                : storageDown ? INCIDENT_CLASS.STORAGE_UNAVAILABLE : INCIDENT_CLASS.INSTANCE_LOSS,
+        };
+    }
+    const intrinsicUp = (id) => health[id].intrinsicUp;
+    const promoted = (id) => {
+        const replica = replicaOf(world, id);
+        return state.services[id].promoted && replica ? replica : id;
+    };
+    const readTarget = (id) => {
+        const target = promoted(id);
+        if (intrinsicUp(target) || services.get(target).role !== 'replica') return target;
+        const primary = primaryOf(world, target);
+        return primary && intrinsicUp(promoted(primary)) ? promoted(primary) : target;
+    };
+    const cold = (id) => state.services[id].coldUntilMs > now;
+    const missRatio = (id) => (cold(id) ? CACHE_MISS_RATIO.cold : CACHE_MISS_RATIO.warm);
+    const consuming = (id) => intrinsicUp(id) && state.services[id].stalledUntilMs <= now;
+    const { load, inflow } = computeLoads(world, {
+        intrinsicUp, missRatio, writeTarget: promoted, readTarget, consuming, rps: state.rps,
+    });
+
+    const up = {};
+    const cause = {};
+    for (const service of world.services) {
+        const item = health[service.id];
+        const overloaded = item.intrinsicUp && load[service.id] > item.capacityRps + 1e-9;
+        item.overloaded = overloaded;
+        up[service.id] = item.intrinsicUp && !overloaded;
+        if (!item.intrinsicUp) cause[service.id] = { kind: 'intrinsic', class: item.reason };
+        else if (overloaded) {
+            const stampede = world.services.some((cache) => (
+                cache.kind === SERVICE_KIND.CACHE
+                && promoted(backingOf(world, cache.id)) === service.id
+                && (cold(cache.id) || !intrinsicUp(cache.id))
+            ));
+            cause[service.id] = { kind: 'intrinsic',
+                class: stampede ? INCIDENT_CLASS.CACHE_STAMPEDE : INCIDENT_CLASS.OVERLOAD };
+        }
+    }
+    const queueFull = (id) => state.services[id].backlog >= services.get(id).queueCapacity;
+    const reverse = flowOrder(world).reverse();
+    let changed = true;
+    while (changed) {
+        changed = false;
+        for (const id of reverse) {
+            if (!up[id]) continue;
+            let failure = null;
+            for (const edge of outgoing(world, id)) {
+                if (edge.type === RELATION.CALLS && !up[edge.to]) failure = { kind: 'dependency', via: edge.to };
+                else if (edge.type === RELATION.WRITES && !up[promoted(edge.to)]) {
+                    failure = { kind: 'dependency', via: promoted(edge.to) };
+                } else if (edge.type === RELATION.READS) {
+                    const target = promoted(edge.to);
+                    const primary = services.get(target).role === 'replica' ? primaryOf(world, target) : null;
+                    if (!up[target] && !(primary && up[promoted(primary)])) failure = { kind: 'dependency', via: target };
+                } else if (edge.type === RELATION.READS_THROUGH && !up[edge.to]) {
+                    const backing = promoted(backingOf(world, edge.to));
+                    if (!up[backing]) failure = { kind: 'dependency', via: backing };
+                } else if (edge.type === RELATION.PUBLISHES) {
+                    if (!up[edge.to]) failure = { kind: 'dependency', via: edge.to };
+                    else if (queueFull(edge.to)) failure = { kind: 'backpressure', via: edge.to };
+                }
+                if (failure) break;
+            }
+            if (failure) {
+                up[id] = false;
+                cause[id] = failure;
+                changed = true;
+            }
+        }
+    }
+    const rootOf = (id) => {
+        const seen = new Set();
+        let current = id;
+        while (!seen.has(current)) {
+            seen.add(current);
+            const item = cause[current];
+            if (item.kind === 'intrinsic') return { service: current, class: item.class };
+            if (item.kind === 'backpressure') return { service: item.via, class: INCIDENT_CLASS.QUEUE_BACKPRESSURE };
+            current = item.via;
+        }
+        return { service: current, class: INCIDENT_CLASS.INSTANCE_LOSS };
+    };
+    const routes = Object.fromEntries(world.routes.map((route) => [route.id, { failing: !up[route.entry] }]));
+    const failing = world.routes.filter((route) => routes[route.id].failing);
+    const errorSharePct = failing.reduce((sum, route) => sum + route.sharePct, 0);
+    const violating = errorSharePct > world.errorBudgetPct;
+    let incident = null;
+    if (violating) {
+        const worst = failing.slice().sort((left, right) => (
+            right.sharePct - left.sharePct || left.id.localeCompare(right.id)
+        ))[0];
+        const root = rootOf(worst.entry);
+        incident = { route: worst.id, rootService: root.service, incidentClass: root.class };
+    }
+    state.derived = stable({
+        health: Object.fromEntries(Object.entries(health).map(([id, item]) => [id, {
+            ...item, up: up[id], load: load[id], cause: cause[id] || null,
+        }])),
+        inflow,
+        queueFull: Object.fromEntries(world.services
+            .filter((service) => service.kind === SERVICE_KIND.QUEUE)
+            .map((service) => [service.id, queueFull(service.id)])),
+        routes,
+        errorSharePct,
+        violating,
+        incident,
+    });
+    return state;
+}
+
+function violationRecord(state) {
+    if (!state.derived.violating) return null;
+    return stable({
+        invariant: SLO_INVARIANT,
+        atMs: state.clockMs,
+        errorSharePct: state.derived.errorSharePct,
+        failingRoutes: Object.entries(state.derived.routes).filter(([, item]) => item.failing).map(([id]) => id).sort(),
+        incidentClass: state.derived.incident.incidentClass,
+        rootService: state.derived.incident.rootService,
+        route: state.derived.incident.route,
+    });
+}
+
+function failPod(pod, now, keepNode = false) {
+    pod.phase = POD_PHASE.FAILED;
+    if (!keepNode) pod.node = null;
+    pod.restartAtMs = now + TIMING.rescheduleDelayMs;
+    pod.unavailableSinceMs = null;
+}
+
+function schedulePending(state) {
+    const now = state.clockMs;
+    const services = serviceMap(state.world);
+    const pending = state.pods.filter((pod) => pod.phase === POD_PHASE.PENDING)
+        .sort((left, right) => left.id.localeCompare(right.id));
+    for (const pod of pending) {
+        const service = services.get(pod.service);
+        const volumeZone = service.volume
+            ? state.world.volumes.find((volume) => volume.id === service.volume).zone : null;
+        // A crashed pod keeps its node (and its slot) until it restarts there.
+        const usage = new Map();
+        for (const other of state.pods) {
+            if (other.node) usage.set(other.node, (usage.get(other.node) || 0) + 1);
+        }
+        const candidates = state.world.nodes.filter((node) => (
+            nodeReady(state, node.id)
+            && !state.nodes[node.id].cordoned
+            && (usage.get(node.id) || 0) < node.slots
+            && (!volumeZone || node.zone === volumeZone)
+        )).sort((left, right) => (
+            (usage.get(left.id) || 0) - (usage.get(right.id) || 0) || left.id.localeCompare(right.id)
+        ));
+        if (!candidates.length) continue;
+        pod.node = candidates[0].id;
+        pod.phase = POD_PHASE.STARTING;
+        pod.readyAtMs = now + service.startupMs;
+        pod.restartAtMs = null;
+    }
+}
+
+// One 100 ms tick: controllers in the fixed order of section 3.4, then
+// propagation. The SLO is checked by the caller after every tick.
+function tick(state) {
+    state.clockMs += TIMING.tickMs;
+    const now = state.clockMs;
+    const services = serviceMap(state.world);
+    const previous = state.derived;
+    for (const pod of state.pods) {
+        if (!pod.node || ![POD_PHASE.RUNNING, POD_PHASE.STARTING].includes(pod.phase)) continue;
+        if (nodeReady(state, pod.node)) { pod.unavailableSinceMs = null; continue; }
+        if (pod.unavailableSinceMs === null) pod.unavailableSinceMs = now;
+        if (now - pod.unavailableSinceMs >= TIMING.evictionDelayMs) failPod(pod, now);
+    }
+    for (const pod of state.pods) {
+        if (pod.phase !== POD_PHASE.FAILED || pod.restartAtMs === null || pod.restartAtMs > now) continue;
+        if (pod.node && nodeReady(state, pod.node)) {
+            pod.phase = POD_PHASE.STARTING;
+            pod.readyAtMs = now + services.get(pod.service).startupMs;
+            pod.restartAtMs = null;
+        } else {
+            pod.phase = POD_PHASE.PENDING;
+            pod.node = null;
+        }
+    }
+    schedulePending(state);
+    for (const pod of state.pods) {
+        if (pod.phase === POD_PHASE.STARTING && pod.readyAtMs <= now && nodeReady(state, pod.node)) {
+            pod.phase = POD_PHASE.RUNNING;
+        }
+    }
+    for (const service of state.world.services) {
+        const runtime = state.services[service.id];
+        const intrinsicUp = previous.health[service.id].intrinsicUp;
+        if (service.role === 'primary') {
+            const replica = replicaOf(state.world, service.id);
+            if (intrinsicUp) runtime.downSinceMs = null;
+            else if (runtime.downSinceMs === null) runtime.downSinceMs = now;
+            if (replica && !runtime.promoted && !intrinsicUp
+                && now - runtime.downSinceMs >= TIMING.failoverDelayMs
+                && previous.health[replica].intrinsicUp) {
+                runtime.promoted = true;
+            }
+        }
+        if (service.kind === SERVICE_KIND.CACHE) {
+            if (!intrinsicUp) runtime.coldOnRecovery = true;
+            else if (runtime.coldOnRecovery) {
+                runtime.coldUntilMs = Math.max(runtime.coldUntilMs, now + TIMING.cacheWarmupMs);
+                runtime.coldOnRecovery = false;
+            }
+        }
+        if (service.kind === SERVICE_KIND.QUEUE) {
+            const drain = incoming(state.world, service.id, RELATION.CONSUMES)
+                .map((edge) => edge.from)
+                .filter((id) => previous.health[id].intrinsicUp && state.services[id].stalledUntilMs <= now)
+                .reduce((sum, id) => sum + previous.health[id].capacityRps, 0);
+            const arriving = intrinsicUp ? (previous.inflow[service.id] || 0) : 0;
+            runtime.backlog = Math.max(0, runtime.backlog + (arriving - drain) * (TIMING.tickMs / 1000));
+        }
+    }
+    return propagate(state);
+}
+
+function requireTarget(collection, id, label) {
+    if (!Object.prototype.hasOwnProperty.call(collection, id)) throw new TypeError(`unknown ${label}: ${id}`);
+}
+
+function applyInstant(state, action) {
+    const now = state.clockMs;
+    const services = serviceMap(state.world);
+    switch (action.type) {
+        case MESH_ACTION.SCALE: {
+            requireTarget(state.services, action.serviceId, 'service');
+            if (!Number.isInteger(action.replicas) || action.replicas < 1 || action.replicas > 64) {
+                throw new TypeError('scale replicas must be an integer in [1, 64]');
+            }
+            const runtime = state.services[action.serviceId];
+            const pods = state.pods.filter((pod) => pod.service === action.serviceId)
+                .sort((left, right) => podOrdinal(left) - podOrdinal(right));
+            if (action.replicas > pods.length) {
+                for (let count = pods.length; count < action.replicas; count += 1) {
+                    state.pods.push({
+                        id: `pod/${action.serviceId}-${runtime.nextOrdinal}`,
+                        service: action.serviceId,
+                        node: null,
+                        phase: POD_PHASE.PENDING,
+                        readyAtMs: null,
+                        restartAtMs: null,
+                        unavailableSinceMs: null,
+                    });
+                    runtime.nextOrdinal += 1;
+                }
+            } else {
+                const removed = new Set(pods.slice(action.replicas).map((pod) => pod.id));
+                state.pods = state.pods.filter((pod) => !removed.has(pod.id));
+            }
+            runtime.desiredReplicas = action.replicas;
+            break;
+        }
+        case MESH_ACTION.TRAFFIC_SHIFT:
+            if (!(action.rps > 0)) throw new TypeError('traffic-shift rps must be positive');
+            state.rps = action.rps;
+            break;
+        case MESH_FAULT.TRAFFIC_SPIKE:
+            if (!(action.factor > 0)) throw new TypeError('traffic-spike factor must be positive');
+            state.rps = Math.round(state.rps * action.factor);
+            break;
+        case MESH_ACTION.DRAIN_NODE:
+            requireTarget(state.nodes, action.nodeId, 'node');
+            state.nodes[action.nodeId].cordoned = true;
+            state.pods.filter((pod) => pod.node === action.nodeId && pod.phase !== POD_PHASE.FAILED)
+                .forEach((pod) => failPod(pod, now));
+            break;
+        case MESH_ACTION.UNCORDON_NODE:
+            requireTarget(state.nodes, action.nodeId, 'node');
+            state.nodes[action.nodeId].cordoned = false;
+            break;
+        case MESH_ACTION.RECOVER_NODE:
+            requireTarget(state.nodes, action.nodeId, 'node');
+            state.nodes[action.nodeId].crashed = false;
+            break;
+        case MESH_ACTION.RECOVER_ZONE:
+            requireTarget(state.zones, action.zoneId, 'zone');
+            state.zones[action.zoneId].degraded = false;
+            break;
+        case MESH_FAULT.NODE_CRASH:
+            requireTarget(state.nodes, action.nodeId, 'node');
+            state.nodes[action.nodeId].crashed = true;
+            state.pods.filter((pod) => pod.node === action.nodeId).forEach((pod) => failPod(pod, now));
+            break;
+        case MESH_FAULT.ZONE_DEGRADED:
+            requireTarget(state.zones, action.zoneId, 'zone');
+            state.zones[action.zoneId].degraded = true;
+            break;
+        case MESH_FAULT.POD_CRASH: {
+            // A fault aimed at a pod that a scale-down already removed hits nothing.
+            if (typeof action.podId !== 'string') throw new TypeError('pod-crash needs a podId');
+            const pod = state.pods.find((candidate) => candidate.id === action.podId);
+            if (pod && pod.phase !== POD_PHASE.PENDING) failPod(pod, now, true);
+            break;
+        }
+        case MESH_FAULT.CACHE_FLUSH:
+            requireTarget(state.services, action.serviceId, 'service');
+            if (services.get(action.serviceId).kind !== SERVICE_KIND.CACHE) throw new TypeError('cache-flush needs a cache');
+            state.services[action.serviceId].coldUntilMs = now + TIMING.cacheWarmupMs;
+            break;
+        case MESH_FAULT.CONSUMER_STALL:
+            requireTarget(state.services, action.serviceId, 'service');
+            if (services.get(action.serviceId).kind !== SERVICE_KIND.WORKER) throw new TypeError('consumer-stall needs a worker');
+            if (!Number.isInteger(action.durationMs) || action.durationMs < 1) throw new TypeError('durationMs must be positive');
+            state.services[action.serviceId].stalledUntilMs = now + action.durationMs;
+            break;
+        default:
+            throw new TypeError(`unknown mesh action: ${action.type}`);
+    }
+    return propagate(state);
+}
+
+/**
+ * Apply one schedule action and report the first SLO violation it causes.
+ * advance-time runs whole ticks and checks the SLO after each of them.
+ */
+function step(state, action) {
+    const next = clone(state);
+    if (action.type === MESH_ACTION.ADVANCE_TIME) {
+        if (!Number.isInteger(action.ms) || action.ms < TIMING.tickMs || action.ms % TIMING.tickMs !== 0 || action.ms > 60_000) {
+            throw new TypeError(`advance-time ms must be a multiple of ${TIMING.tickMs} in [${TIMING.tickMs}, 60000]`);
+        }
+        let violation = null;
+        for (let elapsed = 0; elapsed < action.ms; elapsed += TIMING.tickMs) {
+            tick(next);
+            violation = violation || violationRecord(next);
+        }
+        return { state: next, violation };
+    }
+    applyInstant(next, action);
+    return { state: next, violation: violationRecord(next) };
+}
+
+module.exports = {
+    STATE_KIND,
+    createMeshState,
+    nodeReady,
+    podServing,
+    propagate,
+    step,
+    tick,
+    violationRecord,
+    volumeAvailable,
+};
+
+};
+__registry["packages/cloudproof-mesh/graph.js"] = function (module, exports, require) {
+'use strict';
+
+// Heterogeneous graph export and the non-relational summaries that define
+// pair identity (CLOUDPROOF-PHASE-III-MULTISERVICE.md, sections 3.5 and 4.2).
+//
+// The export carries no identifiers, no request load and no absolute clock:
+// load is a function of the wiring and would hand relational information to a
+// pooled model, and no feature counts elapsed simulation time.
+
+const { NODE_TYPE, RELATION, RELATION_TYPES, SERVICE_KIND } = require('./constants');
+const { podServing, volumeAvailable, nodeReady } = require('./engine');
+const { stable } = require('./world');
+
+const GRAPH_KIND = 'cloudproof.mesh-graph';
+
+function round6(value) {
+    return Math.round(value * 1e6) / 1e6;
+}
+
+function serviceGraph(state) {
+    const world = state.world;
+    const now = state.clockMs;
+    const nodes = [];
+    const edges = [];
+    for (const zone of world.zones) {
+        nodes.push({ id: zone.id, type: NODE_TYPE.ZONE, features: { degraded: state.zones[zone.id].degraded } });
+    }
+    for (const node of world.nodes) {
+        nodes.push({ id: node.id, type: NODE_TYPE.NODE, features: {
+            ready: nodeReady(state, node.id), cordoned: state.nodes[node.id].cordoned, slots: node.slots,
+        } });
+        edges.push({ type: RELATION.LOCATED_IN, from: node.id, to: node.zone });
+    }
+    for (const volume of world.volumes) {
+        nodes.push({ id: volume.id, type: NODE_TYPE.VOLUME, features: { available: volumeAvailable(state, volume.id) } });
+        edges.push({ type: RELATION.LOCATED_IN, from: volume.id, to: volume.zone });
+    }
+    const services = new Map(world.services.map((service) => [service.id, service]));
+    for (const pod of state.pods) {
+        nodes.push({ id: pod.id, type: NODE_TYPE.POD, features: { phase: pod.phase, serving: podServing(state, pod) } });
+        edges.push({ type: RELATION.OWNS, from: pod.service, to: pod.id });
+        if (pod.node) edges.push({ type: RELATION.RUNS_ON, from: pod.id, to: pod.node });
+        const volume = services.get(pod.service).volume;
+        if (volume) edges.push({ type: RELATION.MOUNTS, from: pod.id, to: volume });
+    }
+    for (const service of world.services) {
+        const runtime = state.services[service.id];
+        const health = state.derived.health[service.id];
+        const isQueue = service.kind === SERVICE_KIND.QUEUE;
+        nodes.push({ id: service.id, type: NODE_TYPE.SERVICE, features: {
+            kind: service.kind,
+            role: service.role || 'none',
+            desiredReplicas: runtime.desiredReplicas,
+            minHealthy: service.minHealthy,
+            podCapacityRps: service.podCapacityRps,
+            startupMs: service.startupMs,
+            healthy: health.healthy,
+            up: health.up,
+            promoted: runtime.promoted,
+            cacheCold: service.kind === SERVICE_KIND.CACHE && runtime.coldUntilMs > now,
+            stalled: service.kind === SERVICE_KIND.WORKER && runtime.stalledUntilMs > now,
+            queueCapacity: isQueue ? service.queueCapacity : 0,
+            queueBacklogFraction: isQueue ? round6(Math.min(1, runtime.backlog / service.queueCapacity)) : 0,
+            queueFull: isQueue ? state.derived.queueFull[service.id] : false,
+        } });
+    }
+    for (const route of world.routes) {
+        nodes.push({ id: route.id, type: NODE_TYPE.ROUTE, features: {
+            sharePct: route.sharePct,
+            rps: round6((route.sharePct / 100) * state.rps),
+            failing: state.derived.routes[route.id].failing,
+        } });
+        edges.push({ type: RELATION.ENTERS, from: route.id, to: route.entry });
+    }
+    for (const edge of world.dependencies) edges.push({ type: edge.type, from: edge.from, to: edge.to });
+    nodes.sort((left, right) => left.id.localeCompare(right.id));
+    edges.sort((left, right) => (
+        left.type.localeCompare(right.type) || left.from.localeCompare(right.from) || left.to.localeCompare(right.to)
+    ));
+    return stable({ schemaVersion: 1, kind: GRAPH_KIND, nodes: nodes.map((node) => ({ ...node, features: stable(node.features) })), edges });
+}
+
+function actionTarget(action) {
+    return action?.nodeId || action?.zoneId || action?.serviceId || action?.podId || null;
+}
+
+function featureKey(node) {
+    return JSON.stringify(stable(node.features));
+}
+
+function degreeVectors(graph) {
+    const vectors = new Map(graph.nodes.map((node) => [node.id,
+        Object.fromEntries(RELATION_TYPES.map((type) => [type, [0, 0]]))]));
+    for (const edge of graph.edges) {
+        vectors.get(edge.from)[edge.type][0] += 1;
+        vectors.get(edge.to)[edge.type][1] += 1;
+    }
+    return new Map([...vectors].map(([id, vector]) => [id, JSON.stringify(vector)]));
+}
+
+function sortedBuckets(entries) {
+    const buckets = {};
+    for (const [type, value] of entries) (buckets[type] = buckets[type] || []).push(value);
+    for (const list of Object.values(buckets)) list.sort();
+    return stable(buckets);
+}
+
+// P1: per node type, the multiset of feature vectors with the action-target flag.
+function pooledSummary(graph, action = null) {
+    const target = actionTarget(action);
+    return sortedBuckets(graph.nodes.map((node) => [node.type,
+        JSON.stringify(stable({ ...node.features, isActionTarget: node.id === target }))]));
+}
+
+function coLocation(graph) {
+    const owner = new Map();
+    const podNode = new Map();
+    const nodeZone = new Map();
+    for (const edge of graph.edges) {
+        if (edge.type === RELATION.OWNS) owner.set(edge.to, edge.from);
+        if (edge.type === RELATION.RUNS_ON) podNode.set(edge.from, edge.to);
+        if (edge.type === RELATION.LOCATED_IN) nodeZone.set(edge.from, edge.to);
+    }
+    const perNode = new Map();
+    const perZone = new Map();
+    const perService = new Map();
+    for (const [pod, node] of podNode) {
+        const service = owner.get(pod);
+        const zone = nodeZone.get(node);
+        for (const [map, key, value] of [[perNode, node, service], [perZone, zone, service]]) {
+            if (!map.has(key)) map.set(key, { pods: 0, services: new Set() });
+            map.get(key).pods += 1;
+            map.get(key).services.add(value);
+        }
+        if (!perService.has(service)) perService.set(service, { nodes: new Set(), zones: new Set() });
+        perService.get(service).nodes.add(node);
+        perService.get(service).zones.add(zone);
+    }
+    return (node) => {
+        if (node.type === NODE_TYPE.NODE || node.type === NODE_TYPE.ZONE) {
+            const item = (node.type === NODE_TYPE.NODE ? perNode : perZone).get(node.id);
+            return item ? [item.pods, item.services.size] : [0, 0];
+        }
+        if (node.type === NODE_TYPE.SERVICE) {
+            const item = perService.get(node.id);
+            return item ? [item.nodes.size, item.zones.size] : [0, 0];
+        }
+        return null;
+    };
+}
+
+// P2: everything a degree-aware flat baseline may see.
+function degreeAwareSummary(graph, action = null) {
+    const target = actionTarget(action);
+    const degrees = degreeVectors(graph);
+    const location = coLocation(graph);
+    const byId = new Map(graph.nodes.map((node) => [node.id, node]));
+    const key = (node) => `${featureKey(node)}|${degrees.get(node.id)}`;
+    const joint = sortedBuckets(graph.nodes.map((node) => [node.type, key(node)]));
+    const colocated = sortedBuckets(graph.nodes
+        .filter((node) => location(node) !== null)
+        .map((node) => [node.type, `${featureKey(node)}|${JSON.stringify(location(node))}`]));
+    let targetSummary = null;
+    if (target && byId.has(target)) {
+        const node = byId.get(target);
+        const neighbours = graph.edges.flatMap((edge) => {
+            if (edge.from === target) return [`${edge.type}|out|${byId.get(edge.to).type}|${key(byId.get(edge.to))}`];
+            if (edge.to === target) return [`${edge.type}|in|${byId.get(edge.from).type}|${key(byId.get(edge.from))}`];
+            return [];
+        }).sort();
+        targetSummary = { type: node.type, key: key(node), location: location(node), neighbours };
+    }
+    return stable({ pooled: pooledSummary(graph, action), joint, colocated, target: targetSummary });
+}
+
+function relationDifferences(left, right) {
+    return RELATION_TYPES.filter((type) => (
+        JSON.stringify(left.edges.filter((edge) => edge.type === type))
+        !== JSON.stringify(right.edges.filter((edge) => edge.type === type))
+    ));
+}
+
+/** P1, P2, P4 and the node half of P5 for two members at the same row. */
+function comparePairGraphs(left, right, action) {
+    const nodeFeatures = (graph) => JSON.stringify(graph.nodes.map((node) => [node.id, node.type, featureKey(node)]));
+    return stable({
+        pooledIdentical: JSON.stringify(pooledSummary(left, action)) === JSON.stringify(pooledSummary(right, action)),
+        degreeAwareIdentical: JSON.stringify(degreeAwareSummary(left, action))
+            === JSON.stringify(degreeAwareSummary(right, action)),
+        nodesIdenticalById: nodeFeatures(left) === nodeFeatures(right),
+        differingRelations: relationDifferences(left, right),
+    });
+}
+
+// Shortest undirected path length between two graph nodes (report only).
+function hopDistance(graph, from, to) {
+    const adjacent = new Map(graph.nodes.map((node) => [node.id, []]));
+    for (const edge of graph.edges) {
+        adjacent.get(edge.from).push(edge.to);
+        adjacent.get(edge.to).push(edge.from);
+    }
+    const distance = new Map([[from, 0]]);
+    const queue = [from];
+    while (queue.length) {
+        const current = queue.shift();
+        if (current === to) return distance.get(current);
+        for (const next of adjacent.get(current) || []) {
+            if (!distance.has(next)) { distance.set(next, distance.get(current) + 1); queue.push(next); }
+        }
+    }
+    return null;
+}
+
+module.exports = {
+    GRAPH_KIND,
+    actionTarget,
+    comparePairGraphs,
+    degreeAwareSummary,
+    hopDistance,
+    pooledSummary,
+    serviceGraph,
+};
+
+};
+__registry["packages/cloudproof-mesh/runner.js"] = function (module, exports, require) {
+'use strict';
+
+// Schedule execution with replay fingerprints and horizon labels. A row is
+// the state before an action plus that action; rows stop at the first SLO
+// violation, which is included (pre-incident rows only, section 6).
+
+const { digest } = require('../agent-runtime');
+const { ACTION_TYPES } = require('./constants');
+const { createMeshState, step } = require('./engine');
+const { serviceGraph } = require('./graph');
+const { stable } = require('./world');
+
+const SCHEDULE_KIND = 'cloudproof.mesh-schedule';
+const HORIZONS = Object.freeze([1, 5, 10, 20]);
+
+function validateSchedule(schedule) {
+    if (!schedule || schedule.kind !== SCHEDULE_KIND || schedule.schemaVersion !== 1) {
+        throw new TypeError(`expected a ${SCHEDULE_KIND} v1`);
+    }
+    if (!Array.isArray(schedule.actions) || !schedule.actions.length) throw new TypeError('schedule needs actions');
+    for (const action of schedule.actions) {
+        if (!ACTION_TYPES.includes(action?.type)) throw new TypeError(`unknown mesh action: ${action?.type}`);
+    }
+    return true;
+}
+
+function meshSchedule({ seed, world, actions, metadata = {} }) {
+    const schedule = stable({ schemaVersion: 1, kind: SCHEDULE_KIND, seed, world, actions, metadata });
+    validateSchedule(schedule);
+    return schedule;
+}
+
+function runMeshSchedule(schedule, { includeGraphs = false } = {}) {
+    validateSchedule(schedule);
+    let state = createMeshState(schedule.world);
+    if (state.derived.violating) {
+        return stable({ valid: false, reason: 'violates before the first action', rows: [], outcome: null });
+    }
+    const rows = [];
+    let failure = null;
+    for (const [index, action] of schedule.actions.entries()) {
+        const row = { index, action, atMs: state.clockMs, stateDigest: digest(state) };
+        if (includeGraphs) row.graph = serviceGraph(state);
+        const result = step(state, action);
+        row.violation = Boolean(result.violation);
+        rows.push(row);
+        state = result.state;
+        if (result.violation) {
+            failure = { transition: index, ...result.violation };
+            break;
+        }
+    }
+    for (const row of rows) {
+        row.labels = Object.fromEntries(HORIZONS.map((horizon) => [String(horizon),
+            Boolean(failure) && failure.transition - row.index < horizon]));
+    }
+    const fingerprint = digest({
+        rows: rows.map((row) => [row.index, row.stateDigest, row.violation]),
+        failure,
+        finalState: digest(state),
+    });
+    return {
+        valid: true,
+        outcome: stable({ unsafe: Boolean(failure), failure }),
+        rows,
+        finalState: state,
+        fingerprint,
+    };
+}
+
+module.exports = {
+    HORIZONS,
+    SCHEDULE_KIND,
+    meshSchedule,
+    runMeshSchedule,
+    validateSchedule,
+};
+
+};
+__registry["packages/cloudproof-mesh/generator.js"] = function (module, exports, require) {
+'use strict';
+
+// Outcome-blind world and schedule generation for CloudProof Mesh
+// (CLOUDPROOF-PHASE-III-MULTISERVICE.md, sections 5 and 6). Nothing here reads
+// an outcome: worlds are sampled from structural templates, capacities are
+// sized from the healthy steady-state load, and schedules are sampled from one
+// hazard process whatever they execute to.
+
+const { Rng } = require('../../sim/simulator');
+const { ERROR_BUDGET_PCT, MESH_ACTION, MESH_FAULT, RELATION, SERVICE_KIND } = require('./constants');
+const { WORLD_KIND, WORLD_SCHEMA_VERSION, computeLoads, stable, validateWorld } = require('./world');
+
+// Template ranges and the natural schedule process were frozen after the
+// III-A.2 simulator-only pilot (section 12); the split of templates was fixed
+// before any code existed.
+const COMMON = Object.freeze({
+    routes: [2, 3],
+    replicas: [2, 4],
+    slots: 8,
+    optionalProbability: 0.25,
+    utilization: [0.25, 0.55],
+    databaseUtilization: [0.40, 0.85],
+    queueSeconds: [1, 5],
+    startupMs: [600, 2000],
+    replicaDatabaseProbability: 0.5,
+});
+
+const TEMPLATES = Object.freeze([
+    { id: 'T1', split: 'train', zones: [2, 2], nodesPerZone: [2, 3], depth: [1, 1], mids: [2, 3], databases: [1, 1], caches: [0, 0], queues: [0, 0] },
+    { id: 'T2', split: 'train', zones: [3, 3], nodesPerZone: [2, 2], depth: [1, 2], mids: [2, 3], databases: [1, 2], caches: [1, 1], queues: [0, 0] },
+    { id: 'T3', split: 'train', zones: [2, 3], nodesPerZone: [2, 3], depth: [2, 2], mids: [2, 3], databases: [1, 1], caches: [0, 0], queues: [1, 1] },
+    { id: 'T4', split: 'train', zones: [3, 3], nodesPerZone: [2, 3], depth: [1, 1], mids: [3, 4], databases: [2, 2], caches: [2, 2], queues: [0, 0] },
+    { id: 'T5', split: 'train', zones: [2, 2], nodesPerZone: [3, 3], depth: [2, 2], mids: [2, 2], databases: [1, 2], caches: [1, 1], queues: [1, 1] },
+    { id: 'T6', split: 'train', zones: [3, 3], nodesPerZone: [2, 2], depth: [1, 2], mids: [2, 4], databases: [2, 2], caches: [0, 1], queues: [0, 1] },
+    { id: 'T7', split: 'train', zones: [2, 3], nodesPerZone: [2, 2], depth: [1, 1], mids: [2, 3], databases: [1, 1], caches: [2, 2], queues: [1, 1] },
+    { id: 'T8', split: 'train', zones: [3, 3], nodesPerZone: [3, 3], depth: [2, 2], mids: [3, 3], databases: [2, 2], caches: [1, 2], queues: [0, 0] },
+    { id: 'V1', split: 'validation', zones: [2, 2], nodesPerZone: [2, 2], depth: [2, 2], mids: [3, 4], databases: [2, 2], caches: [2, 2], queues: [0, 0] },
+    { id: 'V2', split: 'validation', zones: [3, 3], nodesPerZone: [3, 3], depth: [1, 1], mids: [2, 2], databases: [1, 1], caches: [0, 0], queues: [1, 1] },
+    { id: 'X1', split: 'test', zones: [3, 3], nodesPerZone: [2, 3], depth: [3, 3], mids: [2, 3], databases: [1, 2], caches: [1, 1], queues: [1, 1] },
+    { id: 'X2', split: 'test', zones: [3, 3], nodesPerZone: [2, 2], depth: [3, 3], mids: [3, 3], databases: [2, 2], caches: [2, 2], queues: [1, 1] },
+    { id: 'O1', split: 'ood', zones: [4, 4], nodesPerZone: [3, 4], depth: [3, 3], mids: [4, 5], databases: [2, 3], caches: [2, 2], queues: [1, 2] },
+    { id: 'O2', split: 'ood', zones: [4, 4], nodesPerZone: [4, 4], depth: [3, 3], mids: [5, 6], databases: [3, 3], caches: [2, 3], queues: [2, 2] },
+].map((template) => Object.freeze({ ...COMMON, ...template })));
+
+function template(id) {
+    const found = TEMPLATES.find((candidate) => candidate.id === id);
+    if (!found) throw new TypeError(`unknown mesh template: ${id}`);
+    return found;
+}
+
+const range = (rng, [low, high]) => rng.range(low, high);
+const zoneId = (index) => `zone-${String.fromCharCode(97 + index)}`;
+const pad = (value) => String(value).padStart(2, '0');
+
+// Integer shares summing to `total`, each at least 1 (largest remainder).
+function composeShares(rng, count, total) {
+    const weights = Array.from({ length: count }, () => rng.range(1, 6));
+    const sum = weights.reduce((left, right) => left + right, 0);
+    const raw = weights.map((weight) => (weight / sum) * (total - count));
+    const shares = raw.map((value) => 1 + Math.floor(value));
+    let remainder = total - shares.reduce((left, right) => left + right, 0);
+    const order = raw.map((value, index) => [value - Math.floor(value), index]).sort((left, right) => right[0] - left[0] || left[1] - right[1]);
+    for (let cursor = 0; remainder > 0; cursor = (cursor + 1) % count, remainder -= 1) shares[order[cursor][1]] += 1;
+    return shares;
+}
+
+class Skeleton {
+    constructor(templateEntry) {
+        this.template = templateEntry;
+        this.zones = [];
+        this.nodes = [];
+        this.services = [];
+        this.volumes = [];
+        this.routes = [];
+        this.dependencies = [];
+        this.counters = { service: 0, node: 0, volume: 0, route: 0 };
+        this.layers = [];
+        this.entries = [];
+        this.databases = [];
+        this.caches = [];
+        this.queues = [];
+    }
+
+    addZone() {
+        const zone = { id: zoneId(this.zones.length) };
+        this.zones.push(zone);
+        return zone.id;
+    }
+
+    addNode(zone, slots) {
+        this.counters.node += 1;
+        const node = { id: `node-${pad(this.counters.node)}`, zone, slots };
+        this.nodes.push(node);
+        return node.id;
+    }
+
+    addService(kind, rng, overrides = {}) {
+        this.counters.service += 1;
+        const replicas = overrides.replicas ?? (kind === SERVICE_KIND.DATABASE ? rng.range(1, 2) : range(rng, this.template.replicas));
+        const service = {
+            id: `svc-${pad(this.counters.service)}`,
+            kind,
+            replicas,
+            minHealthy: overrides.minHealthy
+                ?? (kind === SERVICE_KIND.DATABASE ? 1 : (rng.chance(0.3) ? replicas - 1 : Math.ceil(replicas / 2))),
+            podCapacityRps: 1,
+            startupMs: overrides.startupMs ?? 100 * rng.range(this.template.startupMs[0] / 100, this.template.startupMs[1] / 100),
+            role: overrides.role ?? null,
+            volume: null,
+            queueCapacity: kind === SERVICE_KIND.QUEUE ? 1 : null,
+            utilization: overrides.utilization ?? null,
+        };
+        if (service.minHealthy < 1) service.minHealthy = 1;
+        this.services.push(service);
+        return service.id;
+    }
+
+    addDatabase(rng, zone, overrides = {}) {
+        const id = this.addService(SERVICE_KIND.DATABASE, rng, { role: 'primary', ...overrides });
+        this.attachVolume(id, zone);
+        return id;
+    }
+
+    attachVolume(serviceId, zone) {
+        this.counters.volume += 1;
+        const volume = { id: `vol-${pad(this.counters.volume)}`, zone, service: serviceId };
+        this.volumes.push(volume);
+        this.service(serviceId).volume = volume.id;
+        return volume.id;
+    }
+
+    addRoute(sharePct, entry) {
+        this.counters.route += 1;
+        const route = { id: `route-${this.counters.route}`, sharePct, entry };
+        this.routes.push(route);
+        return route.id;
+    }
+
+    connect(type, from, to) {
+        if (!this.dependencies.some((edge) => edge.type === type && edge.from === from && edge.to === to)) {
+            this.dependencies.push({ type, from, to });
+        }
+    }
+
+    service(id) {
+        return this.services.find((service) => service.id === id);
+    }
+
+    volumeZone(serviceId) {
+        const volume = this.volumes.find((candidate) => candidate.service === serviceId);
+        return volume ? volume.zone : null;
+    }
+}
+
+function sampleSkeleton(rng, templateEntry) {
+    const skeleton = new Skeleton(templateEntry);
+    const zones = range(rng, templateEntry.zones);
+    for (let index = 0; index < zones; index += 1) {
+        const zone = skeleton.addZone();
+        const count = range(rng, templateEntry.nodesPerZone);
+        for (let node = 0; node < count; node += 1) skeleton.addNode(zone, templateEntry.slots);
+    }
+    const zoneIds = skeleton.zones.map((zone) => zone.id);
+    const databases = range(rng, templateEntry.databases);
+    const caches = range(rng, templateEntry.caches);
+    const queues = range(rng, templateEntry.queues);
+    for (let index = 0; index < databases; index += 1) {
+        const home = rng.pick(zoneIds);
+        const primary = skeleton.addDatabase(rng, home);
+        skeleton.databases.push(primary);
+        if (rng.chance(templateEntry.replicaDatabaseProbability)) {
+            const replica = skeleton.addService(SERVICE_KIND.DATABASE, rng, { role: 'replica' });
+            skeleton.attachVolume(replica, rng.pick(zoneIds.filter((zone) => zone !== home)));
+            skeleton.connect(RELATION.REPLICATES, primary, replica);
+        }
+    }
+    for (let index = 0; index < caches; index += 1) {
+        const cache = skeleton.addService(SERVICE_KIND.CACHE, rng);
+        skeleton.caches.push(cache);
+        skeleton.connect(RELATION.BACKED_BY, cache, rng.pick(skeleton.databases));
+    }
+    const workers = [];
+    for (let index = 0; index < queues; index += 1) {
+        const queue = skeleton.addService(SERVICE_KIND.QUEUE, rng);
+        const worker = skeleton.addService(SERVICE_KIND.WORKER, rng);
+        skeleton.queues.push(queue);
+        workers.push(worker);
+        skeleton.connect(RELATION.CONSUMES, worker, queue);
+        if (rng.chance(0.8)) skeleton.connect(RELATION.WRITES, worker, rng.pick(skeleton.databases));
+    }
+    const depth = range(rng, templateEntry.depth);
+    for (let layer = 0; layer < depth; layer += 1) {
+        skeleton.layers.push(Array.from({ length: range(rng, templateEntry.mids) },
+            () => skeleton.addService(SERVICE_KIND.API, rng)));
+    }
+    const routeCount = range(rng, templateEntry.routes);
+    for (let index = 0; index < routeCount; index += 1) skeleton.entries.push(skeleton.addService(SERVICE_KIND.API, rng));
+    const call = (from, to) => skeleton.connect(
+        rng.chance(templateEntry.optionalProbability) ? RELATION.CALLS_OPTIONAL : RELATION.CALLS, from, to);
+    for (const entry of skeleton.entries) {
+        const targets = new Set(Array.from({ length: rng.range(1, 2) }, () => rng.pick(skeleton.layers[0])));
+        for (const target of targets) call(entry, target);
+    }
+    for (let layer = 0; layer + 1 < skeleton.layers.length; layer += 1) {
+        for (const service of skeleton.layers[layer]) {
+            const count = rng.range(0, 2);
+            for (let index = 0; index < count; index += 1) call(service, rng.pick(skeleton.layers[layer + 1]));
+        }
+        for (const service of skeleton.layers[layer + 1]) {
+            if (!skeleton.dependencies.some((edge) => edge.to === service)) call(rng.pick(skeleton.layers[layer]), service);
+        }
+    }
+    const readers = skeleton.databases.map((primary) => {
+        const replica = skeleton.dependencies.find((edge) => edge.type === RELATION.REPLICATES && edge.from === primary);
+        return replica ? replica.to : primary;
+    });
+    const last = skeleton.layers.length - 1;
+    skeleton.layers.forEach((services, layer) => {
+        for (const service of services) {
+            if (layer !== last && !rng.chance(0.3)) continue;
+            if (rng.chance(0.6)) skeleton.connect(RELATION.WRITES, service, rng.pick(skeleton.databases));
+            if (rng.chance(0.5)) skeleton.connect(RELATION.READS, service, rng.pick(readers));
+            if (skeleton.caches.length && rng.chance(0.5)) skeleton.connect(RELATION.READS_THROUGH, service, rng.pick(skeleton.caches));
+            if (skeleton.queues.length && rng.chance(0.4)) skeleton.connect(RELATION.PUBLISHES, service, rng.pick(skeleton.queues));
+        }
+    });
+    for (const cache of skeleton.caches) {
+        if (!skeleton.dependencies.some((edge) => edge.type === RELATION.READS_THROUGH && edge.to === cache)) {
+            skeleton.connect(RELATION.READS_THROUGH, rng.pick(skeleton.layers[last]), cache);
+        }
+    }
+    for (const queue of skeleton.queues) {
+        if (!skeleton.dependencies.some((edge) => edge.type === RELATION.PUBLISHES && edge.to === queue)) {
+            skeleton.connect(RELATION.PUBLISHES, rng.pick(skeleton.layers[last]), queue);
+        }
+    }
+    skeleton.baseRouteCount = routeCount;
+    return skeleton;
+}
+
+// Base routes share whatever the motif routes leave (section 4.3 motifs add
+// their own routes); `reserved` lists the motif shares already taken.
+function assignBaseRoutes(rng, skeleton, reservedPct = 0) {
+    const shares = composeShares(rng, skeleton.entries.length, 100 - reservedPct);
+    skeleton.entries.forEach((entry, index) => skeleton.addRoute(shares[index], entry));
+}
+
+// The world carries static parameters only; the sampling-time utilization
+// target stays in the skeleton.
+function publicService(service) {
+    const { id, kind, replicas, minHealthy, podCapacityRps, startupMs, role, volume, queueCapacity } = service;
+    return { id, kind, replicas, minHealthy, podCapacityRps, startupMs, role, volume, queueCapacity };
+}
+
+function variantWorld(skeleton, variant, placement, rps) {
+    return stable({
+        schemaVersion: WORLD_SCHEMA_VERSION,
+        kind: WORLD_KIND,
+        template: skeleton.template.id,
+        zones: skeleton.zones,
+        nodes: skeleton.nodes,
+        services: skeleton.services.map(publicService),
+        volumes: skeleton.volumes,
+        routes: variant?.routes || skeleton.routes,
+        dependencies: variant?.dependencies || skeleton.dependencies,
+        placement,
+        traffic: { rps },
+        errorBudgetPct: ERROR_BUDGET_PCT,
+    });
+}
+
+/**
+ * Size per-pod capacity and queue capacity from the healthy, warm
+ * steady-state load, taking the maximum over every wiring variant so the
+ * members of a pair share identical static features.
+ */
+function sizeCapacities(rng, skeleton, variants, rps, overrides = {}) {
+    const placeholder = Object.fromEntries(skeleton.services.map((service) => [service.id,
+        Array.from({ length: service.replicas }, () => skeleton.nodes[0].id)]));
+    const loads = variants.map((variant) => {
+        const world = variantWorld(skeleton, variant, placeholder, rps);
+        return computeLoads(world);
+    });
+    for (const service of skeleton.services) {
+        const peak = Math.max(...loads.map(({ load }) => load[service.id]));
+        // Stores are sized for warm-cache traffic and run hotter than stateless tiers.
+        const band = service.kind === SERVICE_KIND.DATABASE ? skeleton.template.databaseUtilization : skeleton.template.utilization;
+        const utilization = overrides.utilization?.[service.id]
+            ?? service.utilization
+            ?? (range(rng, [band[0] * 100, band[1] * 100]) / 100);
+        service.podCapacityRps = Math.max(10, Math.ceil(peak / (service.replicas * utilization)));
+        if (service.kind === SERVICE_KIND.QUEUE) {
+            const inflow = Math.max(...loads.map(({ inflow }) => inflow[service.id] || 0));
+            const seconds = overrides.queueSeconds?.[service.id] ?? range(rng, skeleton.template.queueSeconds);
+            service.queueCapacity = Math.max(10, Math.ceil(inflow * seconds));
+        }
+    }
+    // Twins (motif services swapped between pair members) share one capacity.
+    for (const group of overrides.groups || []) {
+        const members = group.map((id) => skeleton.service(id));
+        const capacity = Math.max(...members.map((service) => service.podCapacityRps));
+        const queue = Math.max(...members.map((service) => service.queueCapacity || 0));
+        for (const service of members) {
+            service.podCapacityRps = capacity;
+            if (service.kind === SERVICE_KIND.QUEUE) service.queueCapacity = queue;
+        }
+    }
+}
+
+// Placement policies: spread over zones and nodes, pack in node order, or
+// uniformly at random; databases stay in their volume's zone and `pinned`
+// placements (motif pods on dedicated nodes) are honoured first.
+function placePods(rng, skeleton, pinned = {}) {
+    const policy = rng.pick(['spread', 'pack', 'random']);
+    const used = new Map(skeleton.nodes.map((node) => [node.id, 0]));
+    const placement = {};
+    for (const [serviceId, nodes] of Object.entries(pinned)) {
+        placement[serviceId] = nodes.slice();
+        for (const node of nodes) used.set(node, used.get(node) + 1);
+    }
+    const dedicated = new Set(Object.values(pinned).flat());
+    for (const service of skeleton.services) {
+        const already = placement[service.id] || [];
+        const zone = skeleton.volumeZone(service.id);
+        for (let replica = already.length; replica < service.replicas; replica += 1) {
+            let candidates = skeleton.nodes.filter((node) => (
+                !dedicated.has(node.id) && used.get(node.id) < node.slots && (!zone || node.zone === zone)
+            ));
+            if (!candidates.length) {
+                const home = zone || rng.pick(skeleton.zones).id;
+                const added = skeleton.addNode(home, skeleton.template.slots);
+                candidates = [skeleton.nodes.find((node) => node.id === added)];
+                used.set(added, 0);
+            }
+            let chosen;
+            if (policy === 'pack') chosen = candidates[0];
+            else if (policy === 'random') chosen = rng.pick(candidates);
+            else {
+                const onService = new Map();
+                for (const node of already) onService.set(node, (onService.get(node) || 0) + 1);
+                chosen = candidates.slice().sort((left, right) => (
+                    (onService.get(left.id) || 0) - (onService.get(right.id) || 0)
+                    || used.get(left.id) - used.get(right.id)
+                    || left.id.localeCompare(right.id)
+                ))[0];
+            }
+            already.push(chosen.id);
+            used.set(chosen.id, used.get(chosen.id) + 1);
+        }
+        placement[service.id] = already;
+    }
+    // Keep one free slot per zone-worth of pods for rescheduling headroom.
+    const pods = skeleton.services.reduce((sum, service) => sum + service.replicas, 0);
+    const slots = skeleton.nodes.reduce((sum, node) => sum + node.slots, 0);
+    for (let extra = 0; slots + extra * skeleton.template.slots < Math.ceil(pods * 1.5); extra += 1) {
+        skeleton.addNode(skeleton.zones[extra % skeleton.zones.length].id, skeleton.template.slots);
+    }
+    return { policy, placement };
+}
+
+function generateWorld(seed, templateId, { rps = 1000 } = {}) {
+    const rng = new Rng((seed ^ 0x5bd1e995) >>> 0);
+    const skeleton = sampleSkeleton(rng, template(templateId));
+    assignBaseRoutes(rng, skeleton);
+    sizeCapacities(rng, skeleton, [null], rps);
+    const { placement, policy } = placePods(rng, skeleton);
+    const world = variantWorld(skeleton, null, placement, rps);
+    validateWorld(world);
+    return { world, placementPolicy: policy, seed, template: templateId };
+}
+
+/**
+ * Outcome-blind natural schedule (section 6): a warm-up, then 30-80 steps
+ * from one hazard process. Fault types and targets are uniform over what the
+ * world contains; nothing reads the outcome.
+ */
+function naturalSchedule(seed, world) {
+    const rng = new Rng((seed ^ 0x27d4eb2f) >>> 0);
+    const hazard = rng.range(1, 6) / 100;
+    const operations = 0.15;
+    const caches = world.services.filter((service) => service.kind === SERVICE_KIND.CACHE).map((service) => service.id);
+    const workers = world.services.filter((service) => service.kind === SERVICE_KIND.WORKER).map((service) => service.id);
+    const scalable = world.services.filter((service) => service.kind !== SERVICE_KIND.DATABASE).map((service) => service.id);
+    const nodes = world.nodes.map((node) => node.id);
+    const zones = world.zones.map((zone) => zone.id);
+    const pods = world.services.flatMap((service) => world.placement[service.id].map((_, index) => `pod/${service.id}-${index + 1}`));
+    const faults = [
+        () => ({ type: MESH_FAULT.NODE_CRASH, nodeId: rng.pick(nodes) }),
+        () => ({ type: MESH_FAULT.ZONE_DEGRADED, zoneId: rng.pick(zones) }),
+        () => ({ type: MESH_FAULT.POD_CRASH, podId: rng.pick(pods) }),
+        () => ({ type: MESH_FAULT.TRAFFIC_SPIKE, factor: rng.range(11, 16) / 10 }),
+        ...(caches.length ? [() => ({ type: MESH_FAULT.CACHE_FLUSH, serviceId: rng.pick(caches) })] : []),
+        ...(workers.length ? [() => ({ type: MESH_FAULT.CONSUMER_STALL, serviceId: rng.pick(workers),
+            durationMs: 100 * rng.range(10, 60) })] : []),
+    ];
+    const ops = [
+        () => ({ type: MESH_ACTION.SCALE, serviceId: rng.pick(scalable), replicas: rng.range(2, 6) }),
+        () => ({ type: MESH_ACTION.TRAFFIC_SHIFT, rps: 100 * rng.range(6, 14) }),
+        () => ({ type: MESH_ACTION.DRAIN_NODE, nodeId: rng.pick(nodes) }),
+        () => ({ type: MESH_ACTION.UNCORDON_NODE, nodeId: rng.pick(nodes) }),
+        () => ({ type: MESH_ACTION.RECOVER_NODE, nodeId: rng.pick(nodes) }),
+        () => ({ type: MESH_ACTION.RECOVER_ZONE, zoneId: rng.pick(zones) }),
+    ];
+    const actions = [{ type: MESH_ACTION.ADVANCE_TIME, ms: 100 * rng.range(3, 10) }];
+    const length = rng.range(30, 80);
+    for (let index = 0; index < length; index += 1) {
+        const roll = rng.float();
+        if (roll < hazard) actions.push(rng.pick(faults)());
+        else if (roll < hazard + operations) actions.push(rng.pick(ops)());
+        else actions.push({ type: MESH_ACTION.ADVANCE_TIME, ms: 100 * rng.range(1, 15) });
+    }
+    return { actions, hazard };
+}
+
+module.exports = {
+    Skeleton,
+    TEMPLATES,
+    assignBaseRoutes,
+    composeShares,
+    generateWorld,
+    naturalSchedule,
+    placePods,
+    sampleSkeleton,
+    sizeCapacities,
+    template,
+    variantWorld,
+};
+
+};
+__registry["packages/cloudproof-mesh/pairs.js"] = function (module, exports, require) {
+'use strict';
+
+// Counterfactual pairs for Phase III (CLOUDPROOF-PHASE-III-MULTISERVICE.md,
+// section 4). Each family embeds a motif in a world sampled from a template.
+// The two wirings W and W' differ by one degree-preserving double-edge swap
+// inside a single relation type; the fault is drawn 50/50 between two motif
+// targets, where under the first W exposes the high-share route and under
+// the second W' does; which wiring is called "A" is a seeded coin. Truth is
+// whatever the simulator executes to.
+
+const { digest } = require('../agent-runtime');
+const { Rng } = require('../../sim/simulator');
+const { MESH_ACTION, MESH_FAULT, RELATION, SERVICE_KIND } = require('./constants');
+const { createMeshState, step } = require('./engine');
+const {
+    assignBaseRoutes,
+    placePods,
+    sampleSkeleton,
+    sizeCapacities,
+    template,
+    variantWorld,
+} = require('./generator');
+const { actionTarget, comparePairGraphs, hopDistance, serviceGraph } = require('./graph');
+const { meshSchedule, runMeshSchedule } = require('./runner');
+const { stable, validateWorld } = require('./world');
+
+const PAIR_FAMILIES = Object.freeze(['route-entry', 'call-dependency', 'cache-backing', 'storage-zone', 'queue-consumer']);
+
+const SWAPPED_RELATION = Object.freeze({
+    'route-entry': RELATION.ENTERS,
+    'call-dependency': RELATION.CALLS,
+    'cache-backing': RELATION.BACKED_BY,
+    'storage-zone': RELATION.WRITES,
+    'queue-consumer': RELATION.CONSUMES,
+});
+
+const RPS = 1000;
+const WARMUP_MS = 500;
+const CONTINUATION = Object.freeze({ steps: 25, ms: 200 });
+
+// Motif parameter ranges, frozen after the III-A.2 simulator-only pilot (section 12).
+const MOTIF = Object.freeze({
+    highSharePct: [25, 40],
+    lowSharePct: [5, 15],
+    readerSharePct: [20, 30],
+    storeUtilization: [60, 90],
+    queueSeconds: [5, 30],
+});
+
+const between = (rng, [low, high]) => rng.range(low, high);
+
+// Two services with identical static parameters (the swapped twins).
+function twins(rng, skeleton, kind, overrides = {}) {
+    const replicas = overrides.replicas ?? (kind === SERVICE_KIND.DATABASE ? rng.range(1, 2) : between(rng, skeleton.template.replicas));
+    const shared = {
+        replicas,
+        minHealthy: overrides.minHealthy ?? (kind === SERVICE_KIND.DATABASE ? 1 : Math.ceil(replicas / 2)),
+        startupMs: overrides.startupMs ?? 100 * rng.range(skeleton.template.startupMs[0] / 100, skeleton.template.startupMs[1] / 100),
+        utilization: overrides.utilization ?? between(rng, [25, 55]) / 100,
+        role: overrides.role,
+    };
+    return [skeleton.addService(kind, rng, shared), skeleton.addService(kind, rng, shared)];
+}
+
+function reserveRoutes(rng, skeleton, extraShares = []) {
+    const high = between(rng, MOTIF.highSharePct);
+    const low = between(rng, MOTIF.lowSharePct);
+    assignBaseRoutes(rng, skeleton, high + low + extraShares.reduce((sum, share) => sum + share, 0));
+    return { high, low };
+}
+
+function sharedCallee(rng, skeleton) {
+    return rng.chance(0.5) ? rng.pick(skeleton.layers[0]) : null;
+}
+
+function withEdges(skeleton, edges) {
+    return skeleton.dependencies.concat(edges.map(([type, from, to]) => ({ type, from, to })));
+}
+
+function swapEntries(routes, first, second) {
+    const entries = new Map(routes.map((route) => [route.id, route.entry]));
+    return routes.map((route) => {
+        if (route.id === first) return { ...route, entry: entries.get(second) };
+        if (route.id === second) return { ...route, entry: entries.get(first) };
+        return route;
+    });
+}
+
+function dedicatedNodes(rng, skeleton, count) {
+    return Array.from({ length: count }, () => skeleton.addNode(rng.pick(skeleton.zones).id, skeleton.template.slots));
+}
+
+function podsOnNode(node, count) {
+    return Array.from({ length: count }, () => node);
+}
+
+const EMBED = {
+    // F1: which of two identical entries the high-share route enters.
+    'route-entry'(rng, skeleton) {
+        const [p, q] = twins(rng, skeleton, SERVICE_KIND.API);
+        const callee = sharedCallee(rng, skeleton);
+        if (callee) { skeleton.connect(RELATION.CALLS, p, callee); skeleton.connect(RELATION.CALLS, q, callee); }
+        const k = rng.range(1, skeleton.service(p).replicas);
+        const [nodeP, nodeQ] = dedicatedNodes(rng, skeleton, 2);
+        const shares = reserveRoutes(rng, skeleton);
+        const high = skeleton.addRoute(shares.high, p);
+        const low = skeleton.addRoute(shares.low, q);
+        return {
+            variants: { W: { routes: skeleton.routes, dependencies: skeleton.dependencies },
+                Wp: { routes: swapEntries(skeleton.routes, high, low), dependencies: skeleton.dependencies } },
+            faults: [{ type: MESH_FAULT.NODE_CRASH, nodeId: nodeP }, { type: MESH_FAULT.NODE_CRASH, nodeId: nodeQ }],
+            criticalRoute: high,
+            pinned: { [p]: podsOnNode(nodeP, k), [q]: podsOnNode(nodeQ, k) },
+            groups: [[p, q]],
+            motif: { twins: [p, q], dedicatedNodes: [nodeP, nodeQ], podsOnDedicatedNode: k, shares },
+        };
+    },
+
+    // F2: which of two identical callees the high-share entry calls.
+    'call-dependency'(rng, skeleton) {
+        const [c1, c2] = twins(rng, skeleton, SERVICE_KIND.API);
+        const [x, y] = twins(rng, skeleton, SERVICE_KIND.API);
+        const callee = sharedCallee(rng, skeleton);
+        if (callee) { skeleton.connect(RELATION.CALLS, c1, callee); skeleton.connect(RELATION.CALLS, c2, callee); }
+        if (rng.chance(0.5)) {
+            const database = rng.pick(skeleton.databases);
+            skeleton.connect(RELATION.WRITES, x, database);
+            skeleton.connect(RELATION.WRITES, y, database);
+        }
+        const k = rng.range(1, skeleton.service(x).replicas);
+        const [nodeX, nodeY] = dedicatedNodes(rng, skeleton, 2);
+        const shares = reserveRoutes(rng, skeleton);
+        const high = skeleton.addRoute(shares.high, c1);
+        skeleton.addRoute(shares.low, c2);
+        return {
+            variants: {
+                W: { routes: skeleton.routes, dependencies: withEdges(skeleton, [[RELATION.CALLS, c1, x], [RELATION.CALLS, c2, y]]) },
+                Wp: { routes: skeleton.routes, dependencies: withEdges(skeleton, [[RELATION.CALLS, c1, y], [RELATION.CALLS, c2, x]]) },
+            },
+            faults: [{ type: MESH_FAULT.NODE_CRASH, nodeId: nodeX }, { type: MESH_FAULT.NODE_CRASH, nodeId: nodeY }],
+            criticalRoute: high,
+            pinned: { [x]: podsOnNode(nodeX, k), [y]: podsOnNode(nodeY, k) },
+            groups: [[c1, c2], [x, y]],
+            motif: { twins: [x, y], dedicatedNodes: [nodeX, nodeY], podsOnDedicatedNode: k, shares },
+        };
+    },
+
+    // F3: which of two identical stores a flushed cache falls through to.
+    'cache-backing'(rng, skeleton) {
+        const [e1, e2] = twins(rng, skeleton, SERVICE_KIND.API);
+        const zones = skeleton.zones.map((zone) => zone.id);
+        const storeUtilization = between(rng, MOTIF.storeUtilization) / 100;
+        const [s1, s2] = twins(rng, skeleton, SERVICE_KIND.DATABASE, { role: 'primary', utilization: storeUtilization });
+        skeleton.attachVolume(s1, rng.pick(zones));
+        skeleton.attachVolume(s2, rng.pick(zones));
+        const [k1, k2] = twins(rng, skeleton, SERVICE_KIND.CACHE);
+        const reader = skeleton.addService(SERVICE_KIND.API, rng);
+        skeleton.connect(RELATION.WRITES, e1, s1);
+        skeleton.connect(RELATION.WRITES, e2, s2);
+        skeleton.connect(RELATION.READS_THROUGH, reader, k1);
+        skeleton.connect(RELATION.READS_THROUGH, reader, k2);
+        const readerShare = between(rng, MOTIF.readerSharePct);
+        const shares = reserveRoutes(rng, skeleton, [readerShare]);
+        const high = skeleton.addRoute(shares.high, e1);
+        skeleton.addRoute(shares.low, e2);
+        skeleton.addRoute(readerShare, reader);
+        return {
+            variants: {
+                W: { routes: skeleton.routes, dependencies: withEdges(skeleton, [[RELATION.BACKED_BY, k1, s1], [RELATION.BACKED_BY, k2, s2]]) },
+                Wp: { routes: skeleton.routes, dependencies: withEdges(skeleton, [[RELATION.BACKED_BY, k1, s2], [RELATION.BACKED_BY, k2, s1]]) },
+            },
+            faults: [{ type: MESH_FAULT.CACHE_FLUSH, serviceId: k1 }, { type: MESH_FAULT.CACHE_FLUSH, serviceId: k2 }],
+            criticalRoute: high,
+            pinned: {},
+            groups: [[e1, e2], [s1, s2], [k1, k2]],
+            motif: { twins: [k1, k2], stores: [s1, s2], storeUtilization, shares: { ...shares, reader: readerShare } },
+        };
+    },
+
+    // F4: which of two identical databases, each in its own storage zone,
+    // the high-share writer depends on when one of those zones degrades.
+    // Dedicated storage zones keep the zone fault from also removing a share
+    // of every compute service, which would make both members fail.
+    'storage-zone'(rng, skeleton) {
+        const [e1, e2] = twins(rng, skeleton, SERVICE_KIND.API);
+        const [d1, d2] = twins(rng, skeleton, SERVICE_KIND.DATABASE, { role: 'primary' });
+        const zoneA = skeleton.addZone();
+        const zoneB = skeleton.addZone();
+        const nodeA = skeleton.addNode(zoneA, skeleton.template.slots);
+        const nodeB = skeleton.addNode(zoneB, skeleton.template.slots);
+        skeleton.attachVolume(d1, zoneA);
+        skeleton.attachVolume(d2, zoneB);
+        const replicas = skeleton.service(d1).replicas;
+        const shares = reserveRoutes(rng, skeleton);
+        const high = skeleton.addRoute(shares.high, e1);
+        skeleton.addRoute(shares.low, e2);
+        return {
+            variants: {
+                W: { routes: skeleton.routes, dependencies: withEdges(skeleton, [[RELATION.WRITES, e1, d1], [RELATION.WRITES, e2, d2]]) },
+                Wp: { routes: skeleton.routes, dependencies: withEdges(skeleton, [[RELATION.WRITES, e1, d2], [RELATION.WRITES, e2, d1]]) },
+            },
+            faults: [{ type: MESH_FAULT.ZONE_DEGRADED, zoneId: zoneA }, { type: MESH_FAULT.ZONE_DEGRADED, zoneId: zoneB }],
+            criticalRoute: high,
+            pinned: { [d1]: podsOnNode(nodeA, replicas), [d2]: podsOnNode(nodeB, replicas) },
+            groups: [[e1, e2], [d1, d2]],
+            motif: { twins: [d1, d2], zones: [zoneA, zoneB], shares },
+        };
+    },
+
+    // F5: which of two identical workers drains the high-rate queue.
+    'queue-consumer'(rng, skeleton) {
+        const [p1, p2] = twins(rng, skeleton, SERVICE_KIND.API);
+        const [q1, q2] = twins(rng, skeleton, SERVICE_KIND.QUEUE);
+        const [w1, w2] = twins(rng, skeleton, SERVICE_KIND.WORKER);
+        skeleton.connect(RELATION.PUBLISHES, p1, q1);
+        skeleton.connect(RELATION.PUBLISHES, p2, q2);
+        const [node1, node2] = dedicatedNodes(rng, skeleton, 2);
+        const replicas = skeleton.service(w1).replicas;
+        const queueSeconds = between(rng, MOTIF.queueSeconds) / 10;
+        const shares = reserveRoutes(rng, skeleton);
+        const high = skeleton.addRoute(shares.high, p1);
+        skeleton.addRoute(shares.low, p2);
+        return {
+            variants: {
+                W: { routes: skeleton.routes, dependencies: withEdges(skeleton, [[RELATION.CONSUMES, w1, q1], [RELATION.CONSUMES, w2, q2]]) },
+                Wp: { routes: skeleton.routes, dependencies: withEdges(skeleton, [[RELATION.CONSUMES, w1, q2], [RELATION.CONSUMES, w2, q1]]) },
+            },
+            faults: [{ type: MESH_FAULT.NODE_CRASH, nodeId: node1 }, { type: MESH_FAULT.NODE_CRASH, nodeId: node2 }],
+            criticalRoute: high,
+            pinned: { [w1]: podsOnNode(node1, replicas), [w2]: podsOnNode(node2, replicas) },
+            groups: [[p1, p2], [q1, q2], [w1, w2]],
+            queueSeconds: { [q1]: queueSeconds, [q2]: queueSeconds },
+            motif: { twins: [w1, w2], queues: [q1, q2], dedicatedNodes: [node1, node2], queueSeconds, shares },
+        };
+    },
+};
+
+function familySalt(family) {
+    return PAIR_FAMILIES.indexOf(family) + 1;
+}
+
+/** Build both members of one pair; nothing here runs the simulator. */
+function buildPair({ seed, family, templateId }) {
+    if (!EMBED[family]) throw new TypeError(`unknown pair family: ${family}`);
+    const entry = template(templateId);
+    const rng = new Rng(((seed * 2654435761) ^ (familySalt(family) * 0x9e3779b9)) >>> 0);
+    const skeleton = sampleSkeleton(rng, entry);
+    const motif = EMBED[family](rng, skeleton);
+    sizeCapacities(rng, skeleton, [motif.variants.W, motif.variants.Wp], RPS,
+        { groups: motif.groups, queueSeconds: motif.queueSeconds });
+    const { placement, policy } = placePods(rng, skeleton, motif.pinned);
+    const worlds = {
+        W: variantWorld(skeleton, motif.variants.W, placement, RPS),
+        Wp: variantWorld(skeleton, motif.variants.Wp, placement, RPS),
+    };
+    validateWorld(worlds.W);
+    validateWorld(worlds.Wp);
+    const faultIndex = rng.int(2);
+    const fault = motif.faults[faultIndex];
+    const order = rng.chance(0.5) ? { A: 'W', B: 'Wp' } : { A: 'Wp', B: 'W' };
+    const actions = [
+        { type: MESH_ACTION.ADVANCE_TIME, ms: WARMUP_MS },
+        fault,
+        ...Array.from({ length: CONTINUATION.steps }, () => ({ type: MESH_ACTION.ADVANCE_TIME, ms: CONTINUATION.ms })),
+    ];
+    const pairId = `mesh-pair-${family}-${templateId}-${seed}`;
+    const schedules = Object.fromEntries(['A', 'B'].map((member) => [member, meshSchedule({
+        seed, world: worlds[order[member]], actions,
+        metadata: { pairId, variant: member, family },
+    })]));
+    return stable({
+        pairId,
+        family,
+        template: templateId,
+        split: entry.split,
+        seed,
+        swappedRelation: SWAPPED_RELATION[family],
+        fault,
+        faultIndex,
+        exposedWiring: faultIndex === 0 ? 'W' : 'Wp',
+        order,
+        criticalRoute: motif.criticalRoute,
+        placementPolicy: policy,
+        motif: motif.motif,
+        wiringDigests: { W: digest(worlds.W.dependencies.concat(worlds.W.routes)), Wp: digest(worlds.Wp.dependencies.concat(worlds.Wp.routes)) },
+        schedules,
+    });
+}
+
+/** Run both members, check P1-P5 at the intervention row, and label the pair. */
+function evaluatePair(pair) {
+    const members = ['A', 'B'];
+    const fault = pair.fault;
+    const intervention = {};
+    for (const member of members) {
+        const schedule = pair.schedules[member];
+        const warm = step(createMeshState(schedule.world), schedule.actions[0]);
+        intervention[member] = { state: warm.state, violated: Boolean(warm.violation) };
+    }
+    const graphs = Object.fromEntries(members.map((member) => [member, serviceGraph(intervention[member].state)]));
+    const comparison = comparePairGraphs(graphs.A, graphs.B, fault);
+    const runs = Object.fromEntries(members.map((member) => [member, runMeshSchedule(pair.schedules[member])]));
+    const preFault = members.some((member) => intervention[member].violated || !runs[member].valid);
+    const assertions = {
+        P1_pooledIdentical: comparison.pooledIdentical,
+        P2_degreeAwareIdentical: comparison.degreeAwareIdentical,
+        P3_sameActions: JSON.stringify(pair.schedules.A.actions) === JSON.stringify(pair.schedules.B.actions),
+        P4_onlySwappedRelationDiffers: JSON.stringify(comparison.differingRelations) === JSON.stringify([pair.swappedRelation]),
+        P5_sameNodesNoPreFaultViolation: comparison.nodesIdenticalById && !preFault,
+    };
+    const valid = Object.values(assertions).every(Boolean);
+    const unsafe = Object.fromEntries(members.map((member) => [member, Boolean(runs[member].outcome?.unsafe)]));
+    const decisive = valid && unsafe.A !== unsafe.B;
+    const riskier = decisive ? (unsafe.A ? 'A' : 'B') : null;
+    const exposedMember = pair.order.A === pair.exposedWiring ? 'A' : 'B';
+    const target = actionTarget(fault);
+    return stable({
+        pairId: pair.pairId,
+        family: pair.family,
+        template: pair.template,
+        split: pair.split,
+        seed: pair.seed,
+        valid,
+        assertions,
+        truth: Object.fromEntries(members.map((member) => [member, {
+            unsafe: unsafe[member],
+            failure: runs[member].outcome?.failure || null,
+            fingerprint: runs[member].fingerprint || null,
+        }])),
+        decisive,
+        riskier,
+        exposedMember,
+        riskierIsExposed: decisive ? riskier === exposedMember : null,
+        canonicalRiskier: decisive ? pair.order[riskier] === 'W' : null,
+        hopsFromFaultToCriticalRoute: hopDistance(graphs[exposedMember], target, pair.criticalRoute),
+    });
+}
+
+module.exports = {
+    CONTINUATION,
+    MOTIF,
+    PAIR_FAMILIES,
+    SWAPPED_RELATION,
+    WARMUP_MS,
+    buildPair,
+    evaluatePair,
+};
+
+};
+__registry["packages/cloudproof-ops/sha256.js"] = function (module, exports, require) {
+'use strict';
+
+// Portable, synchronous SHA-256 for the Operations Console.
+//
+// The browser bundle maps `crypto.createHash` to a fast non-cryptographic
+// stand-in (tools/build-web.js), so a digest computed in the page would not
+// match one computed by Node. Evidence bundles are exported from the browser
+// and re-verified in Node, so every digest the console shows or exports goes
+// through this one implementation instead. ops.test.js checks it against
+// node:crypto.
+
+const K = new Uint32Array([
+    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+    0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+    0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+    0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+    0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+]);
+
+function utf8(text) {
+    const bytes = [];
+    for (let index = 0; index < text.length; index += 1) {
+        let code = text.charCodeAt(index);
+        if (code >= 0xd800 && code <= 0xdbff && index + 1 < text.length) {
+            const low = text.charCodeAt(index + 1);
+            if (low >= 0xdc00 && low <= 0xdfff) {
+                code = 0x10000 + ((code - 0xd800) << 10) + (low - 0xdc00);
+                index += 1;
+            }
+        }
+        if (code < 0x80) bytes.push(code);
+        else if (code < 0x800) bytes.push(0xc0 | (code >> 6), 0x80 | (code & 63));
+        else if (code < 0x10000) bytes.push(0xe0 | (code >> 12), 0x80 | ((code >> 6) & 63), 0x80 | (code & 63));
+        else bytes.push(0xf0 | (code >> 18), 0x80 | ((code >> 12) & 63), 0x80 | ((code >> 6) & 63), 0x80 | (code & 63));
+    }
+    return bytes;
+}
+
+function sha256Hex(text) {
+    const bytes = utf8(String(text));
+    const bitLength = bytes.length * 8;
+    bytes.push(0x80);
+    while (bytes.length % 64 !== 56) bytes.push(0);
+    const high = Math.floor(bitLength / 0x100000000);
+    const low = bitLength >>> 0;
+    bytes.push((high >>> 24) & 255, (high >>> 16) & 255, (high >>> 8) & 255, high & 255,
+        (low >>> 24) & 255, (low >>> 16) & 255, (low >>> 8) & 255, low & 255);
+    const hash = new Uint32Array([
+        0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
+    ]);
+    const w = new Uint32Array(64);
+    for (let offset = 0; offset < bytes.length; offset += 64) {
+        for (let index = 0; index < 16; index += 1) {
+            const at = offset + index * 4;
+            w[index] = (bytes[at] << 24) | (bytes[at + 1] << 16) | (bytes[at + 2] << 8) | bytes[at + 3];
+        }
+        for (let index = 16; index < 64; index += 1) {
+            const a = w[index - 15];
+            const b = w[index - 2];
+            const s0 = ((a >>> 7) | (a << 25)) ^ ((a >>> 18) | (a << 14)) ^ (a >>> 3);
+            const s1 = ((b >>> 17) | (b << 15)) ^ ((b >>> 19) | (b << 13)) ^ (b >>> 10);
+            w[index] = (w[index - 16] + s0 + w[index - 7] + s1) >>> 0;
+        }
+        let [a, b, c, d, e, f, g, h] = hash;
+        for (let index = 0; index < 64; index += 1) {
+            const S1 = ((e >>> 6) | (e << 26)) ^ ((e >>> 11) | (e << 21)) ^ ((e >>> 25) | (e << 7));
+            const choice = (e & f) ^ (~e & g);
+            const t1 = (h + S1 + choice + K[index] + w[index]) >>> 0;
+            const S0 = ((a >>> 2) | (a << 30)) ^ ((a >>> 13) | (a << 19)) ^ ((a >>> 22) | (a << 10));
+            const majority = (a & b) ^ (a & c) ^ (b & c);
+            const t2 = (S0 + majority) >>> 0;
+            h = g; g = f; f = e; e = (d + t1) >>> 0;
+            d = c; c = b; b = a; a = (t1 + t2) >>> 0;
+        }
+        hash[0] += a; hash[1] += b; hash[2] += c; hash[3] += d;
+        hash[4] += e; hash[5] += f; hash[6] += g; hash[7] += h;
+    }
+    return Array.from(hash, (word) => word.toString(16).padStart(8, '0')).join('');
+}
+
+function canonical(value) {
+    if (Array.isArray(value)) return value.map(canonical);
+    if (value && typeof value === 'object') {
+        return Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonical(value[key])]));
+    }
+    return value;
+}
+
+/** SHA-256 of the key-sorted JSON encoding; identical in Node and the browser. */
+function canonicalDigest(value) {
+    const encoded = JSON.stringify(canonical(value));
+    return sha256Hex(encoded === undefined ? 'undefined' : encoded);
+}
+
+module.exports = { canonical, canonicalDigest, sha256Hex };
+
+};
+__registry["packages/cloudproof-ops/scenarios.js"] = function (module, exports, require) {
+'use strict';
+
+// Hand-authored CloudProof Mesh worlds for the Operations Console.
+//
+// Each scenario is an ordinary `cloudproof.mesh-world` (validated by
+// packages/cloudproof-mesh/world.js) plus presentation metadata: readable
+// labels, the version each deployment runs, and the demo changes that the
+// one-click cards configure. Nothing here changes simulator semantics; the
+// numbers below are the static parameters the simulator reads.
+
+const { validateWorld } = require('../cloudproof-mesh/world');
+
+const MESH_WORLD = 'cloudproof.mesh-world';
+
+function service(id, kind, replicas, minHealthy, podCapacityRps, startupMs, extra = {}) {
+    return {
+        id,
+        kind,
+        replicas,
+        minHealthy,
+        podCapacityRps,
+        startupMs,
+        role: extra.role || null,
+        volume: extra.volume || null,
+        queueCapacity: kind === 'queue' ? extra.queueCapacity : null,
+    };
+}
+
+function sixNodes(slots = 8) {
+    return ['a', 'b', 'c'].flatMap((zone) => [1, 2].map((index) => ({
+        id: `node-${zone}${index}`, zone: `zone-${zone}`, slots,
+    })));
+}
+
+// Checkout stack: the topology the console opens on. Three routes enter three
+// independent APIs so that one failing tier costs one route's share of traffic,
+// not all of it. Payment runs five replicas with two in zone-b: losing zone-b
+// alone leaves three, which is exactly its minimum.
+function checkoutWorld() {
+    return {
+        schemaVersion: 1,
+        kind: MESH_WORLD,
+        template: 'ops-checkout',
+        zones: [{ id: 'zone-a' }, { id: 'zone-b' }, { id: 'zone-c' }],
+        nodes: sixNodes(),
+        services: [
+            service('storefront', 'api', 3, 2, 300, 800),
+            service('product-cache', 'cache', 3, 2, 250, 600),
+            service('catalog-db', 'database', 1, 1, 450, 1500, { role: 'primary', volume: 'vol-catalog' }),
+            service('checkout', 'api', 3, 2, 200, 900),
+            service('payment', 'api', 5, 3, 120, 1200),
+            service('ledger-db', 'database', 2, 1, 800, 1500, { role: 'primary', volume: 'vol-ledger' }),
+            service('ledger-replica', 'database', 1, 1, 1000, 1500, { role: 'replica', volume: 'vol-ledger-replica' }),
+            service('order-queue', 'queue', 3, 1, 400, 600, { queueCapacity: 1600 }),
+            service('fulfillment', 'worker', 3, 1, 175, 900),
+            service('account', 'api', 2, 1, 150, 700),
+        ],
+        volumes: [
+            { id: 'vol-catalog', zone: 'zone-c', service: 'catalog-db' },
+            { id: 'vol-ledger', zone: 'zone-a', service: 'ledger-db' },
+            { id: 'vol-ledger-replica', zone: 'zone-c', service: 'ledger-replica' },
+        ],
+        routes: [
+            { id: 'browse', sharePct: 50, entry: 'storefront' },
+            { id: 'checkout', sharePct: 35, entry: 'checkout' },
+            { id: 'account', sharePct: 15, entry: 'account' },
+        ],
+        dependencies: [
+            { type: 'READS_THROUGH', from: 'storefront', to: 'product-cache' },
+            { type: 'BACKED_BY', from: 'product-cache', to: 'catalog-db' },
+            { type: 'CALLS', from: 'checkout', to: 'payment' },
+            { type: 'PUBLISHES', from: 'checkout', to: 'order-queue' },
+            { type: 'WRITES', from: 'payment', to: 'ledger-db' },
+            { type: 'REPLICATES', from: 'ledger-db', to: 'ledger-replica' },
+            { type: 'CONSUMES', from: 'fulfillment', to: 'order-queue' },
+            { type: 'WRITES', from: 'fulfillment', to: 'ledger-db' },
+            { type: 'READS', from: 'account', to: 'ledger-replica' },
+        ],
+        placement: {
+            storefront: ['node-a1', 'node-b1', 'node-c1'],
+            'product-cache': ['node-a2', 'node-b2', 'node-c2'],
+            'catalog-db': ['node-c1'],
+            checkout: ['node-a1', 'node-b2', 'node-c2'],
+            payment: ['node-a1', 'node-b1', 'node-b2', 'node-c1', 'node-c2'],
+            'ledger-db': ['node-a1', 'node-a2'],
+            'ledger-replica': ['node-c2'],
+            'order-queue': ['node-a1', 'node-b1', 'node-c1'],
+            fulfillment: ['node-a2', 'node-b2', 'node-c1'],
+            account: ['node-b1', 'node-c2'],
+        },
+        traffic: { rps: 1000 },
+        errorBudgetPct: 20,
+    };
+}
+
+// Async order pipeline: the write path is decoupled by a queue, so a database
+// failover shows up as queue backlog before it shows up as failed requests.
+function ordersWorld() {
+    return {
+        schemaVersion: 1,
+        kind: MESH_WORLD,
+        template: 'ops-orders',
+        zones: [{ id: 'zone-a' }, { id: 'zone-b' }, { id: 'zone-c' }],
+        nodes: sixNodes(),
+        services: [
+            service('orders-api', 'api', 3, 2, 350, 800),
+            service('order-queue', 'queue', 2, 1, 600, 600, { queueCapacity: 2400 }),
+            service('order-worker', 'worker', 4, 1, 200, 900),
+            service('orders-db', 'database', 1, 1, 900, 1500, { role: 'primary', volume: 'vol-orders' }),
+            service('orders-replica', 'database', 1, 1, 900, 1500, { role: 'replica', volume: 'vol-orders-replica' }),
+            service('status-api', 'api', 2, 1, 400, 700),
+        ],
+        volumes: [
+            { id: 'vol-orders', zone: 'zone-a', service: 'orders-db' },
+            { id: 'vol-orders-replica', zone: 'zone-b', service: 'orders-replica' },
+        ],
+        routes: [
+            { id: 'place-order', sharePct: 60, entry: 'orders-api' },
+            { id: 'order-status', sharePct: 40, entry: 'status-api' },
+        ],
+        dependencies: [
+            { type: 'PUBLISHES', from: 'orders-api', to: 'order-queue' },
+            { type: 'CONSUMES', from: 'order-worker', to: 'order-queue' },
+            { type: 'WRITES', from: 'order-worker', to: 'orders-db' },
+            { type: 'REPLICATES', from: 'orders-db', to: 'orders-replica' },
+            { type: 'READS', from: 'status-api', to: 'orders-replica' },
+        ],
+        placement: {
+            'orders-api': ['node-a1', 'node-b1', 'node-c1'],
+            'order-queue': ['node-b2', 'node-c2'],
+            'order-worker': ['node-a1', 'node-b1', 'node-c1', 'node-c2'],
+            'orders-db': ['node-a2'],
+            'orders-replica': ['node-b2'],
+            'status-api': ['node-a1', 'node-c2'],
+        },
+        traffic: { rps: 1000 },
+        errorBudgetPct: 20,
+    };
+}
+
+const LABELS = {
+    storefront: 'Storefront API',
+    'product-cache': 'Product cache',
+    'catalog-db': 'Catalog DB',
+    checkout: 'Checkout API',
+    payment: 'Payment API',
+    'ledger-db': 'Ledger DB (primary)',
+    'ledger-replica': 'Ledger DB (replica)',
+    'order-queue': 'Order queue',
+    fulfillment: 'Fulfillment worker',
+    account: 'Account API',
+    'orders-api': 'Orders API',
+    'order-worker': 'Order worker',
+    'orders-db': 'Orders DB (primary)',
+    'orders-replica': 'Orders DB (replica)',
+    'status-api': 'Order status API',
+};
+
+// Invariants are parameters of the observation functions in invariants.js;
+// every value maps onto state the simulator already computes.
+const SCENARIOS = [
+    {
+        id: 'checkout',
+        name: 'Checkout stack',
+        summary: 'Storefront reads through a product cache; checkout calls payment and publishes orders to a queue; payment and fulfillment write a replicated ledger.',
+        build: checkoutWorld,
+        versions: {
+            storefront: 'v18', 'product-cache': 'v7', checkout: 'v33', payment: 'v41',
+            fulfillment: 'v12', account: 'v9', 'order-queue': 'v3', 'catalog-db': 'pg15', 'ledger-db': 'pg15', 'ledger-replica': 'pg15',
+        },
+        criticalRoute: 'checkout',
+        invariants: [
+            { id: 'route-checkout', kind: 'route-available', route: 'checkout' },
+            { id: 'error-budget', kind: 'error-budget', maxPct: 20 },
+            { id: 'payment-healthy', kind: 'min-healthy', service: 'payment', min: 3 },
+            { id: 'queue-backlog', kind: 'queue-backlog', queue: 'order-queue', max: 1000 },
+            { id: 'ledger-failover', kind: 'failover-deadline', database: 'ledger-db', maxMs: 2000 },
+        ],
+    },
+    {
+        id: 'orders',
+        name: 'Async order pipeline',
+        summary: 'Orders are accepted into a queue and written by workers to a replicated orders database; order status reads the replica.',
+        build: ordersWorld,
+        versions: { 'orders-api': 'v27', 'order-queue': 'v3', 'order-worker': 'v15', 'orders-db': 'pg15', 'orders-replica': 'pg15', 'status-api': 'v6' },
+        criticalRoute: 'place-order',
+        invariants: [
+            { id: 'route-place-order', kind: 'route-available', route: 'place-order' },
+            { id: 'error-budget', kind: 'error-budget', maxPct: 20 },
+            { id: 'queue-backlog', kind: 'queue-backlog', queue: 'order-queue', max: 1500 },
+            { id: 'orders-failover', kind: 'failover-deadline', database: 'orders-db', maxMs: 2000 },
+        ],
+    },
+];
+
+// One-click demos. Each configures a real scenario, change, fault model and
+// budget; the verdict is whatever the search finds.
+const DEMOS = [
+    {
+        id: 'rollout-payment',
+        title: 'Roll out payment v42',
+        caption: 'maxSurge 1 · maxUnavailable 1 · zone, node and traffic faults',
+        scenario: 'checkout',
+        change: { type: 'rollout', service: 'payment', toVersion: 'v42', maxSurge: 1, maxUnavailable: 1 },
+        faults: ['zone-degraded', 'readiness-delay', 'traffic-spike'],
+        budget: 'standard',
+        useCase: 'before-deploy',
+    },
+    {
+        id: 'drain-zone-b',
+        title: 'Drain zone B',
+        caption: 'maintenance drain, one node every 1.5 s',
+        scenario: 'checkout',
+        change: { type: 'drain-zone', zone: 'zone-b', intervalMs: 1500 },
+        faults: ['node-crash', 'traffic-spike'],
+        budget: 'standard',
+        useCase: 'before-maintenance',
+    },
+    {
+        id: 'fail-primary-db',
+        title: 'Fail over the orders database',
+        caption: 'planned primary failover · async writes absorb it, until they don\'t',
+        scenario: 'orders',
+        change: { type: 'db-failover', database: 'orders-db' },
+        faults: ['node-crash', 'traffic-spike', 'consumer-stall'],
+        budget: 'standard',
+        useCase: 'before-maintenance',
+    },
+    {
+        id: 'spike-checkout',
+        title: 'Spike checkout traffic',
+        caption: 'cost cut: fulfillment workers 3 → 2 before an order surge',
+        scenario: 'checkout',
+        change: { type: 'scale', service: 'fulfillment', replicas: 2 },
+        faults: ['traffic-spike', 'consumer-stall', 'node-crash'],
+        budget: 'standard',
+        useCase: 'before-deploy',
+    },
+    {
+        id: 'cache-rollout',
+        title: 'Break cache during rollout',
+        caption: 'product-cache v7 → v8 while a cache node can fail',
+        scenario: 'checkout',
+        change: { type: 'rollout', service: 'product-cache', toVersion: 'v8', maxSurge: 0, maxUnavailable: 1 },
+        faults: ['node-crash', 'cache-loss', 'traffic-spike'],
+        budget: 'standard',
+        useCase: 'chaos-regression',
+    },
+];
+
+const USE_CASES = [
+    { id: 'before-deploy', title: 'Before deploy', copy: 'Verify rollout + traffic + infrastructure failure combinations.', demo: 'rollout-payment', mode: 'verify' },
+    { id: 'before-maintenance', title: 'Before maintenance', copy: 'Test node and zone drains against availability invariants.', demo: 'drain-zone-b', mode: 'verify' },
+    { id: 'during-incident', title: 'During incident', copy: 'Reproduce the failure and shrink it to its causal core.', mode: 'incident' },
+    { id: 'architecture-review', title: 'Architecture review', copy: 'Compare equivalent-looking dependency graphs under identical faults.', mode: 'architecture' },
+    { id: 'sre-guardrail', title: 'Autonomous SRE guardrail', copy: 'Verify a proposed remediation before allowing execution.', demo: 'rollout-payment', mode: 'verify', remediate: true },
+    { id: 'chaos-regression', title: 'Chaos regression', copy: 'Turn every discovered failure into a deterministic replay test.', demo: 'cache-rollout', mode: 'verify' },
+];
+
+function scenarioById(id) {
+    return SCENARIOS.find((scenario) => scenario.id === id) || null;
+}
+
+function listScenarios() {
+    return SCENARIOS.map(({ id, name, summary, criticalRoute }) => ({ id, name, summary, criticalRoute }));
+}
+
+/** A fresh, validated copy of a scenario's world and metadata. */
+function loadScenario(id) {
+    const scenario = scenarioById(id);
+    if (!scenario) throw new TypeError(`unknown scenario: ${id}`);
+    const world = scenario.build();
+    validateWorld(world);
+    return {
+        id: scenario.id,
+        name: scenario.name,
+        summary: scenario.summary,
+        world,
+        versions: { ...scenario.versions },
+        labels: Object.fromEntries(world.services.map((item) => [item.id, LABELS[item.id] || item.id])),
+        criticalRoute: scenario.criticalRoute,
+        invariants: scenario.invariants.map((item) => ({ ...item })),
+    };
+}
+
+function demoById(id) {
+    return DEMOS.find((demo) => demo.id === id) || null;
+}
+
+module.exports = {
+    DEMOS,
+    LABELS,
+    SCENARIOS,
+    USE_CASES,
+    demoById,
+    listScenarios,
+    loadScenario,
+    scenarioById,
+};
+
+};
+__registry["packages/cloudproof-ops/invariants.js"] = function (module, exports, require) {
+'use strict';
+
+// Modeled invariants for the Operations Console.
+//
+// An invariant here is an observation of state the CloudProof Mesh engine has
+// already computed (`state.derived`, `state.services`, `state.pods`). None of
+// them changes what the simulator does; they only decide which simulated
+// moments count as violations. The engine's own SLO (route error budget, fixed
+// at 20% by the Phase III world) is the default `error-budget` invariant.
+
+const { replicaOf } = require('../cloudproof-mesh/world');
+
+const INVARIANT_KINDS = Object.freeze({
+    'route-available': {
+        title: 'Critical route available',
+        parameters: [{ key: 'route', label: 'Route', type: 'route' }],
+        source: 'state.derived.routes[route].failing',
+    },
+    'error-budget': {
+        title: 'Route error budget preserved',
+        parameters: [{ key: 'maxPct', label: 'Max failing traffic', type: 'number', unit: '%', min: 0, max: 100, step: 1 }],
+        source: 'state.derived.errorSharePct',
+    },
+    'min-healthy': {
+        title: 'Minimum healthy replicas',
+        parameters: [
+            { key: 'service', label: 'Service', type: 'service' },
+            { key: 'min', label: 'Min healthy pods', type: 'number', min: 1, max: 64, step: 1 },
+        ],
+        source: 'state.derived.health[service].healthy',
+    },
+    'queue-backlog': {
+        title: 'Queue backlog below limit',
+        parameters: [
+            { key: 'queue', label: 'Queue', type: 'queue' },
+            { key: 'max', label: 'Max backlog', type: 'number', unit: 'msgs', min: 1, max: 1_000_000, step: 50 },
+        ],
+        source: 'state.services[queue].backlog',
+    },
+    'failover-deadline': {
+        title: 'Database write path restored in time',
+        parameters: [
+            { key: 'database', label: 'Primary database', type: 'primary' },
+            { key: 'maxMs', label: 'Deadline', type: 'number', unit: 'ms', min: 100, max: 60_000, step: 100 },
+        ],
+        source: 'state.derived.health[writeTarget].up, state.services[database].promoted',
+    },
+});
+
+function describeInvariant(invariant, labels = {}) {
+    const name = (id) => labels[id] || id;
+    switch (invariant.kind) {
+        case 'route-available': return `${invariant.route} route stays available`;
+        case 'error-budget': return `failing traffic share ≤ ${invariant.maxPct}%`;
+        case 'min-healthy': return `${name(invariant.service)} healthy pods ≥ ${invariant.min}`;
+        case 'queue-backlog': return `${name(invariant.queue)} backlog ≤ ${invariant.max} messages`;
+        case 'failover-deadline': return `${name(invariant.database)} writes restored within ${(invariant.maxMs / 1000).toFixed(1)} s`;
+        default: return invariant.kind;
+    }
+}
+
+function requireKnown(world, invariant) {
+    const services = new Map(world.services.map((item) => [item.id, item]));
+    const fail = (message) => { throw new TypeError(`invariant ${invariant.id}: ${message}`); };
+    if (!INVARIANT_KINDS[invariant.kind]) fail(`unknown kind ${invariant.kind}`);
+    const number = (value, min, max) => Number.isFinite(value) && value >= min && value <= max;
+    switch (invariant.kind) {
+        case 'route-available':
+            if (!world.routes.some((route) => route.id === invariant.route)) fail(`unknown route ${invariant.route}`);
+            break;
+        case 'error-budget':
+            if (!number(invariant.maxPct, 0, 100)) fail('maxPct must be within [0, 100]');
+            break;
+        case 'min-healthy':
+            if (!services.has(invariant.service)) fail(`unknown service ${invariant.service}`);
+            if (!Number.isInteger(invariant.min) || invariant.min < 1) fail('min must be a positive integer');
+            break;
+        case 'queue-backlog':
+            if (services.get(invariant.queue)?.kind !== 'queue') fail(`${invariant.queue} is not a queue`);
+            if (!number(invariant.max, 1, 1e9)) fail('max must be positive');
+            break;
+        case 'failover-deadline':
+            if (services.get(invariant.database)?.role !== 'primary') fail(`${invariant.database} is not a primary database`);
+            if (!Number.isInteger(invariant.maxMs) || invariant.maxMs < 100) fail('maxMs must be an integer ≥ 100');
+            break;
+        default:
+    }
+    return true;
+}
+
+function validateInvariants(world, invariants) {
+    if (!Array.isArray(invariants) || !invariants.length) throw new TypeError('at least one invariant is required');
+    const ids = new Set();
+    for (const invariant of invariants) {
+        if (typeof invariant.id !== 'string' || !invariant.id) throw new TypeError('invariants need string ids');
+        if (ids.has(invariant.id)) throw new TypeError(`duplicate invariant id ${invariant.id}`);
+        ids.add(invariant.id);
+        requireKnown(world, invariant);
+    }
+    return true;
+}
+
+function writeTarget(state, database) {
+    const replica = replicaOf(state.world, database);
+    return state.services[database].promoted && replica ? replica : database;
+}
+
+/**
+ * One stateful monitor per invariant. `observe(state)` returns null or a
+ * violation record; the failover monitor carries the time the write path
+ * went down across observations, which is why monitors are objects.
+ */
+function createMonitor(invariant) {
+    let downSinceMs = null;
+    return {
+        invariant,
+        observe(state) {
+            const derived = state.derived;
+            switch (invariant.kind) {
+                case 'route-available': {
+                    if (!derived.routes[invariant.route].failing) return null;
+                    const route = state.world.routes.find((item) => item.id === invariant.route);
+                    return { expected: 'serving', observed: `failing (entry ${route.entry} down)`, subject: invariant.route };
+                }
+                case 'error-budget':
+                    if (derived.errorSharePct <= invariant.maxPct) return null;
+                    return { expected: `≤ ${invariant.maxPct}%`, observed: `${derived.errorSharePct}%`, subject: 'routes' };
+                case 'min-healthy': {
+                    const healthy = derived.health[invariant.service].healthy;
+                    if (healthy >= invariant.min) return null;
+                    return { expected: `≥ ${invariant.min}`, observed: String(healthy), subject: invariant.service };
+                }
+                case 'queue-backlog': {
+                    const backlog = state.services[invariant.queue].backlog;
+                    if (backlog <= invariant.max) return null;
+                    return { expected: `≤ ${invariant.max}`, observed: String(Math.round(backlog)), subject: invariant.queue };
+                }
+                case 'failover-deadline': {
+                    const target = writeTarget(state, invariant.database);
+                    if (derived.health[target].up) { downSinceMs = null; return null; }
+                    if (downSinceMs === null) downSinceMs = state.clockMs;
+                    const down = state.clockMs - downSinceMs;
+                    if (down <= invariant.maxMs) return null;
+                    return { expected: `≤ ${invariant.maxMs} ms`, observed: `${down} ms without a writable ${invariant.database}`, subject: invariant.database };
+                }
+                default:
+                    return null;
+            }
+        },
+    };
+}
+
+/** Observe every monitor; returns the violations at this instant, in configured order. */
+function observeAll(monitors, state) {
+    const found = [];
+    for (const monitor of monitors) {
+        const violation = monitor.observe(state);
+        if (violation) found.push({ invariant: monitor.invariant.id, kind: monitor.invariant.kind, atMs: state.clockMs, ...violation });
+    }
+    return found;
+}
+
+module.exports = {
+    INVARIANT_KINDS,
+    createMonitor,
+    describeInvariant,
+    observeAll,
+    validateInvariants,
+};
+
+};
+__registry["packages/cloudproof-ops/graph-model.js"] = function (module, exports, require) {
+'use strict';
+
+// Canonical graph data for the Operations Console renderer.
+//
+// The renderer draws exactly this object; it never reads simulator state. The
+// layout is a pure function of the world's structure (not of its runtime
+// state), so nodes stay where they are while a replay moves through time.
+
+const { POD_PHASE, RELATION, SERVICE_KIND } = require('../cloudproof-mesh/constants');
+const { nodeReady, podServing, volumeAvailable } = require('../cloudproof-mesh/engine');
+const { replicaOf } = require('../cloudproof-mesh/world');
+
+const GRAPH_KIND = 'cloudproof.ops-graph';
+const NODE_W = 176;
+const NODE_H = 90;
+const GAP_X = 30;
+const GAP_Y = 58;
+const ROUTE_H = 30;
+const PAD = 24;
+
+const EDGE_SEMANTICS = Object.freeze({
+    CALLS: { hard: true, verb: 'calls' },
+    CALLS_OPTIONAL: { hard: false, verb: 'optionally calls' },
+    READS_THROUGH: { hard: true, verb: 'reads through' },
+    BACKED_BY: { hard: false, verb: 'misses fall through to' },
+    WRITES: { hard: true, verb: 'writes' },
+    READS: { hard: true, verb: 'reads' },
+    REPLICATES: { hard: false, verb: 'replicates to' },
+    PUBLISHES: { hard: true, verb: 'publishes to' },
+    CONSUMES: { hard: false, verb: 'consumes from' },
+});
+
+function edgeId(edge) {
+    return `${edge.type}:${edge.from}->${edge.to}`;
+}
+
+// Direction requests travel: CONSUMES is written worker -> queue but work
+// flows queue -> worker.
+function flowOf(edge) {
+    return edge.type === RELATION.CONSUMES ? [edge.to, edge.from] : [edge.from, edge.to];
+}
+
+/** Layered layout: routes on top, stateless tiers by longest path, storage at the bottom. */
+function layoutWorld(world) {
+    const services = world.services.map((item) => item.id).sort();
+    const kinds = new Map(world.services.map((item) => [item.id, item.kind]));
+    const next = new Map(services.map((id) => [id, []]));
+    const parents = new Map(services.map((id) => [id, []]));
+    for (const edge of world.dependencies) {
+        const [from, to] = flowOf(edge);
+        next.get(from).push(to);
+        parents.get(to).push(from);
+    }
+    const entries = new Set(world.routes.map((route) => route.entry));
+    const depth = new Map();
+    const visit = (id, seen = new Set()) => {
+        if (depth.has(id)) return depth.get(id);
+        if (seen.has(id)) return 1;
+        seen.add(id);
+        const incoming = parents.get(id).filter((parent) => kinds.get(parent) !== SERVICE_KIND.DATABASE);
+        const value = incoming.length ? 1 + Math.max(...incoming.map((parent) => visit(parent, seen))) : 1;
+        depth.set(id, value);
+        return value;
+    };
+    services.forEach((id) => visit(id));
+    for (const id of entries) depth.set(id, 1);
+    const storage = services.filter((id) => kinds.get(id) === SERVICE_KIND.DATABASE);
+    const compute = services.filter((id) => kinds.get(id) !== SERVICE_KIND.DATABASE);
+    const bottom = Math.max(1, ...compute.map((id) => depth.get(id))) + 1;
+    for (const id of storage) depth.set(id, bottom);
+    const layers = [];
+    for (const id of services) {
+        const layer = depth.get(id);
+        (layers[layer] = layers[layer] || []).push(id);
+    }
+    const order = new Map();
+    world.routes.forEach((route, index) => order.set(`route:${route.id}`, index));
+    // Entries follow route order; each later layer sorts by the mean position
+    // of its parents, ties broken by id. Two sweeps are plenty at this size.
+    const routeIndex = new Map();
+    world.routes.forEach((route, index) => { if (!routeIndex.has(route.entry)) routeIndex.set(route.entry, index); });
+    // Ties go to request-path tiers first (an API before the queue it feeds).
+    const rank = { api: 0, cache: 1, queue: 2, worker: 3, database: 4 };
+    const placeLayer = (ids, key) => ids.slice().sort((left, right) => key(left) - key(right)
+        || rank[kinds.get(left)] - rank[kinds.get(right)] || left.localeCompare(right));
+    for (let sweep = 0; sweep < 2; sweep += 1) {
+        for (let layer = 1; layer < layers.length; layer += 1) {
+            if (!layers[layer]) continue;
+            const key = (id) => {
+                if (layer === 1 && routeIndex.has(id)) return routeIndex.get(id);
+                const known = parents.get(id).filter((parent) => order.has(parent));
+                if (!known.length) return layer === 1 ? 1000 : (order.get(id) ?? 1000);
+                return known.reduce((sum, parent) => sum + order.get(parent), 0) / known.length;
+            };
+            layers[layer] = placeLayer(layers[layer], key);
+            layers[layer].forEach((id, index) => order.set(id, index + (layer === 1 ? 0 : 0)));
+        }
+    }
+    const widest = Math.max(world.routes.length, ...layers.filter(Boolean).map((ids) => ids.length));
+    const width = PAD * 2 + widest * NODE_W + (widest - 1) * GAP_X;
+    const positions = {};
+    const rowY = (layer) => PAD + ROUTE_H + GAP_Y * 0.6 + (layer - 1) * (NODE_H + GAP_Y);
+    const centre = (count, index, itemWidth) => {
+        const span = count * itemWidth + (count - 1) * GAP_X;
+        return (width - span) / 2 + index * (itemWidth + GAP_X);
+    };
+    for (let layer = 1; layer < layers.length; layer += 1) {
+        const ids = layers[layer] || [];
+        ids.forEach((id, index) => { positions[id] = { x: centre(ids.length, index, NODE_W), y: rowY(layer), layer }; });
+    }
+    const routes = {};
+    world.routes.forEach((route) => {
+        const target = positions[route.entry];
+        routes[route.id] = { x: target.x + NODE_W / 2, y: PAD };
+    });
+    // Two routes entering one service would overlap; fan them out.
+    const byEntry = new Map();
+    for (const route of world.routes) (byEntry.get(route.entry) || byEntry.set(route.entry, []).get(route.entry)).push(route.id);
+    for (const ids of byEntry.values()) {
+        ids.forEach((id, index) => { routes[id].x += (index - (ids.length - 1) / 2) * 44; });
+    }
+    const height = rowY(layers.length - 1) + NODE_H + PAD;
+    return { width, height, node: { width: NODE_W, height: NODE_H }, positions, routes };
+}
+
+function podFacts(state, pod) {
+    return { id: pod.id, service: pod.service, node: pod.node, phase: pod.phase, serving: podServing(state, pod) };
+}
+
+/**
+ * Canonical graph data for one simulator state. `meta` carries labels and
+ * versions for display only.
+ */
+function graphModel(state, meta = {}) {
+    const world = state.world;
+    const labels = meta.labels || {};
+    const versions = meta.versions || {};
+    const layout = meta.layout || layoutWorld(world);
+    const derived = state.derived;
+    const zoneOfNode = new Map(world.nodes.map((node) => [node.id, node.zone]));
+    const services = world.services.map((item) => {
+        const health = derived.health[item.id];
+        const runtime = state.services[item.id];
+        const pods = state.pods.filter((pod) => pod.service === item.id).map((pod) => podFacts(state, pod));
+        const zones = {};
+        for (const zone of world.zones) zones[zone.id] = { total: 0, serving: 0 };
+        for (const pod of pods) {
+            if (!pod.node) continue;
+            const zone = zoneOfNode.get(pod.node);
+            zones[zone].total += 1;
+            if (pod.serving) zones[zone].serving += 1;
+        }
+        const replica = item.role === 'primary' ? replicaOf(world, item.id) : null;
+        return {
+            id: item.id,
+            label: labels[item.id] || item.id,
+            version: versions[item.id] || null,
+            kind: item.kind,
+            role: item.role,
+            desired: runtime.desiredReplicas,
+            minHealthy: item.minHealthy,
+            healthy: health.healthy,
+            podCapacityRps: item.podCapacityRps,
+            capacityRps: health.capacityRps,
+            loadRps: Math.round(health.load * 10) / 10,
+            utilization: health.capacityRps ? Math.round((health.load / health.capacityRps) * 1000) / 1000 : null,
+            up: health.up,
+            intrinsicUp: health.intrinsicUp,
+            overloaded: Boolean(health.overloaded),
+            cause: health.cause,
+            promoted: runtime.promoted,
+            replica,
+            cacheCold: item.kind === SERVICE_KIND.CACHE && runtime.coldUntilMs > state.clockMs,
+            stalled: item.kind === SERVICE_KIND.WORKER && runtime.stalledUntilMs > state.clockMs,
+            backlog: item.kind === SERVICE_KIND.QUEUE ? Math.round(runtime.backlog) : null,
+            queueCapacity: item.queueCapacity,
+            queueFull: item.kind === SERVICE_KIND.QUEUE ? Boolean(derived.queueFull[item.id]) : false,
+            volume: item.volume ? { id: item.volume, available: volumeAvailable(state, item.volume) } : null,
+            zones,
+            pods,
+            position: layout.positions[item.id],
+        };
+    });
+    const edges = world.dependencies.map((edge) => {
+        const [flowFrom, flowTo] = flowOf(edge);
+        return {
+            id: edgeId(edge),
+            type: edge.type,
+            from: edge.from,
+            to: edge.to,
+            flowFrom,
+            flowTo,
+            hard: EDGE_SEMANTICS[edge.type].hard,
+            verb: EDGE_SEMANTICS[edge.type].verb,
+        };
+    });
+    const routes = world.routes.map((route) => ({
+        id: route.id,
+        entry: route.entry,
+        sharePct: route.sharePct,
+        rps: Math.round((route.sharePct / 100) * state.rps),
+        failing: derived.routes[route.id].failing,
+        position: layout.routes[route.id],
+    }));
+    const zones = world.zones.map((zone) => ({
+        id: zone.id,
+        degraded: state.zones[zone.id].degraded,
+        nodes: world.nodes.filter((node) => node.zone === zone.id).map((node) => ({
+            id: node.id,
+            slots: node.slots,
+            ready: nodeReady(state, node.id),
+            crashed: state.nodes[node.id].crashed,
+            cordoned: state.nodes[node.id].cordoned,
+            pods: state.pods.filter((pod) => pod.node === node.id).map((pod) => podFacts(state, pod)),
+        })),
+    }));
+    const unplaced = state.pods.filter((pod) => !pod.node || pod.phase === POD_PHASE.PENDING)
+        .filter((pod) => !pod.node).map((pod) => podFacts(state, pod));
+    return {
+        schemaVersion: 1,
+        kind: GRAPH_KIND,
+        clockMs: state.clockMs,
+        rps: state.rps,
+        baseRps: world.traffic.rps,
+        services,
+        edges,
+        routes,
+        zones,
+        unplaced,
+        derived: { violating: derived.violating, errorSharePct: derived.errorSharePct, incident: derived.incident },
+        layout: { width: layout.width, height: layout.height, node: layout.node },
+    };
+}
+
+module.exports = {
+    EDGE_SEMANTICS,
+    GRAPH_KIND,
+    edgeId,
+    flowOf,
+    graphModel,
+    layoutWorld,
+};
+
+};
+__registry["packages/cloudproof-ops/changes.js"] = function (module, exports, require) {
+'use strict';
+
+// Proposed changes and the controllers that carry them out.
+//
+// A change is executed by a small deterministic controller that reads the
+// current simulator state once per 100 ms tick and emits ordinary CloudProof
+// Mesh actions (scale, pod restart, node drain). The mesh engine decides what
+// those actions do; the controller only decides when to issue them, the way
+// a Deployment controller waits for readiness before replacing the next pod.
+
+const { MESH_ACTION, MESH_FAULT, POD_PHASE, SERVICE_KIND } = require('../cloudproof-mesh/constants');
+
+const CHANGE_TYPES = Object.freeze({
+    rollout: { title: 'Roll out version', kinds: [SERVICE_KIND.API, SERVICE_KIND.CACHE, SERVICE_KIND.WORKER] },
+    scale: { title: 'Scale service', kinds: [SERVICE_KIND.API, SERVICE_KIND.CACHE, SERVICE_KIND.WORKER, SERVICE_KIND.QUEUE] },
+    'drain-node': { title: 'Drain node' },
+    'drain-zone': { title: 'Drain zone' },
+    'db-failover': { title: 'Fail over database' },
+});
+
+const DEFAULT_STRATEGY = Object.freeze({ maxSurge: 1, maxUnavailable: 1 });
+
+function serviceOf(world, id) {
+    return world.services.find((item) => item.id === id) || null;
+}
+
+function integerIn(value, low, high) {
+    return Number.isInteger(value) && value >= low && value <= high;
+}
+
+function validateChange(world, change) {
+    if (!change || !CHANGE_TYPES[change.type]) throw new TypeError(`unknown change type: ${change?.type}`);
+    const fail = (message) => { throw new TypeError(`${change.type}: ${message}`); };
+    switch (change.type) {
+        case 'rollout': {
+            const target = serviceOf(world, change.service);
+            if (!target || !CHANGE_TYPES.rollout.kinds.includes(target.kind)) fail('needs an api, cache or worker service');
+            if (typeof change.toVersion !== 'string' || !change.toVersion) fail('needs a target version');
+            if (!integerIn(change.maxSurge, 0, 64)) fail('maxSurge must be an integer in [0, 64]');
+            if (!integerIn(change.maxUnavailable, 0, target.replicas)) fail(`maxUnavailable must be an integer in [0, ${target.replicas}]`);
+            if (change.maxSurge === 0 && change.maxUnavailable === 0) fail('maxSurge and maxUnavailable cannot both be 0');
+            break;
+        }
+        case 'scale': {
+            const target = serviceOf(world, change.service);
+            if (!target || !CHANGE_TYPES.scale.kinds.includes(target.kind)) fail('needs a non-database service');
+            if (!integerIn(change.replicas, 1, 64)) fail('replicas must be an integer in [1, 64]');
+            if (change.replicas === target.replicas) fail(`${change.service} already runs ${target.replicas} replicas`);
+            break;
+        }
+        case 'drain-node':
+            if (!world.nodes.some((node) => node.id === change.node)) fail(`unknown node ${change.node}`);
+            break;
+        case 'drain-zone':
+            if (!world.zones.some((zone) => zone.id === change.zone)) fail(`unknown zone ${change.zone}`);
+            if (!integerIn(change.intervalMs, 0, 30_000) || change.intervalMs % 100 !== 0) fail('intervalMs must be a multiple of 100 in [0, 30000]');
+            break;
+        case 'db-failover': {
+            const target = serviceOf(world, change.database);
+            if (target?.role !== 'primary') fail('needs a primary database');
+            if (!world.dependencies.some((edge) => edge.type === 'REPLICATES' && edge.from === change.database)) {
+                fail(`${change.database} has no replica to fail over to`);
+            }
+            break;
+        }
+        default:
+    }
+    return true;
+}
+
+function servingCount(state, serviceId) {
+    return state.derived.health[serviceId].healthy;
+}
+
+function settled(state) {
+    return state.pods.every((pod) => pod.phase === POD_PHASE.RUNNING)
+        && state.world.services.every((item) => state.derived.health[item.id].healthy >= state.services[item.id].desiredReplicas);
+}
+
+function podsOnNodes(world, serviceId) {
+    return [...new Set(world.placement[serviceId])];
+}
+
+/**
+ * A controller emits labelled mesh actions. `next(state)` is called once per
+ * tick before time advances; `complete` flips once the change has finished.
+ */
+function createController(world, change, versions = {}) {
+    validateChange(world, change);
+    const label = (text) => text;
+    switch (change.type) {
+        case 'rollout': {
+            const target = serviceOf(world, change.service);
+            const replicas = target.replicas;
+            const from = versions[change.service] || 'current';
+            const originals = Array.from({ length: replicas }, (_, index) => `pod/${change.service}-${index + 1}`);
+            const restarted = new Set();
+            let phase = change.maxSurge > 0 ? 'surge' : 'rolling';
+            return {
+                get complete() { return phase === 'complete'; },
+                next(state) {
+                    if (phase === 'surge') {
+                        phase = 'rolling';
+                        return [{
+                            action: { type: MESH_ACTION.SCALE, serviceId: change.service, replicas: replicas + change.maxSurge },
+                            label: label(`Rollout adds ${change.maxSurge} surge pod${change.maxSurge > 1 ? 's' : ''} running ${change.toVersion} (${replicas} → ${replicas + change.maxSurge})`),
+                            step: 'surge',
+                        }];
+                    }
+                    if (phase !== 'rolling') return [];
+                    const remaining = originals.filter((id) => !restarted.has(id));
+                    if (!remaining.length) {
+                        if (servingCount(state, change.service) < replicas + change.maxSurge) return [];
+                        phase = 'complete';
+                        if (change.maxSurge === 0) return [];
+                        return [{
+                            action: { type: MESH_ACTION.SCALE, serviceId: change.service, replicas },
+                            label: label(`Rollout finishes: surge removed, ${replicas} pods on ${change.toVersion}`),
+                            step: 'finish',
+                        }];
+                    }
+                    const allowed = servingCount(state, change.service) - (replicas - change.maxUnavailable);
+                    const batch = remaining.slice(0, Math.max(0, allowed));
+                    return batch.map((podId) => {
+                        restarted.add(podId);
+                        return {
+                            action: { type: MESH_FAULT.POD_CRASH, podId },
+                            label: label(`Rollout replaces ${podId} (${from} → ${change.toVersion}); it stops serving until the new version is ready`),
+                            step: 'replace',
+                        };
+                    });
+                },
+            };
+        }
+        case 'scale': {
+            const target = serviceOf(world, change.service);
+            let issued = false;
+            return {
+                get complete() { return issued; },
+                next(state) {
+                    if (issued) return [];
+                    issued = true;
+                    return [{
+                        action: { type: MESH_ACTION.SCALE, serviceId: change.service, replicas: change.replicas },
+                        label: label(`Scale ${change.service} ${target.replicas} → ${change.replicas} replicas`),
+                        step: 'scale',
+                    }];
+                },
+            };
+        }
+        case 'drain-node': {
+            let phase = 'drain';
+            return {
+                get complete() { return phase === 'complete'; },
+                next(state) {
+                    if (phase === 'drain') {
+                        phase = 'waiting';
+                        return [{
+                            action: { type: MESH_ACTION.DRAIN_NODE, nodeId: change.node },
+                            label: label(`Drain ${change.node}: cordon it and evict its pods`),
+                            step: 'drain',
+                        }];
+                    }
+                    if (phase === 'waiting' && settled(state)) phase = 'complete';
+                    return [];
+                },
+            };
+        }
+        case 'drain-zone': {
+            const nodes = world.nodes.filter((node) => node.zone === change.zone).map((node) => node.id).sort();
+            let index = 0;
+            let lastAt = null;
+            let phase = 'draining';
+            return {
+                get complete() { return phase === 'complete'; },
+                next(state) {
+                    if (phase === 'draining') {
+                        if (lastAt !== null && state.clockMs - lastAt < change.intervalMs) return [];
+                        const out = [];
+                        do {
+                            const nodeId = nodes[index];
+                            index += 1;
+                            out.push({
+                                action: { type: MESH_ACTION.DRAIN_NODE, nodeId },
+                                label: label(`Drain ${nodeId} (${index}/${nodes.length} in ${change.zone})`),
+                                step: 'drain',
+                            });
+                        } while (change.intervalMs === 0 && index < nodes.length);
+                        lastAt = state.clockMs;
+                        if (index >= nodes.length) phase = 'waiting';
+                        return out;
+                    }
+                    if (phase === 'waiting' && settled(state)) phase = 'complete';
+                    return [];
+                },
+            };
+        }
+        case 'db-failover': {
+            const nodes = podsOnNodes(world, change.database);
+            let phase = 'drain';
+            return {
+                get complete() { return phase === 'complete'; },
+                next(state) {
+                    if (phase === 'drain') {
+                        phase = 'waiting';
+                        return nodes.map((nodeId) => ({
+                            action: { type: MESH_ACTION.DRAIN_NODE, nodeId },
+                            label: label(`Planned failover: drain ${nodeId}, taking ${change.database} offline so its replica is promoted`),
+                            step: 'drain',
+                        }));
+                    }
+                    if (phase === 'waiting' && state.services[change.database].promoted && settled(state)) phase = 'complete';
+                    return [];
+                },
+            };
+        }
+        default:
+            throw new TypeError(`unknown change type: ${change.type}`);
+    }
+}
+
+/** The service a change acts on, when there is one. */
+function changeTarget(change) {
+    return change.service || change.database || change.node || change.zone || null;
+}
+
+/**
+ * Before/after rows for the change diff. `sensitive` marks the rows that
+ * reduce available capacity while the change runs.
+ */
+function describeChange(world, change, versions = {}, strategy = DEFAULT_STRATEGY) {
+    validateChange(world, change);
+    const rows = [];
+    const row = (field, before, after, sensitive = false, note = null) => rows.push({ field, before, after, changed: String(before) !== String(after), sensitive, note });
+    let title;
+    switch (change.type) {
+        case 'rollout': {
+            const target = serviceOf(world, change.service);
+            title = `${change.service} deployment`;
+            row('version', versions[change.service] || 'current', change.toVersion);
+            row('replicas', target.replicas, target.replicas);
+            row('maxSurge', strategy.maxSurge, change.maxSurge);
+            row('maxUnavailable', strategy.maxUnavailable, change.maxUnavailable, change.maxUnavailable > 0,
+                change.maxUnavailable > 0 ? `up to ${change.maxUnavailable} of ${target.replicas} pods may be out of service at once` : null);
+            row('minHealthy', target.minHealthy, target.minHealthy, target.replicas - change.maxUnavailable < target.minHealthy + 1,
+                'serving pods needed for the service to count as up');
+            break;
+        }
+        case 'scale': {
+            const target = serviceOf(world, change.service);
+            title = `${change.service} replicas`;
+            row('replicas', target.replicas, change.replicas, change.replicas < target.replicas,
+                change.replicas < target.replicas ? `capacity ${target.replicas * target.podCapacityRps} → ${change.replicas * target.podCapacityRps} rps` : null);
+            row('capacity (rps)', target.replicas * target.podCapacityRps, change.replicas * target.podCapacityRps, change.replicas < target.replicas);
+            break;
+        }
+        case 'drain-node': {
+            const pods = world.services.flatMap((item) => world.placement[item.id].filter((node) => node === change.node).map(() => item.id));
+            title = `${change.node} maintenance`;
+            row('schedulable', 'yes', 'no (cordoned)', true);
+            row('pods evicted', 0, pods.length, pods.length > 0, [...new Set(pods)].join(', ') || null);
+            break;
+        }
+        case 'drain-zone': {
+            const nodes = world.nodes.filter((node) => node.zone === change.zone).map((node) => node.id);
+            const pods = world.services.reduce((sum, item) => sum + world.placement[item.id].filter((node) => nodes.includes(node)).length, 0);
+            title = `${change.zone} maintenance`;
+            row('nodes cordoned', 0, nodes.length, true, nodes.join(', '));
+            row('pods evicted', 0, pods, pods > 0);
+            row('drain interval', '—', `${(change.intervalMs / 1000).toFixed(1)} s`, change.intervalMs < 1000);
+            break;
+        }
+        case 'db-failover': {
+            const replica = world.dependencies.find((edge) => edge.type === 'REPLICATES' && edge.from === change.database).to;
+            title = `${change.database} failover`;
+            row('write primary', change.database, replica, true, 'promotion happens after the failover delay (1.5 s)');
+            row('reads + writes on', `${change.database} + ${replica}`, replica, true, 'the promoted replica serves both');
+            break;
+        }
+        default:
+    }
+    return { title, type: change.type, typeTitle: CHANGE_TYPES[change.type].title, rows };
+}
+
+function changeSummary(change) {
+    switch (change.type) {
+        case 'rollout': return `Roll out ${change.service} ${change.toVersion} (maxSurge ${change.maxSurge}, maxUnavailable ${change.maxUnavailable})`;
+        case 'scale': return `Scale ${change.service} to ${change.replicas} replicas`;
+        case 'drain-node': return `Drain ${change.node}`;
+        case 'drain-zone': return `Drain ${change.zone}, one node every ${(change.intervalMs / 1000).toFixed(1)} s`;
+        case 'db-failover': return `Fail over ${change.database} to its replica`;
+        default: return change.type;
+    }
+}
+
+module.exports = {
+    CHANGE_TYPES,
+    DEFAULT_STRATEGY,
+    changeSummary,
+    changeTarget,
+    createController,
+    describeChange,
+    settled,
+    validateChange,
+};
+
+};
+__registry["packages/cloudproof-ops/faults.js"] = function (module, exports, require) {
+'use strict';
+
+// Fault model for the Operations Console: named families that expand, for a
+// given world, into concrete fault variants. A variant is a short timeline of
+// CloudProof Mesh actions relative to its injection time (a zone that degrades
+// and later recovers, a spike that later subsides). `readiness-delay` is the
+// one family that edits the world instead: pods take longer to become ready.
+
+const { MESH_ACTION, MESH_FAULT, SERVICE_KIND, TIMING } = require('../cloudproof-mesh/constants');
+
+const ZONE_OUTAGE_MS = 5000;
+const SPIKE_MS = 6000;
+const SPIKE_FACTORS = Object.freeze([1.3, 1.6]);
+const STALL_MS = Object.freeze([2000, 5000]);
+const READINESS_FACTOR = 3;
+
+const FAULT_FAMILIES = Object.freeze({
+    'node-crash': { title: 'Node crash', modeled: true, detail: 'a node fails; its pods are rescheduled after the eviction delay' },
+    'zone-degraded': { title: 'Zone degradation', modeled: true, detail: `every node and volume in one zone stops serving for ${ZONE_OUTAGE_MS / 1000} s` },
+    'readiness-delay': { title: 'Readiness delay', modeled: true, detail: `new pods take ${READINESS_FACTOR}× longer to become ready` },
+    'dependency-latency': { title: 'Dependency latency', modeled: false, detail: 'not modeled: the Phase III mesh has no latency dimension' },
+    'cache-loss': { title: 'Cache loss', modeled: true, detail: `a cache is flushed and misses everything for ${TIMING.cacheWarmupMs / 1000} s` },
+    'consumer-stall': { title: 'Queue consumer stall', modeled: true, detail: 'a worker service stops consuming for a while' },
+    'db-failover': { title: 'Database failover', modeled: true, detail: 'a primary database crashes; the replica is promoted after 1.5 s' },
+    'traffic-spike': { title: 'Traffic spike', modeled: true, detail: `traffic rises ×${SPIKE_FACTORS.join(' or ×')} for ${SPIKE_MS / 1000} s` },
+});
+
+function validateFamilies(families) {
+    if (!Array.isArray(families)) throw new TypeError('faults must be a list of fault families');
+    for (const family of families) {
+        if (!FAULT_FAMILIES[family]) throw new TypeError(`unknown fault family: ${family}`);
+        if (!FAULT_FAMILIES[family].modeled) throw new TypeError(`${FAULT_FAMILIES[family].title} is not modeled by the simulator`);
+    }
+    return true;
+}
+
+/** Slot-placed fault variants the families expand to in this world. */
+function faultVariants(world, families) {
+    validateFamilies(families);
+    const enabled = new Set(families);
+    const variants = [];
+    const add = (id, family, label, timeline) => variants.push({ id, family, label, timeline });
+    if (enabled.has('node-crash')) {
+        for (const node of world.nodes) {
+            add(`node-crash:${node.id}`, 'node-crash', `${node.id} crashes`,
+                [{ dt: 0, action: { type: MESH_FAULT.NODE_CRASH, nodeId: node.id } }]);
+        }
+    }
+    if (enabled.has('zone-degraded')) {
+        for (const zone of world.zones) {
+            add(`zone-degraded:${zone.id}`, 'zone-degraded', `${zone.id} degraded (${ZONE_OUTAGE_MS / 1000} s)`, [
+                { dt: 0, action: { type: MESH_FAULT.ZONE_DEGRADED, zoneId: zone.id } },
+                { dt: ZONE_OUTAGE_MS, action: { type: MESH_ACTION.RECOVER_ZONE, zoneId: zone.id } },
+            ]);
+        }
+    }
+    if (enabled.has('traffic-spike')) {
+        for (const factor of SPIKE_FACTORS) {
+            add(`traffic-spike:${factor}`, 'traffic-spike', `traffic ×${factor} (${SPIKE_MS / 1000} s)`, [
+                { dt: 0, action: { type: MESH_FAULT.TRAFFIC_SPIKE, factor } },
+                { dt: SPIKE_MS, action: { type: MESH_ACTION.TRAFFIC_SHIFT, rps: world.traffic.rps } },
+            ]);
+        }
+    }
+    if (enabled.has('cache-loss')) {
+        for (const item of world.services.filter((candidate) => candidate.kind === SERVICE_KIND.CACHE)) {
+            add(`cache-loss:${item.id}`, 'cache-loss', `${item.id} flushed`,
+                [{ dt: 0, action: { type: MESH_FAULT.CACHE_FLUSH, serviceId: item.id } }]);
+        }
+    }
+    if (enabled.has('consumer-stall')) {
+        for (const item of world.services.filter((candidate) => candidate.kind === SERVICE_KIND.WORKER)) {
+            for (const durationMs of STALL_MS) {
+                add(`consumer-stall:${item.id}:${durationMs}`, 'consumer-stall', `${item.id} stalls ${durationMs / 1000} s`,
+                    [{ dt: 0, action: { type: MESH_FAULT.CONSUMER_STALL, serviceId: item.id, durationMs } }]);
+            }
+        }
+    }
+    if (enabled.has('db-failover')) {
+        const primaries = world.services.filter((item) => item.role === 'primary'
+            && world.dependencies.some((edge) => edge.type === 'REPLICATES' && edge.from === item.id));
+        for (const item of primaries) {
+            add(`db-failover:${item.id}`, 'db-failover', `${item.id} primary crashes`,
+                world.placement[item.id].map((_, index) => ({ dt: 0, action: { type: MESH_FAULT.POD_CRASH, podId: `pod/${item.id}-${index + 1}` } })));
+        }
+    }
+    return variants;
+}
+
+/** World edit for the readiness-delay family: every pod starts slower. */
+function applyReadinessDelay(world) {
+    const next = JSON.parse(JSON.stringify(world));
+    for (const item of next.services) item.startupMs = Math.min(60_000, item.startupMs * READINESS_FACTOR);
+    return next;
+}
+
+/** Expand placed variants into absolute-time fault actions, stable by time. */
+function expandPlacements(placements, variantsById) {
+    const actions = [];
+    placements.forEach((placement, order) => {
+        const variant = variantsById.get(placement.variant);
+        variant.timeline.forEach((entry, index) => actions.push({
+            atMs: placement.atMs + entry.dt,
+            action: entry.action,
+            variant: variant.id,
+            label: index === 0 ? variant.label : `${variant.label}: ends`,
+            order,
+            index,
+        }));
+    });
+    return actions.sort((left, right) => left.atMs - right.atMs || left.order - right.order || left.index - right.index)
+        .map(({ atMs, action, variant, label }) => ({ atMs, action, variant, label }));
+}
+
+function placementLabel(placements, readiness, variantsById) {
+    const parts = placements.map((placement) => `${variantsById.get(placement.variant).label} @${(placement.atMs / 1000).toFixed(1)}s`);
+    if (readiness) parts.push('slow readiness');
+    return parts.join(' + ') || 'no faults';
+}
+
+module.exports = {
+    FAULT_FAMILIES,
+    READINESS_FACTOR,
+    SPIKE_FACTORS,
+    SPIKE_MS,
+    STALL_MS,
+    ZONE_OUTAGE_MS,
+    applyReadinessDelay,
+    expandPlacements,
+    faultVariants,
+    placementLabel,
+    validateFamilies,
+};
+
+};
+__registry["packages/cloudproof-ops/causes.js"] = function (module, exports, require) {
+'use strict';
+
+// Root causes, read from the causes the CloudProof Mesh engine records on
+// every service during propagation (`state.derived.health[id].cause`).
+
+const { INCIDENT_CLASS } = require('../cloudproof-mesh/constants');
+
+/** Walk the engine's recorded causes from `serviceId` to an intrinsic root. */
+function causalChain(state, serviceId) {
+    const chain = [serviceId];
+    let current = serviceId;
+    const seen = new Set([serviceId]);
+    for (;;) {
+        const cause = state.derived.health[current]?.cause;
+        if (!cause) return { chain, root: current, incidentClass: null };
+        if (cause.kind === 'intrinsic') return { chain, root: current, incidentClass: cause.class };
+        if (cause.kind === 'backpressure') {
+            chain.push(cause.via);
+            return { chain, root: cause.via, incidentClass: INCIDENT_CLASS.QUEUE_BACKPRESSURE };
+        }
+        if (seen.has(cause.via)) return { chain, root: current, incidentClass: INCIDENT_CLASS.INSTANCE_LOSS };
+        seen.add(cause.via);
+        chain.push(cause.via);
+        current = cause.via;
+    }
+}
+
+function worstFailingRoute(state) {
+    return state.world.routes
+        .filter((route) => state.derived.routes[route.id].failing)
+        .sort((left, right) => right.sharePct - left.sharePct || left.id.localeCompare(right.id))[0] || null;
+}
+
+/** Root cause of one violation, computed for that invariant's own subject. */
+function rootCauseOf(state, violation, invariant) {
+    const world = state.world;
+    switch (invariant.kind) {
+        case 'route-available': {
+            const route = world.routes.find((item) => item.id === invariant.route);
+            return { route: route.id, ...causalChain(state, route.entry) };
+        }
+        case 'error-budget': {
+            const route = worstFailingRoute(state);
+            return route ? { route: route.id, ...causalChain(state, route.entry) } : { route: null, chain: [], root: null, incidentClass: null };
+        }
+        case 'min-healthy':
+            return { route: null, chain: [invariant.service], root: invariant.service, incidentClass: INCIDENT_CLASS.INSTANCE_LOSS };
+        case 'queue-backlog':
+            return { route: null, chain: [invariant.queue], root: invariant.queue, incidentClass: 'QUEUE_BACKLOG' };
+        case 'failover-deadline': {
+            const cause = state.derived.health[invariant.database].cause;
+            return {
+                route: null,
+                chain: [invariant.database],
+                root: invariant.database,
+                incidentClass: cause?.kind === 'intrinsic' ? cause.class : INCIDENT_CLASS.INSTANCE_LOSS,
+            };
+        }
+        default:
+            return { route: null, chain: [], root: null, incidentClass: null };
+    }
+}
+
+module.exports = { causalChain, rootCauseOf, worstFailingRoute };
+
+};
+__registry["packages/cloudproof-ops/verify.js"] = function (module, exports, require) {
+'use strict';
+
+// Bounded, deterministic verification of one proposed change.
+//
+// The search explores schedules: the change's controller running while
+// exogenous faults are injected at chosen times. Every schedule executes on
+// the CloudProof Mesh engine; the modeled invariants in invariants.js are
+// checked after every instant action and every 100 ms tick. A violation only
+// counts against the change when the same faults, without the change, do not
+// violate the same invariant; otherwise it is reported as a pre-existing risk.
+//
+// Given the same configuration and seed, the search visits the same schedules
+// in the same order and returns the same result, however it is chunked.
+
+const { Rng } = require('../../sim/simulator');
+const { MESH_ACTION, TIMING } = require('../cloudproof-mesh/constants');
+const { createMeshState, step, tick } = require('../cloudproof-mesh/engine');
+const { validateWorld } = require('../cloudproof-mesh/world');
+const { changeSummary, createController, validateChange } = require('./changes');
+const { applyReadinessDelay, expandPlacements, faultVariants, placementLabel, validateFamilies } = require('./faults');
+const { rootCauseOf } = require('./causes');
+const { createMonitor, observeAll, validateInvariants } = require('./invariants');
+
+const BUDGETS = Object.freeze({ quick: 100, standard: 500, deep: 1000, exhaustive: 2500 });
+const SEARCH_VERSION = 'cloudproof-ops/verify@1';
+const DEFAULTS = Object.freeze({ slotMs: 500, settleMs: 8000, windowMs: 4000, minHorizonMs: 10_000, maxHorizonMs: 40_000 });
+const FAULT_BUDGET = Object.freeze({ min: 1, max: 3, default: 1 });
+
+function clone(value) {
+    return JSON.parse(JSON.stringify(value));
+}
+
+// Two FNV-1a lanes over a coarse state signature. Clocks and timers are left
+// out so that "unique states" counts distinct configurations, not instants.
+function stateKey(state) {
+    let text = `${state.rps}|`;
+    for (const pod of state.pods) text += `${pod.id}:${pod.phase}:${pod.node || '-'};`;
+    for (const [id, zone] of Object.entries(state.zones)) text += `${id}${zone.degraded ? 'D' : 'u'}`;
+    for (const [id, node] of Object.entries(state.nodes)) text += `${id}${node.crashed ? 'X' : ''}${node.cordoned ? 'C' : ''}`;
+    for (const [id, runtime] of Object.entries(state.services)) {
+        text += `${id}:${runtime.promoted ? 'P' : ''}${runtime.coldUntilMs > state.clockMs ? 'K' : ''}${runtime.stalledUntilMs > state.clockMs ? 'S' : ''}${Math.round(runtime.backlog / 50)};`;
+    }
+    let a = 0x811c9dc5;
+    let b = 0x01000193 ^ 0x5bd1e995;
+    for (let index = 0; index < text.length; index += 1) {
+        const code = text.charCodeAt(index);
+        a = Math.imul(a ^ code, 16777619);
+        b = Math.imul(b ^ code, 2246822519);
+    }
+    return `${(a >>> 0).toString(36)}.${(b >>> 0).toString(36)}`;
+}
+
+function traceEntry(action, origin, label, atMs, variant = null) {
+    return { action: clone(action), origin, label, atMs, ...(variant ? { variant } : {}) };
+}
+
+/**
+ * Execute one schedule. Returns the first violating instant (all invariants
+ * violated at that instant) or, with stopOnViolation false, every invariant
+ * id violated at any point in the horizon.
+ */
+function runSchedule({
+    world, change = null, versions = {}, invariants, faultActions = [], horizonMs,
+    stopOnViolation = true, recordTrace = true, stateKeys = null, onState = null,
+}) {
+    let state = createMeshState(world);
+    const monitors = invariants.map(createMonitor);
+    const initial = observeAll(monitors, state);
+    if (initial.length) return { invalid: true, reason: 'the world violates an invariant before anything happens', violations: initial };
+    const controller = change ? createController(world, change, versions) : null;
+    const faults = faultActions.slice();
+    const trace = [];
+    const violatedIds = new Set();
+    let pendingMs = 0;
+    let pendingStart = 0;
+    let transitions = 0;
+    let violations = null;
+    let changeCompleteAtMs = controller ? null : 0;
+    let cursor = 0;
+    const flush = () => {
+        if (pendingMs && recordTrace) {
+            trace.push(traceEntry({ type: MESH_ACTION.ADVANCE_TIME, ms: pendingMs }, 'time', null, pendingStart));
+        }
+        pendingMs = 0;
+    };
+    const check = () => {
+        if (stateKeys) stateKeys.add(stateKey(state));
+        if (onState) onState(state);
+        const found = observeAll(monitors, state);
+        for (const item of found) violatedIds.add(item.invariant);
+        if (found.length && !violations) violations = found;
+        return stopOnViolation && violations;
+    };
+    const apply = (action, origin, label, variant) => {
+        flush();
+        const atMs = state.clockMs;
+        state = step(state, action).state;
+        transitions += 1;
+        if (recordTrace) trace.push(traceEntry(action, origin, label, atMs, variant));
+        return check();
+    };
+    outer: for (;;) {
+        while (cursor < faults.length && faults[cursor].atMs <= state.clockMs) {
+            const fault = faults[cursor];
+            cursor += 1;
+            if (apply(fault.action, 'fault', fault.label, fault.variant)) break outer;
+        }
+        if (controller && !controller.complete) {
+            for (const item of controller.next(state)) {
+                if (apply(item.action, 'change', item.label)) break outer;
+            }
+            if (controller.complete && changeCompleteAtMs === null) changeCompleteAtMs = state.clockMs;
+        }
+        if (state.clockMs >= horizonMs) break;
+        if (!pendingMs) pendingStart = state.clockMs;
+        tick(state);
+        pendingMs += TIMING.tickMs;
+        transitions += 1;
+        if (check()) break;
+    }
+    flush();
+    return {
+        invalid: false,
+        violations,
+        violatedIds,
+        atMs: violations ? violations[0].atMs : null,
+        trace,
+        transitions,
+        changeCompleteAtMs,
+        finalState: state,
+    };
+}
+
+function traceTransitions(trace) {
+    return trace.reduce((sum, entry) => sum + (entry.action.type === MESH_ACTION.ADVANCE_TIME ? entry.action.ms / TIMING.tickMs : 1), 0);
+}
+
+/**
+ * Re-execute a materialized trace (the actions a run actually took). Replay
+ * checks invariants at exactly the instants the original run did, so a trace
+ * cut at its first violation reproduces that violation.
+ */
+function replayTrace(world, trace, invariants, { onStep = null, stopOnViolation = true } = {}) {
+    let state = createMeshState(world);
+    const monitors = invariants.map(createMonitor);
+    let violations = observeAll(monitors, state);
+    if (violations.length) return { invalid: true, violations };
+    violations = null;
+    let transitions = 0;
+    let index = 0;
+    let entryStartMs = 0;
+    const violatedIds = new Set();
+    const check = (entryIndex) => {
+        const found = observeAll(monitors, state);
+        for (const item of found) violatedIds.add(item.invariant);
+        if (found.length && !violations) violations = found.map((item) => ({ ...item, entry: entryIndex, entryStartMs }));
+        return stopOnViolation && violations;
+    };
+    for (; index < trace.length; index += 1) {
+        const entry = trace[index];
+        entryStartMs = state.clockMs;
+        const before = onStep ? clone(state) : null;
+        let stop = false;
+        if (entry.action.type === MESH_ACTION.ADVANCE_TIME) {
+            const ms = entry.action.ms;
+            if (!Number.isInteger(ms) || ms < TIMING.tickMs || ms % TIMING.tickMs !== 0) throw new TypeError('advance-time must be a positive multiple of 100 ms');
+            for (let elapsed = 0; elapsed < ms; elapsed += TIMING.tickMs) {
+                tick(state);
+                transitions += 1;
+                if (check(index)) { stop = true; break; }
+            }
+        } else {
+            state = step(state, entry.action).state;
+            transitions += 1;
+            stop = Boolean(check(index));
+        }
+        if (onStep) onStep({ index, entry, before, after: clone(state), violations: stop ? violations : null });
+        if (stop) break;
+    }
+    return { invalid: false, violations, violatedIds, transitions, finalState: state };
+}
+
+function resolveBudget(budget) {
+    if (typeof budget === 'number') {
+        if (!Number.isInteger(budget) || budget < 1 || budget > BUDGETS.exhaustive) throw new TypeError(`budget must be an integer in [1, ${BUDGETS.exhaustive}]`);
+        return { name: 'custom', schedules: budget };
+    }
+    if (!BUDGETS[budget]) throw new TypeError(`unknown budget: ${budget}`);
+    return { name: budget, schedules: BUDGETS[budget] };
+}
+
+function shuffle(rng, items) {
+    const out = items.slice();
+    for (let index = out.length - 1; index > 0; index -= 1) {
+        const swap = rng.int(index + 1);
+        [out[index], out[swap]] = [out[swap], out[index]];
+    }
+    return out;
+}
+
+function scheduleKey(placements, readiness) {
+    return placements.map((item) => `${item.variant}@${item.atMs}`).sort().join('+') + (readiness ? '+R' : '');
+}
+
+/**
+ * Deterministic verification search. Construct it, call `run(options)` until
+ * `done`, then read `result()`. `run` honours a wall-clock slice so the page
+ * can yield; the slice changes how much work happens per call, never which
+ * schedules run or what they find.
+ */
+class VerificationSearch {
+    constructor(config) {
+        const {
+            world, versions = {}, labels = {}, change, invariants, faults = [], budget = 'standard', seed = 1337,
+            scenarioId = null, maxFaults = FAULT_BUDGET.default, options = {},
+        } = config;
+        validateWorld(world);
+        validateChange(world, change);
+        validateInvariants(world, invariants);
+        validateFamilies(faults);
+        if (!Number.isInteger(seed) || seed < 0 || seed > 0xffffffff) throw new TypeError('seed must be a 32-bit unsigned integer');
+        if (!Number.isInteger(maxFaults) || maxFaults < FAULT_BUDGET.min || maxFaults > FAULT_BUDGET.max) {
+            throw new TypeError(`maxFaults must be an integer in [${FAULT_BUDGET.min}, ${FAULT_BUDGET.max}]`);
+        }
+        this.options = { ...DEFAULTS, ...options };
+        this.config = clone({ scenarioId, world, versions, labels, change, invariants, faults, seed, maxFaults });
+        this.budget = resolveBudget(budget);
+        this.world = this.config.world;
+        this.slowWorld = faults.includes('readiness-delay') ? applyReadinessDelay(this.world) : null;
+        this.variants = faultVariants(this.world, faults.filter((family) => family !== 'readiness-delay'));
+        this.variantsById = new Map(this.variants.map((variant) => [variant.id, variant]));
+        this.stateKeys = new Set();
+        this.combinations = new Set();
+        this.seen = new Set();
+        this.recent = [];
+        this.counters = { schedules: 0, transitions: 0, singles: 0, multi: 0, preExisting: 0, attributionRuns: 0 };
+        this.status = 'running';
+        this.counterexample = null;
+        this.preExisting = null;
+        this.preExistingClasses = new Map();
+        this.elapsedMs = 0;
+
+        // The change on a quiet world sets the horizon and the fault window.
+        const timing = runSchedule({
+            world: this.world, change, versions, invariants, horizonMs: this.options.maxHorizonMs,
+            stopOnViolation: false, recordTrace: false,
+        });
+        if (timing.invalid) throw new TypeError(timing.reason);
+        const completion = timing.changeCompleteAtMs ?? this.options.maxHorizonMs;
+        this.changeCompleteAtMs = timing.changeCompleteAtMs;
+        this.horizonMs = Math.min(this.options.maxHorizonMs, Math.max(this.options.minHorizonMs, completion + this.options.settleMs));
+        const windowEnd = Math.min(this.horizonMs - 2000, completion + this.options.windowMs);
+        this.slots = [];
+        for (let atMs = 0; atMs <= windowEnd; atMs += this.options.slotMs) this.slots.push(atMs);
+
+        const rng = new Rng(seed ^ 0x6f70735f);
+        const singles = [];
+        for (const variant of this.variants) {
+            for (const atMs of this.slots) singles.push({ placements: [{ variant: variant.id, atMs }], readiness: false });
+        }
+        if (this.slowWorld) singles.push({ placements: [], readiness: true });
+        this.singles = shuffle(rng, singles);
+        this.singleCursor = 0;
+        this.rng = rng;
+        this.index = 0;
+        this.multiExhausted = maxFaults < 2 || (this.variants.length < 2 && !(this.slowWorld && this.variants.length));
+    }
+
+    get done() {
+        return this.status !== 'running';
+    }
+
+    // Schedule 0 is the change on a quiet world; then two singles for every
+    // sampled multi-fault schedule, then multi-fault schedules only.
+    nextSchedule() {
+        if (this.index === 0) return { placements: [], readiness: false, kind: 'baseline' };
+        const wantMulti = this.index % 3 === 0 || this.singleCursor >= this.singles.length;
+        if (!wantMulti || this.multiExhausted) {
+            if (this.singleCursor < this.singles.length) return { ...this.singles[this.singleCursor++], kind: 'single' };
+            if (this.multiExhausted) return null;
+        }
+        // Readiness delay counts against the fault budget like any other fault.
+        const budget = this.config.maxFaults;
+        for (let attempt = 0; attempt < 64; attempt += 1) {
+            const readiness = Boolean(this.slowWorld) && this.rng.chance(0.25);
+            const room = budget - (readiness ? 1 : 0);
+            const count = Math.min(this.variants.length, room, room >= 3 && this.rng.chance(0.3) ? 3 : 2);
+            const pool = shuffle(this.rng, this.variants.map((variant) => variant.id)).slice(0, Math.max(1, count));
+            if (pool.length + (readiness ? 1 : 0) < 2) continue;
+            const placements = pool.map((variant) => ({ variant, atMs: this.rng.pick(this.slots) }))
+                .sort((left, right) => left.atMs - right.atMs || left.variant.localeCompare(right.variant));
+            const key = scheduleKey(placements, readiness);
+            if (this.seen.has(key)) continue;
+            return { placements, readiness, kind: 'multi' };
+        }
+        this.multiExhausted = true;
+        return this.singleCursor < this.singles.length ? { ...this.singles[this.singleCursor++], kind: 'single' } : null;
+    }
+
+    runOne() {
+        const schedule = this.nextSchedule();
+        if (!schedule) { this.status = 'verified'; return; }
+        const index = this.index;
+        this.index += 1;
+        const key = scheduleKey(schedule.placements, schedule.readiness);
+        this.seen.add(key);
+        this.combinations.add(schedule.placements.map((item) => item.variant).sort().join('+') + (schedule.readiness ? '+R' : ''));
+        const world = schedule.readiness ? this.slowWorld : this.world;
+        const faultActions = expandPlacements(schedule.placements, this.variantsById);
+        const run = runSchedule({
+            world, change: this.config.change, versions: this.config.versions, invariants: this.config.invariants,
+            faultActions, horizonMs: this.horizonMs, stateKeys: this.stateKeys,
+        });
+        this.counters.schedules += 1;
+        this.counters.transitions += run.transitions;
+        if (schedule.kind === 'single') this.counters.singles += 1;
+        if (schedule.kind === 'multi') this.counters.multi += 1;
+        const label = schedule.kind === 'baseline' ? 'change alone, no faults' : placementLabel(schedule.placements, schedule.readiness, this.variantsById);
+        let outcome = 'checked';
+        if (run.violations) {
+            const baseline = runSchedule({
+                world, change: null, invariants: this.config.invariants, faultActions, horizonMs: this.horizonMs,
+                stopOnViolation: false, recordTrace: false,
+            });
+            this.counters.attributionRuns += 1;
+            this.counters.transitions += baseline.transitions;
+            const attributable = run.violations.filter((item) => !baseline.violatedIds.has(item.invariant));
+            const first = attributable[0] || run.violations[0];
+            const cause = rootCauseOf(run.finalState, first, this.config.invariants.find((item) => item.id === first.invariant));
+            const record = {
+                scheduleIndex: index,
+                kind: schedule.kind,
+                label,
+                placements: schedule.placements,
+                readiness: schedule.readiness,
+                faultActions,
+                world,
+                trace: run.trace,
+                transitions: run.transitions,
+                violations: run.violations,
+                atMs: run.atMs,
+                cause: { root: cause.root, incidentClass: cause.incidentClass, route: cause.route, chain: cause.chain },
+                withoutChange: [...baseline.violatedIds].sort(),
+            };
+            if (attributable.length) {
+                outcome = 'violation';
+                this.counterexample = { ...record, primary: attributable[0], attributable };
+                this.status = 'counterexample';
+            } else {
+                outcome = 'pre-existing';
+                this.counters.preExisting += 1;
+                if (!this.preExisting) this.preExisting = { ...record, primary: run.violations[0] };
+                const key = `${first.invariant}|${cause.root}|${cause.incidentClass}`;
+                const known = this.preExistingClasses.get(key);
+                if (known) known.count += 1;
+                else {
+                    this.preExistingClasses.set(key, {
+                        invariant: first.invariant,
+                        rootService: cause.root,
+                        incidentClass: cause.incidentClass,
+                        count: 1,
+                        example: label,
+                        exampleIndex: index,
+                    });
+                }
+            }
+        }
+        this.recent.push({ index, label, outcome, kind: schedule.kind });
+        if (this.recent.length > 8) this.recent.shift();
+        if (!this.done && this.counters.schedules >= this.budget.schedules) this.status = 'verified';
+    }
+
+    /** Run until done, `maxSchedules` more schedules, or `sliceMs` of wall clock. */
+    run({ sliceMs = Infinity, maxSchedules = Infinity, now = () => Date.now() } = {}) {
+        const started = now();
+        let ran = 0;
+        while (!this.done && ran < maxSchedules) {
+            this.runOne();
+            ran += 1;
+            if (now() - started >= sliceMs) break;
+        }
+        this.elapsedMs += now() - started;
+        return this.progress();
+    }
+
+    cancel() {
+        if (!this.done) this.status = 'cancelled';
+    }
+
+    progress() {
+        return {
+            status: this.status,
+            schedulesChecked: this.counters.schedules,
+            budget: this.budget.schedules,
+            transitions: this.counters.transitions,
+            uniqueStates: this.stateKeys.size,
+            faultCombinations: this.combinations.size,
+            singlesChecked: this.counters.singles,
+            singlesTotal: this.singles.length,
+            multiChecked: this.counters.multi,
+            preExisting: this.counters.preExisting,
+            violations: this.counterexample ? 1 : 0,
+            currentSchedule: this.index,
+            seed: this.config.seed,
+            elapsedMs: this.elapsedMs,
+            recent: this.recent.slice(),
+        };
+    }
+
+    result() {
+        const progress = this.progress();
+        return {
+            kind: 'cloudproof.ops-verification',
+            searchVersion: SEARCH_VERSION,
+            status: this.status,
+            scenarioId: this.config.scenarioId,
+            change: clone(this.config.change),
+            changeSummary: changeSummary(this.config.change),
+            faults: this.config.faults.slice(),
+            maxFaults: this.config.maxFaults,
+            invariants: clone(this.config.invariants),
+            seed: this.config.seed,
+            budget: this.budget,
+            horizonMs: this.horizonMs,
+            changeCompleteAtMs: this.changeCompleteAtMs,
+            faultWindow: { fromMs: this.slots[0] ?? 0, toMs: this.slots[this.slots.length - 1] ?? 0, slotMs: this.options.slotMs },
+            faultVariants: this.variants.map(({ id, family, label }) => ({ id, family, label })),
+            space: { singles: this.singles.length, slots: this.slots.length },
+            scheduleRange: [0, Math.max(0, this.counters.schedules - 1)],
+            counters: {
+                schedulesChecked: progress.schedulesChecked,
+                transitions: progress.transitions,
+                uniqueStates: progress.uniqueStates,
+                faultCombinations: progress.faultCombinations,
+                singlesChecked: progress.singlesChecked,
+                multiChecked: progress.multiChecked,
+                preExisting: progress.preExisting,
+            },
+            counterexample: this.counterexample ? clone(this.counterexample) : null,
+            preExisting: this.preExisting ? clone(this.preExisting) : null,
+            preExistingClasses: [...this.preExistingClasses.values()].map(clone)
+                .sort((left, right) => right.count - left.count || left.exampleIndex - right.exampleIndex),
+        };
+    }
+}
+
+/** Run a whole search synchronously (Node, tests, the CLI). */
+function verifyChange(config) {
+    const search = new VerificationSearch(config);
+    search.run();
+    return search.result();
+}
+
+/**
+ * Replay one exogenous fault schedule against a (possibly different)
+ * configuration. This is how a remediation is checked against the exact
+ * environment of a counterexample.
+ */
+function replayEnvironment({ world, change, versions = {}, invariants, placements = [], readiness = false, faults = [], horizonMs }) {
+    const baseWorld = readiness ? applyReadinessDelay(world) : world;
+    const variants = faultVariants(world, faults.filter((family) => family !== 'readiness-delay'));
+    const faultActions = expandPlacements(placements, new Map(variants.map((variant) => [variant.id, variant])));
+    const run = runSchedule({ world: baseWorld, change, versions, invariants, faultActions, horizonMs });
+    if (run.invalid) return { invalid: true, reason: run.reason };
+    let attributable = null;
+    if (run.violations) {
+        const baseline = runSchedule({ world: baseWorld, change: null, invariants, faultActions, horizonMs, stopOnViolation: false, recordTrace: false });
+        attributable = run.violations.filter((item) => !baseline.violatedIds.has(item.invariant));
+    }
+    return {
+        invalid: false,
+        violated: Boolean(run.violations),
+        attributable: attributable || [],
+        violations: run.violations,
+        atMs: run.atMs,
+        trace: run.trace,
+        transitions: run.transitions,
+        world: baseWorld,
+        faultActions,
+    };
+}
+
+module.exports = {
+    BUDGETS,
+    DEFAULTS,
+    FAULT_BUDGET,
+    SEARCH_VERSION,
+    VerificationSearch,
+    replayEnvironment,
+    replayTrace,
+    runSchedule,
+    stateKey,
+    traceTransitions,
+    verifyChange,
+};
+
+};
+__registry["packages/cloudproof-ops/explain.js"] = function (module, exports, require) {
+'use strict';
+
+// Deterministic explanations of a counterexample.
+//
+// Everything here is read off simulator state: the cause each service carries
+// in `state.derived.health[id].cause` (set by the mesh engine's propagation),
+// the pods and their phases, zone and node flags. No text is generated by a
+// model; the sentences are templates filled from that state.
+
+const { INCIDENT_CLASS, MESH_ACTION, MESH_FAULT, POD_PHASE } = require('../cloudproof-mesh/constants');
+const { nodeReady, volumeAvailable } = require('../cloudproof-mesh/engine');
+const { primaryOf, replicaOf } = require('../cloudproof-mesh/world');
+const { causalChain, rootCauseOf, worstFailingRoute } = require('./causes');
+const { EDGE_SEMANTICS, edgeId, graphModel, layoutWorld } = require('./graph-model');
+const { createMonitor, describeInvariant } = require('./invariants');
+const { replayTrace } = require('./verify');
+
+const seconds = (ms) => `T+${(ms / 1000).toFixed(1)} s`;
+
+function zoneOf(world, nodeId) {
+    return world.nodes.find((node) => node.id === nodeId)?.zone || null;
+}
+
+function disruptionPhrase(entry) {
+    const action = entry.action;
+    if (entry.origin === 'change' || entry.origin === 'operation') {
+        if (action.type === MESH_FAULT.POD_CRASH) return 'being replaced by the rollout';
+        if (action.type === MESH_ACTION.DRAIN_NODE) return `evicted by the drain of ${action.nodeId}`;
+        if (action.type === MESH_ACTION.SCALE) return 'removed by the scale-down';
+    }
+    if (action.type === MESH_FAULT.NODE_CRASH) return `lost when ${action.nodeId} crashed`;
+    if (action.type === MESH_FAULT.ZONE_DEGRADED) return `unavailable because ${action.zoneId} degraded`;
+    if (action.type === MESH_FAULT.POD_CRASH) return 'crashed';
+    return null;
+}
+
+function phaseSuffix(state, pod) {
+    if (pod.phase === POD_PHASE.FAILED) return pod.node ? `, restarting on ${pod.node}` : ', waiting to be rescheduled';
+    if (pod.phase === POD_PHASE.PENDING) return ', pending with no schedulable node';
+    if (pod.phase === POD_PHASE.STARTING) return `, starting on ${pod.node} (ready at ${seconds(pod.readyAtMs)})`;
+    return '';
+}
+
+// Why one pod is not serving right now, in words. `disruption` is the trace
+// entry that took it out of service, when the replay saw one.
+function podReason(state, pod, disruption) {
+    const world = state.world;
+    const phrase = disruption ? disruptionPhrase(disruption) : null;
+    if (phrase) return `${phrase}${phaseSuffix(state, pod)}`;
+    if (pod.phase === POD_PHASE.FAILED) return pod.node ? `restarting on ${pod.node}` : 'evicted, waiting to be rescheduled';
+    if (pod.phase === POD_PHASE.PENDING) return 'pending: no schedulable node';
+    if (pod.phase === POD_PHASE.STARTING) return `starting on ${pod.node}, ready at ${seconds(pod.readyAtMs)}`;
+    if (!pod.node) return 'not placed';
+    if (state.nodes[pod.node].crashed) return `on ${pod.node}, which crashed`;
+    const zone = zoneOf(world, pod.node);
+    if (state.zones[zone].degraded) return `on ${pod.node} in ${zone}, which is degraded`;
+    if (!nodeReady(state, pod.node)) return `on ${pod.node}, which is not ready`;
+    const service = world.services.find((item) => item.id === pod.service);
+    if (service.volume && !volumeAvailable(state, service.volume)) return 'its volume is unavailable';
+    return 'not serving';
+}
+
+function servingNow(state, pod) {
+    if (pod.phase !== POD_PHASE.RUNNING || !pod.node || !nodeReady(state, pod.node)) return false;
+    const service = state.world.services.find((item) => item.id === pod.service);
+    return !service.volume || volumeAvailable(state, service.volume);
+}
+
+/** For every pod, the trace entry after which it stopped serving (last one wins). */
+function podDisruptions(world, trace, invariants) {
+    const causes = new Map();
+    replayTrace(world, trace, invariants, {
+        stopOnViolation: false,
+        onStep: ({ entry, before, after }) => {
+            if (entry.origin === 'time') return;
+            const was = new Map(before.pods.map((pod) => [pod.id, servingNow(before, pod)]));
+            for (const pod of after.pods) {
+                if (was.get(pod.id) && !servingNow(after, pod)) causes.set(pod.id, entry);
+                if (!was.has(pod.id) && entry.origin === 'change') causes.set(pod.id, entry);
+            }
+        },
+    });
+    return causes;
+}
+
+function listOf(items) {
+    if (items.length <= 1) return items.join('');
+    return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+}
+
+function rootDetail(state, root, incidentClass, disruptions, labels) {
+    const world = state.world;
+    const name = (id) => labels[id] || id;
+    const service = world.services.find((item) => item.id === root);
+    if (!service) return { sentence: '', pods: [] };
+    const health = state.derived.health[root];
+    const pods = state.pods.filter((pod) => pod.service === root);
+    const down = pods.filter((pod) => !(pod.phase === POD_PHASE.RUNNING && pod.node && nodeReady(state, pod.node)
+        && (!service.volume || volumeAvailable(state, service.volume))));
+    const reasons = new Map();
+    for (const pod of down) {
+        const reason = podReason(state, pod, disruptions.get(pod.id));
+        (reasons.get(reason) || reasons.set(reason, []).get(reason)).push(pod.id);
+    }
+    const podText = [...reasons].map(([reason, ids]) => `${listOf(ids)} ${ids.length > 1 ? 'were' : 'was'} ${reason}`);
+    const surge = state.rps > world.traffic.rps ? ` Traffic was ${state.rps} rps (×${(state.rps / world.traffic.rps).toFixed(2).replace(/\.?0+$/, '')} of normal).` : '';
+    let sentence;
+    switch (incidentClass) {
+        case INCIDENT_CLASS.INSTANCE_LOSS:
+            sentence = `${name(root)} needs ${service.minHealthy} healthy pod${service.minHealthy > 1 ? 's' : ''} and had ${health.healthy}.${podText.length ? ` ${podText.join('; ')}.` : ''}`;
+            break;
+        case INCIDENT_CLASS.OVERLOAD:
+            sentence = `${name(root)} received ${Math.round(health.load)} rps against ${health.capacityRps} rps of capacity (${health.healthy} serving pod${health.healthy === 1 ? '' : 's'} × ${service.podCapacityRps} rps).${surge}${podText.length ? ` ${podText.join('; ')}.` : ''}`;
+            break;
+        case INCIDENT_CLASS.CACHE_STAMPEDE: {
+            const caches = world.services.filter((item) => item.kind === 'cache'
+                && world.dependencies.some((edge) => edge.type === 'BACKED_BY' && edge.from === item.id && edge.to === root));
+            const which = caches.map((cache) => {
+                const cacheHealth = state.derived.health[cache.id];
+                if (!cacheHealth.intrinsicUp) return `${name(cache.id)} was down (${cacheHealth.healthy} of ${cache.minHealthy} required pods)`;
+                return `${name(cache.id)} was cold`;
+            });
+            sentence = `${listOf(which)}, so every read fell through to ${name(root)}: ${Math.round(health.load)} rps against ${health.capacityRps} rps of capacity.${surge}`;
+            break;
+        }
+        case INCIDENT_CLASS.STORAGE_UNAVAILABLE: {
+            const volume = world.volumes.find((item) => item.id === service.volume);
+            sentence = `${name(root)} stores its data on ${volume.id} in ${volume.zone}, which is degraded, so its pods cannot serve.`;
+            break;
+        }
+        case INCIDENT_CLASS.QUEUE_BACKPRESSURE:
+        case 'QUEUE_BACKLOG': {
+            const runtime = state.services[root];
+            const consumers = world.dependencies.filter((edge) => edge.type === 'CONSUMES' && edge.to === root).map((edge) => edge.from);
+            const parts = consumers.map((id) => {
+                const worker = state.services[id];
+                const workerHealth = state.derived.health[id];
+                if (worker.stalledUntilMs > state.clockMs) return `${name(id)} is stalled until ${seconds(worker.stalledUntilMs)}`;
+                return `${name(id)} drains ${workerHealth.capacityRps} msg/s (${workerHealth.healthy} pods)`;
+            });
+            const inflow = Math.round(state.derived.inflow[root] || 0);
+            sentence = `${name(root)} holds ${Math.round(runtime.backlog)} of ${service.queueCapacity} messages; ${inflow} msg/s arrive while ${listOf(parts) || 'no consumer drains it'}.${surge}`;
+            break;
+        }
+        default:
+            sentence = `${name(root)} is unavailable.`;
+    }
+    return { sentence, pods: down.map((pod) => pod.id) };
+}
+
+// The dependency edge a cause travelled along. Writes may have been redirected
+// to a promoted replica and cache reads may have fallen through to the
+// backing store, so the edge can end one hop before `to`.
+function edgeBetween(world, from, to) {
+    const direct = world.dependencies.find((edge) => edge.from === from && edge.to === to);
+    if (direct) return direct;
+    return world.dependencies.find((edge) => edge.from === from && (
+        replicaOf(world, edge.to) === to
+        || primaryOf(world, edge.to) === to
+        || world.dependencies.some((backing) => backing.type === 'BACKED_BY' && backing.from === edge.to && backing.to === to)
+    )) || null;
+}
+
+/**
+ * The narrative and the root-cause path for a violation at `state`.
+ * `trace` is the materialized trace that led here; `withoutChange` is the
+ * state the same faults reach without the change, when available.
+ */
+function explainViolation(state, violation, invariants, { trace = [], labels = {}, withoutChange = null } = {}) {
+    const world = state.world;
+    const name = (id) => labels[id] || id;
+    const invariant = invariants.find((item) => item.id === violation.invariant);
+    const cause = rootCauseOf(state, violation, invariant);
+    const disruptions = trace.length ? podDisruptions(world, trace, invariants) : new Map();
+    const detail = cause.root ? rootDetail(state, cause.root, cause.incidentClass, disruptions, labels) : { sentence: '', pods: [] };
+    const sentences = [];
+    if (detail.sentence) sentences.push(detail.sentence);
+    const chainEdges = [];
+    for (let index = cause.chain.length - 1; index > 0; index -= 1) {
+        const upstream = cause.chain[index - 1];
+        const downstream = cause.chain[index];
+        const edge = edgeBetween(world, upstream, downstream);
+        if (edge) chainEdges.push(edgeId(edge));
+        const verb = edge ? EDGE_SEMANTICS[edge.type].verb : 'depends on';
+        let link = `${name(upstream)} ${verb} ${name(downstream)}`;
+        if (edge && edge.to !== downstream) {
+            const backing = world.dependencies.find((item) => item.type === 'BACKED_BY' && item.from === edge.to && item.to === downstream);
+            if (backing) {
+                chainEdges.push(edgeId(backing));
+                link = `${name(upstream)} ${verb} ${name(edge.to)}, whose reads now land on ${name(downstream)}`;
+            } else {
+                link = `${name(upstream)} ${verb} ${name(edge.to)}, now served by ${name(downstream)}`;
+            }
+        }
+        const full = edge?.type === 'PUBLISHES' && cause.incidentClass === INCIDENT_CLASS.QUEUE_BACKPRESSURE ? ', which is full' : '';
+        sentences.push(`${link}${full}, so ${name(upstream)} failed too.`);
+    }
+    if (cause.route) {
+        const route = world.routes.find((item) => item.id === cause.route);
+        sentences.push(`The ${route.id} route (${route.sharePct}% of traffic) enters ${name(route.entry)} and failed: "${describeInvariant(invariant, labels)}" expected ${violation.expected}, observed ${violation.observed}.`);
+    } else {
+        sentences.push(`Invariant "${describeInvariant(invariant, labels)}" expected ${violation.expected}, observed ${violation.observed}.`);
+    }
+    if (withoutChange && cause.root && withoutChange.derived.health[cause.root]) {
+        const other = withoutChange.derived.health[cause.root];
+        const same = createMonitor(invariant).observe(withoutChange);
+        const load = Math.round(other.load);
+        const rootService = world.services.find((item) => item.id === cause.root);
+        const facts = rootService.kind === 'queue'
+            ? `${name(cause.root)} held ${Math.round(withoutChange.services[cause.root].backlog)} messages`
+            : `${name(cause.root)} had ${other.healthy} healthy pod${other.healthy === 1 ? '' : 's'}${load ? ` and ${load} rps of load` : ''}`;
+        sentences.push(`With the same faults and no change, ${facts} at this moment, and ${same ? 'the invariant failed anyway' : 'the invariant held'}.`);
+    }
+
+    // Root-cause path. The trace is minimal, so every action in it is needed:
+    // each one is a trigger. Then whatever carried the failure to the root,
+    // the root, the dependency chain upward, the route and the invariant.
+    const path = [];
+    const highlight = { services: new Set(), zones: new Set(), nodes: new Set(), routes: new Set(), edges: new Set(chainEdges), pods: new Set() };
+    trace.forEach((entry, index) => {
+        if (entry.origin === 'time') return;
+        const action = entry.action;
+        path.push({ kind: entry.origin, id: `${entry.origin}:${index}`, label: shortTitle(entry, labels) });
+        if (action.zoneId) highlight.zones.add(action.zoneId);
+        if (action.nodeId) highlight.nodes.add(action.nodeId);
+        if (action.serviceId) highlight.services.add(action.serviceId);
+        if (action.podId) highlight.pods.add(action.podId);
+    });
+    if (cause.root) {
+        const via = [];
+        if (cause.incidentClass === INCIDENT_CLASS.CACHE_STAMPEDE) {
+            const caches = world.services.filter((item) => item.kind === 'cache'
+                && world.dependencies.some((edge) => edge.type === 'BACKED_BY' && edge.from === item.id && edge.to === cause.root));
+            for (const cache of caches) {
+                const health = state.derived.health[cache.id];
+                const cold = state.services[cache.id].coldUntilMs > state.clockMs;
+                if (health.intrinsicUp && !cold) continue;
+                via.push({ kind: 'service', id: cache.id, label: health.intrinsicUp ? `${name(cache.id)} cold` : `${name(cache.id)} down (${health.healthy}/${cache.minHealthy} healthy)` });
+                highlight.edges.add(edgeId(world.dependencies.find((edge) => edge.type === 'BACKED_BY' && edge.from === cache.id)));
+                for (const pod of state.pods.filter((item) => item.service === cache.id && !servingNow(state, item))) highlight.pods.add(pod.id);
+            }
+        }
+        if (['QUEUE_BACKLOG', INCIDENT_CLASS.QUEUE_BACKPRESSURE].includes(cause.incidentClass)) {
+            for (const edge of world.dependencies.filter((item) => item.type === 'CONSUMES' && item.to === cause.root)) {
+                const health = state.derived.health[edge.from];
+                const stalled = state.services[edge.from].stalledUntilMs > state.clockMs;
+                via.push({ kind: 'service', id: edge.from, label: stalled ? `${name(edge.from)} stalled` : `${name(edge.from)} drains ${health.capacityRps}/s` });
+                highlight.edges.add(edgeId(edge));
+            }
+        }
+        for (const item of via) { path.push(item); highlight.services.add(item.id); }
+        if (detail.pods.length && [INCIDENT_CLASS.INSTANCE_LOSS, INCIDENT_CLASS.OVERLOAD].includes(cause.incidentClass)) {
+            path.push({ kind: 'pods', id: detail.pods.join(','), ids: detail.pods, label: `${listOf(detail.pods)} not serving` });
+            detail.pods.forEach((id) => highlight.pods.add(id));
+        }
+        const health = state.derived.health[cause.root];
+        const service = world.services.find((item) => item.id === cause.root);
+        let status;
+        if (service.kind === 'queue') status = `backlog ${Math.round(state.services[cause.root].backlog)}/${service.queueCapacity}`;
+        else if (health.overloaded) status = `overloaded (${Math.round(health.load)}/${health.capacityRps} rps)`;
+        else if (!health.intrinsicUp) status = `${health.healthy}/${service.minHealthy} healthy`;
+        else status = `${health.healthy} healthy`;
+        path.push({ kind: 'service', id: cause.root, label: `${name(cause.root)} ${status}` });
+        highlight.services.add(cause.root);
+    }
+    for (let index = cause.chain.length - 2; index >= 0; index -= 1) {
+        path.push({ kind: 'service', id: cause.chain[index], label: `${name(cause.chain[index])} fails` });
+        highlight.services.add(cause.chain[index]);
+    }
+    if (cause.route) {
+        path.push({ kind: 'route', id: cause.route, label: `${cause.route} route failing` });
+        highlight.routes.add(cause.route);
+    }
+    path.push({ kind: 'invariant', id: invariant.id, label: describeInvariant(invariant, labels) });
+    return {
+        invariant: invariant.id,
+        invariantText: describeInvariant(invariant, labels),
+        expected: violation.expected,
+        observed: violation.observed,
+        atMs: violation.atMs,
+        route: cause.route,
+        root: cause.root,
+        incidentClass: cause.incidentClass,
+        chain: cause.chain,
+        chainEdges,
+        pods: detail.pods,
+        narrative: sentences,
+        path,
+        highlight: Object.fromEntries(Object.entries(highlight).map(([key, set]) => [key, [...set].sort()])),
+    };
+}
+
+function shortTitle(entry, labels) {
+    const name = (id) => labels[id] || id;
+    const action = entry.action;
+    if (entry.origin === 'change') {
+        if (action.type === MESH_FAULT.POD_CRASH) return `rollout replaces ${action.podId}`;
+        if (action.type === MESH_ACTION.SCALE) return `scale ${name(action.serviceId)} to ${action.replicas}`;
+        if (action.type === MESH_ACTION.DRAIN_NODE) return `drain ${action.nodeId}`;
+    }
+    switch (action.type) {
+        case MESH_FAULT.TRAFFIC_SPIKE: return `traffic ×${action.factor}`;
+        case MESH_FAULT.ZONE_DEGRADED: return `${action.zoneId} degraded`;
+        case MESH_FAULT.NODE_CRASH: return `${action.nodeId} crashes`;
+        case MESH_FAULT.CACHE_FLUSH: return `${name(action.serviceId)} flushed`;
+        case MESH_FAULT.CONSUMER_STALL: return `${name(action.serviceId)} stalls ${(action.durationMs / 1000).toFixed(1)} s`;
+        case MESH_FAULT.POD_CRASH: return `${action.podId} crashes`;
+        case MESH_ACTION.RECOVER_ZONE: return `${action.zoneId} recovers`;
+        case MESH_ACTION.TRAFFIC_SHIFT: return `traffic back to ${action.rps} rps`;
+        default: return actionTitle(entry, labels);
+    }
+}
+
+function actionTitle(entry, labels) {
+    const name = (id) => labels[id] || id;
+    const action = entry.action;
+    if (entry.label) return entry.label;
+    switch (action.type) {
+        case MESH_ACTION.ADVANCE_TIME: return `${(action.ms / 1000).toFixed(1)} s pass`;
+        case MESH_ACTION.SCALE: return `Scale ${name(action.serviceId)} to ${action.replicas}`;
+        case MESH_ACTION.TRAFFIC_SHIFT: return `Traffic set to ${action.rps} rps`;
+        case MESH_ACTION.DRAIN_NODE: return `Drain ${action.nodeId}`;
+        case MESH_ACTION.UNCORDON_NODE: return `Uncordon ${action.nodeId}`;
+        case MESH_ACTION.RECOVER_NODE: return `${action.nodeId} recovers`;
+        case MESH_ACTION.RECOVER_ZONE: return `${action.zoneId} recovers`;
+        case MESH_FAULT.NODE_CRASH: return `${action.nodeId} crashes`;
+        case MESH_FAULT.ZONE_DEGRADED: return `${action.zoneId} degraded`;
+        case MESH_FAULT.POD_CRASH: return `${action.podId} crashes`;
+        case MESH_FAULT.CACHE_FLUSH: return `${name(action.serviceId)} flushed`;
+        case MESH_FAULT.CONSUMER_STALL: return `${name(action.serviceId)} stalls for ${(action.durationMs / 1000).toFixed(1)} s`;
+        case MESH_FAULT.TRAFFIC_SPIKE: return `Traffic spikes ×${action.factor}`;
+        default: return action.type;
+    }
+}
+
+// What changed between two states, as ids for highlighting and as sentences.
+function stateDelta(before, after, labels) {
+    const name = (id) => labels[id] || id;
+    const world = after.world;
+    const services = [];
+    const notes = [];
+    for (const service of world.services) {
+        const was = before.derived.health[service.id];
+        const now = after.derived.health[service.id];
+        if (was.up !== now.up || was.healthy !== now.healthy || Boolean(was.overloaded) !== Boolean(now.overloaded)) services.push(service.id);
+        if (was.up && !now.up) notes.push(`${name(service.id)} went down${now.overloaded ? ' (overloaded)' : now.cause?.kind === 'dependency' ? ` (depends on ${name(now.cause.via)})` : ''}`);
+        else if (!was.up && now.up) notes.push(`${name(service.id)} recovered`);
+        else if (was.healthy !== now.healthy) notes.push(`${name(service.id)} ${was.healthy} → ${now.healthy} healthy`);
+        if (!before.services[service.id].promoted && after.services[service.id].promoted) notes.push(`${name(replicaOf(world, service.id))} promoted to primary`);
+    }
+    const zones = world.zones.filter((zone) => before.zones[zone.id].degraded !== after.zones[zone.id].degraded).map((zone) => zone.id);
+    const nodes = world.nodes.filter((node) => before.nodes[node.id].crashed !== after.nodes[node.id].crashed
+        || before.nodes[node.id].cordoned !== after.nodes[node.id].cordoned).map((node) => node.id);
+    const routes = world.routes.filter((route) => before.derived.routes[route.id].failing !== after.derived.routes[route.id].failing).map((route) => route.id);
+    for (const route of routes) notes.push(`${route} route ${after.derived.routes[route].failing ? 'failing' : 'serving again'}`);
+    if (before.rps !== after.rps) notes.unshift(`traffic ${before.rps} → ${after.rps} rps`);
+    const changed = new Set(services);
+    const edges = world.dependencies.filter((edge) => changed.has(edge.from) && changed.has(edge.to)).map(edgeId);
+    return { services, zones, nodes, routes, edges, notes };
+}
+
+/**
+ * Replay a trace and produce one timeline event per trace entry, each with
+ * the graph before and after, the ids it touched, and the violations.
+ */
+function buildTimeline(world, trace, invariants, { labels = {}, versions = {} } = {}) {
+    const layout = layoutWorld(world);
+    const meta = { labels, versions, layout };
+    const events = [];
+    let firstState = null;
+    const replay = replayTrace(world, trace, invariants, {
+        onStep: ({ index, entry, before, after, violations }) => {
+            if (!firstState) firstState = before;
+            const delta = stateDelta(before, after, labels);
+            const target = entry.action.nodeId || entry.action.zoneId || entry.action.serviceId || entry.action.podId || null;
+            events.push({
+                index,
+                atMs: entry.atMs,
+                endMs: after.clockMs,
+                origin: entry.origin,
+                type: entry.action.type,
+                target,
+                title: actionTitle(entry, labels),
+                notes: delta.notes,
+                affected: delta,
+                before: graphModel(before, meta),
+                after: graphModel(after, meta),
+                violations: violations || [],
+            });
+        },
+    });
+    return { events, violations: replay.violations, transitions: replay.transitions, initial: firstState ? graphModel(firstState, meta) : null };
+}
+
+module.exports = {
+    actionTitle,
+    buildTimeline,
+    causalChain,
+    explainViolation,
+    podDisruptions,
+    rootCauseOf,
+    shortTitle,
+    stateDelta,
+    worstFailingRoute,
+};
+
+};
+__registry["packages/cloudproof-ops/shrink.js"] = function (module, exports, require) {
+'use strict';
+
+// Counterexample minimisation.
+//
+// A counterexample is a materialized trace: the exact mesh actions a failing
+// run took (change steps, faults, and time advancing between them). The
+// shrinker removes whatever is not needed for the same invariant to fail,
+// delta-debugging style, and records every reduction it keeps so the page can
+// show the real sequence of sizes. For a change counterexample it also keeps
+// the result about the change: the reduced trace must contain at least one
+// change action, and must not fail the same way once those are removed.
+
+const { MESH_ACTION, TIMING } = require('../cloudproof-mesh/constants');
+const { replayTrace, traceTransitions } = require('./verify');
+
+const isTime = (entry) => entry.action.type === MESH_ACTION.ADVANCE_TIME;
+
+function advance(ms, atMs = 0) {
+    return { action: { type: MESH_ACTION.ADVANCE_TIME, ms }, origin: 'time', label: null, atMs };
+}
+
+/** Merge adjacent time advances, drop empty ones, recompute entry times. */
+function normalize(trace) {
+    const out = [];
+    for (const entry of trace) {
+        if (isTime(entry)) {
+            if (entry.action.ms <= 0) continue;
+            const last = out[out.length - 1];
+            if (last && isTime(last) && last.action.ms + entry.action.ms <= 60_000) {
+                out[out.length - 1] = advance(last.action.ms + entry.action.ms);
+                continue;
+            }
+            out.push(advance(entry.action.ms));
+        } else {
+            out.push({ ...entry, action: { ...entry.action } });
+        }
+    }
+    let clock = 0;
+    for (const entry of out) {
+        entry.atMs = clock;
+        if (isTime(entry)) clock += entry.action.ms;
+    }
+    return out;
+}
+
+class TraceShrinker {
+    constructor({ world, trace, invariants, target, requireChange = true }) {
+        this.world = world;
+        this.invariants = invariants;
+        this.target = target;
+        this.requireChange = requireChange;
+        this.tried = 0;
+        this.status = 'running';
+        const original = this.test(normalize(trace));
+        if (!original) throw new TypeError(`the trace does not reproduce ${target}`);
+        // The first step is the trace exactly as recorded; merging adjacent
+        // waits is reported as a reduction of its own.
+        this.original = { trace, actions: trace.length, transitions: traceTransitions(trace) };
+        this.current = original;
+        this.steps = [{ actions: this.original.actions, transitions: this.original.transitions, note: 'counterexample as found' }];
+        if (original.trace.length < trace.length) {
+            this.steps.push({ actions: original.trace.length, transitions: traceTransitions(original.trace), note: 'merged consecutive waits' });
+        }
+        this.work = this.phases();
+    }
+
+    get done() {
+        return this.status !== 'running';
+    }
+
+    /**
+     * Does `candidate` still fail the target invariant (and, for a change,
+     * only because of the change)? Returns the candidate cut at its first
+     * violating tick, or null.
+     */
+    test(candidate) {
+        this.tried += 1;
+        const trace = normalize(candidate);
+        if (!trace.length) return null;
+        if (this.requireChange && !trace.some((entry) => entry.origin === 'change')) return null;
+        const replay = replayTrace(this.world, trace, this.invariants);
+        if (replay.invalid || !replay.violations) return null;
+        const hit = replay.violations.find((item) => item.invariant === this.target);
+        if (!hit) return null;
+        const cut = trace.slice(0, hit.entry + 1);
+        const last = cut[cut.length - 1];
+        if (isTime(last)) cut[cut.length - 1] = advance(hit.atMs - hit.entryStartMs);
+        const result = normalize(cut);
+        if (this.requireChange) {
+            const without = result.filter((entry) => entry.origin !== 'change');
+            if (without.length) {
+                const other = replayTrace(this.world, without, this.invariants, { stopOnViolation: false });
+                if (!other.invalid && other.violatedIds.has(this.target)) return null;
+            }
+        }
+        return { trace: result, violations: replay.violations };
+    }
+
+    accept(found, note) {
+        const smaller = found.trace.length < this.current.trace.length
+            || (found.trace.length === this.current.trace.length && traceTransitions(found.trace) < traceTransitions(this.current.trace));
+        if (!smaller) return false;
+        this.current = found;
+        this.steps.push({ actions: found.trace.length, transitions: traceTransitions(found.trace), note });
+        return true;
+    }
+
+    * phases() {
+        let progress = true;
+        while (progress) {
+            progress = false;
+            // 1. Drop single actions: faults first (newest first), then change steps.
+            for (const origin of ['fault', 'operation', 'change']) {
+                for (let index = this.current.trace.length - 1; index >= 0; index -= 1) {
+                    const entry = this.current.trace[index];
+                    if (!entry || entry.origin !== origin) continue;
+                    const candidate = this.current.trace.filter((_, position) => position !== index);
+                    const found = this.test(candidate);
+                    yield;
+                    const what = { fault: 'fault', operation: 'operation', change: 'change step' }[origin];
+                    if (found && this.accept(found, `removed ${what}: ${entry.label || entry.action.type.split('.').pop()}`)) progress = true;
+                }
+            }
+            // 2. Drop contiguous chunks, halving the chunk size (ddmin).
+            for (let size = Math.floor(this.current.trace.length / 2); size >= 2; size = Math.floor(size / 2)) {
+                for (let start = 0; start + size <= this.current.trace.length; start += size) {
+                    const candidate = this.current.trace.filter((_, position) => position < start || position >= start + size);
+                    const found = this.test(candidate);
+                    yield;
+                    if (found && this.accept(found, `removed ${size} consecutive actions`)) { progress = true; break; }
+                }
+            }
+            // 3. Time: drop each advance, then shorten it.
+            for (let index = this.current.trace.length - 1; index >= 0; index -= 1) {
+                const entry = this.current.trace[index];
+                if (!entry || !isTime(entry)) continue;
+                const without = this.test(this.current.trace.filter((_, position) => position !== index));
+                yield;
+                if (without && this.accept(without, `removed a ${(entry.action.ms / 1000).toFixed(1)} s wait`)) { progress = true; continue; }
+                let ms = entry.action.ms;
+                while (ms > TIMING.tickMs) {
+                    const shorter = Math.max(TIMING.tickMs, Math.round(ms / 2 / TIMING.tickMs) * TIMING.tickMs);
+                    const candidate = this.current.trace.map((item, position) => (position === index ? advance(shorter) : item));
+                    const found = this.test(candidate);
+                    yield;
+                    if (!found) break;
+                    const before = this.current;
+                    this.current = found;
+                    const kept = traceTransitions(found.trace) < traceTransitions(before.trace);
+                    if (kept) {
+                        this.steps.push({ actions: found.trace.length, transitions: traceTransitions(found.trace), note: `shortened a wait to ${(shorter / 1000).toFixed(1)} s` });
+                        progress = true;
+                    }
+                    ms = shorter;
+                    if (!this.current.trace[index] || !isTime(this.current.trace[index])) break;
+                }
+            }
+        }
+    }
+
+    run({ sliceMs = Infinity, now = () => Date.now() } = {}) {
+        const started = now();
+        while (!this.done) {
+            const next = this.work.next();
+            if (next.done) { this.status = 'minimal'; break; }
+            if (now() - started >= sliceMs) break;
+        }
+        return this.progress();
+    }
+
+    progress() {
+        return {
+            status: this.status,
+            candidatesTried: this.tried,
+            actions: this.current.trace.length,
+            transitions: traceTransitions(this.current.trace),
+            steps: this.steps.slice(),
+        };
+    }
+
+    result() {
+        const primary = this.current.violations.find((item) => item.invariant === this.target);
+        return {
+            status: this.status,
+            target: this.target,
+            original: { actions: this.original.actions, transitions: this.original.transitions },
+            minimal: {
+                trace: this.current.trace,
+                actions: this.current.trace.length,
+                transitions: traceTransitions(this.current.trace),
+                violations: this.current.violations.map(({ entry, entryStartMs, ...rest }) => rest),
+                primary: (({ entry, entryStartMs, ...rest }) => rest)(primary),
+            },
+            steps: this.steps,
+            candidatesTried: this.tried,
+        };
+    }
+}
+
+/** Shrink to completion synchronously. */
+function shrinkTrace(options) {
+    const shrinker = new TraceShrinker(options);
+    shrinker.run();
+    return shrinker.result();
+}
+
+module.exports = { TraceShrinker, normalize, shrinkTrace };
+
+};
+__registry["packages/cloudproof-ops/remediation.js"] = function (module, exports, require) {
+'use strict';
+
+// Rule-based remediation candidates.
+//
+// A candidate is data: a partial edit to the change and/or a list of world
+// edits. Rules read only the counterexample's root cause and the change; no
+// model ranks them and nothing claims a candidate works until the verifier
+// has run it.
+
+const { SERVICE_KIND } = require('../cloudproof-mesh/constants');
+const { validateWorld } = require('../cloudproof-mesh/world');
+const { validateChange } = require('./changes');
+
+const clone = (value) => JSON.parse(JSON.stringify(value));
+
+function serviceOf(world, id) {
+    return world.services.find((item) => item.id === id) || null;
+}
+
+function usageByNode(world, excluding = null) {
+    const used = new Map(world.nodes.map((node) => [node.id, 0]));
+    for (const [serviceId, nodes] of Object.entries(world.placement)) {
+        if (serviceId === excluding) continue;
+        for (const node of nodes) used.set(node, used.get(node) + 1);
+    }
+    return used;
+}
+
+function volumeZone(world, service) {
+    return service.volume ? world.volumes.find((item) => item.id === service.volume).zone : null;
+}
+
+// Place one more pod: the zone with the fewest pods of this service, then the
+// least-used node there with a free slot. Ties break by id.
+function placeOne(world, service, current, used) {
+    const zoneCount = new Map(world.zones.map((zone) => [zone.id, 0]));
+    const zoneOfNode = new Map(world.nodes.map((node) => [node.id, node.zone]));
+    for (const node of current) zoneCount.set(zoneOfNode.get(node), zoneCount.get(zoneOfNode.get(node)) + 1);
+    const fixedZone = volumeZone(world, service);
+    const candidates = world.nodes.filter((node) => used.get(node.id) < node.slots && (!fixedZone || node.zone === fixedZone));
+    if (!candidates.length) throw new TypeError(`no free slot for another ${service.id} pod`);
+    candidates.sort((left, right) => zoneCount.get(left.zone) - zoneCount.get(right.zone)
+        || used.get(left.id) - used.get(right.id) || left.id.localeCompare(right.id));
+    const chosen = candidates[0];
+    used.set(chosen.id, used.get(chosen.id) + 1);
+    return chosen.id;
+}
+
+const WORLD_EDITS = {
+    replicas(world, edit) {
+        const service = serviceOf(world, edit.service);
+        const used = usageByNode(world);
+        const placement = world.placement[edit.service].slice(0, edit.replicas);
+        for (const node of world.placement[edit.service].slice(edit.replicas)) used.set(node, used.get(node) - 1);
+        while (placement.length < edit.replicas) placement.push(placeOne(world, service, placement, used));
+        service.replicas = edit.replicas;
+        service.minHealthy = Math.min(service.minHealthy, edit.replicas);
+        world.placement[edit.service] = placement;
+    },
+    spread(world, edit) {
+        const service = serviceOf(world, edit.service);
+        const used = usageByNode(world, edit.service);
+        const placement = [];
+        for (let index = 0; index < service.replicas; index += 1) placement.push(placeOne(world, service, placement, used));
+        world.placement[edit.service] = placement;
+    },
+    capacity(world, edit) {
+        serviceOf(world, edit.service).podCapacityRps = edit.podCapacityRps;
+    },
+    'queue-capacity': function queueCapacity(world, edit) {
+        serviceOf(world, edit.service).queueCapacity = edit.queueCapacity;
+    },
+};
+
+/** Apply a candidate to a configuration; returns a new, validated one. */
+function applyRemediation({ world, change }, remediation) {
+    const nextWorld = clone(world);
+    for (const edit of remediation.worldEdits || []) {
+        if (!WORLD_EDITS[edit.op]) throw new TypeError(`unknown world edit: ${edit.op}`);
+        WORLD_EDITS[edit.op](nextWorld, edit);
+    }
+    validateWorld(nextWorld);
+    // A recorded incident has no change: only world edits apply to it.
+    if (!change) {
+        if (remediation.changeEdit) throw new TypeError('this candidate edits a change, and there is none');
+        return { world: nextWorld, change: null };
+    }
+    const nextChange = { ...clone(change), ...(remediation.changeEdit || {}) };
+    validateChange(nextWorld, nextChange);
+    return { world: nextWorld, change: nextChange };
+}
+
+function zoneSpread(world, serviceId) {
+    const zoneOfNode = new Map(world.nodes.map((node) => [node.id, node.zone]));
+    const counts = new Map(world.zones.map((zone) => [zone.id, 0]));
+    for (const node of world.placement[serviceId]) counts.set(zoneOfNode.get(node), counts.get(zoneOfNode.get(node)) + 1);
+    return counts;
+}
+
+/**
+ * Candidate fixes for a counterexample. `cause` is the root cause the
+ * explanation computed ({ root, incidentClass, chain }).
+ */
+function remediationsFor({ world, change: proposed = null, labels = {} }, cause) {
+    const change = proposed || { type: null };
+    const name = (id) => labels[id] || id;
+    const out = [];
+    const add = (candidate) => {
+        if (out.some((item) => item.id === candidate.id)) return;
+        try {
+            applyRemediation({ world, change: proposed }, candidate);
+            out.push(candidate);
+        } catch (_) {
+            // A rule whose edit is not valid for this world is skipped, not shown.
+        }
+    };
+    const root = cause?.root ? serviceOf(world, cause.root) : null;
+    const target = change.service ? serviceOf(world, change.service) : null;
+
+    if (change.type === 'rollout' && change.maxUnavailable > 0) {
+        add({
+            id: 'rollout-max-unavailable-0',
+            title: `Reduce maxUnavailable ${change.maxUnavailable} → 0`,
+            rationale: 'Replace pods only after a surge pod is ready, so serving capacity never drops below the replica count.',
+            changeEdit: { maxUnavailable: 0, maxSurge: Math.max(1, change.maxSurge) },
+            diff: [
+                { field: `${change.service}.maxUnavailable`, before: change.maxUnavailable, after: 0 },
+                ...(change.maxSurge < 1 ? [{ field: `${change.service}.maxSurge`, before: change.maxSurge, after: 1 }] : []),
+            ],
+        });
+    }
+    if (change.type === 'rollout') {
+        add({
+            id: `replicas-${change.service}`,
+            title: `Increase ${name(change.service)} replicas ${target.replicas} → ${target.replicas + 1}`,
+            rationale: 'One more replica absorbs the pod that is out of service while it is being replaced.',
+            worldEdits: [{ op: 'replicas', service: change.service, replicas: target.replicas + 1 }],
+            diff: [{ field: `${change.service}.replicas`, before: target.replicas, after: target.replicas + 1 }],
+        });
+    }
+    if (change.type === 'scale' && target && change.replicas < target.replicas && change.replicas + 1 < target.replicas) {
+        add({
+            id: `scale-less-${change.service}`,
+            title: `Scale ${name(change.service)} to ${change.replicas + 1} instead of ${change.replicas}`,
+            rationale: 'A smaller cut keeps more headroom for the faults in the model.',
+            changeEdit: { replicas: change.replicas + 1 },
+            diff: [{ field: `${change.service}.replicas (target)`, before: change.replicas, after: change.replicas + 1 }],
+        });
+    }
+    if (change.type === 'drain-zone' && change.intervalMs < 30_000) {
+        const slower = Math.min(30_000, Math.max(2000, change.intervalMs * 3));
+        add({
+            id: 'drain-slower',
+            title: `Drain one node every ${(slower / 1000).toFixed(1)} s`,
+            rationale: 'Give evicted pods time to become ready elsewhere before the next node goes.',
+            changeEdit: { intervalMs: slower },
+            diff: [{ field: 'drain interval', before: `${(change.intervalMs / 1000).toFixed(1)} s`, after: `${(slower / 1000).toFixed(1)} s` }],
+        });
+    }
+    if (root && root.kind !== SERVICE_KIND.DATABASE && root.kind !== SERVICE_KIND.QUEUE
+        && ['INSTANCE_LOSS', 'OVERLOAD'].includes(cause.incidentClass) && root.id !== change.service) {
+        add({
+            id: `replicas-${root.id}`,
+            title: `Increase ${name(root.id)} replicas ${root.replicas} → ${root.replicas + 1}`,
+            rationale: `${name(root.id)} is where the failure starts; one more replica raises both its healthy count and its capacity.`,
+            worldEdits: [{ op: 'replicas', service: root.id, replicas: root.replicas + 1 }],
+            diff: [{ field: `${root.id}.replicas`, before: root.replicas, after: root.replicas + 1 }],
+        });
+    }
+    if (root && cause.incidentClass === 'INSTANCE_LOSS' && root.kind !== SERVICE_KIND.DATABASE) {
+        const counts = zoneSpread(world, root.id);
+        const fair = Math.ceil(root.replicas / world.zones.length);
+        if (Math.max(...counts.values()) > fair) {
+            add({
+                id: `spread-${root.id}`,
+                title: `Spread ${name(root.id)} evenly across zones`,
+                rationale: `${[...counts].map(([zone, count]) => `${count} in ${zone}`).join(', ')}: one zone holds more than its share.`,
+                worldEdits: [{ op: 'spread', service: root.id }],
+                diff: [{ field: `${root.id}.placement`, before: [...counts].map(([, count]) => count).join('/'), after: 'even' }],
+            });
+        }
+    }
+    if (root && ['OVERLOAD', 'CACHE_STAMPEDE'].includes(cause.incidentClass) && root.kind !== SERVICE_KIND.QUEUE) {
+        const raised = Math.ceil(root.podCapacityRps * 1.25);
+        add({
+            id: `capacity-${root.id}`,
+            title: `Raise ${name(root.id)} per-pod capacity ${root.podCapacityRps} → ${raised} rps`,
+            rationale: 'Vertical headroom for the load the failure put on it.',
+            worldEdits: [{ op: 'capacity', service: root.id, podCapacityRps: raised }],
+            diff: [{ field: `${root.id}.podCapacityRps`, before: root.podCapacityRps, after: raised }],
+        });
+    }
+    if (root && cause.incidentClass === 'CACHE_STAMPEDE') {
+        for (const cache of world.services.filter((item) => item.kind === SERVICE_KIND.CACHE
+            && world.dependencies.some((edge) => edge.type === 'BACKED_BY' && edge.from === item.id && edge.to === root.id))) {
+            add({
+                id: `replicas-${cache.id}`,
+                title: `Increase ${name(cache.id)} replicas ${cache.replicas} → ${cache.replicas + 1}`,
+                rationale: 'Keep the cache above its minimum when one of its pods is lost, so reads do not fall through.',
+                worldEdits: [{ op: 'replicas', service: cache.id, replicas: cache.replicas + 1 }],
+                diff: [{ field: `${cache.id}.replicas`, before: cache.replicas, after: cache.replicas + 1 }],
+            });
+        }
+    }
+    if (root && ['QUEUE_BACKLOG', 'QUEUE_BACKPRESSURE'].includes(cause.incidentClass)) {
+        for (const edge of world.dependencies.filter((item) => item.type === 'CONSUMES' && item.to === root.id)) {
+            const worker = serviceOf(world, edge.from);
+            const raised = Math.ceil(worker.podCapacityRps * 1.5);
+            add({
+                id: `capacity-${worker.id}`,
+                title: `Raise ${name(worker.id)} per-pod throughput ${worker.podCapacityRps} → ${raised} msg/s`,
+                rationale: 'Faster consumers drain the backlog after a surge or a stall.',
+                worldEdits: [{ op: 'capacity', service: worker.id, podCapacityRps: raised }],
+                diff: [{ field: `${worker.id}.podCapacityRps`, before: worker.podCapacityRps, after: raised }],
+            });
+            if (!(change.type === 'scale' && change.service === worker.id)) {
+                add({
+                    id: `replicas-${worker.id}`,
+                    title: `Add a ${name(worker.id)} consumer (${worker.replicas} → ${worker.replicas + 1})`,
+                    rationale: 'More consumers drain the queue faster.',
+                    worldEdits: [{ op: 'replicas', service: worker.id, replicas: worker.replicas + 1 }],
+                    diff: [{ field: `${worker.id}.replicas`, before: worker.replicas, after: worker.replicas + 1 }],
+                });
+            }
+        }
+        if (cause.incidentClass === 'QUEUE_BACKPRESSURE') {
+            add({
+                id: `queue-capacity-${root.id}`,
+                title: `Double ${name(root.id)} capacity ${root.queueCapacity} → ${root.queueCapacity * 2} messages`,
+                rationale: 'A deeper queue absorbs a longer stall before publishers are pushed back.',
+                worldEdits: [{ op: 'queue-capacity', service: root.id, queueCapacity: root.queueCapacity * 2 }],
+                diff: [{ field: `${root.id}.queueCapacity`, before: root.queueCapacity, after: root.queueCapacity * 2 }],
+            });
+        }
+    }
+    return out.slice(0, 5);
+}
+
+module.exports = { applyRemediation, remediationsFor };
+
+};
+__registry["packages/cloudproof-ops/evidence.js"] = function (module, exports, require) {
+'use strict';
+
+// Evidence bundles: everything needed to re-check a verification elsewhere.
+//
+// A bundle carries the topology, the change, the fault model, the search
+// configuration, the invariants, and (when one was found) the original and
+// minimal counterexample traces. Its digests are SHA-256 over canonical JSON
+// (sha256.js), so a bundle exported by the browser verifies byte-for-byte in
+// Node. `verifyEvidence` re-executes the minimal trace and, optionally, the
+// whole search.
+
+const { stable } = require('../cloudproof-mesh/world');
+const { changeSummary } = require('./changes');
+const { applyReadinessDelay } = require('./faults');
+const { describeInvariant } = require('./invariants');
+const { canonicalDigest } = require('./sha256');
+const { SEARCH_VERSION, replayTrace, verifyChange } = require('./verify');
+
+const EVIDENCE_KIND = 'cloudproof.ops-evidence';
+const EVIDENCE_SCHEMA_VERSION = 1;
+const OPS_BUILD = 'cloudproof-ops 0.1.0';
+
+function verdictStatement(result) {
+    if (result.status === 'counterexample') {
+        return `Counterexample found after ${result.counters.schedulesChecked} explored schedule${result.counters.schedulesChecked === 1 ? '' : 's'}.`;
+    }
+    if (result.status === 'verified') {
+        return `No modeled invariant violation found across ${result.counters.schedulesChecked} explored schedules (fault budget ${result.maxFaults}, seed ${result.seed}). Verified within this bound only.`;
+    }
+    return `Search ${result.status} after ${result.counters.schedulesChecked} schedules; no verdict.`;
+}
+
+function replayOutcome(world, trace, invariants) {
+    const replay = replayTrace(world, trace, invariants);
+    if (replay.invalid) return { invalid: true };
+    const state = replay.finalState;
+    return {
+        violations: (replay.violations || []).map(({ entry, entryStartMs, ...rest }) => rest),
+        transitions: replay.transitions,
+        final: stable({ clockMs: state.clockMs, rps: state.rps, pods: state.pods, zones: state.zones, nodes: state.nodes, services: state.services, derived: state.derived }),
+    };
+}
+
+/** Digest of what replaying a trace produces, not just of the trace. */
+function replayDigest(world, trace, invariants) {
+    const outcome = replayOutcome(world, trace, invariants);
+    return canonicalDigest({ actions: trace.map((entry) => entry.action), outcome });
+}
+
+function searchDigest(result) {
+    return canonicalDigest({
+        status: result.status,
+        counters: result.counters,
+        scheduleRange: result.scheduleRange,
+        horizonMs: result.horizonMs,
+        counterexample: result.counterexample ? { index: result.counterexample.scheduleIndex, label: result.counterexample.label, primary: result.counterexample.primary } : null,
+    });
+}
+
+function bundleDigest(bundle) {
+    const { exportedAt, digests, ...rest } = bundle;
+    return canonicalDigest({ ...rest, digests: { ...digests, bundle: null } });
+}
+
+/**
+ * Build a bundle from a finished search and (optional) shrink result.
+ * `exportedAt` is the only field that is not a function of the run, and it
+ * is excluded from the bundle digest.
+ */
+function buildEvidence({ scenario, config, result, shrink = null, exportedAt = null }) {
+    const world = config.world;
+    const counterexample = result.counterexample;
+    let counterexampleBlock = null;
+    if (counterexample) {
+        const effective = counterexample.readiness ? applyReadinessDelay(world) : world;
+        const minimal = shrink ? shrink.minimal : null;
+        counterexampleBlock = {
+            scheduleIndex: counterexample.scheduleIndex,
+            label: counterexample.label,
+            placements: counterexample.placements,
+            readinessDelay: counterexample.readiness,
+            atMs: counterexample.atMs,
+            primary: counterexample.primary,
+            violations: counterexample.violations,
+            cause: counterexample.cause,
+            withoutChange: counterexample.withoutChange,
+            effectiveWorldDigest: canonicalDigest(effective),
+            original: { actions: counterexample.trace.length, transitions: counterexample.transitions, trace: counterexample.trace },
+            minimal: minimal ? {
+                actions: minimal.actions,
+                transitions: minimal.transitions,
+                trace: minimal.trace,
+                primary: minimal.primary,
+                replayDigest: replayDigest(effective, minimal.trace, config.invariants),
+            } : null,
+            shrinkSteps: shrink ? shrink.steps : [],
+            originalReplayDigest: replayDigest(effective, counterexample.trace, config.invariants),
+        };
+    }
+    const bundle = {
+        schemaVersion: EVIDENCE_SCHEMA_VERSION,
+        kind: EVIDENCE_KIND,
+        build: { ops: OPS_BUILD, search: SEARCH_VERSION, engine: 'packages/cloudproof-mesh (Phase III)' },
+        exportedAt,
+        scenario: { id: scenario?.id || config.scenarioId || null, name: scenario?.name || null },
+        topology: { digest: canonicalDigest(world), world },
+        labels: config.labels || {},
+        versions: config.versions || {},
+        change: config.change,
+        changeSummary: changeSummary(config.change),
+        faultModel: { families: config.faults, maxFaults: config.maxFaults, variants: result.faultVariants },
+        search: {
+            seed: result.seed,
+            budget: result.budget,
+            horizonMs: result.horizonMs,
+            faultWindow: result.faultWindow,
+            scheduleRange: result.scheduleRange,
+            counters: result.counters,
+            status: result.status,
+        },
+        invariants: config.invariants.map((item) => ({ ...item, description: describeInvariant(item, config.labels) })),
+        verdict: { status: result.status === 'verified' ? 'verified-within-bound' : result.status, statement: verdictStatement(result) },
+        counterexample: counterexampleBlock,
+        preExisting: { count: result.counters.preExisting, classes: result.preExistingClasses || [] },
+        digests: { search: searchDigest(result), bundle: null },
+    };
+    bundle.digests.bundle = bundleDigest(bundle);
+    return stable(bundle);
+}
+
+/**
+ * Check a bundle: its own digest, its topology digest, and that replaying the
+ * minimal counterexample reproduces the recorded outcome. With
+ * `rerunSearch`, the whole search is repeated and compared as well.
+ */
+function verifyEvidence(bundle, { rerunSearch = false } = {}) {
+    const checks = [];
+    const check = (name, ok, detail = null) => checks.push({ name, ok: Boolean(ok), detail });
+    if (!bundle || bundle.kind !== EVIDENCE_KIND || bundle.schemaVersion !== EVIDENCE_SCHEMA_VERSION) {
+        check('bundle kind', false, `expected ${EVIDENCE_KIND} v${EVIDENCE_SCHEMA_VERSION}`);
+        return { ok: false, checks };
+    }
+    check('bundle digest', bundleDigest(bundle) === bundle.digests.bundle);
+    const world = bundle.topology.world;
+    check('topology digest', canonicalDigest(world) === bundle.topology.digest);
+    const invariants = bundle.invariants.map(({ description, ...rest }) => rest);
+    if (bundle.counterexample) {
+        const effective = bundle.counterexample.readinessDelay ? applyReadinessDelay(world) : world;
+        check('effective world digest', canonicalDigest(effective) === bundle.counterexample.effectiveWorldDigest);
+        check('original trace replays', replayDigest(effective, bundle.counterexample.original.trace, invariants) === bundle.counterexample.originalReplayDigest);
+        if (bundle.counterexample.minimal) {
+            const minimal = bundle.counterexample.minimal;
+            check('minimal trace replays', replayDigest(effective, minimal.trace, invariants) === minimal.replayDigest);
+            const outcome = replayOutcome(effective, minimal.trace, invariants);
+            check('minimal trace violates the recorded invariant', (outcome.violations || []).some((item) => item.invariant === minimal.primary.invariant));
+        }
+    }
+    if (rerunSearch) {
+        const result = verifyChange({
+            world, versions: bundle.versions, labels: bundle.labels, change: bundle.change, invariants,
+            faults: bundle.faultModel.families, maxFaults: bundle.faultModel.maxFaults,
+            budget: bundle.search.budget.name === 'custom' ? bundle.search.budget.schedules : bundle.search.budget.name,
+            seed: bundle.search.seed,
+        });
+        check('search re-run matches', searchDigest(result) === bundle.digests.search, `${result.status} after ${result.counters.schedulesChecked} schedules`);
+    }
+    return { ok: checks.every((item) => item.ok), checks };
+}
+
+module.exports = {
+    EVIDENCE_KIND,
+    OPS_BUILD,
+    buildEvidence,
+    bundleDigest,
+    replayDigest,
+    searchDigest,
+    verdictStatement,
+    verifyEvidence,
+};
+
+};
+__registry["packages/cloudproof-ops/topology.js"] = function (module, exports, require) {
+'use strict';
+
+// Topology import for the Operations Console.
+//
+// Two inputs are accepted, and nothing else is claimed:
+//  - a CloudProof Mesh world (`kind: "cloudproof.mesh-world"`, v1), exactly as
+//    packages/cloudproof-mesh/world.js validates it;
+//  - a simplified topology (`kind: "cloudproof.topology"`, v1), documented by
+//    `toSimplified()` (the example download), which is converted to a mesh world.
+// Arbitrary Kubernetes YAML is not supported.
+
+const { RELATION_TYPES, SERVICE_KIND } = require('../cloudproof-mesh/constants');
+const { createMeshState } = require('../cloudproof-mesh/engine');
+const { WORLD_KIND, validateWorld } = require('../cloudproof-mesh/world');
+
+const TOPOLOGY_KIND = 'cloudproof.topology';
+
+function describeJsonError(text, error) {
+    const match = /position (\d+)/.exec(error.message);
+    if (!match) return `Not valid JSON: ${error.message}`;
+    const position = Number(match[1]);
+    const before = text.slice(0, position);
+    const line = before.split('\n').length;
+    const column = position - before.lastIndexOf('\n');
+    return `Not valid JSON at line ${line}, column ${column}: ${error.message.replace(/ in JSON at position \d+.*/, '')}`;
+}
+
+// Turn the validator's terse messages into sentences a person can act on.
+function humanize(message) {
+    return message
+        .replace(/^expected a cloudproof\.mesh-world v1$/, 'The document is not a CloudProof mesh world (kind "cloudproof.mesh-world", schemaVersion 1).')
+        .replace(/must be an integer in \[(\d+), (Infinity|\d+)\]/, (_, low, high) => (high === 'Infinity' ? `must be a whole number of at least ${low}` : `must be a whole number between ${low} and ${high}`))
+        .replace(/^(\S+) needs one node per replica$/, '$1: its placement must list exactly one node per replica.')
+        .replace(/^(\S+) placed outside its volume zone$/, '$1: a database pod must run in the same zone as its volume.')
+        .replace(/^service dependencies must form a directed acyclic graph$/, 'Service dependencies contain a cycle; requests must flow one way.');
+}
+
+function slug(value) {
+    return typeof value === 'string' && /^[a-z0-9][a-z0-9-]{0,62}$/.test(value);
+}
+
+/** Convert the simplified format into a mesh world, collecting every problem. */
+function fromSimplified(input, errors) {
+    const zones = input.zones && typeof input.zones === 'object' && !Array.isArray(input.zones) ? input.zones : null;
+    if (!zones || !Object.keys(zones).length) errors.push('"zones" must map each zone id to a list of node ids, e.g. {"zone-a": ["node-a1"]}.');
+    const nodes = [];
+    for (const [zone, list] of Object.entries(zones || {})) {
+        if (!slug(zone)) errors.push(`Zone id "${zone}" must be lowercase letters, digits and dashes.`);
+        if (!Array.isArray(list) || !list.length) { errors.push(`Zone "${zone}" needs at least one node.`); continue; }
+        for (const node of list) {
+            const id = typeof node === 'string' ? node : node?.id;
+            if (!slug(id)) { errors.push(`Node "${id}" in ${zone} must be lowercase letters, digits and dashes.`); continue; }
+            nodes.push({ id, zone, slots: Number.isInteger(node?.slots) ? node.slots : 8 });
+        }
+    }
+    if (!Array.isArray(input.services) || !input.services.length) errors.push('"services" must be a non-empty list.');
+    const services = [];
+    const volumes = [];
+    const placement = {};
+    for (const item of input.services || []) {
+        if (!slug(item?.id)) { errors.push(`Service id "${item?.id}" must be lowercase letters, digits and dashes.`); continue; }
+        if (!Object.values(SERVICE_KIND).includes(item.kind)) {
+            errors.push(`Service "${item.id}": kind must be one of ${Object.values(SERVICE_KIND).join(', ')}.`);
+            continue;
+        }
+        const replicas = item.replicas ?? 1;
+        const service = {
+            id: item.id,
+            kind: item.kind,
+            replicas,
+            minHealthy: item.minHealthy ?? Math.ceil(replicas / 2),
+            podCapacityRps: item.capacityRps,
+            startupMs: item.startupMs ?? 1000,
+            role: null,
+            volume: null,
+            queueCapacity: item.kind === SERVICE_KIND.QUEUE ? item.queueCapacity : null,
+        };
+        if (!Number.isInteger(item.capacityRps) || item.capacityRps < 1) errors.push(`Service "${item.id}": capacityRps (per pod) must be a positive whole number.`);
+        if (item.kind === SERVICE_KIND.QUEUE && !(Number.isInteger(item.queueCapacity) && item.queueCapacity > 0)) {
+            errors.push(`Queue "${item.id}": queueCapacity (messages) must be a positive whole number.`);
+        }
+        if (!Array.isArray(item.placement)) errors.push(`Service "${item.id}": placement must list one node id per replica.`);
+        placement[item.id] = Array.isArray(item.placement) ? item.placement.slice() : [];
+        if (item.kind === SERVICE_KIND.DATABASE) {
+            service.role = item.role || 'primary';
+            const firstNode = nodes.find((node) => node.id === placement[item.id][0]);
+            const zone = item.zone || firstNode?.zone;
+            if (!zone) errors.push(`Database "${item.id}": give it a "zone" (where its volume lives) or a placement.`);
+            service.volume = `vol-${item.id}`;
+            volumes.push({ id: service.volume, zone, service: item.id });
+        }
+        services.push(service);
+    }
+    const routes = Array.isArray(input.routes) ? input.routes.map((route) => ({ id: route?.id, sharePct: route?.sharePct, entry: route?.entry })) : [];
+    if (!routes.length) errors.push('"routes" must list at least one route: {"id", "sharePct", "entry"}.');
+    const dependencies = [];
+    for (const edge of input.dependencies || []) {
+        const [from, type, to] = Array.isArray(edge) ? edge : [edge?.from, edge?.type, edge?.to];
+        if (!RELATION_TYPES.includes(type)) { errors.push(`Dependency ${JSON.stringify(edge)}: type must be one of CALLS, CALLS_OPTIONAL, READS_THROUGH, BACKED_BY, WRITES, READS, REPLICATES, PUBLISHES, CONSUMES.`); continue; }
+        dependencies.push({ type, from, to });
+    }
+    return {
+        schemaVersion: 1,
+        kind: WORLD_KIND,
+        template: `import:${slug(input.name) ? input.name : 'custom'}`,
+        zones: Object.keys(zones || {}).map((id) => ({ id })),
+        nodes,
+        services,
+        volumes,
+        routes,
+        dependencies,
+        placement,
+        traffic: { rps: input.trafficRps ?? 1000 },
+        errorBudgetPct: 20,
+    };
+}
+
+/**
+ * Parse and validate pasted text. Returns { ok, world, format, errors,
+ * warnings }; errors are complete sentences.
+ */
+function parseTopology(text) {
+    const trimmed = String(text).trim();
+    if (/^(apiVersion|kind)\s*:/m.test(trimmed) && !trimmed.startsWith('{')) {
+        return { ok: false, errors: ['This looks like Kubernetes YAML, which is not supported. Paste CloudProof topology JSON instead (download the example to start).'], warnings: [] };
+    }
+    let input;
+    try {
+        input = JSON.parse(text);
+    } catch (error) {
+        return { ok: false, errors: [describeJsonError(String(text), error)], warnings: [] };
+    }
+    const errors = [];
+    const warnings = [];
+    let world;
+    let format;
+    if (input?.kind === WORLD_KIND) {
+        format = 'mesh-world';
+        world = input;
+    } else if (input?.kind === TOPOLOGY_KIND) {
+        format = 'topology';
+        if (input.version !== 1) errors.push(`Unsupported cloudproof.topology version ${input.version}; expected 1.`);
+        world = fromSimplified(input, errors);
+    } else {
+        return {
+            ok: false,
+            errors: [`Unrecognised document. Expected "kind": "${TOPOLOGY_KIND}" (simplified format, see the example) or "${WORLD_KIND}". Kubernetes manifests are not supported.`],
+            warnings,
+        };
+    }
+    if (!errors.length) {
+        try {
+            validateWorld(world);
+        } catch (error) {
+            errors.push(humanize(error.message));
+        }
+    }
+    if (!errors.length) {
+        const state = createMeshState(world);
+        const overloaded = Object.entries(state.derived.health).filter(([, health]) => health.overloaded).map(([id]) => id);
+        const down = Object.entries(state.derived.health).filter(([, health]) => !health.up).map(([id]) => id);
+        if (state.derived.violating) {
+            errors.push(`At steady state ${state.derived.errorSharePct}% of traffic already fails (over the 20% budget)${overloaded.length ? `; overloaded: ${overloaded.join(', ')}` : ''}. Raise capacities before verifying changes.`);
+        } else if (down.length) {
+            warnings.push(`Unavailable at steady state: ${down.join(', ')}.`);
+        }
+    }
+    return errors.length ? { ok: false, errors, warnings, format } : { ok: true, world, format, errors: [], warnings };
+}
+
+/** The simplified form of a mesh world (used for the example download). */
+function toSimplified(world, name = 'example') {
+    return {
+        kind: TOPOLOGY_KIND,
+        version: 1,
+        name,
+        trafficRps: world.traffic.rps,
+        zones: Object.fromEntries(world.zones.map((zone) => [zone.id,
+            world.nodes.filter((node) => node.zone === zone.id).map((node) => (node.slots === 8 ? node.id : { id: node.id, slots: node.slots }))])),
+        services: world.services.map((service) => ({
+            id: service.id,
+            kind: service.kind,
+            replicas: service.replicas,
+            minHealthy: service.minHealthy,
+            capacityRps: service.podCapacityRps,
+            startupMs: service.startupMs,
+            ...(service.role ? { role: service.role, zone: world.volumes.find((volume) => volume.id === service.volume).zone } : {}),
+            ...(service.queueCapacity ? { queueCapacity: service.queueCapacity } : {}),
+            placement: world.placement[service.id],
+        })),
+        routes: world.routes,
+        dependencies: world.dependencies.map((edge) => [edge.from, edge.type, edge.to]),
+    };
+}
+
+/** Default invariants for an imported world: the busiest route and the budget. */
+function defaultInvariants(world) {
+    const busiest = world.routes.slice().sort((left, right) => right.sharePct - left.sharePct || left.id.localeCompare(right.id))[0];
+    return [
+        { id: `route-${busiest.id}`, kind: 'route-available', route: busiest.id },
+        { id: 'error-budget', kind: 'error-budget', maxPct: 20 },
+    ];
+}
+
+module.exports = { TOPOLOGY_KIND, defaultInvariants, parseTopology, toSimplified };
+
+};
+__registry["packages/cloudproof-ops/architecture.js"] = function (module, exports, require) {
+'use strict';
+
+// Architecture what-if: the Phase III counterfactual pairs, made visible.
+//
+// Pairs come from packages/cloudproof-mesh/pairs.js unchanged: two worlds with
+// the same services, replicas, capacities, placement and per-node degrees,
+// differing by one degree-preserving swap inside one relation type, receiving
+// the same fault. `findDecisivePair` walks seeds until the simulator gives the
+// two members different outcomes; both members are then replayed step by step.
+
+const { PAIR_FAMILIES, buildPair, evaluatePair } = require('../cloudproof-mesh/pairs');
+const { TEMPLATES } = require('../cloudproof-mesh/generator');
+const { MESH_ACTION } = require('../cloudproof-mesh/constants');
+const { edgeId } = require('./graph-model');
+const { buildTimeline, explainViolation } = require('./explain');
+const { replayTrace } = require('./verify');
+
+const FAMILY_COPY = Object.freeze({
+    'route-entry': { title: 'Which API the busy route enters', relation: 'ENTERS', fault: 'node crash' },
+    'call-dependency': { title: 'Which twin API the busy entry calls', relation: 'CALLS', fault: 'node crash' },
+    'cache-backing': { title: 'Which store a flushed cache falls through to', relation: 'BACKED_BY', fault: 'cache flush' },
+    'storage-zone': { title: 'Which zonal database the busy writer uses', relation: 'WRITES', fault: 'zone degradation' },
+    'queue-consumer': { title: 'Which worker drains the busy queue', relation: 'CONSUMES', fault: 'node crash' },
+});
+
+const SLO = Object.freeze([{ id: 'error-budget', kind: 'error-budget', maxPct: 20 }]);
+
+function families() {
+    return PAIR_FAMILIES.map((id) => ({ id, ...FAMILY_COPY[id] }));
+}
+
+function templates() {
+    return TEMPLATES.filter((item) => item.split === 'train').map((item) => item.id);
+}
+
+const KIND_SHORT = { api: 'api', cache: 'cache', queue: 'queue', worker: 'worker', database: 'db' };
+
+/** Readable labels for generated ids: "api 07", "db 03 (replica)". */
+function generatedLabels(world) {
+    return Object.fromEntries(world.services.map((service) => {
+        const number = service.id.replace(/^svc-/, '');
+        const role = service.role === 'replica' ? ' (replica)' : '';
+        return [service.id, `${KIND_SHORT[service.kind]} ${number}${role}`];
+    }));
+}
+
+/** First decisive, valid pair at or after `seed`. */
+function findDecisivePair({ family, templateId = 'T1', seed = 1, maxTries = 40 }) {
+    if (!PAIR_FAMILIES.includes(family)) throw new TypeError(`unknown pair family: ${family}`);
+    const skipped = [];
+    for (let offset = 0; offset < maxTries; offset += 1) {
+        const candidate = seed + offset;
+        const pair = buildPair({ seed: candidate, family, templateId });
+        const evaluation = evaluatePair(pair);
+        if (evaluation.valid && evaluation.decisive) return { pair, evaluation, seed: candidate, skipped };
+        skipped.push({ seed: candidate, valid: evaluation.valid, decisive: evaluation.decisive });
+    }
+    return null;
+}
+
+function scheduleTrace(schedule) {
+    let clock = 0;
+    return schedule.actions.map((action) => {
+        const entry = {
+            action,
+            origin: action.type === MESH_ACTION.ADVANCE_TIME ? 'time' : 'fault',
+            label: null,
+            atMs: clock,
+        };
+        if (action.type === MESH_ACTION.ADVANCE_TIME) clock += action.ms;
+        return entry;
+    });
+}
+
+/**
+ * Replay both members of a pair on the same schedule. Returns per-member
+ * timelines, the wiring edges that differ, and the explanation for whichever
+ * member violated the SLO.
+ */
+function pairReplay(found) {
+    const { pair, evaluation } = found;
+    const members = {};
+    const edgeSets = {};
+    for (const member of ['A', 'B']) {
+        const schedule = pair.schedules[member];
+        const world = schedule.world;
+        const labels = generatedLabels(world);
+        const trace = scheduleTrace(schedule);
+        const timeline = buildTimeline(world, trace, SLO, { labels });
+        const replay = replayTrace(world, trace, SLO);
+        let explanation = null;
+        if (replay.violations) {
+            const upTo = trace.slice(0, replay.violations[0].entry + 1);
+            explanation = explainViolation(replay.finalState, replay.violations[0], SLO, { trace: upTo.filter((entry) => entry.origin !== 'time'), labels });
+        }
+        edgeSets[member] = new Set([
+            ...world.dependencies.map(edgeId),
+            ...world.routes.map((route) => `ENTERS:${route.id}->${route.entry}`),
+        ]);
+        members[member] = {
+            wiring: pair.order[member],
+            world,
+            labels,
+            timeline,
+            violated: Boolean(replay.violations),
+            violation: replay.violations ? replay.violations[0] : null,
+            explanation,
+            truth: evaluation.truth[member],
+        };
+    }
+    const differing = {
+        A: [...edgeSets.A].filter((id) => !edgeSets.B.has(id)).sort(),
+        B: [...edgeSets.B].filter((id) => !edgeSets.A.has(id)).sort(),
+    };
+    return {
+        pairId: pair.pairId,
+        family: pair.family,
+        familyTitle: FAMILY_COPY[pair.family].title,
+        template: pair.template,
+        seed: found.seed,
+        skippedSeeds: found.skipped,
+        swappedRelation: pair.swappedRelation,
+        fault: pair.fault,
+        criticalRoute: pair.criticalRoute,
+        motif: pair.motif,
+        assertions: evaluation.assertions,
+        riskier: evaluation.riskier,
+        hopsFromFaultToCriticalRoute: evaluation.hopsFromFaultToCriticalRoute,
+        differing,
+        members,
+    };
+}
+
+module.exports = { FAMILY_COPY, families, findDecisivePair, generatedLabels, pairReplay, templates };
+
+};
+__registry["packages/cloudproof-ops/incidents.js"] = function (module, exports, require) {
+'use strict';
+
+// Incident Lab: replay a recorded outage, find its first violation, shrink it
+// to its causal core, and find when (and whether) the system recovered.
+//
+// Committed incidents are identifiers, not recordings: each names a Phase III
+// template and seed, and the world and its natural (outcome-blind) schedule
+// are regenerated by packages/cloudproof-mesh/generator.js. Evidence bundles
+// exported from Verify Change can be imported and replayed the same way.
+
+const { MESH_ACTION, MESH_FAULT } = require('../cloudproof-mesh/constants');
+const { generateWorld, naturalSchedule } = require('../cloudproof-mesh/generator');
+const { generatedLabels } = require('./architecture');
+const { applyReadinessDelay } = require('./faults');
+const { createMonitor, observeAll } = require('./invariants');
+const { replayTrace } = require('./verify');
+const { createMeshState, step, tick } = require('../cloudproof-mesh/engine');
+const { TIMING } = require('../cloudproof-mesh/constants');
+
+const SLO = Object.freeze([{ id: 'error-budget', kind: 'error-budget', maxPct: 20 }]);
+
+// Chosen from a scan of natural schedules (seeds 100-159) for traces that run
+// well past their first incident and cover four incident classes.
+const COMMITTED = Object.freeze([
+    { id: 'natural-T2-108', template: 'T2', seed: 108, title: 'Capacity lost while traffic was shifted up', source: 'Phase III natural schedule' },
+    { id: 'natural-T2-105', template: 'T2', seed: 105, title: 'A drain after a long, noisy afternoon', source: 'Phase III natural schedule' },
+    { id: 'natural-T2-133', template: 'T2', seed: 133, title: 'Cache flush during a scale event', source: 'Phase III natural schedule' },
+    { id: 'natural-T5-156', template: 'T5', seed: 156, title: 'Order backlog after a consumer stall', source: 'Phase III natural schedule' },
+]);
+
+const FAULT_TYPES = new Set(Object.values(MESH_FAULT));
+
+function originOf(action) {
+    if (action.type === MESH_ACTION.ADVANCE_TIME) return 'time';
+    return FAULT_TYPES.has(action.type) ? 'fault' : 'operation';
+}
+
+function listIncidents() {
+    return COMMITTED.map((item) => ({ ...item }));
+}
+
+function loadIncident(id) {
+    const entry = COMMITTED.find((item) => item.id === id);
+    if (!entry) throw new TypeError(`unknown incident: ${id}`);
+    const { world } = generateWorld(entry.seed, entry.template);
+    const { actions } = naturalSchedule(entry.seed, world);
+    let clock = 0;
+    const trace = actions.map((action) => {
+        const item = { action, origin: originOf(action), label: null, atMs: clock };
+        if (action.type === MESH_ACTION.ADVANCE_TIME) clock += action.ms;
+        return item;
+    });
+    return {
+        id: entry.id,
+        title: entry.title,
+        source: `${entry.source} · template ${entry.template} · seed ${entry.seed}`,
+        world,
+        labels: generatedLabels(world),
+        versions: {},
+        invariants: SLO.map((item) => ({ ...item })),
+        trace,
+        requireChange: false,
+    };
+}
+
+/** An incident from an evidence bundle's original counterexample trace. */
+function incidentFromEvidence(bundle) {
+    if (!bundle?.counterexample) throw new TypeError('this evidence bundle has no counterexample to replay');
+    const world = bundle.counterexample.readinessDelay ? applyReadinessDelay(bundle.topology.world) : bundle.topology.world;
+    return {
+        id: `evidence-${bundle.digests.bundle.slice(0, 12)}`,
+        title: bundle.changeSummary,
+        source: `evidence bundle ${bundle.digests.bundle.slice(0, 12)} · ${bundle.scenario.name || bundle.scenario.id || 'imported'}`,
+        world,
+        labels: bundle.labels || {},
+        versions: bundle.versions || {},
+        invariants: bundle.invariants.map(({ description, ...rest }) => rest),
+        trace: bundle.counterexample.original.trace,
+        requireChange: true,
+        target: bundle.counterexample.primary.invariant,
+        bundle,
+    };
+}
+
+/**
+ * Run the whole recording once, tick by tick: when invariants first fail,
+ * and the first instant after that when every invariant holds again.
+ */
+function incidentOutline(world, trace, invariants) {
+    let state = createMeshState(world);
+    const monitors = invariants.map(createMonitor);
+    let first = null;
+    let recoveredAtMs = null;
+    let violatingMs = 0;
+    const observe = () => {
+        const found = observeAll(monitors, state);
+        if (found.length) {
+            if (!first) first = found;
+            recoveredAtMs = null;
+        } else if (first && recoveredAtMs === null) {
+            recoveredAtMs = state.clockMs;
+        }
+        return found.length > 0;
+    };
+    for (const entry of trace) {
+        if (entry.action.type === MESH_ACTION.ADVANCE_TIME) {
+            for (let elapsed = 0; elapsed < entry.action.ms; elapsed += TIMING.tickMs) {
+                tick(state);
+                if (observe()) violatingMs += TIMING.tickMs;
+            }
+        } else {
+            state = step(state, entry.action).state;
+            observe();
+        }
+    }
+    const endMs = state.clockMs;
+    return {
+        firstViolation: first ? first[0] : null,
+        recoveredAtMs,
+        recovered: Boolean(first) && recoveredAtMs !== null,
+        violatingMs,
+        endMs,
+        actions: trace.length,
+    };
+}
+
+/** Cut the recording at its first violation (the counterexample to shrink). */
+function incidentPrefix(world, trace, invariants, target = null) {
+    const replay = replayTrace(world, trace, invariants);
+    if (!replay.violations) return null;
+    const hit = target ? replay.violations.find((item) => item.invariant === target) || replay.violations[0] : replay.violations[0];
+    const cut = trace.slice(0, hit.entry + 1).map((entry) => ({ ...entry }));
+    const last = cut[cut.length - 1];
+    if (last.action.type === MESH_ACTION.ADVANCE_TIME) cut[cut.length - 1] = { ...last, action: { ...last.action, ms: hit.atMs - hit.entryStartMs } };
+    return { trace: cut, violation: hit, violations: replay.violations };
+}
+
+module.exports = { COMMITTED, SLO, incidentFromEvidence, incidentOutline, incidentPrefix, listIncidents, loadIncident };
+
+};
+__registry["packages/cloudproof-ops/index.js"] = function (module, exports, require) {
+'use strict';
+
+// CloudProof Operations Console: the product API over CloudProof Mesh.
+//
+// The browser page calls these functions and renders what they return. It
+// does not reimplement any simulator behaviour: worlds, controllers, faults,
+// invariants, search, shrinking and explanations all live here (and in
+// packages/cloudproof-mesh), and run identically under Node.
+
+const { createMeshState } = require('../cloudproof-mesh/engine');
+const architecture = require('./architecture');
+const { CHANGE_TYPES, DEFAULT_STRATEGY, changeSummary, describeChange, validateChange } = require('./changes');
+const evidence = require('./evidence');
+const { buildTimeline, explainViolation } = require('./explain');
+const { FAULT_FAMILIES, applyReadinessDelay } = require('./faults');
+const { graphModel, layoutWorld } = require('./graph-model');
+const incidents = require('./incidents');
+const { INVARIANT_KINDS, describeInvariant, validateInvariants } = require('./invariants');
+const { applyRemediation, remediationsFor } = require('./remediation');
+const { DEMOS, USE_CASES, demoById, listScenarios, loadScenario } = require('./scenarios');
+const { canonicalDigest, sha256Hex } = require('./sha256');
+const { TraceShrinker, shrinkTrace } = require('./shrink');
+const topology = require('./topology');
+const {
+    BUDGETS, FAULT_BUDGET, VerificationSearch, replayEnvironment, replayTrace, verifyChange,
+} = require('./verify');
+
+/** Graph data for a world at rest (no simulation step taken). */
+function initialGraph(world, meta = {}) {
+    return graphModel(createMeshState(world), { ...meta, layout: meta.layout || layoutWorld(world) });
+}
+
+/**
+ * Everything the counterexample player shows, from a trace that ends in a
+ * violation: the per-step timeline, the explanation, and the attribution
+ * state (the same faults without the change).
+ */
+function explainTrace({ world, trace, invariants, labels = {}, versions = {}, target = null, requireChange = true }) {
+    const timeline = buildTimeline(world, trace, invariants, { labels, versions });
+    const replay = replayTrace(world, trace, invariants);
+    if (!replay.violations) return { timeline, explanation: null, violation: null };
+    const violation = (target && replay.violations.find((item) => item.invariant === target)) || replay.violations[0];
+    let withoutChange = null;
+    if (requireChange) {
+        const faultsOnly = trace.filter((entry) => entry.origin !== 'change');
+        withoutChange = faultsOnly.length ? replayTrace(world, faultsOnly, invariants, { stopOnViolation: false }).finalState : createMeshState(world);
+    }
+    const clean = (({ entry, entryStartMs, ...rest }) => rest)(violation);
+    const explanation = explainViolation(replay.finalState, clean, invariants, { trace, labels, withoutChange });
+    return { timeline, explanation, violation: clean };
+}
+
+const ops = {
+    version: evidence.OPS_BUILD,
+    BUDGETS,
+    FAULT_BUDGET,
+    CHANGE_TYPES,
+    DEFAULT_STRATEGY,
+    FAULT_FAMILIES,
+    INVARIANT_KINDS,
+    DEMOS,
+    USE_CASES,
+    listScenarios,
+    loadScenario,
+    demoById,
+    describeChange,
+    changeSummary,
+    validateChange,
+    describeInvariant,
+    validateInvariants,
+    applyReadinessDelay,
+    initialGraph,
+    graphModel,
+    layoutWorld,
+    createVerification: (config) => new VerificationSearch(config),
+    verifyChange,
+    createShrinker: (options) => new TraceShrinker(options),
+    shrinkTrace,
+    replayTrace,
+    replayEnvironment,
+    explainTrace,
+    remediationsFor,
+    applyRemediation,
+    architecture,
+    incidents,
+    topology,
+    evidence,
+    canonicalDigest,
+    sha256Hex,
+};
+
+module.exports = ops;
+
+};
 
 // A single entry point on window. Everything the page needs, and nothing else.
 global.cloudProof = {
@@ -9705,5 +15090,14 @@ global.cloudProof = {
   invariants: __require('web/entry.js', 'packages/simulator/invariants.js'),
   scenario: __require('web/entry.js', 'packages/scenario-dsl/index.js'),
   bugMuseum: __require('web/entry.js', 'sim/bug-museum.js'),
+  mesh: {
+    constants: __require('web/entry.js', 'packages/cloudproof-mesh/constants.js'),
+    world: __require('web/entry.js', 'packages/cloudproof-mesh/world.js'),
+    engine: __require('web/entry.js', 'packages/cloudproof-mesh/engine.js'),
+    runner: __require('web/entry.js', 'packages/cloudproof-mesh/runner.js'),
+    generator: __require('web/entry.js', 'packages/cloudproof-mesh/generator.js'),
+    pairs: __require('web/entry.js', 'packages/cloudproof-mesh/pairs.js'),
+  },
+  ops: __require('web/entry.js', 'packages/cloudproof-ops/index.js'),
 };
 })(typeof window !== 'undefined' ? window : globalThis);

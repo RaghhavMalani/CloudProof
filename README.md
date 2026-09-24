@@ -28,11 +28,12 @@
 11. [Retrieval and model serving](#8-retrieval-and-model-serving)
 12. [Streaming substrate](#9-deterministic-streaming-substrate)
 13. [Infrastructure, operations and CI](#10-infrastructure-operations-and-ci)
-14. [Engineering principles](#engineering-principles)
-15. [Résumé highlights](#résumé-highlights)
-16. [Run it](#run-it)
-17. [Repository map](#repository-map)
-18. [Honest limits](#honest-limits)
+14. [Operations Console](#11-operations-console)
+15. [Engineering principles](#engineering-principles)
+16. [Résumé highlights](#résumé-highlights)
+17. [Run it](#run-it)
+18. [Repository map](#repository-map)
+19. [Honest limits](#honest-limits)
 
 ---
 
@@ -468,6 +469,16 @@ No window boundary ever reads processing time.
 
 ---
 
+## 11. Operations Console
+
+The browser page now opens on **Verify Change**: pick a scenario and a proposed change (rollout, scale, node or zone drain, database failover), a fault model, a fault budget and a verification budget. CloudProof then searches fault schedules on the Phase III multi-service simulator (`packages/cloudproof-mesh`), running in the page. It stops at the first counterexample the change is responsible for, shrinks it (for example `9 → 7 → 6 → 3 → 2` actions), replays it step by step on the service graph, and explains it from the causes the engine recorded. Rule-based fixes are then re-verified against the counterexample's exact faults and through the same search. A pass is reported as *verified within bound*, never as safe.
+
+The **Incident Lab** shrinks recorded outages to their causal core and finds the recovery point. **Architecture** runs a Phase III counterfactual pair side by side (same resources, same fault, different wiring). **Agent Lab** keeps the original Flight Deck and Bug Museum. Every verification exports an evidence bundle whose SHA-256 digests match between the page and Node, so it can be re-checked with `node tools/cloudproof-ops.js check bundle.json --rerun`.
+
+The product layer lives in `packages/cloudproof-ops` (controllers, invariants, search, shrinking, explanations, remediation, evidence, import). The page (`apps/ops`) only renders what it returns. See [CLOUDPROOF-OPERATIONS-CONSOLE.md](CLOUDPROOF-OPERATIONS-CONSOLE.md).
+
+---
+
 ## Engineering principles
 
 - **Determinism first.** Randomness enters only at schedule generation. Execution, shrinking and replay consume concrete actions, so every failure is a file you can re-run.
@@ -522,8 +533,14 @@ Everything below runs locally and costs nothing. Node 24 is the only requirement
 # Raft + gateway cluster with durable volumes → http://localhost:4000
 docker compose up --build
 
-# Browser Flight Deck (static; real modules under a virtual clock)
+# Browser: Operations Console + Agent Lab (static; real modules under a virtual clock)
 node tools/build-web.js && npx serve web
+
+# Operations Console verifier from a terminal: verify, export and re-check evidence
+node tools/cloudproof-ops.js verify --demo rollout-payment
+node tools/cloudproof-ops.js verify --demo rollout-payment --max-unavailable 0
+node tools/cloudproof-ops.js export --demo rollout-payment --out bundle.json
+node tools/cloudproof-ops.js check bundle.json --rerun
 
 # Consensus schedule search: search, shrink, replay
 node sim/search.js --runs 100
@@ -580,11 +597,13 @@ cloudproof/
 │   ├── simulator/      Invariants, linearizability checker, flight recorder, explanations
 │   ├── agent-runtime/  Effect ledger, semantic snapshots, agent checkpoints
 │   ├── cloudproof/     Kubernetes twin: resources, controllers, graph, invariants, nuisance, pairs
+│   ├── cloudproof-mesh/ Phase III multi-service world: engine, generator, counterfactual pairs
+│   ├── cloudproof-ops/ Operations Console product layer: changes, invariants, search, shrink, evidence
 │   ├── workloads/      Eleven deterministic Flight Deck workloads
 │   └── stream/         Partitioned log, consumer groups, watermarks, event-time windows
 ├── ml/cloudproof/      PyTorch GNN, tensorizer, training, attribution, statistics (plus tests)
 ├── serving/            Embedding service, ONNX/hash embedders, S3 artifact loader
-├── apps/ · web/        Browser Flight Deck, Bug Museum and generated static build
+├── apps/ · web/        Operations Console, Flight Deck, Bug Museum and the generated static build
 ├── k8s/                Raft StatefulSet, serving tier, CloudProof flagship, kind, KEDA, MinIO, monitoring
 ├── infra/terraform/    Split-tier EKS, IRSA, S3, Secrets Manager, cost guard
 ├── tools/              CLIs: search, benchmarks, corpus, freeze, kind replay, cold-start, cost model
@@ -603,4 +622,5 @@ These boundaries are stated so that every claim above maps to code that can be e
 - **The graph-learning result** is established for controlled topology interventions only. On the natural corpus the topology-blind model is statistically indistinguishable in AUROC, and deterministic coverage search remains the strongest verification prioritizer. The effect is concentrated in two of four intervention families, and the model ranks all nine "unsafe → safe" flips wrongly.
 - **The Terraform** is reference infrastructure and has not been applied. IRSA, Fargate cold starts and EBS zonal behaviour are therefore not exercised by the local $0 stack.
 - **Diagnosis time** with and without the Flight Deck has not been measured in a user study; that field is recorded as `not-collected` rather than inferred.
+- **The Operations Console** verifies the Phase III *model*: it has no latency, no partial failures, no scheduler anti-affinity and no PodDisruptionBudgets, and "verified within bound" covers only the explored schedules. Remediation candidates come from fixed rules, not from any learned or LLM component. Topology import accepts CloudProof JSON, not Kubernetes manifests.
 - The next scientific step is a **multi-service dependency topology**, giving graph models richer relational structure than one service can offer.
