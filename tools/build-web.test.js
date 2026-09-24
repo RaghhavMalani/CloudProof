@@ -297,5 +297,10 @@ test('the web bundle build is deterministic and the committed bundle is current'
     const { bundle } = require('./build-web');
     const first = bundle();
     assert.equal(first, bundle());
-    assert.equal(first, fs.readFileSync(path.join(__dirname, '..', 'web', 'bundle.js'), 'utf8'), 'run node tools/build-web.js');
+    // Compare modulo line endings, as Git does: a Windows checkout with
+    // core.autocrlf rewrites the committed bundle (and the sources inside it)
+    // with CRLF, which is not staleness.
+    const lf = (text) => text.replace(/\r\n/g, '\n');
+    const committed = fs.readFileSync(path.join(__dirname, '..', 'web', 'bundle.js'), 'utf8');
+    assert.equal(lf(first), lf(committed), 'run node tools/build-web.js');
 });
