@@ -205,3 +205,102 @@ test('Flight Deck boots into the refund agent and wires its primary controls', (
     }
 
 });
+
+function browserOps() {
+    const source = fs.readFileSync(path.join(__dirname, '..', 'web', 'bundle.js'), 'utf8');
+    const browser = {};
+    vm.runInNewContext(source, { window: browser, TextDecoder, TextEncoder }, { filename: 'bundle.js' });
+    return browser.cloudProof;
+}
+
+test('the browser bundle exposes the Operations Console API and the mesh simulator', () => {
+    const cloudProof = browserOps();
+    const ops = cloudProof.ops;
+    for (const name of ['listScenarios', 'loadScenario', 'createVerification', 'verifyChange', 'createShrinker', 'explainTrace',
+        'remediationsFor', 'applyRemediation', 'replayEnvironment', 'initialGraph', 'describeChange']) {
+        assert.equal(typeof ops[name], 'function', name);
+    }
+    for (const name of ['architecture', 'incidents', 'topology', 'evidence']) assert.equal(typeof ops[name], 'object', name);
+    assert.equal(typeof cloudProof.mesh.engine.createMeshState, 'function');
+    assert.equal(typeof cloudProof.mesh.pairs.buildPair, 'function');
+    assert.ok(ops.DEMOS.length >= 5);
+    assert.equal(ops.USE_CASES.length, 6);
+});
+
+test('a verification in the browser bundle is byte-identical to the same one in Node', () => {
+    const nodeOps = require('../packages/cloudproof-ops');
+    const run = (ops) => {
+        const demo = ops.demoById('rollout-payment');
+        const scenario = ops.loadScenario(demo.scenario);
+        const config = {
+            scenarioId: scenario.id, world: scenario.world, versions: scenario.versions, labels: scenario.labels,
+            change: demo.change, invariants: scenario.invariants, faults: demo.faults, maxFaults: 1, budget: 'standard', seed: 1337,
+        };
+        const result = ops.verifyChange(config);
+        const counterexample = result.counterexample;
+        const shrink = ops.shrinkTrace({ world: counterexample.world, trace: counterexample.trace, invariants: config.invariants, target: counterexample.primary.invariant });
+        return ops.evidence.buildEvidence({ scenario, config, result, shrink, exportedAt: null });
+    };
+    const inBrowser = JSON.parse(JSON.stringify(run(browserOps().ops)));
+    const inNode = run(nodeOps);
+    assert.equal(inBrowser.digests.bundle, inNode.digests.bundle);
+    assert.equal(inBrowser.counterexample.minimal.replayDigest, inNode.counterexample.minimal.replayDigest);
+    // And an export made in the page verifies in Node.
+    assert.equal(nodeOps.evidence.verifyEvidence(inBrowser).ok, true);
+});
+
+test('the graph renderer draws canonical graph data and wires selection', () => {
+    const ops = require('../packages/cloudproof-ops');
+    const scenario = ops.loadScenario('checkout');
+    const model = ops.initialGraph(scenario.world, { labels: scenario.labels, versions: scenario.versions });
+    const window = {};
+    vm.runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'apps', 'ops', 'cloud-graph.js'), 'utf8'), { window }, { filename: 'cloud-graph.js' });
+    const listeners = {};
+    const host = {
+        id: 'graph', innerHTML: '', dataset: {},
+        classList: { toggle() {} },
+        addEventListener(type, handler) { listeners[type] = handler; },
+        contains: () => true,
+    };
+    const picked = [];
+    for (const view of ['logical', 'placement', 'failure']) {
+        window.CloudGraph.render(host, model, { view, onSelect: (selection) => picked.push(selection), highlight: { services: ['payment'] } });
+        assert.match(host.innerHTML, /^<svg class="cg-svg/);
+        for (const service of model.services) {
+            if (view === 'placement') assert.match(host.innerHTML, new RegExp(`data-id="${service.id}"`));
+            else assert.match(host.innerHTML, new RegExp(`data-kind="service" data-id="${service.id}"`), service.id);
+        }
+    }
+    assert.match(host.innerHTML, /class="cg-service [^"]*dim/, 'the failure view dims what is off the path');
+    assert.match(host.innerHTML, /tabindex="0" role="button"/, 'elements are keyboard-operable');
+    listeners.click({ target: { closest: () => ({ dataset: { kind: 'service', id: 'payment' } }) } });
+    assert.deepEqual(JSON.parse(JSON.stringify(picked)), [{ kind: 'service', id: 'payment' }]);
+});
+
+test('console copy stays within what a bounded, modeled search can claim', () => {
+    const files = ['apps/ops/cloud-ops.js', 'apps/ops/cloud-graph.js', 'apps/systems/index.html', 'packages/cloudproof-ops/evidence.js'];
+    const text = files.map((file) => fs.readFileSync(path.join(__dirname, '..', file), 'utf8')).join('\n');
+    for (const forbidden of [/guarantees? production safety/i, /100% safe/i, /production[- ]certified/i, /AI (says|proved)/i, /proves your cloud safe/i]) {
+        assert.doesNotMatch(text, forbidden);
+    }
+    const console = fs.readFileSync(path.join(__dirname, '..', 'apps', 'ops', 'cloud-ops.js'), 'utf8');
+    assert.match(console, /VERIFIED WITHIN BOUND/);
+    assert.match(console, /No modeled invariant violation found across/);
+    assert.doesNotMatch(console, /'SAFE'|"SAFE"/);
+    const html = fs.readFileSync(path.join(__dirname, '..', 'apps', 'systems', 'index.html'), 'utf8');
+    assert.match(html, /Verify the cloud change<br><em>before production does\.<\/em>/);
+    assert.match(html, /modeled invariants and failure semantics/);
+    for (const mode of ['verify', 'incident', 'architecture', 'agent', 'research']) assert.match(html, new RegExp(`data-mode-target="${mode}"`));
+});
+
+test('the web bundle build is deterministic and the committed bundle is current', () => {
+    const { bundle } = require('./build-web');
+    const first = bundle();
+    assert.equal(first, bundle());
+    // Compare modulo line endings, as Git does: a Windows checkout with
+    // core.autocrlf rewrites the committed bundle (and the sources inside it)
+    // with CRLF, which is not staleness.
+    const lf = (text) => text.replace(/\r\n/g, '\n');
+    const committed = fs.readFileSync(path.join(__dirname, '..', 'web', 'bundle.js'), 'utf8');
+    assert.equal(lf(first), lf(committed), 'run node tools/build-web.js');
+});

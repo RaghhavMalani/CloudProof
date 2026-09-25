@@ -1,0 +1,651 @@
+{
+  "build": {
+    "engine": "packages/cloudproof-mesh (Phase III)",
+    "ops": "cloudproof-ops 0.1.0",
+    "search": "cloudproof-ops/verify@1"
+  },
+  "change": {
+    "maxSurge": 1,
+    "maxUnavailable": 1,
+    "service": "payment",
+    "toVersion": "v42",
+    "type": "rollout"
+  },
+  "changeSummary": "Roll out payment v42 (maxSurge 1, maxUnavailable 1)",
+  "counterexample": {
+    "atMs": 3000,
+    "cause": {
+      "chain": [
+        "checkout",
+        "payment"
+      ],
+      "incidentClass": "OVERLOAD",
+      "root": "payment",
+      "route": "checkout"
+    },
+    "effectiveWorldDigest": "5f3fdbaa3051b89fd3c28e1a15b29994dbafd34c490ae650d35b660e5fdfa71e",
+    "label": "traffic ×1.6 (6 s) @3.0s",
+    "minimal": {
+      "actions": 2,
+      "primary": {
+        "atMs": 0,
+        "expected": "serving",
+        "invariant": "route-checkout",
+        "kind": "route-available",
+        "observed": "failing (entry checkout down)",
+        "subject": "checkout"
+      },
+      "replayDigest": "ad9f464ba2954f1d18ae944152fcf9754fed74466e6b959b6373e83f1fd2b4a5",
+      "trace": [
+        {
+          "action": {
+            "podId": "pod/payment-3",
+            "type": "mesh.fault.pod-crash"
+          },
+          "atMs": 0,
+          "label": "Rollout replaces pod/payment-3 (v41 → v42); it stops serving until the new version is ready",
+          "origin": "change"
+        },
+        {
+          "action": {
+            "factor": 1.6,
+            "type": "mesh.fault.traffic-spike"
+          },
+          "atMs": 0,
+          "label": "traffic ×1.6 (6 s)",
+          "origin": "fault",
+          "variant": "traffic-spike:1.6"
+        }
+      ],
+      "transitions": 2
+    },
+    "original": {
+      "actions": 9,
+      "trace": [
+        {
+          "action": {
+            "replicas": 6,
+            "serviceId": "payment",
+            "type": "mesh.action.scale"
+          },
+          "atMs": 0,
+          "label": "Rollout adds 1 surge pod running v42 (5 → 6)",
+          "origin": "change"
+        },
+        {
+          "action": {
+            "ms": 100,
+            "type": "mesh.action.advance-time"
+          },
+          "atMs": 0,
+          "label": null,
+          "origin": "time"
+        },
+        {
+          "action": {
+            "podId": "pod/payment-1",
+            "type": "mesh.fault.pod-crash"
+          },
+          "atMs": 100,
+          "label": "Rollout replaces pod/payment-1 (v41 → v42); it stops serving until the new version is ready",
+          "origin": "change"
+        },
+        {
+          "action": {
+            "ms": 1200,
+            "type": "mesh.action.advance-time"
+          },
+          "atMs": 100,
+          "label": null,
+          "origin": "time"
+        },
+        {
+          "action": {
+            "podId": "pod/payment-2",
+            "type": "mesh.fault.pod-crash"
+          },
+          "atMs": 1300,
+          "label": "Rollout replaces pod/payment-2 (v41 → v42); it stops serving until the new version is ready",
+          "origin": "change"
+        },
+        {
+          "action": {
+            "ms": 800,
+            "type": "mesh.action.advance-time"
+          },
+          "atMs": 1300,
+          "label": null,
+          "origin": "time"
+        },
+        {
+          "action": {
+            "podId": "pod/payment-3",
+            "type": "mesh.fault.pod-crash"
+          },
+          "atMs": 2100,
+          "label": "Rollout replaces pod/payment-3 (v41 → v42); it stops serving until the new version is ready",
+          "origin": "change"
+        },
+        {
+          "action": {
+            "ms": 900,
+            "type": "mesh.action.advance-time"
+          },
+          "atMs": 2100,
+          "label": null,
+          "origin": "time"
+        },
+        {
+          "action": {
+            "factor": 1.6,
+            "type": "mesh.fault.traffic-spike"
+          },
+          "atMs": 3000,
+          "label": "traffic ×1.6 (6 s)",
+          "origin": "fault",
+          "variant": "traffic-spike:1.6"
+        }
+      ],
+      "transitions": 35
+    },
+    "originalReplayDigest": "05890a0c099181a3cbd56a7a0b832800dc24779d013831079750767338a3dd83",
+    "placements": [
+      {
+        "atMs": 3000,
+        "variant": "traffic-spike:1.6"
+      }
+    ],
+    "primary": {
+      "atMs": 3000,
+      "expected": "serving",
+      "invariant": "route-checkout",
+      "kind": "route-available",
+      "observed": "failing (entry checkout down)",
+      "subject": "checkout"
+    },
+    "readinessDelay": false,
+    "scheduleIndex": 3,
+    "shrinkSteps": [
+      {
+        "actions": 9,
+        "note": "counterexample as found",
+        "transitions": 35
+      },
+      {
+        "actions": 7,
+        "note": "removed change step: Rollout replaces pod/payment-1 (v41 → v42); it stops serving until the new version is ready",
+        "transitions": 34
+      },
+      {
+        "actions": 6,
+        "note": "removed change step: Rollout adds 1 surge pod running v42 (5 → 6)",
+        "transitions": 33
+      },
+      {
+        "actions": 3,
+        "note": "removed 3 consecutive actions",
+        "transitions": 11
+      },
+      {
+        "actions": 2,
+        "note": "removed a 0.9 s wait",
+        "transitions": 2
+      }
+    ],
+    "violations": [
+      {
+        "atMs": 3000,
+        "expected": "serving",
+        "invariant": "route-checkout",
+        "kind": "route-available",
+        "observed": "failing (entry checkout down)",
+        "subject": "checkout"
+      },
+      {
+        "atMs": 3000,
+        "expected": "≤ 20%",
+        "invariant": "error-budget",
+        "kind": "error-budget",
+        "observed": "35%",
+        "subject": "routes"
+      }
+    ],
+    "withoutChange": []
+  },
+  "digests": {
+    "bundle": "8090f11090af8b25f9b5d3a8332f6bb9237f0e22a21a7c4e975f83d91556928a",
+    "search": "a9f452c27fbdb7c97f4fa49b7ec6a2fb000a800269d93627e65d577017023a4a"
+  },
+  "exportedAt": "2026-09-24T05:07:45.816Z",
+  "faultModel": {
+    "families": [
+      "readiness-delay",
+      "traffic-spike",
+      "zone-degraded"
+    ],
+    "maxFaults": 1,
+    "variants": [
+      {
+        "family": "zone-degraded",
+        "id": "zone-degraded:zone-a",
+        "label": "zone-a degraded (5 s)"
+      },
+      {
+        "family": "zone-degraded",
+        "id": "zone-degraded:zone-b",
+        "label": "zone-b degraded (5 s)"
+      },
+      {
+        "family": "zone-degraded",
+        "id": "zone-degraded:zone-c",
+        "label": "zone-c degraded (5 s)"
+      },
+      {
+        "family": "traffic-spike",
+        "id": "traffic-spike:1.3",
+        "label": "traffic ×1.3 (6 s)"
+      },
+      {
+        "family": "traffic-spike",
+        "id": "traffic-spike:1.6",
+        "label": "traffic ×1.6 (6 s)"
+      }
+    ]
+  },
+  "invariants": [
+    {
+      "description": "checkout route stays available",
+      "id": "route-checkout",
+      "kind": "route-available",
+      "route": "checkout"
+    },
+    {
+      "description": "failing traffic share ≤ 20%",
+      "id": "error-budget",
+      "kind": "error-budget",
+      "maxPct": 20
+    },
+    {
+      "description": "Payment API healthy pods ≥ 3",
+      "id": "payment-healthy",
+      "kind": "min-healthy",
+      "min": 3,
+      "service": "payment"
+    },
+    {
+      "description": "Order queue backlog ≤ 1000 messages",
+      "id": "queue-backlog",
+      "kind": "queue-backlog",
+      "max": 1000,
+      "queue": "order-queue"
+    },
+    {
+      "database": "ledger-db",
+      "description": "Ledger DB (primary) writes restored within 2.0 s",
+      "id": "ledger-failover",
+      "kind": "failover-deadline",
+      "maxMs": 2000
+    }
+  ],
+  "kind": "cloudproof.ops-evidence",
+  "labels": {
+    "account": "Account API",
+    "catalog-db": "Catalog DB",
+    "checkout": "Checkout API",
+    "fulfillment": "Fulfillment worker",
+    "ledger-db": "Ledger DB (primary)",
+    "ledger-replica": "Ledger DB (replica)",
+    "order-queue": "Order queue",
+    "payment": "Payment API",
+    "product-cache": "Product cache",
+    "storefront": "Storefront API"
+  },
+  "preExisting": {
+    "classes": [],
+    "count": 0
+  },
+  "scenario": {
+    "id": "checkout",
+    "name": "Checkout stack"
+  },
+  "schemaVersion": 1,
+  "search": {
+    "budget": {
+      "name": "standard",
+      "schedules": 500
+    },
+    "counters": {
+      "faultCombinations": 3,
+      "multiChecked": 0,
+      "preExisting": 0,
+      "schedulesChecked": 4,
+      "singlesChecked": 3,
+      "transitions": 626,
+      "uniqueStates": 29
+    },
+    "faultWindow": {
+      "fromMs": 0,
+      "slotMs": 500,
+      "toMs": 10000
+    },
+    "horizonMs": 14100,
+    "scheduleRange": [
+      0,
+      3
+    ],
+    "seed": 1337,
+    "status": "counterexample"
+  },
+  "topology": {
+    "digest": "5f3fdbaa3051b89fd3c28e1a15b29994dbafd34c490ae650d35b660e5fdfa71e",
+    "world": {
+      "dependencies": [
+        {
+          "from": "storefront",
+          "to": "product-cache",
+          "type": "READS_THROUGH"
+        },
+        {
+          "from": "product-cache",
+          "to": "catalog-db",
+          "type": "BACKED_BY"
+        },
+        {
+          "from": "checkout",
+          "to": "payment",
+          "type": "CALLS"
+        },
+        {
+          "from": "checkout",
+          "to": "order-queue",
+          "type": "PUBLISHES"
+        },
+        {
+          "from": "payment",
+          "to": "ledger-db",
+          "type": "WRITES"
+        },
+        {
+          "from": "ledger-db",
+          "to": "ledger-replica",
+          "type": "REPLICATES"
+        },
+        {
+          "from": "fulfillment",
+          "to": "order-queue",
+          "type": "CONSUMES"
+        },
+        {
+          "from": "fulfillment",
+          "to": "ledger-db",
+          "type": "WRITES"
+        },
+        {
+          "from": "account",
+          "to": "ledger-replica",
+          "type": "READS"
+        }
+      ],
+      "errorBudgetPct": 20,
+      "kind": "cloudproof.mesh-world",
+      "nodes": [
+        {
+          "id": "node-a1",
+          "slots": 8,
+          "zone": "zone-a"
+        },
+        {
+          "id": "node-a2",
+          "slots": 8,
+          "zone": "zone-a"
+        },
+        {
+          "id": "node-b1",
+          "slots": 8,
+          "zone": "zone-b"
+        },
+        {
+          "id": "node-b2",
+          "slots": 8,
+          "zone": "zone-b"
+        },
+        {
+          "id": "node-c1",
+          "slots": 8,
+          "zone": "zone-c"
+        },
+        {
+          "id": "node-c2",
+          "slots": 8,
+          "zone": "zone-c"
+        }
+      ],
+      "placement": {
+        "account": [
+          "node-b1",
+          "node-c2"
+        ],
+        "catalog-db": [
+          "node-c1"
+        ],
+        "checkout": [
+          "node-a1",
+          "node-b2",
+          "node-c2"
+        ],
+        "fulfillment": [
+          "node-a2",
+          "node-b2",
+          "node-c1"
+        ],
+        "ledger-db": [
+          "node-a1",
+          "node-a2"
+        ],
+        "ledger-replica": [
+          "node-c2"
+        ],
+        "order-queue": [
+          "node-a1",
+          "node-b1",
+          "node-c1"
+        ],
+        "payment": [
+          "node-a1",
+          "node-b1",
+          "node-b2",
+          "node-c1",
+          "node-c2"
+        ],
+        "product-cache": [
+          "node-a2",
+          "node-b2",
+          "node-c2"
+        ],
+        "storefront": [
+          "node-a1",
+          "node-b1",
+          "node-c1"
+        ]
+      },
+      "routes": [
+        {
+          "entry": "storefront",
+          "id": "browse",
+          "sharePct": 50
+        },
+        {
+          "entry": "checkout",
+          "id": "checkout",
+          "sharePct": 35
+        },
+        {
+          "entry": "account",
+          "id": "account",
+          "sharePct": 15
+        }
+      ],
+      "schemaVersion": 1,
+      "services": [
+        {
+          "id": "storefront",
+          "kind": "api",
+          "minHealthy": 2,
+          "podCapacityRps": 300,
+          "queueCapacity": null,
+          "replicas": 3,
+          "role": null,
+          "startupMs": 800,
+          "volume": null
+        },
+        {
+          "id": "product-cache",
+          "kind": "cache",
+          "minHealthy": 2,
+          "podCapacityRps": 250,
+          "queueCapacity": null,
+          "replicas": 3,
+          "role": null,
+          "startupMs": 600,
+          "volume": null
+        },
+        {
+          "id": "catalog-db",
+          "kind": "database",
+          "minHealthy": 1,
+          "podCapacityRps": 450,
+          "queueCapacity": null,
+          "replicas": 1,
+          "role": "primary",
+          "startupMs": 1500,
+          "volume": "vol-catalog"
+        },
+        {
+          "id": "checkout",
+          "kind": "api",
+          "minHealthy": 2,
+          "podCapacityRps": 200,
+          "queueCapacity": null,
+          "replicas": 3,
+          "role": null,
+          "startupMs": 900,
+          "volume": null
+        },
+        {
+          "id": "payment",
+          "kind": "api",
+          "minHealthy": 3,
+          "podCapacityRps": 120,
+          "queueCapacity": null,
+          "replicas": 5,
+          "role": null,
+          "startupMs": 1200,
+          "volume": null
+        },
+        {
+          "id": "ledger-db",
+          "kind": "database",
+          "minHealthy": 1,
+          "podCapacityRps": 800,
+          "queueCapacity": null,
+          "replicas": 2,
+          "role": "primary",
+          "startupMs": 1500,
+          "volume": "vol-ledger"
+        },
+        {
+          "id": "ledger-replica",
+          "kind": "database",
+          "minHealthy": 1,
+          "podCapacityRps": 1000,
+          "queueCapacity": null,
+          "replicas": 1,
+          "role": "replica",
+          "startupMs": 1500,
+          "volume": "vol-ledger-replica"
+        },
+        {
+          "id": "order-queue",
+          "kind": "queue",
+          "minHealthy": 1,
+          "podCapacityRps": 400,
+          "queueCapacity": 1600,
+          "replicas": 3,
+          "role": null,
+          "startupMs": 600,
+          "volume": null
+        },
+        {
+          "id": "fulfillment",
+          "kind": "worker",
+          "minHealthy": 1,
+          "podCapacityRps": 175,
+          "queueCapacity": null,
+          "replicas": 3,
+          "role": null,
+          "startupMs": 900,
+          "volume": null
+        },
+        {
+          "id": "account",
+          "kind": "api",
+          "minHealthy": 1,
+          "podCapacityRps": 150,
+          "queueCapacity": null,
+          "replicas": 2,
+          "role": null,
+          "startupMs": 700,
+          "volume": null
+        }
+      ],
+      "template": "ops-checkout",
+      "traffic": {
+        "rps": 1000
+      },
+      "volumes": [
+        {
+          "id": "vol-catalog",
+          "service": "catalog-db",
+          "zone": "zone-c"
+        },
+        {
+          "id": "vol-ledger",
+          "service": "ledger-db",
+          "zone": "zone-a"
+        },
+        {
+          "id": "vol-ledger-replica",
+          "service": "ledger-replica",
+          "zone": "zone-c"
+        }
+      ],
+      "zones": [
+        {
+          "id": "zone-a"
+        },
+        {
+          "id": "zone-b"
+        },
+        {
+          "id": "zone-c"
+        }
+      ]
+    }
+  },
+  "verdict": {
+    "statement": "Counterexample found after 4 explored schedules.",
+    "status": "counterexample"
+  },
+  "versions": {
+    "account": "v9",
+    "catalog-db": "pg15",
+    "checkout": "v33",
+    "fulfillment": "v12",
+    "ledger-db": "pg15",
+    "ledger-replica": "pg15",
+    "order-queue": "v3",
+    "payment": "v41",
+    "product-cache": "v7",
+    "storefront": "v18"
+  }
+}

@@ -12,10 +12,13 @@
     return;
   }
   const params = new URLSearchParams(location.search);
-  const seed = Number(params.get('seed')) || 42;
+  // The page also hosts the Operations Console, which owns the URL outside
+  // agent mode (and uses `seed` for its own search).
+  const labActive = () => !document.body.dataset.mode || document.body.dataset.mode === 'agent';
+  const seed = (labActive() && Number(params.get('seed'))) || 42;
   const THEMES = ['emirates', 'qatar', 'american'];
   const state = {
-    workloadId: params.get('workload') || 'agent-refund',
+    workloadId: (labActive() && params.get('workload')) || 'agent-refund',
     theme: THEMES.includes(params.get('theme')) ? params.get('theme') : 'emirates',
     result: null,
     cursor: 0,
@@ -291,10 +294,12 @@
     state.workloadId = id;
     state.result = api.runWorkload(workload, { seed });
     state.cursor = 0;
-    const url = new URL(location.href);
-    url.searchParams.set('workload', id);
-    url.searchParams.set('seed', seed);
-    history.replaceState(null, '', url);
+    if (labActive()) {
+      const url = new URL(location.href);
+      url.searchParams.set('workload', id);
+      url.searchParams.set('seed', seed);
+      history.replaceState(null, '', url);
+    }
     renderTabs();
     renderBriefing();
 
@@ -426,6 +431,11 @@
     $('toggle-inspector').setAttribute('aria-expanded', String(!collapsed));
   };
   addEventListener('keydown', (event) => {
+    // The lab shares the page with the Operations Console: only steer the
+    // trace while the lab is showing, and never while someone is typing.
+    const mode = document.body.dataset.mode;
+    if (mode && mode !== 'agent') return;
+    if (/^(INPUT|TEXTAREA|SELECT)$/.test(event.target?.tagName || '') || event.target?.isContentEditable) return;
     if (event.key === 'ArrowRight') $('next').click();
     if (event.key === 'ArrowLeft') $('previous').click();
     if (event.code === 'Space' && event.target.tagName !== 'BUTTON') { event.preventDefault(); togglePlayback(); }

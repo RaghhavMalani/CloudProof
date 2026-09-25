@@ -47,6 +47,31 @@ const MODULES = [
     'sim/linearizability.js',
     'sim/cluster.js',
     'sim/bug-museum.js',
+    // CloudProof Mesh (Phase III), unchanged, and the Operations Console
+    // product layer that drives it. The page renders what these return.
+    'packages/cloudproof-mesh/constants.js',
+    'packages/cloudproof-mesh/world.js',
+    'packages/cloudproof-mesh/engine.js',
+    'packages/cloudproof-mesh/graph.js',
+    'packages/cloudproof-mesh/runner.js',
+    'packages/cloudproof-mesh/generator.js',
+    'packages/cloudproof-mesh/pairs.js',
+    'packages/cloudproof-ops/sha256.js',
+    'packages/cloudproof-ops/scenarios.js',
+    'packages/cloudproof-ops/invariants.js',
+    'packages/cloudproof-ops/graph-model.js',
+    'packages/cloudproof-ops/changes.js',
+    'packages/cloudproof-ops/faults.js',
+    'packages/cloudproof-ops/causes.js',
+    'packages/cloudproof-ops/verify.js',
+    'packages/cloudproof-ops/explain.js',
+    'packages/cloudproof-ops/shrink.js',
+    'packages/cloudproof-ops/remediation.js',
+    'packages/cloudproof-ops/evidence.js',
+    'packages/cloudproof-ops/topology.js',
+    'packages/cloudproof-ops/architecture.js',
+    'packages/cloudproof-ops/incidents.js',
+    'packages/cloudproof-ops/index.js',
 ];
 
 const STUBS = `
@@ -126,6 +151,8 @@ function __resolve(from, request) {
   }
   let id = base.join('/');
   if (!__registry[id] && __registry[id + '.js']) id += '.js';
+  // require('../agent-runtime') names a directory, as Node allows.
+  if (!__registry[id] && __registry[id + '/index.js']) id += '/index.js';
   if (!__registry[id]) throw new Error('cannot resolve ' + request + ' from ' + from);
   return { id };
 }
@@ -165,16 +192,21 @@ global.cloudProof = {
   invariants: __require('web/entry.js', 'packages/simulator/invariants.js'),
   scenario: __require('web/entry.js', 'packages/scenario-dsl/index.js'),
   bugMuseum: __require('web/entry.js', 'sim/bug-museum.js'),
+  mesh: {
+    constants: __require('web/entry.js', 'packages/cloudproof-mesh/constants.js'),
+    world: __require('web/entry.js', 'packages/cloudproof-mesh/world.js'),
+    engine: __require('web/entry.js', 'packages/cloudproof-mesh/engine.js'),
+    runner: __require('web/entry.js', 'packages/cloudproof-mesh/runner.js'),
+    generator: __require('web/entry.js', 'packages/cloudproof-mesh/generator.js'),
+    pairs: __require('web/entry.js', 'packages/cloudproof-mesh/pairs.js'),
+  },
+  ops: __require('web/entry.js', 'packages/cloudproof-ops/index.js'),
 };
 })(typeof window !== 'undefined' ? window : globalThis);
 `);
 
     return parts.join('\n');
 }
-
-fs.mkdirSync(path.join(ROOT, 'web'), { recursive: true });
-const output = bundle();
-fs.writeFileSync(OUT, output);
 
 const ASSETS = [
     ['apps/systems/index.html', 'web/index.html'],
@@ -186,19 +218,35 @@ const ASSETS = [
     ['apps/systems/reality-run.json', 'web/reality-run.json'],
     ['apps/lab/bug-museum.css', 'web/bug-museum.css'],
     ['apps/classic/index.html', 'web/classic.html'],
+    ['apps/ops/cloud-ops.css', 'web/cloud-ops.css'],
+    ['apps/ops/cloud-graph.js', 'web/cloud-graph.js'],
+    ['apps/ops/cloud-ops.js', 'web/cloud-ops.js'],
+    ['apps/ops/fixtures/rollout-payment.evidence.json', 'web/ops-evidence-rollout-payment.json'],
+    ['artifacts/cloudproof/phase-iii-pilot/pilot.json', 'web/phase-iii-pilot.json'],
 ];
 
-for (const [source, destination] of ASSETS) {
-    fs.copyFileSync(path.join(ROOT, source), path.join(ROOT, destination));
+function build() {
+    fs.mkdirSync(path.join(ROOT, 'web'), { recursive: true });
+    const output = bundle();
+    fs.writeFileSync(OUT, output);
+
+    for (const [source, destination] of ASSETS) {
+        fs.copyFileSync(path.join(ROOT, source), path.join(ROOT, destination));
+    }
+
+    // Keep the authored lab files small and readable while shipping the museum as
+    // part of the same zero-dependency page.
+    fs.appendFileSync(path.join(ROOT, 'web', 'flight-deck.js'),
+        '\n' + fs.readFileSync(path.join(ROOT, 'apps/lab/bug-museum-ui.js'), 'utf8'));
+    fs.appendFileSync(path.join(ROOT, 'web', 'flight-deck.css'),
+        '\n' + fs.readFileSync(path.join(ROOT, 'apps/lab/bug-museum.css'), 'utf8'));
+
+    console.log(`wrote ${OUT}`);
+    console.log(`  ${MODULES.length} modules · ${(output.length / 1024).toFixed(0)}KB uncompressed`);
+    console.log('  no dependencies, no minifier, no transpiler');
 }
 
-// Keep the authored lab files small and readable while shipping the museum as
-// part of the same zero-dependency page.
-fs.appendFileSync(path.join(ROOT, 'web', 'flight-deck.js'),
-    '\n' + fs.readFileSync(path.join(ROOT, 'apps/lab/bug-museum-ui.js'), 'utf8'));
-fs.appendFileSync(path.join(ROOT, 'web', 'flight-deck.css'),
-    '\n' + fs.readFileSync(path.join(ROOT, 'apps/lab/bug-museum.css'), 'utf8'));
+// Required by tests to check the bundle without writing web/.
+if (require.main === module) build();
 
-console.log(`wrote ${OUT}`);
-console.log(`  ${MODULES.length} modules · ${(output.length / 1024).toFixed(0)}KB uncompressed`);
-console.log('  no dependencies, no minifier, no transpiler');
+module.exports = { ASSETS, MODULES, bundle };
