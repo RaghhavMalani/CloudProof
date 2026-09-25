@@ -1,0 +1,118 @@
+# CloudProof Phase IV-A — single-Raft performance engineering
+
+Phase IV-A turns the CloudProof Raft group from a correctness-first prototype into a measured,
+instrumented, load-tested consensus system. It does **not** claim CloudProof is faster than etcd.
+It asks five questions and answers them with recorded, reproducible measurements:
+
+1. Where does one CloudProof Raft group saturate?
+2. What dominates latency before and after saturation?
+3. Can group commit, replication pipelining and bounded batching raise throughput without breaking
+   durability or linearizability?
+4. What gap remains versus etcd under comparable conditions on the same machine?
+5. Does every optimization survive the existing deterministic correctness and fault-testing suite?
+
+Every number in the result tables below is generated from the raw trial records by
+`node tools/raft-bench-report.js --doc CLOUDPROOF-PHASE-IV-A.md`. Nothing is copied by hand.
+
+## Status
+
+<!-- BEGIN GENERATED:status -->
+_Harness committed; recorded sweeps pending._
+<!-- END GENERATED:status -->
+
+## 1. Environment (Step 0)
+
+The benchmark machine is recorded by `node tools/raft-bench-env.js` into
+[`artifacts/perf/phase-iv-a/baseline-environment.json`](artifacts/perf/phase-iv-a/baseline-environment.json)
+before the baseline, and again at the end into
+[`environment.json`](artifacts/perf/phase-iv-a/environment.json). Each sweep directory also carries the
+environment at the moment it started. Captured fields: git SHA and dirty files, Node/V8/libuv versions, OS,
+CPU model, physical and logical cores, RAM, data volume file system and disk, Docker availability, AC power
+state and power plan, and the heaviest other processes on the machine.
+
+Two properties of this machine matter for every result and are disclosed rather than hidden:
+
+- **It is a Windows 11 laptop running NTFS on an NVMe SSD.** A 4 KiB append + `fsync` costs about 1–2 ms
+  here, and the metadata file's write + `fsync` + rename about 2.5–4.5 ms. The deployment target is Linux
+  (ext4/xfs), where those costs differ. Docker was not running, so all processes run natively.
+- **It is not a quiet benchmark host.** Other interactive applications were open, and Microsoft Defender
+  real-time protection was on. Every trial records whole-machine CPU load (`systemCpu`) so a noisy trial is
+  visible, and every point is three independent repetitions on fresh clusters.
+
+## 2. Benchmark methodology
+
+The complete, pre-registered methodology is
+[`artifacts/perf/phase-iv-a/methodology.json`](artifacts/perf/phase-iv-a/methodology.json). It was committed
+before the first recorded baseline trial; any later change is listed under `amendments` with its reason.
+
+**System under test.** Three voting replicas, each `node replica/index.js` (the container entrypoint), on
+loopback, each with its own fresh data directory for every trial. Optimizations are selected with
+environment variables, so every configuration is the same build.
+
+**Durability contract (unchanged by every optimization).** A write is acknowledged only after it is
+committed: stored durably (`fsync`) on a majority of voters, where every copy counted toward that majority is
+durable. Group commit changes *when* the fsync happens, never *whether* an acknowledged entry was fsynced.
+
+**Workload.** `PUT /kv/:key` with `{"value": <payload>}` → one Raft entry `{op: "set"}`. Payloads are 64 B,
+1 KiB and 16 KiB of ASCII; keys cycle over 1 000 keys. Requests carry no `clientId/seqNo`, which matches etcd
+`Put` semantics; the exactly-once path is measured separately (§7).
+
+**Open-loop load, coordinated-omission free.** Arrivals are fixed in advance at constant spacing `1/rate`,
+interleaved across four generator processes holding 128 keep-alive connections. Request *k* is intended to
+arrive at `start + k/rate` regardless of what happened to request *k − 1*. Four timestamps are kept per
+request — `scheduledAt`, `dispatchedAt`, `sentAt`, `completedAt` — and the headline latency is
+`completedAt − scheduledAt`, so time a request spends queued in the client because every connection is busy
+counts against the system. Service latency (`completedAt − sentAt`) is reported separately, next to it. A
+request with no response 10 s after its intended arrival is abandoned and recorded at exactly 10 s. The
+generator records its own lag (`dispatchedAt − scheduledAt`); a trial whose p99 lag exceeds 5 ms is flagged.
+`packages/raft-bench/raft-bench.test.js` proves the property: a 400 ms server stall at 200 req/s charges
+every one of the ~80 delayed arrivals, where a closed-loop client would record about four.
+
+**Histograms.** A log-linear histogram in the HdrHistogram style (`replica/perf-histogram.js`): exact below
+2 048 µs, at most 0.1 % relative error above, percentiles reported as the bucket's upper bound. Repetitions
+merge by adding counts; no raw sample is discarded.
+
+**Trials.** 5 s warmup (excluded: generators count only arrivals intended inside the window, and every
+replica's `/perf` window is reset at its start), 20 s measurement window, up to 12 s drain, fresh cluster per
+trial, three repetitions per point. Point latency is pooled over the merged histograms of all repetitions;
+throughput and CPU are the mean with min/max. No trial is ever selected or discarded.
+
+**Stability, knee, stopping.** A trial is *stable* iff OK completions reach ≥ 98 % of offered, errors plus
+timeouts are ≤ 0.5 %, end-to-end p99 < 1 s, and the last fifth's median latency is ≤ 2× the first fifth's
+(unless ≤ 20 ms). A point is stable when most of its repetitions are. The **knee** is the highest ladder rate
+that is stable with every lower rate stable too; max stable throughput is the mean achieved throughput there.
+A curve stops after two consecutive unstable rates or one rate below 50 % achieved. After the ladder,
+0.5× and 0.8× the knee are run, so "p99 at 50 % / 80 % of saturation" is measured, not interpolated.
+
+**Rate ladder** (identical for every configuration): 100, 200, 300, 500, 750, 1 000, 1 500, 2 000, 3 000,
+4 000, 5 000, 6 000, 8 000, 10 000, 12 000, 15 000, 20 000, 25 000, 30 000, 40 000 writes/s.
+
+**Instrumentation.** `replica/raft-perf.js` records per-stage timings on the write path using the host's
+monotonic timer — never the Raft clock, so it cannot affect elections, leases or anything the simulator
+replays (the simulator never constructs it, and a 60-seed fingerprint of the simulator is identical with and
+without it). `replica/perf-service.js` adds process CPU, event-loop utilization, a setImmediate turnaround
+probe (Windows timer granularity makes `monitorEventLoopDelay` report ~10 ms on an idle loop), memory, TCP
+bytes per socket direction, and V8 CPU profiles on demand. It is mounted only with `RAFT_PERF=1`.
+
+Stages recorded on the leader: `http.arrivalToAdmit` → `leader.admitToFirstSend` → `leader.admitToDurable`
+(`log.encode`, `log.write`, `log.fsync`) → `rpc.appendEntriesRtt` (includes the follower's
+`follower.append`) → `leader.admitToCommit` → `leader.commitToApply` (includes `meta.persist`) →
+`http.admitToResponse` → `http.arrivalToFinish`.
+
+### Reproducing
+
+```bash
+node tools/raft-bench-env.js --out artifacts/perf/phase-iv-a/baseline-environment.json
+node tools/raft-bench.js --config baseline --rate 500 --duration 20s --warmup 5s --payload 1024 --clients 128
+node tools/raft-bench-sweep.js --configs baseline --payloads 64,1024,16384 --repetitions 3 --out artifacts/perf/phase-iv-a/baseline \
+  --rates 100,200,300,500,750,1000,1500,2000,3000,4000,5000,6000,8000,10000,12000,15000,20000,25000,30000,40000
+node tools/raft-bench-sweep.js --configs baseline --payloads 64,1024,16384 --repetitions 3 --out artifacts/perf/phase-iv-a/baseline --fractions 0.5,0.8
+node tools/raft-profile.js --config baseline --payload 1024 --rates <A>,<B>,<C> --labels A-sub-saturation,B-knee,C-overloaded --out artifacts/perf/phase-iv-a/profiles/baseline
+node tools/raft-bench-report.js --doc CLOUDPROOF-PHASE-IV-A.md
+```
+
+## 3. Baseline saturation
+
+<!-- BEGIN GENERATED:knee-table -->
+_No sweeps recorded yet._
+<!-- END GENERATED:knee-table -->

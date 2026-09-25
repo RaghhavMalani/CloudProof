@@ -6,3 +6,5 @@ Dockerfile text eol=lf
 # Hashed research records must check out byte-identical on every platform.
 CLOUDPROOF-PHASE-II-A2-CORPUS-FREEZE.json text eol=lf
 artifacts/cloudproof/phase-ii-b2/**/*.json text eol=lf
+# Recorded Phase IV-A benchmark artifacts are hashed; keep them LF everywhere.
+artifacts/perf/** text eol=lf

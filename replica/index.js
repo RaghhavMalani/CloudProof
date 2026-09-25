@@ -10,8 +10,20 @@ const express = require('express');
 const axios = require('axios');
 const { RaftNode } = require('./raft');
 const { decodeVector } = require('./state-machine');
+const { RaftPerf } = require('./raft-perf');
+const { createPerfService } = require('./perf-service');
+
+// Benchmark instrumentation (Phase IV-A). Off unless explicitly enabled; when
+// off, the Raft engine sees `perf: null` and every hook is a null check.
+const perf = process.env.RAFT_PERF === '1' ? new RaftPerf() : null;
 
 const app = express();
+let perfService = null;
+if (perf) {
+    // Registered before the body parser so arrival is stamped as soon as the
+    // request headers are parsed, not after the body has been read.
+    app.use((req, res, next) => (perfService ? perfService.arrivalMiddleware(req, res, next) : next()));
+}
 app.use(express.json({ limit: '2mb' }));
 
 const REPLICA_ID = process.env.REPLICA_ID || 'replica1';
@@ -24,6 +36,7 @@ const raft = new RaftNode({
     replicaId: REPLICA_ID,
     peers: PEERS,
     nodeUrl: NODE_URL,
+    perf,
 
     // Every node applies committed entries. Only the leader publishes the
     // client-visible event, preventing follower echo duplicates.
@@ -118,8 +131,19 @@ async function propose(res, command) {
         });
     }
 
+    const arrivalAt = perf && res.req ? res.req.perfArrivalAt : undefined;
+    const admittedAt = arrivalAt !== undefined ? perf.now() : 0;
+    if (arrivalAt !== undefined) {
+        perf.observeMs('http.arrivalToAdmit', admittedAt - arrivalAt);
+        res.once('finish', () => perf.observeMs('http.arrivalToFinish', perf.now() - arrivalAt));
+    }
+
     try {
         const outcome = await raft.clientAppend(command);
+        if (arrivalAt !== undefined) {
+            perf.observeMs('http.admitToResponse', perf.now() - admittedAt);
+            perf.count(outcome.committed ? 'http.writesCommitted' : 'http.writesUncommitted');
+        }
         if (!outcome.committed) {
             return res.status(503).json({
                 error: `Write persisted but not committed: quorum ${raft.quorumSize}/${raft.clusterSize} unavailable`,
@@ -536,10 +560,16 @@ app.post('/resume', (_req, res) => {
     res.json({ ok: true, paused: false });
 });
 
+if (perf) {
+    perfService = createPerfService({ raft, perf, replicaId: REPLICA_ID });
+    perfService.mount(app);
+}
+
 const server = app.listen(PORT, () => {
     console.log(`[${REPLICA_ID}] Listening on ${PORT}`);
     console.log(`[${REPLICA_ID}] Peers: ${PEERS.join(', ') || '(single node)'}`);
 });
+if (perfService) perfService.attachServer(server);
 
 function shutdown(signal) {
     console.log(`[${REPLICA_ID}] ${signal} · flushing and stopping`);

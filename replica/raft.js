@@ -51,6 +51,12 @@ const REAL_CLOCK = {
 class StableStateStore {
     constructor(filePath) {
         this.filePath = filePath;
+        this.saveCount = 0;
+        this.perf = null;
+    }
+
+    setPerf(perf) {
+        this.perf = perf;
     }
 
     load() {
@@ -66,6 +72,16 @@ class StableStateStore {
     }
 
     save(state) {
+        const startedAt = this.perf ? this.perf.now() : 0;
+        this._save(state);
+        this.saveCount += 1;
+        if (this.perf) {
+            this.perf.observeMs('meta.persist', this.perf.now() - startedAt);
+            this.perf.count('meta.saves');
+        }
+    }
+
+    _save(state) {
         const directory = path.dirname(this.filePath);
         fs.mkdirSync(directory, { recursive: true });
 
@@ -152,8 +168,15 @@ class RaftNode {
         heartbeatInterval = 150,
         leaseTickInterval = 250,
         commitTimeoutMs = 2000,
+        /**
+         * Optional observational recorder (raft-perf.js). It reads a host
+         * timer, never `clock`, so it cannot influence protocol timing; the
+         * simulator never passes one.
+         */
+        perf = null,
     }) {
         this._clock = clock;
+        this._perf = perf;
         this._random = random;
         this._randomElectionTimeout = randomElectionTimeout;
         this.replicaId = replicaId;
@@ -231,6 +254,10 @@ class RaftNode {
             : logPath || this.storagePath.replace(/\.json$/, '') + '.log';
         this._logStore = logStore
             ?? (this.logPath === false ? null : new LogStore(this.logPath));
+        if (perf) {
+            if (this._store && typeof this._store.setPerf === 'function') this._store.setPerf(perf);
+            if (this._logStore && typeof this._logStore.setPerf === 'function') this._logStore.setPerf(perf);
+        }
 
         const stable = this._store ? this._store.load() : {};
 
@@ -404,8 +431,10 @@ class RaftNode {
      */
     _appendToLog(entries) {
         if (entries.length === 0) return;
+        const firstIndex = this.log.length;
         this.log.push(...entries);
         if (this._logStore) this._logStore.append(entries);
+        if (this._perf) this._perf.entriesDurable(firstIndex, this.log.length);
         // Config entries are live the instant they land. See _refreshConfiguration.
         if (entries.some((e) => e.data && e.data.op === 'config')) this._refreshConfiguration();
     }
@@ -428,6 +457,7 @@ class RaftNode {
         const hadConfig = this.log.slice(index).some((e) => e.data && e.data.op === 'config');
         this.log = this.log.slice(0, index);
         if (this._logStore) this._logStore.rewrite(this.log);
+        if (this._perf) this._perf.forgetFrom(index);
         // Rolling back a config entry must roll back the configuration with it,
         // or a node keeps enforcing a membership the cluster has discarded.
         if (hadConfig) this._refreshConfiguration();
@@ -725,6 +755,7 @@ class RaftNode {
         this._failCommitWaiters();
 
         if (wasLeader) {
+            if (this._perf) this._perf.forgetAll();
             console.log(`[${this.replicaId}] Stepped down · term=${this.currentTerm}`);
         }
         this._resetElectionTimer();
@@ -820,6 +851,32 @@ class RaftNode {
         entries = [],
         leaderCommit = -1,
     }) {
+        if (!this._perf) {
+            return this._handleAppendEntries({
+                term, leaderId, leaderUrl, prevLogIndex, prevLogTerm, entries, leaderCommit,
+            });
+        }
+        const receivedAt = this._perf.now();
+        const response = this._handleAppendEntries({
+            term, leaderId, leaderUrl, prevLogIndex, prevLogTerm, entries, leaderCommit,
+        });
+        if (entries.length > 0) {
+            this._perf.observeMs('follower.append', this._perf.now() - receivedAt);
+            this._perf.observeValue('follower.entriesPerAppend', entries.length);
+        }
+        this._perf.count(entries.length > 0 ? 'follower.appendEntries' : 'follower.heartbeats');
+        return response;
+    }
+
+    _handleAppendEntries({
+        term,
+        leaderId,
+        leaderUrl,
+        prevLogIndex,
+        prevLogTerm,
+        entries,
+        leaderCommit,
+    }) {
         if (this.paused || term < this.currentTerm) {
             return {
                 term: this.currentTerm,
@@ -911,6 +968,7 @@ class RaftNode {
             const lastVerifiedIndex = prevLogIndex + entries.length;
             const next = Math.min(leaderCommit, lastVerifiedIndex);
             if (next > this.commitIndex) {
+                if (this._perf) this._perf.entriesCommitted(this.commitIndex, next);
                 this.commitIndex = next;
                 this._persistState();
                 this._applyCommittedEntries();
@@ -940,7 +998,9 @@ class RaftNode {
             const entry = this.log[this.lastApplied];
             if (!entry) continue;
 
+            const applyStartedAt = this._perf ? this._perf.now() : 0;
             const result = this.stateMachine.apply(entry);
+            if (this._perf) this._perf.entryApplied(this.lastApplied, applyStartedAt);
 
             if (this.onCommit) {
                 // Side effects are fire-and-forget by design, but they run
@@ -980,6 +1040,7 @@ class RaftNode {
             }
 
             if (replicated >= this.quorumSize) {
+                if (this._perf) this._perf.entriesCommitted(this.commitIndex, index);
                 this.commitIndex = index;
                 this._persistState();
                 this._applyCommittedEntries();
@@ -1040,6 +1101,7 @@ class RaftNode {
                 const prevLogTerm =
                     prevLogIndex >= 0 ? this.log[prevLogIndex].term : 0;
                 const entries = this.log.slice(next);
+                const sentAt = this._perf ? this._perf.recordAppendSent(next, entries.length) : 0;
 
                 try {
                     const response = await this.transport.post(
@@ -1055,6 +1117,7 @@ class RaftNode {
                         },
                         { timeout: 450 },
                     );
+                    if (this._perf) this._perf.recordAppendResponse(sentAt, response.data.success);
 
                     if (response.data.term > this.currentTerm) {
                         this._becomeFollower(response.data.term);
@@ -1084,6 +1147,7 @@ class RaftNode {
                         hinted >= next ? next - 1 : hinted,
                     );
                 } catch (_) {
+                    if (this._perf) this._perf.count('rpc.appendEntriesErrors');
                     return false;
                 }
             }
@@ -1148,6 +1212,7 @@ class RaftNode {
             ts: this._clock.now(),
             data,
         };
+        if (this._perf) this._perf.entryAdmitted(entry.index);
         this._appendToLog([entry]);
 
         console.log(`[${this.replicaId}] Entry persisted · index=${entry.index}`);

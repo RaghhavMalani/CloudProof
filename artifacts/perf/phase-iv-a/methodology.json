@@ -1,0 +1,83 @@
+{
+  "schema": "cloudproof.raft-bench.methodology/v1",
+  "preregisteredAt": "2026-09-25",
+  "status": "frozen before the first recorded baseline trial; any change is recorded under amendments with a reason",
+  "questions": [
+    "Q1 Where does one CloudProof Raft group saturate?",
+    "Q2 What dominates latency before and after saturation?",
+    "Q3 Can group commit, replication pipelining and bounded batching raise throughput without breaking durability or linearizability?",
+    "Q4 What gap remains versus etcd under comparable conditions on the same machine?",
+    "Q5 Does every optimization survive the deterministic correctness and fault-testing suite?"
+  ],
+  "systemUnderTest": {
+    "topology": "3 voting replicas, one Raft group, native `node replica/index.js` processes on one machine, loopback TCP, fresh data directory per trial",
+    "clientPath": "HTTP/1.1 keep-alive to the leader; the generator is told the leader once the no-op has committed",
+    "durabilityContract": "A write is acknowledged only after it is committed: stored durably (fsync) on a majority of voters, including every copy that is counted. Unchanged by every optimization; group commit changes when fsync happens, never whether an acknowledged entry was fsynced.",
+    "instrumentation": "RAFT_PERF=1 for every trial (observational; see replica/raft-perf.js)",
+    "logging": "replica stdout/stderr redirected to a per-replica file, as a container would"
+  },
+  "workload": {
+    "operation": "PUT /kv/:key with body {\"value\": <payload>} -> Raft entry {op: set}; no clientId/seqNo",
+    "rationaleForNoClientId": "matches etcd Put semantics (last-writer-wins, no server-side deduplication) so the etcd comparison is like for like. The exactly-once path (clientId+seqNo) is measured separately and reported as its own result.",
+    "payloadBytes": [64, 1024, 16384],
+    "payloadDefinition": "length of the ASCII value string; the replicated entry and the HTTP body are larger (key, op, JSON framing)",
+    "keySpace": 1000,
+    "keyChoice": "round robin over k0..k999 by global arrival index"
+  },
+  "loadGeneration": {
+    "model": "open loop, constant inter-arrival time 1/rate, arrivals interleaved across generator processes",
+    "generatorProcesses": 4,
+    "connections": 128,
+    "latencyDefinition": "end-to-end latency = response completion - intended arrival time (coordinated-omission free); service latency = completion - socket write, reported separately",
+    "timeouts": "an arrival without a response 10 s after its intended time is abandoned and recorded in the all-requests distribution at exactly 10 s",
+    "histogram": "log-linear, exact below 2048 us, <= 0.1% relative error above (replica/perf-histogram.js); percentiles report the bucket upper bound",
+    "generatorHealth": "every trial records generator lag (dispatch - intended); p99 lag > 5 ms marks the trial generator-saturated"
+  },
+  "trial": {
+    "warmupMs": 5000,
+    "measurementWindowMs": 20000,
+    "warmupExcluded": "generators count only arrivals intended inside the window; every replica's /perf window is reset at the window start",
+    "drainMs": 12000,
+    "freshClusterPerTrial": true,
+    "repetitionsPerPoint": 3,
+    "pointAggregation": "latency percentiles from the merged histograms of all repetitions (pooled); throughput/CPU as mean with min/max across repetitions; no trial is ever selected or discarded"
+  },
+  "rateLadder": [100, 200, 300, 500, 750, 1000, 1500, 2000, 3000, 4000, 5000, 6000, 8000, 10000, 12000, 15000, 20000, 25000, 30000, 40000],
+  "stabilityRule": {
+    "version": 1,
+    "text": "A trial is stable iff (a) OK completions inside the window reach >= 98% of the offered rate, (b) errors + timeouts <= 0.5% of measured arrivals, (c) end-to-end p99 over all measured arrivals (timeouts at the timeout bound) < 1000 ms, and (d) the median OK latency of the last fifth of the window is <= 2x that of the first fifth, unless that last-fifth median is <= 20 ms. A point is stable when a majority of its repetitions are."
+  },
+  "stopRule": {
+    "version": 1,
+    "text": "A curve stops after two consecutive majority-unstable rates, or after any rate whose mean achieved/offered ratio is below 0.5. Every rate that is run uses the full repetition count."
+  },
+  "kneeDefinition": "the highest ladder rate that is majority-stable and whose every lower ladder rate is majority-stable; max stable throughput = mean achieved throughput at that rate",
+  "saturationFractions": {
+    "fractions": [0.5, 0.8],
+    "text": "after a curve's ladder is complete, 0.5x and 0.8x its knee (rounded) are run with the same repetitions; 'p99 at 50%/80% of saturation' is read from those points, never interpolated"
+  },
+  "configurations": {
+    "ablation": "cumulative: baseline -> +group commit -> +pipelined replication -> +bounded batches with coalesced replication trigger -> +framed TCP transport (= all optimizations)",
+    "extra": "baseline + framed TCP transport only, to isolate the transport's contribution when disk is the bottleneck",
+    "payloadCoverage": "baseline and all-optimizations: 64 B, 1 KiB, 16 KiB. Intermediate ablation steps and transport-only: 1 KiB only (time budget; 1 KiB is the canonical comparison payload)."
+  },
+  "profiles": {
+    "method": "V8 CPU profile of the leader through the inspector, exactly covering a 15 s measurement window, 250 us sampling",
+    "points": "A = 0.5 x knee (sub-saturation), B = knee (near saturation), C = the first unstable ladder rate (overloaded), 1 KiB payload, for the baseline and the all-optimizations configuration",
+    "storage": "processed summaries committed; raw .cpuprofile and folded stacks kept locally, identified by SHA-256"
+  },
+  "comparisonMetrics": [
+    "maximum stable throughput",
+    "p99 at 0.5x knee, 0.8x knee and at the knee",
+    "leader CPU percent of one core and CPU microseconds per op",
+    "cluster fsyncs per second and fsyncs (log + metadata) per committed op",
+    "AppendEntries RPCs per second and per committed op, entries per RPC",
+    "replication bytes per committed op (TCP payload bytes on follower sockets)"
+  ],
+  "etcd": {
+    "condition": "run only after this methodology is frozen and the CloudProof sweeps are complete",
+    "plan": "3-member etcd cluster on the same machine and drive, same open-loop generator speaking etcd's v3 HTTP/JSON gateway (POST /v3/kv/put), same payloads, rates, windows, repetitions and stability rule",
+    "mismatchesToDisclose": ["language/runtime", "transport (grpc-gateway translation vs direct HTTP handler)", "persistence (WAL + bbolt vs line log + JSON metadata)", "client semantics", "durability settings", "batching", "hardware sharing (all members on one machine)"]
+  },
+  "amendments": []
+}

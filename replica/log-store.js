@@ -72,6 +72,13 @@ class LogStore {
         this._descriptor = null;
         this.truncatedTailBytes = 0;
         this.appendCount = 0;
+        this.fsyncCount = 0;
+        // Optional observational recorder (raft-perf.js); never affects I/O.
+        this.perf = null;
+    }
+
+    setPerf(perf) {
+        this.perf = perf;
     }
 
     /**
@@ -147,10 +154,25 @@ class LogStore {
     append(entries) {
         if (entries.length === 0) return;
         const descriptor = this._open();
+        const perf = this.perf;
+        const encodeStartedAt = perf ? perf.now() : 0;
         const payload = entries.map(encodeRecord).join('');
+        const writeStartedAt = perf ? perf.now() : 0;
         fs.writeSync(descriptor, payload);
+        const fsyncStartedAt = perf ? perf.now() : 0;
         fs.fsyncSync(descriptor);
         this.appendCount += entries.length;
+        this.fsyncCount += 1;
+        if (perf) {
+            const doneAt = perf.now();
+            perf.observeMs('log.encode', writeStartedAt - encodeStartedAt);
+            perf.observeMs('log.write', fsyncStartedAt - writeStartedAt);
+            perf.observeMs('log.fsync', doneAt - fsyncStartedAt);
+            perf.observeValue('log.entriesPerFsync', entries.length);
+            perf.count('log.fsyncs');
+            perf.count('log.entriesWritten', entries.length);
+            perf.count('log.bytesWritten', Buffer.byteLength(payload, 'utf8'));
+        }
     }
 
     /**
@@ -170,6 +192,8 @@ class LogStore {
         try {
             fs.writeSync(descriptor, entries.map(encodeRecord).join(''));
             fs.fsyncSync(descriptor);
+            this.fsyncCount += 1;
+            if (this.perf) this.perf.count('log.rewrites');
         } finally {
             fs.closeSync(descriptor);
         }
