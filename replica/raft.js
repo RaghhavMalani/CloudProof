@@ -214,6 +214,14 @@ class RaftNode {
          * in the same event-loop turn share one replication round.
          */
         replicationBatch = null,
+        /**
+         * Two log lines per client write ("Entry persisted", "Commit
+         * advanced") are synchronous stdout writes on the leader's hot path;
+         * profiled at ~8% of a saturated leader's CPU. On by default (the
+         * original behaviour); elections, step-downs and membership changes
+         * are always logged.
+         */
+        logHotPath = true,
     }) {
         this._clock = clock;
         this._perf = perf;
@@ -228,6 +236,7 @@ class RaftNode {
             }
             : null;
         this._replicationRequested = false;
+        this._logHotPath = logHotPath;
         this._groupCommit = groupCommit && groupCommit.enabled !== false
             ? {
                 maxEntries: Math.max(1, groupCommit.maxEntries ?? 1024),
@@ -1306,10 +1315,12 @@ class RaftNode {
                 this._applyCommittedEntries();
                 this._releaseCommitWaiters();
                 this._scheduleCommitBroadcast();
-                console.log(
-                    `[${this.replicaId}] Commit advanced · index=${index} ` +
-                    `replicas=${replicated}/${this.clusterSize}`,
-                );
+                if (this._logHotPath) {
+                    console.log(
+                        `[${this.replicaId}] Commit advanced · index=${index} ` +
+                        `replicas=${replicated}/${this.clusterSize}`,
+                    );
+                }
                 break;
             }
         }
@@ -1708,7 +1719,9 @@ class RaftNode {
         if (coalesce) this._requestReplication();
         this._appendToLog([entry]);
 
-        console.log(`[${this.replicaId}] ${this._groupCommit ? 'Entry appended' : 'Entry persisted'} · index=${entry.index}`);
+        if (this._logHotPath) {
+            console.log(`[${this.replicaId}] ${this._groupCommit ? 'Entry appended' : 'Entry persisted'} · index=${entry.index}`);
+        }
         if (!coalesce) void this._replicateAll();
 
         const committed = await this._awaitCommit(entry.index);

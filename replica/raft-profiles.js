@@ -58,6 +58,15 @@ const PROFILES = Object.freeze({
     'optimized-delay': Object.freeze({
         groupCommit: GROUP_COMMIT_DELAY, pipeline: PIPELINE_DELAY, replicationBatch: BATCH_DELAY, wire: 'framed-tcp',
     }),
+
+    // Every engine optimization without the two per-write log lines, over the
+    // original HTTP transport and over the framed transport.
+    'optimized-http': Object.freeze({
+        groupCommit: GROUP_COMMIT, pipeline: PIPELINE, replicationBatch: BATCH, logHotPath: false,
+    }),
+    'optimized-binary': Object.freeze({
+        groupCommit: GROUP_COMMIT, pipeline: PIPELINE, replicationBatch: BATCH, logHotPath: false, wire: 'framed-tcp',
+    }),
 });
 
 function profileOptions(name) {
@@ -78,6 +87,7 @@ const int = (value, fallback) => (value === undefined || value === '' ? fallback
  *   RAFT_PIPELINE=1      RAFT_PIPELINE_MAX_INFLIGHT
  *   RAFT_BATCH=1         RAFT_BATCH_MAX_ENTRIES  RAFT_BATCH_MAX_BYTES  RAFT_BATCH_COALESCE
  *   RAFT_TRANSPORT=tcp|http  (overrides the profile's `wire`)
+ *   RAFT_LOG_HOT_PATH=0|1    (per-write log lines; default on)
  */
 function optionsFromEnv(env = process.env) {
     const options = profileOptions(env.RAFT_PROFILE);
@@ -102,6 +112,7 @@ function optionsFromEnv(env = process.env) {
         };
     }
     if (env.RAFT_TRANSPORT) options.wire = env.RAFT_TRANSPORT === 'tcp' ? 'framed-tcp' : 'http';
+    if (env.RAFT_LOG_HOT_PATH !== undefined && env.RAFT_LOG_HOT_PATH !== '') options.logHotPath = flag(env.RAFT_LOG_HOT_PATH);
     return options;
 }
 

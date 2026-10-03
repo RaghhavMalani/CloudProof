@@ -194,6 +194,10 @@ is the configuration that is fault-tested.
   delivery, not semantics: a request either arrives whole or fails as a timeout or connection error, which the
   engine already handles. In the simulator the same profile routes every RPC through the codec
   ([`sim/wire-codec.js`](sim/wire-codec.js)), so every searched schedule round-trips through the binary format.
+- **Per-write log lines** (`logHotPath`, `RAFT_LOG_HOT_PATH=0`): the leader's two synchronous stdout lines per
+  client write ("Entry persisted/appended", "Commit advanced") can be turned off. They are on by default, as
+  in the baseline; elections, step-downs and membership changes are always logged. This is not a consensus
+  change. It is listed because the per-write logging is part of the leader's measured CPU cost.
 
 ## 5. Group commit: design and durability argument
 
