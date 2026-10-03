@@ -64,6 +64,13 @@ class MemoryLogStore {
     close() {}
 }
 
+/** A profile's `wire` selects the transport, not an engine option. */
+function engineOptions(options) {
+    if (!options || options.wire === undefined) return options;
+    const { wire, ...rest } = options;
+    return rest;
+}
+
 class SimCluster {
     constructor({
         size = 3,
@@ -87,8 +94,12 @@ class SimCluster {
         // default, so the default cluster is the exact engine every existing
         // schedule and artifact was recorded on.
         raftOptions = null,
+        // Optional wrapper around each node's transport (sim/wire-codec.js
+        // routes every RPC through the framed binary codec).
+        wrapTransport = null,
     } = {}) {
         this.raftOptions = raftOptions || {};
+        this.wrapTransport = wrapTransport;
         this.clock = new VirtualClock();
         this.decisionStreams = decisionStreams || new DecisionStreams({
             seed, decisions: decisionTrace, clock: this.clock,
@@ -136,7 +147,7 @@ class SimCluster {
             members: this.urls.slice(0, this.voters),
             // Bound to this node's URL so the network can tell who is sending
             // and apply partitions to vote requests as well as replication.
-            transport: this.network.forNode(url),
+            transport: this.wrapTransport ? this.wrapTransport(this.network.forNode(url)) : this.network.forNode(url),
             clock: this.clock,
             // Election jitter comes from the seeded PRNG, not Math.random.
             // Without this the schedule differs on every run and the whole
@@ -153,7 +164,7 @@ class SimCluster {
             ...this.config,
             electionTimeoutMin: this.config.electionTimeoutMin + timeoutOffset,
             // May be per node, e.g. to give each node its own disk latency.
-            ...(typeof this.raftOptions === 'function' ? this.raftOptions(index) : this.raftOptions),
+            ...engineOptions(typeof this.raftOptions === 'function' ? this.raftOptions(index) : this.raftOptions),
         });
 
         this.network.register(url, {

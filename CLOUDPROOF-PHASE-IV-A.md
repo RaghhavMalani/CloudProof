@@ -186,6 +186,14 @@ is the configuration that is fault-tested.
   the same text. Batching only changes how entries are grouped into requests, never which entries a request
   carries or the consistency check, so it needs no new safety argument; `replica/batching.test.js` checks the
   bounds, coalescing, catch-up and conflict repair under both replication paths.
+- **Framed binary TCP transport** (`wire: 'framed-tcp'`, `RAFT_TRANSPORT=tcp`): the three Raft RPCs move off
+  HTTP/1.1 + JSON (axios → express) onto one persistent, multiplexed TCP connection per peer on
+  `PORT + 1000`, framed as in [`replica/raft-codec.js`](replica/raft-codec.js). AppendEntries and its
+  response use fixed-width fields; entries travel as length-prefixed JSON taken from the entry cache, and the
+  follower primes its cache with the received text. Client-facing endpoints stay HTTP. The transport changes
+  delivery, not semantics: a request either arrives whole or fails as a timeout or connection error, which the
+  engine already handles. In the simulator the same profile routes every RPC through the codec
+  ([`sim/wire-codec.js`](sim/wire-codec.js)), so every searched schedule round-trips through the binary format.
 
 ## 5. Group commit: design and durability argument
 

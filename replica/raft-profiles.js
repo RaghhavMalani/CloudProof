@@ -47,6 +47,17 @@ const PROFILES = Object.freeze({
     'batched-delay': Object.freeze({
         groupCommit: GROUP_COMMIT_DELAY, pipeline: PIPELINE_DELAY, replicationBatch: BATCH_DELAY,
     }),
+
+    // `wire` selects the replica-to-replica transport (raft-transport.js); it
+    // is not a RaftNode option. In the simulator it routes every RPC through
+    // the binary codec (sim/wire-codec.js).
+    //
+    // The transport alone on the original engine: isolates what the wire
+    // format is worth when the disk path is unchanged.
+    'transport-only': Object.freeze({ wire: 'framed-tcp' }),
+    'optimized-delay': Object.freeze({
+        groupCommit: GROUP_COMMIT_DELAY, pipeline: PIPELINE_DELAY, replicationBatch: BATCH_DELAY, wire: 'framed-tcp',
+    }),
 });
 
 function profileOptions(name) {
@@ -66,6 +77,7 @@ const int = (value, fallback) => (value === undefined || value === '' ? fallback
  *   RAFT_GROUP_COMMIT=1  RAFT_GC_MAX_ENTRIES  RAFT_GC_MAX_DELAY_MS  RAFT_GC_META_INTERVAL_MS
  *   RAFT_PIPELINE=1      RAFT_PIPELINE_MAX_INFLIGHT
  *   RAFT_BATCH=1         RAFT_BATCH_MAX_ENTRIES  RAFT_BATCH_MAX_BYTES  RAFT_BATCH_COALESCE
+ *   RAFT_TRANSPORT=tcp|http  (overrides the profile's `wire`)
  */
 function optionsFromEnv(env = process.env) {
     const options = profileOptions(env.RAFT_PROFILE);
@@ -89,6 +101,7 @@ function optionsFromEnv(env = process.env) {
             coalesce: env.RAFT_BATCH_COALESCE === undefined ? base.coalesce : flag(env.RAFT_BATCH_COALESCE),
         };
     }
+    if (env.RAFT_TRANSPORT) options.wire = env.RAFT_TRANSPORT === 'tcp' ? 'framed-tcp' : 'http';
     return options;
 }
 
