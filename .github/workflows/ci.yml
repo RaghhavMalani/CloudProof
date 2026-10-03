@@ -27,6 +27,14 @@ jobs:
         run: node --test sim/*.test.js packages/*/*.test.js refund-provider/*.test.js tools/*.test.js
       - name: materialized schedule search campaign
         run: node sim/search.js --runs 100 --no-shrink
+      # Phase IV-A: the same campaign against every optimization (group commit,
+      # pipelining, bounded batches, the binary codec on the wire) with the
+      # adversarial flush-delay settings, then the targeted fault campaign that
+      # aims crashes, partitions and power loss into their windows.
+      - name: optimized Raft search campaign
+        run: node sim/search.js --runs 200 --no-shrink --raft-profile optimized-delay
+      - name: optimized Raft targeted fault campaign
+        run: node sim/perf-faults.js --profile optimized-delay --runs 10
       - name: correct agent runtime search campaign
         run: node sim/agent-search.js --workflow refund --runs 1000 --seed 1337 --mutant correct --no-shrink
       - name: autonomous agent mutant kill benchmark
