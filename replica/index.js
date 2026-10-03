@@ -6,6 +6,7 @@
  * soft-failure controls used by the interactive lab.
  */
 
+const path = require('path');
 const express = require('express');
 const axios = require('axios');
 const { RaftNode } = require('./raft');
@@ -14,6 +15,7 @@ const { RaftPerf } = require('./raft-perf');
 const { createPerfService } = require('./perf-service');
 const { optionsFromEnv } = require('./raft-profiles');
 const { FramedTcpTransport, createFramedTcpServer, raftHandlers } = require('./raft-transport');
+const { Failpoints } = require('./failpoints');
 
 // Benchmark instrumentation (Phase IV-A). Off unless explicitly enabled; when
 // off, the Raft engine sees `perf: null` and every hook is a null check.
@@ -34,6 +36,15 @@ const PEERS = (process.env.PEERS || '').split(',').filter(Boolean);
 const GATEWAY_URL = process.env.GATEWAY_URL || 'http://gateway:4000';
 const NODE_URL = process.env.NODE_URL || `http://${REPLICA_ID}:${PORT}`;
 
+// Test-only process-death failpoints for the Phase IV-A durability gate.
+// Absent unless RAFT_TEST_FAILPOINTS=1; armed at run time over HTTP.
+const failpoints = process.env.RAFT_TEST_FAILPOINTS === '1'
+    ? new Failpoints({
+        markerFile: path.join(process.env.DATA_DIR || '.', `failpoint-${REPLICA_ID}.json`),
+    })
+    : null;
+const failpoint = failpoints ? (name, context) => failpoints.hit(name, context) : null;
+
 // Phase IV-A optimizations (group commit, ...) are opt-in; see raft-profiles.js.
 const { wire: RAFT_WIRE = 'http', ...RAFT_OPTIONS } = optionsFromEnv(process.env);
 
@@ -47,6 +58,7 @@ const framedTransport = RAFT_TRANSPORT === 'tcp'
     ? new FramedTcpTransport({
         portOffset: RAFT_TCP_PORT_OFFSET,
         onSocket: (socket) => { if (perfService) perfService.trackSocket(socket, 'outbound'); },
+        failpoint,
     })
     : null;
 
@@ -55,6 +67,7 @@ const raft = new RaftNode({
     peers: PEERS,
     nodeUrl: NODE_URL,
     perf,
+    failpoint,
     ...RAFT_OPTIONS,
     ...(framedTransport ? { transport: framedTransport } : {}),
 
@@ -511,6 +524,18 @@ app.get('/log', (_req, res) => {
         lastApplied: raft.lastApplied,
     });
 });
+
+if (failpoints) {
+    app.get('/test/failpoint', (_req, res) => res.json(failpoints.status()));
+    app.post('/test/failpoint', (req, res) => {
+        try {
+            const { name, skip = 0 } = req.body || {};
+            res.json(name ? failpoints.arm(name, { skip }) : failpoints.disarm());
+        } catch (error) {
+            res.status(400).json({ error: error.message });
+        }
+    });
+}
 
 app.get('/health', (_req, res) => {
     res.json({ ok: true, replicaId: REPLICA_ID });

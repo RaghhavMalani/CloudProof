@@ -109,9 +109,11 @@ class PeerConnection {
 }
 
 class FramedTcpTransport {
-    constructor({ portOffset = 1000, onSocket = null } = {}) {
+    constructor({ portOffset = 1000, onSocket = null, failpoint = null } = {}) {
         this.portOffset = portOffset;
         this.onSocket = onSocket;
+        // Test-only hook (see RaftNode's `failpoint`); null in production.
+        this.failpoint = failpoint;
         this.connections = new Map();
     }
 
@@ -134,7 +136,14 @@ class FramedTcpTransport {
         const parsed = new URL(url);
         const type = ROUTE_TYPES[parsed.pathname];
         if (!type) return Promise.reject(new Error(`framed transport has no route ${parsed.pathname}`));
-        return this._connectionFor(parsed.origin).request(type, body, timeout);
+        const sent = this._connectionFor(parsed.origin).request(type, body, timeout);
+        if (this.failpoint && type === TYPES.APPEND_ENTRIES && body.entries && body.entries.length > 0) {
+            let outstanding = 0;
+            for (const connection of this.connections.values()) outstanding += connection.pending.size;
+            // The frame has been handed to the socket; others are still unanswered.
+            if (outstanding > 1) this.failpoint('transport.framedInflight', { outstanding, entries: body.entries.length });
+        }
+        return sent;
     }
 
     close() {

@@ -182,6 +182,14 @@ class RaftNode {
          */
         perf = null,
         /**
+         * Test-only failpoint hook, `(name, context) => void` (Phase IV-A
+         * durability gate). Null in production and in the simulator, where
+         * every site below is a single null check. A test arms one named site
+         * on one process (replica/failpoints.js); when it fires the process
+         * dies on the spot, inside the window the site names.
+         */
+        failpoint = null,
+        /**
          * Durable group commit (Phase IV-A). Off by default, which keeps the
          * original contract exactly: every append is fsynced before the call
          * returns. When enabled, appends are buffered and flushed together —
@@ -225,6 +233,7 @@ class RaftNode {
     }) {
         this._clock = clock;
         this._perf = perf;
+        this._failpoint = failpoint;
         this._pipeline = pipeline && pipeline.enabled !== false
             ? { maxInflight: Math.max(1, pipeline.maxInflight ?? 8) }
             : null;
@@ -582,14 +591,34 @@ class RaftNode {
         this._flushHandle = null;
         if (!this._groupCommit) return;
         const before = this._durableLength;
+        if (this._failpoint && this.state === STATES.LEADER && this._logStore.pendingCount > 0) {
+            this._hitFailpoint('leader.beforeFlush');
+        }
         if (this._logStore.pendingCount > 0) this._logStore.flush();
         this._durableLength = this.log.length;
+        if (this._failpoint && this.state === STATES.LEADER && this._durableLength - 1 > this.commitIndex) {
+            this._hitFailpoint('leader.durableBeforeQuorum');
+        }
         if (this._perf && this._durableLength > before) {
             this._perf.observeValue('groupCommit.entriesPerFlush', this._durableLength - before);
             this._perf.entriesDurable(before, this._durableLength);
         }
         this._releaseDurableWaiters();
         if (this.state === STATES.LEADER) this._advanceCommitIndex();
+    }
+
+    /** Calls the test-only failpoint hook with the state that defines the window. */
+    _hitFailpoint(name, extra = {}) {
+        this._failpoint(name, {
+            replicaId: this.replicaId,
+            state: this.state,
+            term: this.currentTerm,
+            commitIndex: this.commitIndex,
+            logLength: this.log.length,
+            durableLength: this._durableLength,
+            pendingEntries: this._logStore && this._logStore.pendingCount !== undefined ? this._logStore.pendingCount : 0,
+            ...extra,
+        });
     }
 
     /** Public: make everything appended so far durable now (graceful shutdown). */
@@ -1313,6 +1342,7 @@ class RaftNode {
                 this.commitIndex = index;
                 this._persistCommitIndex();
                 this._applyCommittedEntries();
+                if (this._failpoint) this._hitFailpoint('leader.committedBeforeReply');
                 this._releaseCommitWaiters();
                 this._scheduleCommitBroadcast();
                 if (this._logHotPath) {
@@ -1431,6 +1461,13 @@ class RaftNode {
     _onAppendResponse(peerUrl, request, epoch, term, data) {
         const progress = this._progressFor(peerUrl);
         progress.inflight.delete(request);
+        if (this._failpoint && this.state === STATES.LEADER) {
+            let stillInflight = 0;
+            for (const other of progress.inflight) if (!other.superseded) stillInflight += 1;
+            if (stillInflight > 0) this._hitFailpoint('leader.pipelinedInflight', { peerUrl, stillInflight });
+            const carried = request.lastIndex - request.prevLogIndex;
+            if (this._batch && carried > 1) this._hitFailpoint('leader.batchedReplication', { peerUrl, carried });
+        }
         if (data.term > this.currentTerm) {
             this._becomeFollower(data.term);
             this._settleReplicationWaiters(peerUrl, false);
@@ -1615,6 +1652,9 @@ class RaftNode {
                         { timeout: 450 },
                     );
                     if (this._perf) this._perf.recordAppendResponse(sentAt, response.data.success);
+                    if (this._failpoint && this._batch && entries.length > 1 && this.state === STATES.LEADER) {
+                        this._hitFailpoint('leader.batchedReplication', { peerUrl, carried: entries.length });
+                    }
 
                     if (response.data.term > this.currentTerm) {
                         this._becomeFollower(response.data.term);
