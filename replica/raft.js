@@ -193,9 +193,22 @@ class RaftNode {
          * once per metaIntervalMs. See CLOUDPROOF-PHASE-IV-A.md §5.
          */
         groupCommit = null,
+        /**
+         * Pipelined replication (Phase IV-A). Off by default: the original
+         * engine keeps exactly one AppendEntries outstanding per follower and
+         * sends the next only after the previous returns. When enabled, a
+         * follower that has matched once is sent up to maxInflight batches
+         * without waiting (nextIndex advances optimistically); a rejection or
+         * error drops it back to one-at-a-time probing. See
+         * CLOUDPROOF-PHASE-IV-A.md §6 for the safety argument.
+         */
+        pipeline = null,
     }) {
         this._clock = clock;
         this._perf = perf;
+        this._pipeline = pipeline && pipeline.enabled !== false
+            ? { maxInflight: Math.max(1, pipeline.maxInflight ?? 8) }
+            : null;
         this._groupCommit = groupCommit && groupCommit.enabled !== false
             ? {
                 maxEntries: Math.max(1, groupCommit.maxEntries ?? 1024),
@@ -328,6 +341,15 @@ class RaftNode {
         // Bumped on every truncation, so an acknowledgement prepared before a
         // truncation is never sent after it.
         this._logEpoch = 0;
+
+        // Pipelined replication. Per-follower progress, and a leadership
+        // epoch that every outstanding request carries: bumped whenever this
+        // node gains or loses leadership, so a response to a request sent
+        // under an earlier leadership can never move this one's progress.
+        this._progress = {};
+        this._leaderEpoch = 0;
+        this._peerContactAt = {};
+        this._replicationWaiters = {};
 
         // Leader volatile state, keyed by peer URL.
         this.nextIndex = {};
@@ -703,6 +725,7 @@ class RaftNode {
         this.paused = true;
         this.stop();
         if (this.state === STATES.LEADER) {
+            this._endLeadership();
             this.state = STATES.FOLLOWER;
             this.leaderId = null;
             this.leaderUrl = null;
@@ -886,6 +909,11 @@ class RaftNode {
             this.nextIndex[peerUrl] = this.log.length;
             this.matchIndex[peerUrl] = -1;
         }
+        // A new leadership: every follower is probed afresh, and nothing sent
+        // under any earlier leadership can touch this one's progress.
+        this._leaderEpoch += 1;
+        this._progress = {};
+        this._peerContactAt = {};
 
         /**
          * The no-op entry Raft §8 requires at the start of every term.
@@ -930,6 +958,7 @@ class RaftNode {
         this._preVoteRound += 1;
         const wasLeader = this.state === STATES.LEADER;
         const termAdvanced = term > this.currentTerm;
+        if (wasLeader) this._endLeadership();
 
         if (termAdvanced) {
             this.currentTerm = term;
@@ -1294,7 +1323,204 @@ class RaftNode {
         }, 0);
     }
 
+    // ── pipelined replication ────────────────────────────────────────────────
+
+    _progressFor(peerUrl) {
+        let progress = this._progress[peerUrl];
+        if (!progress) {
+            // Every follower starts in probe mode: one request at a time until
+            // a success proves where its log matches ours.
+            progress = { mode: 'probe', inflight: new Set() };
+            this._progress[peerUrl] = progress;
+        }
+        return progress;
+    }
+
+    /**
+     * Sends as much as the window allows to one follower.
+     *
+     * Probe mode: at most one outstanding request. Replicate mode: up to
+     * maxInflight, each carrying the next unsent entries, with nextIndex
+     * advanced optimistically as they go. A `heartbeat` pump sends an empty
+     * AppendEntries only when nothing is outstanding — outstanding requests
+     * already reset the follower's election timer when they arrive.
+     */
+    _pumpPeer(peerUrl, { heartbeat = false } = {}) {
+        const progress = this._progressFor(peerUrl);
+        let sendHeartbeat = heartbeat;
+        for (;;) {
+            if (this.state !== STATES.LEADER || this.paused) return;
+            let active = 0;
+            for (const request of progress.inflight) if (!request.superseded) active += 1;
+            const limit = progress.mode === 'probe' ? 1 : this._pipeline.maxInflight;
+            if (active >= limit) return;
+            const next = Math.max(0, Math.min(this.nextIndex[peerUrl] ?? this.log.length, this.log.length));
+            const count = this.log.length - next;
+            if (count === 0 && !(sendHeartbeat && active === 0)) return;
+            this._sendAppend(peerUrl, progress, next, count);
+            sendHeartbeat = false;
+            if (progress.mode === 'probe' || count === 0) return;
+        }
+    }
+
+    _sendAppend(peerUrl, progress, next, count) {
+        const epoch = this._leaderEpoch;
+        const term = this.currentTerm;
+        const prevLogIndex = next - 1;
+        const entries = this.log.slice(next, next + count);
+        const request = {
+            prevLogIndex,
+            lastIndex: prevLogIndex + entries.length,
+            superseded: false,
+            sentAt: this._clock.now(),
+        };
+        progress.inflight.add(request);
+        if (progress.mode === 'replicate' && entries.length > 0) this.nextIndex[peerUrl] = next + entries.length;
+        this._onPipelineSend(peerUrl);
+        const perfSentAt = this._perf ? this._perf.recordAppendSent(next, entries.length) : 0;
+        this.transport.post(`${peerUrl}/append-entries`, {
+            term,
+            leaderId: this.replicaId,
+            leaderUrl: this.nodeUrl,
+            prevLogIndex,
+            prevLogTerm: prevLogIndex >= 0 ? this.log[prevLogIndex].term : 0,
+            entries,
+            leaderCommit: this.commitIndex,
+        }, { timeout: 450 }).then(
+            (response) => {
+                if (this._perf) this._perf.recordAppendResponse(perfSentAt, response.data.success);
+                this._onAppendResponse(peerUrl, request, epoch, term, response.data);
+            },
+            () => {
+                if (this._perf) this._perf.count('rpc.appendEntriesErrors');
+                this._onAppendError(peerUrl, request, epoch);
+            },
+        );
+    }
+
+    _onAppendResponse(peerUrl, request, epoch, term, data) {
+        const progress = this._progressFor(peerUrl);
+        progress.inflight.delete(request);
+        if (data.term > this.currentTerm) {
+            this._becomeFollower(data.term);
+            this._settleReplicationWaiters(peerUrl, false);
+            return;
+        }
+        // Fence: a response to a request sent under an earlier leadership (or
+        // an earlier term) says nothing about this leadership's logs.
+        if (epoch !== this._leaderEpoch || term !== this.currentTerm || this.state !== STATES.LEADER) {
+            this._onPipelineStale();
+            this._settleReplicationWaiters(peerUrl, false);
+            return;
+        }
+        // Any same-term answer shows the follower accepted this leader at the
+        // time the request was sent (send time, not arrival: conservative).
+        this._recordPeerContact(peerUrl, request.sentAt);
+
+        if (data.success) {
+            const acknowledged = Number.isInteger(data.matchIndex) ? data.matchIndex : request.lastIndex;
+            // Monotonic: a late or reordered success can only confirm more.
+            if (acknowledged > (this.matchIndex[peerUrl] ?? -1)) this.matchIndex[peerUrl] = acknowledged;
+            if ((this.nextIndex[peerUrl] ?? 0) < this.matchIndex[peerUrl] + 1) {
+                this.nextIndex[peerUrl] = this.matchIndex[peerUrl] + 1;
+            }
+            if (progress.mode === 'probe') progress.mode = 'replicate';
+            this._advanceCommitIndex();
+            this._settleReplicationWaiters(peerUrl, true);
+        } else {
+            this._onPipelineReject(peerUrl, request, data);
+            this._settleReplicationWaiters(peerUrl, false);
+        }
+        this._pumpPeer(peerUrl);
+    }
+
+    /**
+     * A consistency-check failure. Ignored when the follower has since
+     * matched at or beyond the rejected point (a reordered or retried request
+     * that lost a race it no longer matters for); otherwise nextIndex backs
+     * off using the follower's conflict hint — never below matchIndex + 1,
+     * which is known to match — and the follower drops back to probing.
+     */
+    _onPipelineReject(peerUrl, request, data) {
+        const matched = this.matchIndex[peerUrl] ?? -1;
+        if (request.prevLogIndex <= matched) return;
+        const next = request.prevLogIndex + 1;
+        const hinted = Number.isInteger(data.conflictIndex)
+            ? data.conflictIndex
+            : Number.isInteger(data.logLength) ? data.logLength : next - 1;
+        this.nextIndex[peerUrl] = Math.max(matched + 1, 0, hinted >= next ? next - 1 : hinted);
+        this._enterProbe(peerUrl);
+    }
+
+    /** Timeout or transport error: resend everything unacknowledged, one probe at a time. */
+    _onAppendError(peerUrl, request, epoch) {
+        const progress = this._progressFor(peerUrl);
+        progress.inflight.delete(request);
+        this._settleReplicationWaiters(peerUrl, false);
+        if (epoch !== this._leaderEpoch || this.state !== STATES.LEADER || request.superseded) return;
+        this.nextIndex[peerUrl] = (this.matchIndex[peerUrl] ?? -1) + 1;
+        this._enterProbe(peerUrl);
+        // Deliberately no immediate resend: an unreachable follower is retried
+        // on the heartbeat, as in the stop-and-wait path, instead of spinning.
+    }
+
+    _enterProbe(peerUrl) {
+        const progress = this._progressFor(peerUrl);
+        progress.mode = 'probe';
+        // Requests already sent keep their responses (which are still handled,
+        // monotonically) but no longer occupy the window.
+        for (const request of progress.inflight) request.superseded = true;
+    }
+
+    _recordPeerContact(peerUrl, sentAt) {
+        if (!(this._peerContactAt[peerUrl] >= sentAt)) this._peerContactAt[peerUrl] = sentAt;
+        // The newest time T such that a quorum (counting this node) has
+        // answered requests sent at or after T.
+        const needed = this.quorumSize - 1;
+        if (needed <= 0) {
+            this.lastQuorumContactAt = this._clock.now();
+            return;
+        }
+        const times = this.voterPeers
+            .map((url) => this._peerContactAt[url])
+            .filter((t) => t !== undefined)
+            .sort((a, b) => b - a);
+        if (times.length >= needed && times[needed - 1] > this.lastQuorumContactAt) {
+            this.lastQuorumContactAt = times[needed - 1];
+        }
+    }
+
+    _settleReplicationWaiters(peerUrl, value) {
+        const waiters = this._replicationWaiters[peerUrl];
+        if (!waiters || waiters.length === 0) return;
+        this._replicationWaiters[peerUrl] = [];
+        for (const resolve of waiters) resolve(value);
+    }
+
+    /** Fences everything outstanding from the leadership that is ending. */
+    _endLeadership() {
+        this._leaderEpoch += 1;
+        for (const peerUrl of Object.keys(this._replicationWaiters)) this._settleReplicationWaiters(peerUrl, false);
+    }
+
+    /** Observation hooks (the coverage tool wraps these); no behaviour. */
+    _onPipelineSend() {}
+
+    _onPipelineStale() {
+        if (this._perf) this._perf.count('pipeline.staleResponses');
+    }
+
     async _replicateToPeer(peerUrl) {
+        if (this._pipeline) {
+            // Used by membership catch-up: push what the window allows and
+            // report whether the next answer from this follower was a success.
+            if (this.state !== STATES.LEADER || this.paused) return false;
+            const answered = new Promise((resolve) => {
+                (this._replicationWaiters[peerUrl] ||= []).push(resolve);
+            });
+            this._pumpPeer(peerUrl, { heartbeat: true });
+            return answered;
+        }
         if (this.state !== STATES.LEADER || this.paused || this._replicating.has(peerUrl)) {
             return false;
         }
@@ -1369,8 +1595,13 @@ class RaftNode {
         }
     }
 
-    async _replicateAll() {
+    async _replicateAll({ heartbeat = true } = {}) {
         if (this.state !== STATES.LEADER || this.paused) return;
+        if (this._pipeline) {
+            for (const peerUrl of this.peers) this._pumpPeer(peerUrl, { heartbeat });
+            this._advanceCommitIndex();
+            return;
+        }
         const results = await Promise.allSettled(
             this.peers.map((peerUrl) => this._replicateToPeer(peerUrl)),
         );
@@ -1573,7 +1804,7 @@ class RaftNode {
         }
         // Stop tracking a server that is gone, so its stale matchIndex cannot
         // linger and be counted after a later re-add.
-        if (result.ok) { delete this.nextIndex[url]; delete this.matchIndex[url]; }
+        if (result.ok) { delete this.nextIndex[url]; delete this.matchIndex[url]; delete this._progress[url]; }
         return result;
     }
 

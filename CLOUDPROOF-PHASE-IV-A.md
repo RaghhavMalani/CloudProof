@@ -176,6 +176,7 @@ is the configuration that is fault-tested.
 
 - **Group commit** (`groupCommit`, §5): one write + `fsync` for everything appended in an event-loop turn,
   and a lazily persisted commit index.
+- **Pipelined replication** (`pipeline`, §6): up to `maxInflight` AppendEntries outstanding per follower.
 
 ## 5. Group commit: design and durability argument
 
@@ -216,3 +217,41 @@ once durable; appends in one turn share one `fsync` on the real `LogStore`; a la
 index loses nothing on restart; and group commit off keeps the original synchronous contract. The
 `group-commit-delay` simulator profile (an 8 ms flush window and a 4-entry cap, strictly more adversarial
 than the benchmarked setting) runs through the materialized schedule search.
+
+## 6. Pipelined replication: design and safety argument
+
+**What changes.** The baseline keeps exactly one AppendEntries outstanding per follower and sends the next
+only after the previous returns. With `pipeline: { maxInflight }`, each follower has a progress record in one
+of two modes. In *probe* mode at most one request is outstanding; that is where every follower starts, and
+where it returns after any rejection or error. One success proves where the follower's log matches, and
+moves it to *replicate* mode: up to `maxInflight` requests outstanding, each carrying the next unsent
+entries, with `nextIndex` advanced optimistically as they are sent. Pipelining alone does not bound a
+request's size. Without batching, each send carries everything from `nextIndex` to the end of the log.
+
+**Why it is safe.** The follower side is unchanged: the AppendEntries consistency check is idempotent, so a
+duplicated, reordered or retransmitted request is either applied (no-op when already present) or rejected.
+On the leader:
+
+1. *`matchIndex` only grows.* It is raised only by a success, to the index the follower itself reports, and a
+   late or reordered success can only confirm more. `nextIndex` is never set below `matchIndex + 1`.
+2. *A rejection is acted on only if it still matters.* A rejection for a point at or below the follower's
+   current `matchIndex` (a request that lost a race the follower has since won) is ignored. Otherwise
+   `nextIndex` backs off using the follower's conflict hint, and the follower drops to probe mode.
+   Outstanding requests stay outstanding but no longer occupy the window.
+3. *Every request is fenced by a leadership epoch.* The epoch is bumped whenever this node gains or loses
+   leadership, so a response to a request sent under an earlier leadership never moves the current one's
+   progress, even within the same term.
+4. *The commit rule is unchanged.* `_advanceCommitIndex` still commits only entries of the current term by
+   counting (Raft Figure 8), so pipelined acknowledgements of an older-term entry cannot commit it alone.
+5. *Lease freshness uses send time.* An acknowledgement proves the follower accepted this leader no earlier
+   than when the request was *sent*. The leader's quorum-contact time is therefore the send time of the
+   newest request a quorum has answered, never the arrival time.
+
+An RPC error drops the follower to probing from `matchIndex + 1`, and resending waits for the next
+heartbeat rather than spinning against an unreachable peer.
+
+**Tests.** [`replica/pipeline.test.js`](replica/pipeline.test.js) drives a real three-node cluster over a
+hand-delivered network ([`sim/manual-network.js`](sim/manual-network.js)), so reordering, duplication, loss
+and late replies are explicit test steps. It covers: window size and optimistic `nextIndex`, reordered acks,
+a request that overtakes its predecessor, a stale rejection, conflict repair through probing, fencing across
+a leadership change, idempotent retransmission, Figure 8, an RPC error, and lease freshness.

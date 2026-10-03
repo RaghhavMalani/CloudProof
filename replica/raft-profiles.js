@@ -22,11 +22,19 @@ const GROUP_COMMIT = Object.freeze({ maxEntries: 1024, maxDelayMs: 0, metaInterv
 // lagging commit indexes routine. Strictly more adversarial than the
 // benchmarked setting.
 const GROUP_COMMIT_DELAY = Object.freeze({ maxEntries: 4, maxDelayMs: 8, metaIntervalMs: 60 });
+const PIPELINE = Object.freeze({ maxInflight: 8 });
+const PIPELINE_DELAY = Object.freeze({ maxInflight: 4 });
 
 const PROFILES = Object.freeze({
     baseline: Object.freeze({}),
     'group-commit': Object.freeze({ groupCommit: GROUP_COMMIT }),
     'group-commit-delay': Object.freeze({ groupCommit: GROUP_COMMIT_DELAY }),
+
+    // Pipelining alone, on the original synchronous-fsync engine.
+    'pipeline-only': Object.freeze({ pipeline: PIPELINE }),
+    // Group commit + pipelining, without bounded batches.
+    'group-pipeline': Object.freeze({ groupCommit: GROUP_COMMIT, pipeline: PIPELINE }),
+    'pipeline-delay': Object.freeze({ groupCommit: GROUP_COMMIT_DELAY, pipeline: PIPELINE_DELAY }),
 });
 
 function profileOptions(name) {
@@ -44,6 +52,7 @@ const int = (value, fallback) => (value === undefined || value === '' ? fallback
  * profile; individual variables override or extend it:
  *
  *   RAFT_GROUP_COMMIT=1  RAFT_GC_MAX_ENTRIES  RAFT_GC_MAX_DELAY_MS  RAFT_GC_META_INTERVAL_MS
+ *   RAFT_PIPELINE=1      RAFT_PIPELINE_MAX_INFLIGHT
  */
 function optionsFromEnv(env = process.env) {
     const options = profileOptions(env.RAFT_PROFILE);
@@ -54,6 +63,10 @@ function optionsFromEnv(env = process.env) {
             maxDelayMs: int(env.RAFT_GC_MAX_DELAY_MS, base.maxDelayMs),
             metaIntervalMs: int(env.RAFT_GC_META_INTERVAL_MS, base.metaIntervalMs),
         };
+    }
+    if (flag(env.RAFT_PIPELINE) || options.pipeline) {
+        const base = options.pipeline || PIPELINE;
+        options.pipeline = { maxInflight: int(env.RAFT_PIPELINE_MAX_INFLIGHT, base.maxInflight) };
     }
     return options;
 }
