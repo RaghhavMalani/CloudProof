@@ -22,6 +22,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { entryJson } = require('./entry-codec');
 
 const CRC_TABLE = (() => {
     const table = new Int32Array(256);
@@ -45,7 +46,9 @@ function crc32(text) {
 }
 
 function encodeRecord(entry) {
-    const json = JSON.stringify(entry);
+    // Cached per entry object: the same text is reused if this entry is later
+    // replicated by a transport that can carry raw entry JSON.
+    const json = entryJson(entry);
     return `${crc32(json).toString(16).padStart(8, '0')} ${json}\n`;
 }
 

@@ -31,6 +31,7 @@ const MODULES = [
     'replica/hnsw.js',
     'replica/agent-state.js',
     'replica/state-machine.js',
+    'replica/entry-codec.js',
     'replica/log-store.js',
     'replica/raft.js',
     'packages/protocol/events.js',

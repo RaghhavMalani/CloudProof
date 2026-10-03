@@ -2823,6 +2823,49 @@ class StateMachine {
 module.exports = { StateMachine, encodeVector, decodeVector };
 
 };
+__registry["replica/entry-codec.js"] = function (module, exports, require) {
+'use strict';
+
+/**
+ * entry-codec.js — each log entry is JSON-encoded at most once per process.
+ *
+ * The same entry object is encoded for the durable log record and, on a
+ * leader, for every follower it is replicated to; at 16 KiB payloads the
+ * repeated JSON.stringify is a measurable share of the leader's CPU. The
+ * encoding is cached per entry *object* in a WeakMap, so it disappears with
+ * the entry and never outlives a truncation.
+ *
+ * This relies on an invariant the engine already keeps: a log entry is never
+ * mutated after it is appended (the state machine reads `entry.data`, it does
+ * not write it). A receiver that decodes an entry from a wire format that
+ * carried its JSON can prime the cache with that exact text, so a follower does
+ * not re-encode what it was just sent.
+ */
+
+const cache = new WeakMap();
+
+function entryJson(entry) {
+    let json = cache.get(entry);
+    if (json === undefined) {
+        json = JSON.stringify(entry);
+        cache.set(entry, json);
+    }
+    return json;
+}
+
+/** Records `json` as the encoding of `entry`. Must equal JSON.stringify(entry). */
+function primeEntryJson(entry, json) {
+    cache.set(entry, json);
+}
+
+/** Encoded size in UTF-16 code units (equal to bytes for ASCII payloads). */
+function entryLength(entry) {
+    return entryJson(entry).length;
+}
+
+module.exports = { entryJson, primeEntryJson, entryLength };
+
+};
 __registry["replica/log-store.js"] = function (module, exports, require) {
 /**
  * log-store.js — an append-only, crash-safe Raft log.
@@ -2848,6 +2891,7 @@ __registry["replica/log-store.js"] = function (module, exports, require) {
 
 const fs = require('fs');
 const path = require('path');
+const { entryJson } = require('./entry-codec');
 
 const CRC_TABLE = (() => {
     const table = new Int32Array(256);
@@ -2871,7 +2915,9 @@ function crc32(text) {
 }
 
 function encodeRecord(entry) {
-    const json = JSON.stringify(entry);
+    // Cached per entry object: the same text is reused if this entry is later
+    // replicated by a transport that can carry raw entry JSON.
+    const json = entryJson(entry);
     return `${crc32(json).toString(16).padStart(8, '0')} ${json}\n`;
 }
 
@@ -3138,6 +3184,7 @@ const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 const { LogStore } = require('./log-store');
+const { entryLength } = require('./entry-codec');
 const { StateMachine } = require('./state-machine');
 
 const STATES = {
@@ -3155,8 +3202,8 @@ const REAL_CLOCK = {
     clearInterval: (handle) => clearInterval(handle),
     // End of the current event-loop turn: everything already read from the
     // sockets in this turn is processed first, which is what lets group
-    // commit batch it. Clocks without these (the simulator's VirtualClock)
-    // fall back to setTimeout(fn, 0).
+    // commit and coalesced replication batch it. Clocks without these (the
+    // simulator's VirtualClock) fall back to setTimeout(fn, 0).
     setImmediate: (fn) => setImmediate(fn),
     clearImmediate: (handle) => clearImmediate(handle),
 };
@@ -3314,12 +3361,30 @@ class RaftNode {
          * CLOUDPROOF-PHASE-IV-A.md §6 for the safety argument.
          */
         pipeline = null,
+        /**
+         * Bounded AppendEntries batches and a coalesced replication trigger
+         * (Phase IV-A). Off by default: the original engine sends every entry
+         * from nextIndex to the end of the log in one request, however large,
+         * and starts a replication round from every client write. When set,
+         * one request carries at most maxEntries entries and roughly maxBytes
+         * of encoded entries (always at least one), and client writes arriving
+         * in the same event-loop turn share one replication round.
+         */
+        replicationBatch = null,
     }) {
         this._clock = clock;
         this._perf = perf;
         this._pipeline = pipeline && pipeline.enabled !== false
             ? { maxInflight: Math.max(1, pipeline.maxInflight ?? 8) }
             : null;
+        this._batch = replicationBatch && replicationBatch.enabled !== false
+            ? {
+                maxEntries: Math.max(1, replicationBatch.maxEntries ?? 512),
+                maxBytes: Math.max(1, replicationBatch.maxBytes ?? 1024 * 1024),
+                coalesce: replicationBatch.coalesce !== false,
+            }
+            : null;
+        this._replicationRequested = false;
         this._groupCommit = groupCommit && groupCommit.enabled !== false
             ? {
                 maxEntries: Math.max(1, groupCommit.maxEntries ?? 1024),
@@ -4466,7 +4531,7 @@ class RaftNode {
             const limit = progress.mode === 'probe' ? 1 : this._pipeline.maxInflight;
             if (active >= limit) return;
             const next = Math.max(0, Math.min(this.nextIndex[peerUrl] ?? this.log.length, this.log.length));
-            const count = this.log.length - next;
+            const count = this._batchCount(next);
             if (count === 0 && !(sendHeartbeat && active === 0)) return;
             this._sendAppend(peerUrl, progress, next, count);
             sendHeartbeat = false;
@@ -4621,6 +4686,35 @@ class RaftNode {
         if (this._perf) this._perf.count('pipeline.staleResponses');
     }
 
+    /** How many entries starting at `next` one AppendEntries may carry. */
+    _batchCount(next) {
+        const available = Math.max(0, this.log.length - next);
+        if (!this._batch || available === 0) return available;
+        const limit = Math.min(available, this._batch.maxEntries);
+        let bytes = 0;
+        for (let i = 0; i < limit; i += 1) {
+            bytes += entryLength(this.log[next + i]);
+            // Always at least one entry, so an oversized entry still moves.
+            if (bytes > this._batch.maxBytes && i > 0) return i;
+        }
+        return limit;
+    }
+
+    /**
+     * One replication round for everything appended in this event-loop turn,
+     * instead of one per client write. Scheduled at the end of the turn, and
+     * before the group-commit flush when both are pending, so followers
+     * receive a batch while the leader's own fsync runs.
+     */
+    _requestReplication() {
+        if (this._replicationRequested) return;
+        this._replicationRequested = true;
+        this._defer(() => {
+            this._replicationRequested = false;
+            if (this.state === STATES.LEADER && !this.paused) void this._replicateAll({ heartbeat: false });
+        });
+    }
+
     async _replicateToPeer(peerUrl) {
         if (this._pipeline) {
             // Used by membership catch-up: push what the window allows and
@@ -4649,7 +4743,7 @@ class RaftNode {
                 const prevLogIndex = next - 1;
                 const prevLogTerm =
                     prevLogIndex >= 0 ? this.log[prevLogIndex].term : 0;
-                const entries = this.log.slice(next);
+                const entries = this.log.slice(next, next + this._batchCount(next));
                 const sentAt = this._perf ? this._perf.recordAppendSent(next, entries.length) : 0;
 
                 try {
@@ -4767,10 +4861,12 @@ class RaftNode {
             data,
         };
         if (this._perf) this._perf.entryAdmitted(entry.index);
+        const coalesce = Boolean(this._batch && this._batch.coalesce);
+        if (coalesce) this._requestReplication();
         this._appendToLog([entry]);
 
         console.log(`[${this.replicaId}] ${this._groupCommit ? 'Entry appended' : 'Entry persisted'} · index=${entry.index}`);
-        void this._replicateAll();
+        if (!coalesce) void this._replicateAll();
 
         const committed = await this._awaitCommit(entry.index);
         if (committed) this._recordCommitLatency(this._clock.now() - appendStartedAt);

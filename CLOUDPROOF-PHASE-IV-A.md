@@ -177,6 +177,15 @@ is the configuration that is fault-tested.
 - **Group commit** (`groupCommit`, §5): one write + `fsync` for everything appended in an event-loop turn,
   and a lazily persisted commit index.
 - **Pipelined replication** (`pipeline`, §6): up to `maxInflight` AppendEntries outstanding per follower.
+- **Bounded batches with a coalesced trigger** (`replicationBatch`): one AppendEntries carries at most
+  `maxEntries` entries and about `maxBytes` of encoded entries (always at least one, so an oversized entry
+  still moves), in both the stop-and-wait and the pipelined path. With `coalesce`, client writes that arrive
+  in the same event-loop turn share one replication round, scheduled before that turn's group-commit flush,
+  instead of starting one round per write. Each entry is JSON-encoded at most once per process
+  ([`replica/entry-codec.js`](replica/entry-codec.js)); the log record and every follower's request reuse
+  the same text. Batching only changes how entries are grouped into requests, never which entries a request
+  carries or the consistency check, so it needs no new safety argument; `replica/batching.test.js` checks the
+  bounds, coalescing, catch-up and conflict repair under both replication paths.
 
 ## 5. Group commit: design and durability argument
 

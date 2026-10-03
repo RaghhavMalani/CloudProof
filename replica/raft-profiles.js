@@ -24,6 +24,10 @@ const GROUP_COMMIT = Object.freeze({ maxEntries: 1024, maxDelayMs: 0, metaInterv
 const GROUP_COMMIT_DELAY = Object.freeze({ maxEntries: 4, maxDelayMs: 8, metaIntervalMs: 60 });
 const PIPELINE = Object.freeze({ maxInflight: 8 });
 const PIPELINE_DELAY = Object.freeze({ maxInflight: 4 });
+const BATCH = Object.freeze({ maxEntries: 512, maxBytes: 1024 * 1024, coalesce: true });
+// Tiny batches, so every burst spans several requests and a lagging follower
+// is caught up piecewise.
+const BATCH_DELAY = Object.freeze({ maxEntries: 3, maxBytes: 600, coalesce: true });
 
 const PROFILES = Object.freeze({
     baseline: Object.freeze({}),
@@ -35,6 +39,14 @@ const PROFILES = Object.freeze({
     // Group commit + pipelining, without bounded batches.
     'group-pipeline': Object.freeze({ groupCommit: GROUP_COMMIT, pipeline: PIPELINE }),
     'pipeline-delay': Object.freeze({ groupCommit: GROUP_COMMIT_DELAY, pipeline: PIPELINE_DELAY }),
+
+    // Bounded batches with the coalesced trigger, alone and with group commit.
+    'batch-only': Object.freeze({ replicationBatch: BATCH }),
+    'group-batch': Object.freeze({ groupCommit: GROUP_COMMIT, replicationBatch: BATCH }),
+    'group-batch-pipeline': Object.freeze({ groupCommit: GROUP_COMMIT, pipeline: PIPELINE, replicationBatch: BATCH }),
+    'batched-delay': Object.freeze({
+        groupCommit: GROUP_COMMIT_DELAY, pipeline: PIPELINE_DELAY, replicationBatch: BATCH_DELAY,
+    }),
 });
 
 function profileOptions(name) {
@@ -53,6 +65,7 @@ const int = (value, fallback) => (value === undefined || value === '' ? fallback
  *
  *   RAFT_GROUP_COMMIT=1  RAFT_GC_MAX_ENTRIES  RAFT_GC_MAX_DELAY_MS  RAFT_GC_META_INTERVAL_MS
  *   RAFT_PIPELINE=1      RAFT_PIPELINE_MAX_INFLIGHT
+ *   RAFT_BATCH=1         RAFT_BATCH_MAX_ENTRIES  RAFT_BATCH_MAX_BYTES  RAFT_BATCH_COALESCE
  */
 function optionsFromEnv(env = process.env) {
     const options = profileOptions(env.RAFT_PROFILE);
@@ -67,6 +80,14 @@ function optionsFromEnv(env = process.env) {
     if (flag(env.RAFT_PIPELINE) || options.pipeline) {
         const base = options.pipeline || PIPELINE;
         options.pipeline = { maxInflight: int(env.RAFT_PIPELINE_MAX_INFLIGHT, base.maxInflight) };
+    }
+    if (flag(env.RAFT_BATCH) || options.replicationBatch) {
+        const base = options.replicationBatch || BATCH;
+        options.replicationBatch = {
+            maxEntries: int(env.RAFT_BATCH_MAX_ENTRIES, base.maxEntries),
+            maxBytes: int(env.RAFT_BATCH_MAX_BYTES, base.maxBytes),
+            coalesce: env.RAFT_BATCH_COALESCE === undefined ? base.coalesce : flag(env.RAFT_BATCH_COALESCE),
+        };
     }
     return options;
 }
