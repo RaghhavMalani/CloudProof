@@ -52,7 +52,6 @@ const http = require('http');
 const crypto = require('crypto');
 const { LocalCluster, requestJson, sleep } = require('../packages/raft-bench/cluster');
 const { parseArgs } = require('../packages/raft-bench/cli');
-const { configEnv } = require('../packages/raft-bench/configs');
 const { profileOptions } = require('../replica/raft-profiles');
 const { Rng } = require('../sim/simulator');
 const { execSync } = require('child_process');
@@ -187,7 +186,7 @@ const digest = (value) => crypto.createHash('sha256').update(JSON.stringify(valu
 async function runOnce({ window, run, options, rng }) {
     const runTag = `${window.id}-r${run}`;
     const dataRoot = path.join(options['data-dir'], runTag);
-    const env = { ...configEnv(window.profile), RAFT_TEST_FAILPOINTS: '1' };
+    const env = { RAFT_PROFILE: window.profile, RAFT_TEST_FAILPOINTS: '1' };
     const cluster = new LocalCluster({ basePort: options.port, dataRoot, env, label: runTag });
     const alive = [true, true, true];
     const state = { stop: false, writes: new Map(), acks: 0, leaderUrl: null };
