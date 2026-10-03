@@ -31,8 +31,10 @@ const POLICIES = Object.freeze(['disabled', 'os-default']);
 
 class PowerPolicyError extends Error {}
 
+/** SHA-256 of the file with line endings normalized to LF, so a CRLF checkout hashes the same. */
 function sha256(file) {
-    return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+    const text = fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n');
+    return crypto.createHash('sha256').update(text).digest('hex');
 }
 
 /** Identity of the code that implements the opt-out, for the trial record. */
