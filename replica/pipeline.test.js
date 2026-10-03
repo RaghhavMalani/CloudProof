@@ -249,6 +249,37 @@ test('an RPC error drops the follower to probing from matchIndex + 1 without spi
     } finally { restore(); }
 });
 
+test('an RPC error to a follower never matched does not rewind it to the start of the log', async () => {
+    // Found by the live durability gate: a new leader has never matched the
+    // old leader (matchIndex -1). While that node is down, every probe fails.
+    // Rewinding to matchIndex + 1 = 0 made the next probe carry the whole
+    // log, which without bounded batches exceeds the follower's request limit
+    // and times out again, so the restarted node never caught up.
+    const restore = silent();
+    try {
+        const net = new ManualNetwork();
+        const leader = makeNode('http://l', net);
+        makeNode('http://a', net);
+        makeNode('http://b', net);
+        leader.log = Array.from({ length: 30 }, (_, i) => ({ term: 1, index: i, data: { op: 'set', key: `k${i}`, value: i } }));
+        leader.currentTerm = 2;
+        leader.state = STATES.CANDIDATE;
+        leader._becomeLeader();
+        leader._stopHeartbeat();
+        const [probe] = net.to('http://a');
+        assert.equal(probe.body.prevLogIndex, 29);
+        net.fail(probe);
+        await turn();
+        assert.equal(leader.matchIndex['http://a'], -1);
+        assert.equal(leader.nextIndex['http://a'], 30, 'back off to the failed request, not to index 0');
+        leader._replicateAll();
+        const [retry] = net.to('http://a');
+        assert.equal(retry.body.prevLogIndex, 29);
+        assert.equal(retry.body.entries.length, 1);
+        leader.stop();
+    } finally { restore(); }
+});
+
 test('lease freshness uses the send time of acknowledged requests', async () => {
     const restore = silent();
     try {

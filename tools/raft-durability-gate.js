@@ -163,8 +163,9 @@ async function lane({ index, runTag, cluster, alive, state, options }) {
 async function waitForConvergence(cluster, timeoutMs = 45000) {
     const deadline = Date.now() + timeoutMs;
     let previous = null;
+    let statuses = [];
     while (Date.now() < deadline) {
-        const statuses = await cluster.statuses();
+        statuses = await cluster.statuses();
         const ok = statuses.every((s) => !s.error);
         const leaders = statuses.filter((s) => s.state === 'LEADER');
         if (ok && leaders.length === 1) {
@@ -177,7 +178,7 @@ async function waitForConvergence(cluster, timeoutMs = 45000) {
         }
         await sleep(300);
     }
-    throw new Error('cluster did not converge');
+    throw new Error(`cluster did not converge: ${JSON.stringify(statuses.map((s) => [s.replicaId, s.state, s.term, s.logLength, s.commitIndex, s.lastApplied, s.error]))}`);
 }
 
 const entryId = (entry) => (entry.data && entry.data.clientId ? `${entry.data.clientId}:${entry.data.seqNo}` : null);

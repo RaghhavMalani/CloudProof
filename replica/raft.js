@@ -1519,13 +1519,21 @@ class RaftNode {
         this._enterProbe(peerUrl);
     }
 
-    /** Timeout or transport error: resend everything unacknowledged, one probe at a time. */
+    /**
+     * Timeout or transport error: resend from the failed request on, one
+     * probe at a time. Not from matchIndex + 1: for a follower this
+     * leadership has never matched that is the start of the log, and the
+     * probe would carry the whole log. Anything before the failed request is
+     * either acknowledged on its own, or rejected and repaired through the
+     * follower's conflict hint, exactly as in the stop-and-wait path.
+     */
     _onAppendError(peerUrl, request, epoch) {
         const progress = this._progressFor(peerUrl);
         progress.inflight.delete(request);
         this._settleReplicationWaiters(peerUrl, false);
         if (epoch !== this._leaderEpoch || this.state !== STATES.LEADER || request.superseded) return;
-        this.nextIndex[peerUrl] = (this.matchIndex[peerUrl] ?? -1) + 1;
+        const resendFrom = Math.min(this.nextIndex[peerUrl] ?? this.log.length, request.prevLogIndex + 1);
+        this.nextIndex[peerUrl] = Math.max((this.matchIndex[peerUrl] ?? -1) + 1, resendFrom);
         this._enterProbe(peerUrl);
         // Deliberately no immediate resend: an unreachable follower is retried
         // on the heartbeat, as in the stop-and-wait path, instead of spinning.
