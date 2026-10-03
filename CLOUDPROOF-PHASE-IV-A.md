@@ -17,7 +17,9 @@ Every number in the result tables below is generated from the raw trial records 
 ## Status
 
 <!-- BEGIN GENERATED:status -->
-_Harness committed; recorded sweeps pending._
+_Baseline recorded at harness commit `35c8169` (clean tree) and committed as immutable history in
+`artifacts/perf/phase-iv-a/{baseline-environment.json, baseline/, profiles/baseline/, baseline-report/}`.
+Optimization sweeps pending._
 <!-- END GENERATED:status -->
 
 ## 1. Environment (Step 0)
@@ -114,5 +116,51 @@ node tools/raft-bench-report.js --doc CLOUDPROOF-PHASE-IV-A.md
 ## 3. Baseline saturation
 
 <!-- BEGIN GENERATED:knee-table -->
-_No sweeps recorded yet._
+| configuration | payload | knee (offered/s) | max stable (achieved/s) | first unstable/s | peak achieved at any rate/s | p50 @knee ms | p99 @knee ms | p99.9 @knee ms |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Baseline | 64 B | 300 | 300 | 500 | 580 | 44.00 | 95.61 | 103.49 |
+| Baseline | 1024 B | 300 | 300 | 500 | 658 | 47.55 | 78.78 | 86.78 |
+| Baseline | 16384 B | 300 | 297 | 500 | 442 | 10.16 | 748.54 | 874.50 |
 <!-- END GENERATED:knee-table -->
+
+The immutable baseline report — generated at `35c8169` from the 63 recorded trials and never regenerated
+afterwards — is [`artifacts/perf/phase-iv-a/baseline-report/REPORT.md`](artifacts/perf/phase-iv-a/baseline-report/REPORT.md),
+with its inputs, generator commit and hashes in
+[`baseline-report/provenance.json`](artifacts/perf/phase-iv-a/baseline-report/provenance.json).
+The tables in this section are regenerated from the same records whenever the report tool runs; the
+`baseline-report/` copy is the one frozen before any optimized configuration was swept.
+
+<!-- BEGIN GENERATED:comparison-1024 -->
+| configuration | max stable ops/s | p99 @50% ms | p99 @80% ms | p99 @knee ms | leader CPU % @knee | CPU µs/op | fsync+meta per op | AE RPC per op | entries/AE | repl bytes/op |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Baseline | 300 | 42.56 | 70.14 | 78.78 | 29 | 971 | 2.607 | 0.606 | 5.7 | 2,666 |
+<!-- END GENERATED:comparison-1024 -->
+
+### Where the baseline spends its time
+
+<!-- BEGIN GENERATED:profile-table -->
+| profile | offered/s | achieved/s | busy % of wall | fs-sync-io | axios | express | node-http | streams-net | json | console-logging | raft-engine | raft-log-store | raft-transport | state-machine | gc | instrumentation |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| baseline 1024 B A-sub-saturation | 150 | 150 | 38.5 | 55.0 | 10.9 | 3.1 | 6.8 | 7.9 | 0.3 | 2.6 | 3.2 | 0.5 | 0.0 | 0.5 | 0.8 | 0.7 |
+| baseline 1024 B B-knee | 300 | 300 | 63.4 | 61.6 | 8.6 | 3.5 | 5.3 | 7.0 | 0.3 | 2.1 | 3.4 | 0.7 | 0.0 | 0.5 | 0.5 | 0.3 |
+| baseline 1024 B C-overloaded | 500 | 494 | 98.0 | 87.4 | 1.0 | 2.3 | 1.1 | 1.8 | 0.0 | 1.8 | 1.3 | 0.6 | 0.0 | 0.2 | 0.1 | 0.2 |
+
+Category columns are percent of *busy* (non-idle) sampled time on the leader.
+<!-- END GENERATED:profile-table -->
+
+The leader saturates on synchronous durability, not on CPU. Every write performs a log append + `fsync`, and
+every commit-index advance rewrites the metadata file (write + `fsync` + rename), so the cluster performs
+between two and three fsync-class operations per committed write (the `fsync+meta per op` column). These run
+on the event loop: in the CPU profiles `fs-sync-io` is already the largest category at half the knee and
+dominates the overloaded point, while process CPU stays well below one core and event-loop utilization
+approaches 1. The loop is blocked waiting for the disk, not computing.
+
+### Disclosed limitation: two storage regimes
+
+Repetitions of the same point are not exchangeable. At a fixed offered rate, some repetitions run with a
+median end-to-end latency of a few milliseconds and others an order of magnitude higher; a few repetitions
+above the knee were even stable. The knee is a majority-of-repetitions result and is reported as such. A bare
+fsync probe on this machine (outside Raft, added with the methodology amendment) later showed the drive
+itself alternates between a fast and a slow fsync regime, which is the most likely cause. The baseline sweep did not record a disk-state covariate,
+so its trials cannot be assigned to a regime after the fact. Every later sweep samples one immediately before
+each trial (see the methodology amendments).

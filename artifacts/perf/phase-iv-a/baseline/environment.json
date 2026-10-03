@@ -1,0 +1,145 @@
+{
+  "schema": "cloudproof.raft-bench.environment/v1",
+  "capturedAt": "2026-09-25T03:10:03.435Z",
+  "git": {
+    "sha": "35c8169cf50d8248a941578426efa9be1414ed80",
+    "branch": "HEAD",
+    "dirty": false,
+    "dirtyFiles": []
+  },
+  "node": {
+    "version": "v24.14.1",
+    "v8": "13.6.233.17-node.44",
+    "uv": "1.51.0",
+    "execPath": "C:\\Program Files\\nodejs\\node.exe"
+  },
+  "os": {
+    "platform": "win32",
+    "arch": "x64",
+    "type": "Windows_NT",
+    "release": "10.0.26200",
+    "version": "Windows 11 Home Single Language"
+  },
+  "cpu": {
+    "model": "Intel(R) Core(TM) i7-14650HX",
+    "logicalCores": 24,
+    "nominalMHz": 2419
+  },
+  "memory": {
+    "totalBytes": 34070192128,
+    "freeBytesAtCapture": 8331407360
+  },
+  "docker": {
+    "client": null,
+    "server": null,
+    "note": "Docker daemon not reachable (failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine; check if the path is correct and if the daemon is running: open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified.); benchmarks ran as native processes"
+  },
+  "dataDir": "D:\\College_Projects\\miniRAFT_project\\.bench-data\\cluster-sweep",
+  "platformDetails": {
+    "cpu": {
+      "model": "Intel(R) Core(TM) i7-14650HX",
+      "physicalCores": 16,
+      "logicalProcessors": 24,
+      "maxClockMHz": 2200
+    },
+    "machine": {
+      "manufacturer": "LENOVO",
+      "model": "83DF"
+    },
+    "os": {
+      "caption": "Microsoft Windows 11 Home Single Language",
+      "version": "10.0.26200",
+      "build": "26200"
+    },
+    "dataVolume": {
+      "drive": "D",
+      "fileSystem": "NTFS",
+      "sizeBytes": 92273635328,
+      "freeBytes": 58227351552
+    },
+    "dataDisk": {
+      "name": "SKHynix_HFS001TEJ9X115N",
+      "bus": "NVMe",
+      "model": "SKHynix_HFS001TEJ9X115N"
+    },
+    "physicalDisks": [
+      {
+        "FriendlyName": "SKHynix_HFS001TEJ9X115N",
+        "MediaType": "SSD",
+        "BusType": "NVMe",
+        "Size": 1024209543168
+      }
+    ],
+    "power": {
+      "onAcPower": true,
+      "batteryPercent": 79,
+      "activePowerPlan": "381b4222-f694-41f0-9685-ff5bb260df2e  (Balanced)"
+    },
+    "backgroundProcessesByMemory": [
+      {
+        "Name": "fm",
+        "workingSetMB": 4817,
+        "cpuSeconds": 1673.8
+      },
+      {
+        "Name": "Memory Compression",
+        "workingSetMB": 1959,
+        "cpuSeconds": 0
+      },
+      {
+        "Name": "vmmemWSL",
+        "workingSetMB": 899,
+        "cpuSeconds": 0
+      },
+      {
+        "Name": "claude",
+        "workingSetMB": 637,
+        "cpuSeconds": 82
+      },
+      {
+        "Name": "MsMpEng",
+        "workingSetMB": 602,
+        "cpuSeconds": 0
+      },
+      {
+        "Name": "claude",
+        "workingSetMB": 516,
+        "cpuSeconds": 295
+      },
+      {
+        "Name": "ChatGPT",
+        "workingSetMB": 427,
+        "cpuSeconds": 363
+      },
+      {
+        "Name": "msedgewebview2",
+        "workingSetMB": 423,
+        "cpuSeconds": 85.9
+      },
+      {
+        "Name": "opera",
+        "workingSetMB": 374,
+        "cpuSeconds": 34.4
+      },
+      {
+        "Name": "opera",
+        "workingSetMB": 324,
+        "cpuSeconds": 19.8
+      },
+      {
+        "Name": "ChatGPT",
+        "workingSetMB": 320,
+        "cpuSeconds": 54.6
+      },
+      {
+        "Name": "opera",
+        "workingSetMB": 315,
+        "cpuSeconds": 128
+      }
+    ],
+    "notes": [
+      "Microsoft Defender real-time protection was active; it can add latency to file writes. Changing security settings is out of scope, so it was left enabled and disclosed.",
+      "The machine is a laptop used interactively; other applications were running (see backgroundProcessesByMemory). Per-trial system-wide CPU load is recorded in every trial."
+    ]
+  }
+}
