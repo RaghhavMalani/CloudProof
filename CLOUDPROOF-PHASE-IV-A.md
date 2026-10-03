@@ -313,3 +313,47 @@ hand-delivered network ([`sim/manual-network.js`](sim/manual-network.js)), so re
 and late replies are explicit test steps. It covers: window size and optimistic `nextIndex`, reordered acks,
 a request that overtakes its predecessor, a stale rejection, conflict repair through probing, fencing across
 a leadership change, idempotent retransmission, Figure 8, an RPC error, and lease freshness.
+
+## 7. Acknowledged-write durability under leader death (publication gate)
+
+Run by [`tools/raft-durability-gate.js`](tools/raft-durability-gate.js) at `d58d6b9` (clean tree);
+raw records in [`durability-gate/results.json`](artifacts/perf/phase-iv-a/durability-gate/results.json). For each
+window, five fresh live clusters. Under closed-loop load of unique 1 KiB writes, a test-only failpoint
+([`replica/failpoints.js`](replica/failpoints.js)) armed on the current leader terminates it inside the named window, and
+writes a marker with its Raft state at that instant. Load continues on the new leader. The dead node then restarts
+from its own data directory, the cluster converges, and every node's committed log and state machine are checked.
+Every write carries `clientId` + `seqNo`. Half the client lanes retry an in-doubt attempt (timeout, reset, 503)
+with the same id against the new leader, the exactly-once path, which is where duplicates would come from. The
+other half never retry an in-doubt attempt, so those writes stay unacknowledged, and whether they were committed
+anyway is counted.
+
+<!-- BEGIN GENERATED:durability-gate -->
+| window | profile | runs (kills in window) | acknowledged | recovered acknowledged | missing acknowledged | duplicate logical writes | in-doubt retried → acked once | unacknowledged recovered / unacknowledged | committed prefixes identical | pass |
+|---|---|---:|---:|---:|---:|---:|---:|---:|:---:|:---:|
+| before group flush | group-commit | 5 (5) | 28710 | 28710 | 0 | 0 | 60 | 26 / 60 | yes | PASS |
+| after flush / before quorum | group-commit | 5 (5) | 21692 | 21692 | 0 | 0 | 60 | 17 / 60 | yes | PASS |
+| after commit / before client reply | optimized-http | 5 (5) | 13123 | 13123 | 0 | 0 | 60 | 33 / 60 | yes | PASS |
+| during pipelined replication | group-pipeline | 5 (5) | 9955 | 9955 | 0 | 0 | 60 | 39 / 60 | yes | PASS |
+| during batched replication | group-batch | 5 (5) | 15705 | 15705 | 0 | 0 | 60 | 24 / 59 | yes | PASS |
+| binary transport active | optimized-binary | 5 (5) | 16472 | 16472 | 0 | 0 | 60 | 33 / 60 | yes | PASS |
+<!-- END GENERATED:durability-gate -->
+
+**Gate: missing acknowledged writes = 0 and duplicate logical writes = 0 in every window. It passed.** Every kill
+landed inside its window, as the markers show: for example, buffered entries pending at `leader.beforeFlush`,
+seven requests still in flight at `leader.pipelinedInflight`, and an 11-entry batch answered at
+`leader.batchedReplication`. "Unacknowledged recovered" counts writes whose client never got an answer but which
+were committed. That is legitimate (the client cannot tell), and it is largest where expected: after commit and
+before the reply.
+
+**The gate found a liveness bug, and it is fixed** (`d58d6b9`). In its first run, the pipelined window's
+restarted node never caught up. The new leader had never matched it (`matchIndex = -1`), and every failed probe
+rewound `nextIndex` to `matchIndex + 1 = 0`, so the next probe carried the whole log (about 3.4 MB). Without
+bounded batches that exceeds the follower's 2 MB request limit and the 450 ms RPC timeout, so the probe failed
+forever. A failed pipelined request now resends from its own start. The stop-and-wait path never rewound.
+A regression test reproduces the old behaviour.
+
+**Scope and remaining limits.** A process kill loses what the leader had not yet written; it does not lose data the
+operating system already held, so this gate cannot detect a missing `fsync`. Power loss is covered by the
+deterministic simulator's targeted campaign (`sim/perf-faults.js`), which drops every node's unflushed data at
+once. Without bounded batches (`baseline`, `pipeline-only`, `group-pipeline`), a follower more than about 2 MB
+behind cannot be caught up in one AppendEntries; this limit predates Phase IV-A, and bounded batches remove it.
