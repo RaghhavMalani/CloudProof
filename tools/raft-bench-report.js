@@ -7,14 +7,15 @@
  *
  *   node tools/raft-bench-report.js [--root artifacts/perf/phase-iv-a] [--doc CLOUDPROOF-PHASE-IV-A.md]
  *
- * Reads <root>/<config>/sweep.json (and trials.jsonl) for every config
- * directory present, <root>/profiles/<config>/*.json, and <root>/etcd/ if
- * present. Writes:
+ * Reads <root>/<sweep>/trials.jsonl for every sweep directory present (or
+ * only those named by --sweeps), <root>/profiles/<config>/*.json, and
+ * <root>/etcd/ if present. Writes, into --out (default <root>):
  *
- *   <root>/summary.json        canonical cross-config summary
- *   <root>/summary.csv         one row per (config, payload, phase, rate)
- *   <root>/saturation-<N>B.svg p99 vs offered load, one line per config
- *   <root>/REPORT.md           all generated tables
+ *   summary.json        canonical cross-config summary
+ *   summary.csv         one row per (config, payload, phase, rate)
+ *   trials.csv          one row per trial, with its disk-sentinel covariate
+ *   saturation-<N>B.svg p99 vs offered load, one line per config
+ *   REPORT.md           all generated tables
  *
  * and, with --doc, replaces every `<!-- BEGIN GENERATED:<name> -->` ...
  * `<!-- END GENERATED:<name> -->` block in that document with the table of
@@ -25,23 +26,31 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { parseArgs } = require('../packages/raft-bench/cli');
-const { readTrials, groupTrials } = require('../packages/raft-bench/aggregate');
+const { readTrials, groupTrials, mean } = require('../packages/raft-bench/aggregate');
+const { LogLinearHistogram } = require('../replica/perf-histogram');
 
 const ROOT = path.join(__dirname, '..');
-const CONFIG_ORDER = ['baseline', 'group-commit', 'pipeline', 'batched', 'optimized', 'transport-only', 'etcd'];
+const CONFIG_ORDER = ['baseline', 'group-commit', 'pipeline-only', 'batch-only', 'group-batch', 'group-batch-pipeline',
+    'optimized-http', 'optimized-binary', 'transport-only', 'etcd'];
 const CONFIG_LABEL = {
     baseline: 'Baseline',
-    'group-commit': '+ Group commit',
-    pipeline: '+ Pipelined replication',
-    batched: '+ Bounded batches / coalesced trigger',
-    optimized: '+ Framed TCP transport (all)',
+    'group-commit': 'Group commit',
+    'pipeline-only': 'Pipeline only',
+    'batch-only': 'Batch only',
+    'group-batch': 'Group + batch',
+    'group-batch-pipeline': 'Group + batch + pipeline',
+    'optimized-http': 'Optimized HTTP',
+    'optimized-binary': 'Optimized binary',
     'transport-only': 'Baseline + framed TCP only',
     etcd: 'etcd',
 };
+const REGIMES = ['fast', 'intermediate', 'slow'];
 
 const DEFAULTS = {
     root: path.join(ROOT, 'artifacts', 'perf', 'phase-iv-a'),
     doc: null,
+    sweeps: null,
+    out: null,
 };
 
 const fmt = (value, digits = 1) => (value === null || value === undefined || !Number.isFinite(value)
@@ -53,20 +62,23 @@ function sha256File(file) {
     return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 }
 
-function loadCurves(root) {
+function loadCurves(root, sweeps = null) {
     const curves = [];
     const hashes = {};
+    const allTrials = [];
     for (const entry of fs.existsSync(root) ? fs.readdirSync(root, { withFileTypes: true }) : []) {
         if (!entry.isDirectory() || entry.name === 'profiles') continue;
+        if (sweeps && !sweeps.includes(entry.name)) continue;
         const trialsFile = path.join(root, entry.name, 'trials.jsonl');
         if (!fs.existsSync(trialsFile)) continue;
         const trials = readTrials(trialsFile);
         hashes[`${entry.name}/trials.jsonl`] = { sha256: sha256File(trialsFile), trials: trials.length };
+        for (const trial of trials) allTrials.push({ ...trial, directory: entry.name });
         for (const curve of groupTrials(trials)) curves.push({ ...curve, directory: entry.name });
     }
     curves.sort((a, b) => (CONFIG_ORDER.indexOf(a.config) - CONFIG_ORDER.indexOf(b.config))
         || a.payloadBytes - b.payloadBytes);
-    return { curves, hashes };
+    return { curves, hashes, trials: allTrials };
 }
 
 function pointAt(curve, fraction) {
@@ -203,6 +215,111 @@ function profileTable(root) {
     return lines.join('\n');
 }
 
+/** The pre-registered key comparison table (methodology amendment 1). */
+function keyTable(rows, payload) {
+    const lines = [
+        '| configuration | stable throughput (ops/s) | p99 @ knee (ms) | fsync + meta per op | entries / AppendEntries | leader CPU % @ knee |',
+        '|---|---:|---:|---:|---:|---:|',
+    ];
+    for (const row of rows.filter((r) => r.payloadBytes === payload)) {
+        const k = row.atKnee || {};
+        lines.push(`| ${CONFIG_LABEL[row.config] || row.config} | ${fmtInt(row.maxStableThroughputPerSec)} | ${fmt(row.p99AtKneeMs, 2)} | `
+            + `${fmt(k.fsyncsPerOp, 3)} | ${fmt(k.entriesPerAppend, 1)} | ${fmt(k.leaderCpuPercent, 0)} |`);
+    }
+    return lines.join('\n');
+}
+
+function pooledP99(trials) {
+    if (!trials.length) return null;
+    const merged = new LogLinearHistogram();
+    for (const trial of trials) merged.merge(LogLinearHistogram.fromJSON(trial.rawHistograms.latencyAll));
+    return merged.summary(1000).p99;
+}
+
+/**
+ * Regime sensitivity (methodology amendment 1): per configuration and disk
+ * regime, the knee computed from only that regime's trials, with gaps and
+ * trial counts, plus throughput and pooled p99 at the overall knee.
+ */
+function regimeRows(trials, curves) {
+    const rows = [];
+    for (const curve of curves) {
+        const own = trials.filter((t) => t.config === curve.config && t.workload.payloadBytes === curve.payloadBytes
+            && t.directory === curve.directory && (t.phase || 'ladder') === 'ladder');
+        for (const regime of REGIMES) {
+            const inRegime = own.filter((t) => t.diskSentinel && t.diskSentinel.regime === regime);
+            if (!inRegime.length) continue;
+            const rates = [...new Set(own.map((t) => t.load.offeredRate))].sort((a, b) => a - b);
+            let knee = null;
+            const gaps = [];
+            for (const rate of rates) {
+                const atRate = inRegime.filter((t) => t.load.offeredRate === rate);
+                if (!atRate.length) { gaps.push(rate); continue; }
+                const stable = atRate.filter((t) => t.stability.stable).length * 2 > atRate.length;
+                if (!stable) break;
+                knee = rate;
+            }
+            const atKnee = knee === null ? [] : inRegime.filter((t) => t.load.offeredRate === knee);
+            const atOverallKnee = curve.knee.kneeRate === null ? []
+                : inRegime.filter((t) => t.load.offeredRate === curve.knee.kneeRate);
+            rows.push({
+                config: curve.config,
+                payloadBytes: curve.payloadBytes,
+                regime,
+                trials: inRegime.length,
+                kneeRate: knee,
+                gapsBelowKnee: knee === null ? [] : gaps.filter((rate) => rate < knee),
+                achievedAtRegimeKnee: atKnee.length ? mean(atKnee.map((t) => t.achievedPerSec)) : null,
+                trialsAtRegimeKnee: atKnee.length,
+                overallKneeRate: curve.knee.kneeRate,
+                achievedAtOverallKnee: atOverallKnee.length ? mean(atOverallKnee.map((t) => t.achievedPerSec)) : null,
+                p99AtOverallKneeMs: pooledP99(atOverallKnee),
+                trialsAtOverallKnee: atOverallKnee.length,
+                medianSentinelFsyncMs: median(inRegime.map((t) => t.diskSentinel.medianFsyncMs)),
+            });
+        }
+    }
+    return rows;
+}
+
+function median(values) {
+    const sorted = values.filter(Number.isFinite).sort((a, b) => a - b);
+    if (!sorted.length) return null;
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+function regimeTable(rows, payload) {
+    const lines = [
+        '| configuration | disk regime | trials | sentinel median fsync ms | regime knee (offered/s) | achieved @ regime knee | gaps below knee | achieved @ overall knee (n) | p99 @ overall knee ms |',
+        '|---|---|---:|---:|---:|---:|---|---:|---:|',
+    ];
+    for (const row of rows.filter((r) => r.payloadBytes === payload)) {
+        lines.push(`| ${CONFIG_LABEL[row.config] || row.config} | ${row.regime} | ${row.trials} | ${fmt(row.medianSentinelFsyncMs, 2)} | `
+            + `${fmtInt(row.kneeRate)} | ${fmtInt(row.achievedAtRegimeKnee)} (${row.trialsAtRegimeKnee}) | `
+            + `${row.gapsBelowKnee.length ? row.gapsBelowKnee.join(', ') : '—'} | `
+            + `${fmtInt(row.achievedAtOverallKnee)} (${row.trialsAtOverallKnee}) | ${fmt(row.p99AtOverallKneeMs, 2)} |`);
+    }
+    return lines.join('\n');
+}
+
+function trialsCsv(trials) {
+    const header = ['directory', 'config', 'payload_bytes', 'phase', 'offered_rate', 'repetition', 'order_round', 'order_position',
+        'started_at', 'sentinel_median_fsync_ms', 'sentinel_p95_fsync_ms', 'sentinel_p99_fsync_ms', 'sentinel_samples',
+        'regime', 'regime_after', 'achieved_per_sec', 'error_rate', 'p50_ms', 'p99_ms', 'stable', 'leader_cpu_pct'];
+    const rows = [header.join(',')];
+    for (const t of trials) {
+        const d = t.diskSentinel || {};
+        const o = t.order || {};
+        rows.push([t.directory, t.config, t.workload.payloadBytes, t.phase || 'ladder', t.load.offeredRate, t.repetition,
+            o.round, o.position, t.startedAt, d.medianFsyncMs, d.p95FsyncMs, d.p99FsyncMs, d.sampleCount, d.regime, d.afterRegime,
+            t.achievedPerSec, t.errorRate, t.latencyAllMs.p50, t.latencyAllMs.p99, t.stability.stable,
+            t.server && t.server.leader ? t.server.leader.cpuPercentOfOneCore : null]
+            .map((v) => (v === null || v === undefined ? '' : v)).join(','));
+    }
+    return `${rows.join('\n')}\n`;
+}
+
 // ── SVG saturation chart ────────────────────────────────────────────────────
 
 const PALETTE = ['#1f6feb', '#d97706', '#16a34a', '#9333ea', '#dc2626', '#0891b2', '#6b7280'];
@@ -303,15 +420,23 @@ function replaceGenerated(docText, blocks) {
 }
 
 function main() {
-    const options = parseArgs(process.argv.slice(2), DEFAULTS, { strings: ['root', 'doc'] });
+    const options = parseArgs(process.argv.slice(2), DEFAULTS, {
+        strings: ['root', 'doc', 'out'], lists: { sweeps: String },
+    });
     const root = path.resolve(options.root);
-    const { curves, hashes } = loadCurves(root);
+    const outDir = options.out ? path.resolve(options.out) : root;
+    fs.mkdirSync(outDir, { recursive: true });
+    const { curves, hashes, trials } = loadCurves(root, options.sweeps);
+    const regimes = regimeRows(trials, curves);
     const rows = comparisonRows(curves);
     const payloads = [...new Set(curves.map((c) => c.payloadBytes))].sort((a, b) => a - b);
 
     const blocks = {};
     blocks['knee-table'] = rows.length ? kneeTable(rows) : '_No sweeps recorded yet._';
     for (const payload of payloads) blocks[`comparison-${payload}`] = comparisonTable(rows, payload);
+    for (const payload of payloads) blocks[`key-table-${payload}`] = keyTable(rows, payload);
+    const regimePayloads = [...new Set(regimes.map((r) => r.payloadBytes))];
+    for (const payload of regimePayloads) blocks[`regimes-${payload}`] = regimeTable(regimes, payload);
     for (const curve of curves) blocks[`curve-${curve.config}-${curve.payloadBytes}`] = curveTable(curve);
     const profiles = profileTable(root);
     if (profiles) blocks['profile-table'] = profiles;
@@ -320,7 +445,7 @@ function main() {
     for (const payload of payloads) {
         const svg = saturationSvg(curves, payload);
         if (!svg) continue;
-        const file = path.join(root, `saturation-${payload}B.svg`);
+        const file = path.join(outDir, `saturation-${payload}B.svg`);
         fs.writeFileSync(file, svg);
         svgFiles.push(path.basename(file));
     }
@@ -330,6 +455,7 @@ function main() {
         generatedBy: 'tools/raft-bench-report.js',
         inputs: hashes,
         comparison: rows,
+        regimeSensitivity: regimes,
         curves: curves.map((c) => ({
             config: c.config,
             payloadBytes: c.payloadBytes,
@@ -342,13 +468,21 @@ function main() {
             })),
         })),
     };
-    fs.mkdirSync(root, { recursive: true });
-    fs.writeFileSync(path.join(root, 'summary.json'), `${JSON.stringify(summary, null, 2)}\n`);
-    fs.writeFileSync(path.join(root, 'summary.csv'), csvRows(curves));
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(path.join(outDir, 'summary.json'), `${JSON.stringify(summary, null, 2)}\n`);
+    fs.writeFileSync(path.join(outDir, 'summary.csv'), csvRows(curves));
+    if (trials.some((t) => t.diskSentinel)) fs.writeFileSync(path.join(outDir, 'trials.csv'), trialsCsv(trials));
 
     const report = ['# Phase IV-A generated benchmark report', '',
         '_Generated by `node tools/raft-bench-report.js` from the raw trial records. Do not edit by hand._', ''];
     report.push('## Saturation knees', '', blocks['knee-table'], '');
+    for (const payload of payloads) report.push(`## Key comparison — ${payload} B`, '', blocks[`key-table-${payload}`], '');
+    for (const payload of regimePayloads) {
+        report.push(`## Disk-regime sensitivity — ${payload} B`, '',
+            'Each trial is assigned the fsync regime of the disk sentinel sampled immediately before it '
+            + '(fast < 0.5 ms <= intermediate < 1.5 ms <= slow, median of 300 bare append+fsync). No trial is excluded '
+            + 'from the overall results above; this view regroups the same trials.', '', blocks[`regimes-${payload}`], '');
+    }
     for (const payload of payloads) report.push(`## Configuration comparison — ${payload} B`, '', blocks[`comparison-${payload}`], '');
     for (const file of svgFiles) report.push(`![${file}](${file})`, '');
     if (profiles) report.push('## CPU profiles (leader)', '', profiles, '');
@@ -356,16 +490,16 @@ function main() {
     for (const curve of curves) report.push(blocks[`curve-${curve.config}-${curve.payloadBytes}`], '');
     report.push('## Input hashes', '', '| file | trials | sha256 |', '|---|---:|---|');
     for (const [file, info] of Object.entries(hashes)) report.push(`| ${file} | ${info.trials} | \`${info.sha256}\` |`);
-    fs.writeFileSync(path.join(root, 'REPORT.md'), `${report.join('\n')}\n`);
+    fs.writeFileSync(path.join(outDir, 'REPORT.md'), `${report.join('\n')}\n`);
 
     if (options.doc) {
         const docPath = path.resolve(options.doc);
         const text = fs.readFileSync(docPath, 'utf8');
         fs.writeFileSync(docPath, replaceGenerated(text, blocks));
     }
-    process.stdout.write(`report: ${curves.length} curves, ${rows.length} comparison rows, ${svgFiles.length} charts -> ${path.relative(ROOT, root)}\n`);
+    process.stdout.write(`report: ${curves.length} curves, ${rows.length} comparison rows, ${svgFiles.length} charts -> ${path.relative(ROOT, outDir)}\n`);
 }
 
 if (require.main === module) main();
 
-module.exports = { comparisonRows, replaceGenerated, saturationSvg, csvRows, loadCurves };
+module.exports = { comparisonRows, replaceGenerated, saturationSvg, csvRows, loadCurves, regimeRows, keyTable, trialsCsv };

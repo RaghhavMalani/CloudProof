@@ -79,5 +79,119 @@
     "plan": "3-member etcd cluster on the same machine and drive, same open-loop generator speaking etcd's v3 HTTP/JSON gateway (POST /v3/kv/put), same payloads, rates, windows, repetitions and stability rule",
     "mismatchesToDisclose": ["language/runtime", "transport (grpc-gateway translation vs direct HTTP handler)", "persistence (WAL + bbolt vs line log + JSON metadata)", "client semantics", "durability settings", "batching", "hardware sharing (all members on one machine)"]
   },
-  "amendments": []
+  "amendments": [
+    {
+      "id": 1,
+      "recordedAt": "2026-10-03",
+      "recordedBefore": "the first trial of the comparison sweep, and before the durability and transport-isolation gates",
+      "context": "After the baseline was committed (d5d7e00), the optimizations were developed and tried in exploratory, uncommitted runs that are not reported. Those runs showed that this machine's fsync latency moves between regimes on a timescale of tens of seconds, large enough to swamp some optimization effects, and that running one configuration's whole curve before the next lines disk drift up with configuration. This amendment fixes the comparison design and its analysis before any comparison data exists.",
+      "changes": {
+        "configurations": {
+          "replaces": "configurations.ablation, configurations.extra, configurations.payloadCoverage",
+          "text": "Nine configurations, each a named profile in replica/raft-profiles.js and selected only by RAFT_PROFILE (same build): baseline, group-commit, pipeline-only, batch-only, group-batch, group-batch-pipeline, optimized-http, optimized-binary, transport-only. Every optimization is an independent engine option, so single optimizations are isolated (pipeline-only, batch-only, transport-only) as well as stacked. optimized-http and optimized-binary also turn off the two per-write log lines (logHotPath=false) and differ only in the replica-to-replica transport.",
+          "reason": "A cumulative ablation cannot separate an optimization that helps alone from one that only helps on top of another, or show one that hurts."
+        },
+        "payloads": {
+          "replaces": "workload.payloadBytes coverage per configuration",
+          "primary": {
+            "payloadBytes": 1024,
+            "configurations": "all nine",
+            "repetitionsPerPoint": 5
+          },
+          "sensitivity": {
+            "payloadBytes": [
+              64,
+              16384
+            ],
+            "configurations": [
+              "baseline",
+              "optimized-http",
+              "optimized-binary"
+            ],
+            "repetitionsPerPoint": 3
+          },
+          "text": "1 KiB is the primary comparison and the only payload every configuration is compared at; 64 B and 16 KiB are payload sensitivity for the endpoints of the comparison."
+        },
+        "repetitions": {
+          "replaces": "trial.repetitionsPerPoint for the primary payload",
+          "text": "5 repetitions per point at 1 KiB (was 3), so each point has more trials to spread over disk regimes; 3 for the sensitivity payloads."
+        },
+        "trialOrder": {
+          "scheme": {
+            "name": "williams-latin",
+            "version": 1,
+            "text": "Within a rung, each round runs every active curve once, in the order of row (round mod k) of a Williams Latin square over the k active curves in plan order (rows k..2k-1 mirrored when k is odd). The round counter is global across rungs."
+          },
+          "text": "All curves are walked up the same rate ladder together, one rung at a time. Within a rung, round j runs every active curve that still owes a repetition once, in the order of a Williams Latin square row (packages/raft-bench/order.js). The stop rule (unchanged) then retires curves independently. After every ladder, 0.5x and 0.8x of each knee are run the same way. The order is a deterministic function of the plan and of which curves are still active; an interrupted sweep resumes in the same order."
+        },
+        "diskSentinel": {
+          "spec": {
+            "version": 1,
+            "durationMs": 1000,
+            "fsyncsPerSecond": 300,
+            "recordBytes": 1100,
+            "regimeEdgesMs": [
+              0.5,
+              1.5
+            ],
+            "regimes": [
+              "fast",
+              "intermediate",
+              "slow"
+            ]
+          },
+          "fieldsPerTrial": [
+            "medianFsyncMs",
+            "p95FsyncMs",
+            "p99FsyncMs",
+            "sampleCount",
+            "sampledImmediatelyBeforeTrial",
+            "sampledAt",
+            "msFromSampleToWindowOpen",
+            "regime",
+            "after",
+            "afterRegime",
+            "regimeChangedDuringTrial"
+          ],
+          "text": "Immediately before each trial, with nothing else of the benchmark running and before the cluster starts, the harness appends and fsyncs 1 100-byte records at 300/s for 1 s in its own file and records the distribution; the same probe runs again after the cluster stops. A trial's regime is the bin of the pre-trial median: fast < 0.5 ms <= intermediate < 1.5 ms <= slow. The bin edges sit in the gaps between every mode observed on this machine before any comparison trial (about 0.35 ms, 0.75-1.0 ms and 2-3.5 ms; artifacts/perf/phase-iv-a/fsync-probe-2026-10-03.json)."
+        },
+        "analysis": {
+          "noDiscarding": "No trial is discarded or re-run because of its disk regime. Slow-disk trials are part of every overall result.",
+          "primary": "The overall result per configuration uses the unchanged stability rule, stop rule, knee definition and pooled percentiles over all repetitions.",
+          "regimeSensitivity": "Additionally, per configuration and regime: a ladder rate is regime-stable when a majority of that regime's trials at that rate are stable (a tie is unstable); the regime knee is the highest regime-stable rate such that every lower rate that has trials in that regime is also regime-stable. Rates with no trial in the regime are reported as gaps, and the trial counts behind every regime figure are reported. Also per configuration and regime: mean achieved throughput and pooled p99 at the overall knee.",
+          "keyTable": [
+            "configuration",
+            "max stable throughput (1 KiB)",
+            "p99 at the knee",
+            "fsync + metadata saves per committed op",
+            "entries per AppendEntries",
+            "leader CPU % of one core at the knee"
+          ],
+          "continuousCovariate": "Every trial's pre-trial median fsync time is in summary.csv, so the regime bins can be checked against the raw covariate."
+        },
+        "plan": {
+          "file": "artifacts/perf/phase-iv-a/comparison-plan.json",
+          "sha256": "515f5ce2a5b4267b561397da062eedddee070598af69496bd31c8248d458a651",
+          "tool": "tools/raft-bench-interleaved.js",
+          "output": "artifacts/perf/phase-iv-a/comparison/"
+        },
+        "baseline": "The committed baseline (d5d7e00, baseline/ and baseline-report/) stays as the historical record and is never regenerated. The comparison sweep re-measures baseline interleaved with every other configuration, and only that interleaved baseline is used in configuration comparisons.",
+        "gatesBeforeTheSweep": [
+          "Live acknowledged-write durability with test-only failpoints that kill the leader inside six windows (before the group flush; after the flush, before quorum; after commit, before the client reply; during pipelined replication; during batched replication; with the framed transport active). Pass condition: missing acknowledged writes = 0 and duplicate logical writes = 0 in every window. The comparison sweep does not start unless both hold.",
+          "A transport-isolation benchmark (HTTP/JSON vs framed binary TCP, outside Raft and the disk) to separate the transport ceiling from the replication, storage and client-facing ceilings."
+        ],
+        "unchanged": [
+          "loadGeneration",
+          "trial windows, drain and fresh cluster per trial",
+          "rateLadder",
+          "stabilityRule",
+          "stopRule",
+          "kneeDefinition",
+          "saturationFractions",
+          "comparisonMetrics",
+          "etcd condition (only after the CloudProof comparison report)"
+        ]
+      }
+    }
+  ]
 }

@@ -113,6 +113,43 @@ node tools/raft-profile.js --config baseline --payload 1024 --rates <A>,<B>,<C> 
 node tools/raft-bench-report.js --doc CLOUDPROOF-PHASE-IV-A.md
 ```
 
+### Amendment 1 (2026-10-03): the comparison design, frozen before any comparison data
+
+Recorded in `methodology.json` under `amendments`, before the first comparison trial and before the
+durability and transport gates. The baseline above was recorded under the original methodology and is not
+re-analysed under this amendment. Exploratory, uncommitted runs of the optimized engine during development
+are not reported anywhere.
+
+- **Nine configurations**, each one `RAFT_PROFILE` on the same build: `baseline`, `group-commit`,
+  `pipeline-only`, `batch-only`, `group-batch`, `group-batch-pipeline`, `optimized-http`, `optimized-binary`,
+  `transport-only`. Because every optimization is an independent option, single optimizations are measured in
+  isolation as well as stacked, so one that only helps on top of another, or one that hurts, is visible.
+- **1 KiB is the primary comparison** (all nine configurations, five repetitions per point). 64 B and 16 KiB
+  are payload sensitivity for `baseline`, `optimized-http` and `optimized-binary` (three repetitions).
+- **Interleaved, deterministic order.** All curves climb the rate ladder together, one rung at a time. Within
+  a rung, each round runs every active curve once, in the order of a row of a Williams Latin square: every
+  configuration takes every position, and follows every other configuration, equally often. The order is a
+  pure function of the frozen plan ([`comparison-plan.json`](artifacts/perf/phase-iv-a/comparison-plan.json),
+  SHA-256 in the amendment) and of which curves the unchanged stop rule has retired. The sweep is
+  `node tools/raft-bench-interleaved.js --plan artifacts/perf/phase-iv-a/comparison-plan.json --out artifacts/perf/phase-iv-a/comparison`.
+- **A disk-state covariate on every trial.** Immediately before each trial, with nothing else of the benchmark
+  running, a sentinel appends and fsyncs 1 100-byte records at 300/s for one second in its own file. Every
+  trial records `medianFsyncMs`, `p95FsyncMs`, `p99FsyncMs`, `sampleCount` and
+  `sampledImmediatelyBeforeTrial`, plus the same probe after the cluster stops. The trial's regime is the bin
+  of the pre-trial median: **fast < 0.5 ms ≤ intermediate < 1.5 ms ≤ slow**. The edges sit in the gaps
+  between every mode seen on this machine before the comparison: about 0.35 ms, 0.75–1.0 ms (the dominant
+  mode on the day the plan was frozen,
+  [`fsync-probe-2026-10-03.json`](artifacts/perf/phase-iv-a/fsync-probe-2026-10-03.json)) and 2–3.5 ms.
+- **Analysis.** No trial is discarded or re-run because of its disk regime. The overall result uses the
+  unchanged stability rule, knee and pooled percentiles over every trial. A sensitivity view regroups the same
+  trials by regime: a regime knee (the highest rate whose regime trials are majority-stable, with every lower
+  rate that has regime trials also stable), with gaps and trial counts, and throughput and p99 at the overall
+  knee per regime. The per-trial covariate is in `trials.csv`, so the bins can be checked against the raw
+  medians.
+- **Gates before the sweep.** The sweep does not start until (a) a live failpoint test shows zero missing and
+  zero duplicated acknowledged writes when the leader is killed inside each of six sensitive windows, and
+  (b) a transport-isolation benchmark has measured the HTTP and framed transports outside Raft and the disk.
+
 ## 3. Baseline saturation
 
 <!-- BEGIN GENERATED:knee-table -->

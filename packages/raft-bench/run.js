@@ -20,6 +20,8 @@ const { fork } = require('child_process');
 const { LocalCluster, sleep } = require('./cluster');
 const { configEnv } = require('./configs');
 const { LogLinearHistogram } = require('../../replica/perf-histogram');
+const { probeDisk, sentinelRecord } = require('./disk-sentinel');
+const fs = require('fs');
 
 const WORKER = path.join(__dirname, 'loadgen-worker.js');
 
@@ -152,7 +154,15 @@ async function runTrial({
     const env = { ...configEnv(config), ...extraEnv };
     const cluster = new LocalCluster({ basePort, dataRoot, env, label: config });
     const startedAt = new Date().toISOString();
+    // Disk-regime covariate (methodology amendment 1): sampled immediately
+    // before the cluster starts, with nothing else of the benchmark running.
+    const sentinelDir = path.join(dataRoot, 'sentinel');
+    const diskBefore = await probeDisk(sentinelDir);
+    let windowOpenedAt = null;
     let leader;
+    let workers = [];
+    let record = null;
+    let cpuProfile = null;
     try {
         leader = await cluster.start();
         // Let the post-election heartbeat cadence settle.
@@ -160,7 +170,7 @@ async function runTrial({
         const startEpochMs = Date.now() + 750;
         const perWorkerRate = rate / generators;
         const perWorkerConnections = Math.max(1, Math.round(connections / generators));
-        const workers = Array.from({ length: generators }, (_, workerIndex) => forkWorker({
+        workers = Array.from({ length: generators }, (_, workerIndex) => forkWorker({
             target: cluster.leaderUrl,
             ratePerSecond: perWorkerRate,
             phaseMs: (workerIndex * 1000) / rate,
@@ -179,12 +189,12 @@ async function runTrial({
         const windowStartDelay = startEpochMs + warmupMs - Date.now();
         await sleep(Math.max(0, windowStartDelay));
         await cluster.resetPerf();
+        windowOpenedAt = new Date().toISOString();
         const systemAtOpen = systemCpuTimes();
         if (profile) await cluster.startProfile(cluster.leaderUrl, profile.intervalUs || 250);
         onProgress({ phase: 'window-open', runId });
         await sleep(Math.max(0, startEpochMs + warmupMs + durationMs - Date.now()));
         const systemAtClose = systemCpuTimes();
-        let cpuProfile = null;
         if (profile) cpuProfile = await cluster.stopProfile(cluster.leaderUrl);
         const serverSnapshots = await cluster.collectPerf();
         const systemCpu = {
@@ -197,17 +207,77 @@ async function runTrial({
         const results = await Promise.all(workers);
         const diskBytes = cluster.diskUsage();
 
-        return {
-            record: summarizeTrial({
-                runId, config, env, rate, payloadBytes, connections, generators, keySpace,
-                warmupMs, durationMs, timeoutMs, repetition, startedAt,
-                leader, statusesAtEnd, results, serverSnapshots, diskBytes, systemCpu,
-            }),
-            cpuProfile,
-        };
+        record = summarizeTrial({
+            runId, config, env, rate, payloadBytes, connections, generators, keySpace,
+            warmupMs, durationMs, timeoutMs, repetition, startedAt,
+            leader, statusesAtEnd, results, serverSnapshots, diskBytes, systemCpu,
+        });
+    } catch (error) {
+        // A replica that dies, or a cluster that never elects a leader, is a
+        // result, not a harness crash: it is recorded as a failed, unstable
+        // trial, with the replica logs kept for diagnosis.
+        const exited = await Promise.all(cluster.processes.map(async (child, index) => ({
+            replica: `replica${index + 1}`,
+            exitCode: child ? child.exitCode : null,
+            signal: child ? child.signalCode : null,
+        })));
+        await Promise.allSettled(workers);
+        const keptLogs = path.join(dataRoot, '..', 'failed-trials', runId);
+        try {
+            fs.mkdirSync(keptLogs, { recursive: true });
+            fs.cpSync(cluster.logRoot, keptLogs, { recursive: true });
+        } catch (_) { /* best effort */ }
+        record = failedTrial({
+            runId, config, env, rate, payloadBytes, connections, generators, keySpace,
+            warmupMs, durationMs, timeoutMs, repetition, startedAt, leader,
+            error, exited, keptLogs,
+        });
     } finally {
         await cluster.stop();
     }
+    const diskAfter = await probeDisk(sentinelDir);
+    record.diskSentinel = sentinelRecord(diskBefore, diskAfter, { windowOpenedAt });
+    return { record, cpuProfile };
+}
+
+function failedTrial({
+    runId, config, env, rate, payloadBytes, connections, generators, keySpace,
+    warmupMs, durationMs, timeoutMs, repetition, startedAt, leader, error, exited, keptLogs,
+}) {
+    const empty = new LogLinearHistogram().toJSON();
+    const nulls = new LogLinearHistogram().summary(1000);
+    return {
+        schema: 'cloudproof.raft-bench.trial/v1',
+        runId,
+        startedAt,
+        config,
+        env,
+        repetition,
+        failed: true,
+        failure: { message: error.message, replicas: exited, logs: keptLogs },
+        workload: { payloadBytes, keySpace },
+        load: { offeredRate: rate, connections, generators, warmupMs, durationMs, timeoutMs },
+        leader: leader ? { replicaId: leader.replicaId, term: leader.term } : null,
+        leadershipStable: false,
+        scheduled: 0,
+        ok: 0,
+        offeredPerSec: rate,
+        achievedPerSec: 0,
+        achievedRatio: 0,
+        errorRate: 1,
+        errors: { total: null },
+        latencyAllMs: nulls,
+        latencyOkMs: nulls,
+        serviceOkMs: nulls,
+        clientQueueDepth: new LogLinearHistogram().summary(1),
+        latencyGrowth: { firstFifthP50Ms: null, lastFifthP50Ms: null, ratio: null },
+        generator: { lagMs: nulls, cpu: [], saturated: false },
+        server: { leader: null, followers: [], replicationBytesPerOp: null, clientBytesPerOp: null,
+            clusterLogFsyncsPerSec: null, clusterMetaSavesPerSec: null },
+        perSecond: [],
+        rawHistograms: { latencyAll: empty, latencyOk: empty },
+        stability: { stable: false, reasons: [`trial failed: ${error.message}`], rule: STABILITY_RULE.version },
+    };
 }
 
 function summarizeTrial({
