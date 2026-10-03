@@ -60,7 +60,7 @@ const { parseArgs } = require('../packages/raft-bench/cli');
 const { LogLinearHistogram } = require('../replica/perf-histogram');
 const { entryJson } = require('../replica/entry-codec');
 const { TYPES, encodeRequest, encodeResponse, decodeBody } = require('../replica/raft-codec');
-const { disablePowerThrottling } = require('../packages/raft-bench/power-throttling');
+const { applyPolicy } = require('../packages/raft-bench/power-throttling');
 
 const ROOT = path.join(__dirname, '..');
 
@@ -206,9 +206,9 @@ function clientFor(kind, port) {
 async function trial({ kind, entries: entryCount, concurrency, options, repetition }) {
     const server = startServer(kind, options.port);
     await server.ready;
-    const throttling = options['power-throttling'] === 'off'
-        ? { mode: 'off', applied: disablePowerThrottling([server.child.pid, process.pid]) }
-        : { mode: 'os-default' };
+    // Verified per process; a policy that cannot be confirmed stops the run.
+    const throttling = applyPolicy(options['power-throttling'] === 'off' ? 'disabled' : 'os-default',
+        [{ role: 'server', pid: server.child.pid }, { role: 'client', pid: process.pid }]);
     const client = clientFor(kind, options.port);
     const nextEntries = makeEntries(entryCount, options.payload);
     let prevLogIndex = 999;

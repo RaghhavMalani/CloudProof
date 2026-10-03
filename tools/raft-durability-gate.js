@@ -86,6 +86,8 @@ const DEFAULTS = {
     port: 18001,
     out: path.join(ROOT, 'artifacts', 'perf', 'phase-iv-a', 'durability-gate'),
     'data-dir': path.join(ROOT, '.bench-data', 'durability'),
+    // Process power policy of every replica (methodology amendment 2).
+    'power-throttling': 'os-default',
 };
 
 const agent = new http.Agent({ keepAlive: true, maxSockets: 256 });
@@ -188,7 +190,7 @@ async function runOnce({ window, run, options, rng }) {
     const runTag = `${window.id}-r${run}`;
     const dataRoot = path.join(options['data-dir'], runTag);
     const env = { RAFT_PROFILE: window.profile, RAFT_TEST_FAILPOINTS: '1' };
-    const cluster = new LocalCluster({ basePort: options.port, dataRoot, env, label: runTag });
+    const cluster = new LocalCluster({ basePort: options.port, dataRoot, env, label: runTag, powerThrottling: options['power-throttling'] });
     const alive = [true, true, true];
     const state = { stop: false, writes: new Map(), acks: 0, leaderUrl: null };
     const result = { window: window.id, label: window.label, site: window.site, profile: window.profile, run };
@@ -229,6 +231,7 @@ async function runOnce({ window, run, options, rng }) {
         alive[victim] = true;
         await cluster.waitForHealth();
         const statuses = await waitForConvergence(cluster);
+        result.powerThrottling = cluster.powerPolicy;
         result.final = statuses.map((s) => ({ replica: s.replicaId, state: s.state, term: s.term, commitIndex: s.commitIndex }));
 
         const logs = await Promise.all(cluster.urls.map(async (url) => (await requestJson(`${url}/log`, { timeoutMs: 60000 })).data));
@@ -328,7 +331,7 @@ function markdown(summary) {
 }
 
 async function main() {
-    const options = parseArgs(process.argv.slice(2), DEFAULTS, { strings: ['out', 'data-dir'], lists: { windows: String } });
+    const options = parseArgs(process.argv.slice(2), DEFAULTS, { strings: ['out', 'data-dir', 'power-throttling'], lists: { windows: String } });
     const windows = options.windows ? WINDOWS.filter((w) => options.windows.includes(w.id)) : WINDOWS;
     for (const window of windows) profileOptions(window.profile); // fail fast on a bad profile name
     const rng = new Rng(options.seed);

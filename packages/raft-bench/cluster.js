@@ -13,6 +13,7 @@ const fs = require('fs');
 const path = require('path');
 const http = require('http');
 const { spawn } = require('child_process');
+const { applyPolicy } = require('./power-throttling');
 
 const ROOT = path.join(__dirname, '..', '..');
 const REPLICA_ENTRY = path.join(ROOT, 'replica', 'index.js');
@@ -58,6 +59,10 @@ class LocalCluster {
         env = {},
         label = 'cluster',
         nodeArgs = [],
+        // 'os-default' leaves Windows' process power policy alone (the
+        // historical baseline); 'disabled' opts every replica out of power
+        // throttling before it serves a request (methodology amendment 2).
+        powerThrottling = 'os-default',
     }) {
         if (!dataRoot) throw new Error('LocalCluster requires dataRoot');
         this.size = size;
@@ -67,6 +72,8 @@ class LocalCluster {
         this.env = env;
         this.label = label;
         this.nodeArgs = nodeArgs;
+        this.powerThrottling = powerThrottling;
+        this.powerPolicy = null;
         this.urls = Array.from({ length: size }, (_, i) => `http://127.0.0.1:${basePort + i}`);
         this.processes = [];
         this.exits = [];
@@ -105,6 +112,8 @@ class LocalCluster {
             this.processes[index] = child;
             this.exits[index] = exit;
         }
+        this.powerPolicy = applyPolicy(this.powerThrottling,
+            this.processes.map((child, index) => ({ role: `replica${index + 1}`, pid: child.pid })));
         await this.waitForHealth();
         return this.waitForLeader(leaderTimeoutMs);
     }
@@ -194,6 +203,8 @@ class LocalCluster {
         fs.closeSync(logFile);
         this.processes[index] = child;
         this.exits[index] = new Promise((resolve) => child.once('exit', (code, signal) => resolve({ code, signal })));
+        const restarted = applyPolicy(this.powerThrottling, [{ role: `replica${index + 1}`, pid: child.pid }]);
+        if (this.powerPolicy) this.powerPolicy.processes.push({ ...restarted.processes[0], restarted: true });
     }
 
     diskUsage() {

@@ -21,6 +21,7 @@ const { LocalCluster, sleep } = require('./cluster');
 const { configEnv } = require('./configs');
 const { LogLinearHistogram } = require('../../replica/perf-histogram');
 const { probeDisk, sentinelRecord } = require('./disk-sentinel');
+const { applyPolicy, PowerPolicyError } = require('./power-throttling');
 const fs = require('fs');
 
 const WORKER = path.join(__dirname, 'loadgen-worker.js');
@@ -51,8 +52,8 @@ function summarizeHistogramJson(json, scale = 1000) {
 }
 
 function forkWorker(config) {
-    return new Promise((resolve, reject) => {
-        const child = fork(WORKER, [], { stdio: ['ignore', 'inherit', 'inherit', 'ipc'] });
+    const child = fork(WORKER, [], { stdio: ['ignore', 'inherit', 'inherit', 'ipc'] });
+    const done = new Promise((resolve, reject) => {
         let result = null;
         child.on('message', (message) => {
             if (message && message.type === 'result') result = message;
@@ -62,8 +63,8 @@ function forkWorker(config) {
             if (result) resolve(result);
             else reject(new Error(`load generator ${config.workerIndex} exited with ${code} and no result`));
         });
-        child.send({ type: 'start', config });
     });
+    return { child, done, start: (startConfig) => child.send({ type: 'start', config: { ...config, ...startConfig } }) };
 }
 
 /** Whole-machine CPU counters, summed over every logical core. */
@@ -147,12 +148,15 @@ async function runTrial({
     dataRoot,
     repetition = 0,
     profile = null,          // { intervalUs } -> CPU-profile the leader for the window
+    // Process power policy for every process this trial starts, and for the
+    // driver itself: 'os-default' (historical) or 'disabled' (amendment 2).
+    powerThrottling = 'os-default',
     onProgress = () => {},
 }) {
     if (!rate || rate <= 0) throw new Error('rate must be positive');
     const runId = crypto.randomBytes(6).toString('hex');
     const env = { ...configEnv(config), ...extraEnv };
-    const cluster = new LocalCluster({ basePort, dataRoot, env, label: config });
+    const cluster = new LocalCluster({ basePort, dataRoot, env, label: config, powerThrottling });
     const startedAt = new Date().toISOString();
     // Disk-regime covariate (methodology amendment 1): sampled immediately
     // before the cluster starts, with nothing else of the benchmark running.
@@ -163,14 +167,15 @@ async function runTrial({
     let workers = [];
     let record = null;
     let cpuProfile = null;
+    let powerPolicy = null;
+    let workerChildren = [];
     try {
         leader = await cluster.start();
         // Let the post-election heartbeat cadence settle.
         await sleep(500);
-        const startEpochMs = Date.now() + 750;
         const perWorkerRate = rate / generators;
         const perWorkerConnections = Math.max(1, Math.round(connections / generators));
-        workers = Array.from({ length: generators }, (_, workerIndex) => forkWorker({
+        const forked = Array.from({ length: generators }, (_, workerIndex) => forkWorker({
             target: cluster.leaderUrl,
             ratePerSecond: perWorkerRate,
             phaseMs: (workerIndex * 1000) / rate,
@@ -181,10 +186,20 @@ async function runTrial({
             durationMs,
             timeoutMs,
             drainMs,
-            startEpochMs,
             workerIndex,
             workers: generators,
         }));
+        workers = forked.map((w) => w.done);
+        workerChildren = forked.map((w) => w.child);
+        // The same policy for the generators and the driver, verified before
+        // any load is offered; the replicas got theirs at cluster start.
+        const others = applyPolicy(powerThrottling, [
+            ...forked.map((w, i) => ({ role: `loadgen${i + 1}`, pid: w.child.pid })),
+            { role: 'driver', pid: process.pid },
+        ]);
+        powerPolicy = { ...others, processes: [...cluster.powerPolicy.processes, ...others.processes] };
+        const startEpochMs = Date.now() + 750;
+        for (const w of forked) w.start({ startEpochMs });
 
         const windowStartDelay = startEpochMs + warmupMs - Date.now();
         await sleep(Math.max(0, windowStartDelay));
@@ -213,6 +228,14 @@ async function runTrial({
             leader, statusesAtEnd, results, serverSnapshots, diskBytes, systemCpu,
         });
     } catch (error) {
+        // A policy that could not be applied is not a result: the benchmark
+        // stops instead of running a mixed environment.
+        if (error instanceof PowerPolicyError) {
+            for (const child of workerChildren) child.kill();
+            await Promise.allSettled(workers);
+            await cluster.stop();
+            throw error;
+        }
         // A replica that dies, or a cluster that never elects a leader, is a
         // result, not a harness crash: it is recorded as a failed, unstable
         // trial, with the replica logs kept for diagnosis.
@@ -237,6 +260,7 @@ async function runTrial({
     }
     const diskAfter = await probeDisk(sentinelDir);
     record.diskSentinel = sentinelRecord(diskBefore, diskAfter, { windowOpenedAt });
+    record.powerThrottling = powerPolicy || { requested: powerThrottling, applied: false, note: 'trial failed before the policy was applied' };
     return { record, cpuProfile };
 }
 
