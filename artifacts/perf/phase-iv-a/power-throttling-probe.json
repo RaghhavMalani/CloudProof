@@ -1,0 +1,147 @@
+{
+  "schema": "cloudproof.power-throttling-probe/v1",
+  "capturedAt": "2026-10-03T17:43:10.231Z",
+  "git": {
+    "sha": "4d403922d00c4b52be890a759f14f0b5acaa301f",
+    "dirty": false
+  },
+  "node": "v24.14.1",
+  "cpu": "Intel(R) Core(TM) i7-14650HX",
+  "logicalCores": 24,
+  "method": "SHA-256 of 1 KiB in a fresh child process; hashes per 500 ms over the run; beforeMean = first five samples (0-2.5 s), afterMean = samples from 3.5 s on",
+  "conditions": [
+    {
+      "label": "Windows default",
+      "affinity": null,
+      "highPriority": false,
+      "optOut": false,
+      "optOutApplied": null,
+      "series": [
+        335400,
+        347800,
+        338400,
+        375600,
+        390000,
+        378000,
+        75200,
+        84600,
+        82600,
+        83800,
+        84800,
+        81000,
+        84000,
+        86000,
+        84200
+      ],
+      "beforeMean": 357440,
+      "afterMean": 83875
+    },
+    {
+      "label": "pinned to P-core (logical CPU 2)",
+      "affinity": "4",
+      "highPriority": false,
+      "optOut": false,
+      "optOutApplied": null,
+      "series": [
+        310800,
+        318400,
+        311800,
+        288400,
+        316800,
+        334200,
+        100800,
+        100600,
+        102200,
+        102800,
+        100400,
+        98000,
+        96400,
+        101600,
+        98000
+      ],
+      "beforeMean": 309240,
+      "afterMean": 100000
+    },
+    {
+      "label": "pinned to E-core (logical CPU 23)",
+      "affinity": "800000",
+      "highPriority": false,
+      "optOut": false,
+      "optOutApplied": null,
+      "series": [
+        167400,
+        176400,
+        178000,
+        173200,
+        152000,
+        179000,
+        85200,
+        85600,
+        84400,
+        81000,
+        75000,
+        69800,
+        88000,
+        85200,
+        86600
+      ],
+      "beforeMean": 169400,
+      "afterMean": 81950
+    },
+    {
+      "label": "high process priority",
+      "affinity": null,
+      "highPriority": true,
+      "optOut": false,
+      "optOutApplied": null,
+      "series": [
+        346000,
+        346200,
+        362200,
+        396200,
+        394000,
+        352400,
+        88400,
+        88800,
+        88200,
+        87600,
+        89800,
+        87000,
+        92800,
+        87600,
+        87600
+      ],
+      "beforeMean": 368920,
+      "afterMean": 88675
+    },
+    {
+      "label": "power throttling opted out",
+      "affinity": null,
+      "highPriority": false,
+      "optOut": true,
+      "optOutApplied": {
+        "16556": true
+      },
+      "series": [
+        328800,
+        342400,
+        348200,
+        373200,
+        379200,
+        380200,
+        389200,
+        384000,
+        387200,
+        383400,
+        391400,
+        385600,
+        376400,
+        381000,
+        383800,
+        385000
+      ],
+      "beforeMean": 354360,
+      "afterMean": 384200
+    }
+  ]
+}

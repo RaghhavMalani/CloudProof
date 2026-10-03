@@ -357,3 +357,97 @@ operating system already held, so this gate cannot detect a missing `fsync`. Pow
 deterministic simulator's targeted campaign (`sim/perf-faults.js`), which drops every node's unflushed data at
 once. Without bounded batches (`baseline`, `pipeline-only`, `group-pipeline`), a follower more than about 2 MB
 behind cannot be caught up in one AppendEntries; this limit predates Phase IV-A, and bounded batches remove it.
+
+## 8. Disclosed environment finding: Windows power throttling
+
+Found while validating the transport benchmark, and recorded before any comparison trial. On the benchmark laptop,
+Windows 11 throttles every busy process that has no foreground window about **three seconds** after it gets busy,
+and keeps it throttled for the rest of its life: the clock drops, and an unpinned process moves to efficiency cores.
+Every replica and load generator the harness starts is such a process. The probe
+([`power-throttling-probe.json`](artifacts/perf/phase-iv-a/power-throttling-probe.json)) is a pure SHA-256 loop
+with no I/O, measured per 500 ms over 8 s:
+
+| condition | first 2.5 s (hashes / 500 ms) | after 3.5 s (hashes / 500 ms) | slowdown |
+|---|---:|---:|---:|
+| Windows default | 357,440 | 83,875 | 4.3x |
+| pinned to P-core (logical CPU 2) | 309,240 | 100,000 | 3.1x |
+| pinned to E-core (logical CPU 23) | 169,400 | 81,950 | 2.1x |
+| high process priority | 368,920 | 88,675 | 4.2x |
+| power throttling opted out | 354,360 | 384,200 | 0.9x |
+
+In an unrecorded spot check, two processes started 1.5 s apart dropped 1.5 s apart, which points to a per-process
+mechanism rather than a package power limit (the machine was on AC power, Balanced plan). Opting the process out with `SetProcessInformation(ProcessPowerThrottling)`
+(`EXECUTION_SPEED` controlled and off, the per-process switch behind Task Manager's *Efficiency mode*) removes the
+cliff entirely. That changes no system setting and affects only the processes it is applied to
+([`packages/raft-bench/power-throttling.js`](packages/raft-bench/power-throttling.js)).
+
+**Consequences.** The committed baseline (`d5d7e00`) ran under Windows' default, throttled after the first seconds
+of each trial. It stays the historical record and is not re-labelled. It was disk-bound, so throttling mostly
+inflates its CPU figures rather than moving its knee, but that is an expectation, not a measurement. A configuration
+that saturates on CPU is hit by the throttle far harder than one that saturates on `fsync`, so a comparison run
+under the default would partly measure Windows' background scheduling. How the comparison sweep treats it is an
+open decision, to be recorded as methodology amendment 2 before the first comparison trial.
+
+## 9. Transport isolation
+
+[`tools/raft-transport-bench.js`](tools/raft-transport-bench.js): AppendEntries of 1 KiB entries, closed loop, between
+two fresh processes, with no Raft engine, log or `fsync`. Per trial, *burst* is the first 2 s of load and
+*sustained* is a 10 s window after a 5 s warmup; three interleaved repetitions. Transports: `http-plain` (Node's
+http client and server, no libraries), `http-json` (axios → express, exactly the replica's default path),
+`framed-json` (the framed transport's connection, JSON-encoded body), and `framed-binary` (the transport as the
+replica uses it). CPU is µs per message on each side; wire bytes are counted on the server's sockets.
+
+**With power throttling off** (the transport's own cost; 36e1a19, checks: zeroErrors pass, littlesLaw pass, persistentConnections pass, binaryWireBytesMatchFrames pass):
+
+| transport | entries/msg | in flight | burst msg/s (first 2 s) | sustained msg/s | sustained entries/s | p50 RTT ms | p99 RTT ms | client CPU µs/msg | server CPU µs/msg | client CPU % | server CPU % | wire bytes/msg | connections | Little ratio |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| http-plain | 1 | 1 | 10,218 | 11,613 | 11,613 | 0.070 | 0.207 | 60 | 36 | 70 | 42 | 1,585 | 1 | 1.00 |
+| http-json | 1 | 1 | 3,592 | 4,745 | 4,745 | 0.184 | 0.452 | 169 | 68 | 80 | 32 | 1,778 | 1 | 1.00 |
+| framed-json | 1 | 1 | 20,757 | 22,393 | 22,393 | 0.039 | 0.115 | 27 | 22 | 61 | 49 | 1,329 | 1 | 1.00 |
+| framed-binary | 1 | 1 | 21,522 | 22,943 | 22,943 | 0.038 | 0.106 | 25 | 24 | 58 | 55 | 1,257 | 1 | 1.00 |
+| http-plain | 1 | 8 | 24,669 | 26,246 | 26,246 | 0.287 | 0.587 | 38 | 28 | 100 | 74 | 1,586 | 8 | 1.00 |
+| http-json | 1 | 8 | 6,935 | 8,616 | 8,616 | 0.839 | 3.067 | 127 | 59 | 109 | 51 | 1,779 | 8 | 1.00 |
+| framed-json | 1 | 8 | 76,385 | 78,792 | 78,792 | 0.091 | 0.267 | 14 | 12 | 110 | 92 | 1,330 | 1 | 1.00 |
+| framed-binary | 1 | 8 | 75,395 | 77,988 | 77,988 | 0.091 | 0.266 | 14 | 12 | 105 | 95 | 1,257 | 1 | 1.00 |
+| http-plain | 16 | 1 | 6,509 | 7,502 | 120,025 | 0.115 | 0.306 | 90 | 59 | 67 | 44 | 18,252 | 1 | 1.00 |
+| http-json | 16 | 1 | 2,736 | 3,569 | 57,102 | 0.249 | 0.592 | 222 | 94 | 79 | 34 | 18,445 | 1 | 1.00 |
+| framed-json | 16 | 1 | 10,625 | 11,129 | 178,067 | 0.078 | 0.247 | 71 | 40 | 78 | 45 | 17,995 | 1 | 1.00 |
+| framed-binary | 16 | 1 | 9,237 | 10,483 | 167,725 | 0.079 | 0.268 | 59 | 58 | 62 | 60 | 17,965 | 1 | 1.00 |
+| http-plain | 16 | 8 | 15,302 | 16,274 | 260,385 | 0.460 | 1.068 | 62 | 48 | 100 | 78 | 18,254 | 8 | 1.00 |
+| http-json | 16 | 8 | 5,383 | 6,603 | 105,644 | 1.093 | 3.794 | 174 | 84 | 115 | 56 | 18,449 | 8 | 1.00 |
+| framed-json | 16 | 8 | 21,538 | 22,072 | 353,144 | 0.320 | 1.549 | 53 | 35 | 117 | 78 | 17,996 | 1 | 1.00 |
+| framed-binary | 16 | 8 | 19,581 | 22,809 | 364,941 | 0.291 | 1.528 | 39 | 42 | 89 | 96 | 17,965 | 1 | 1.00 |
+
+**Under Windows' default** (same build; checks: zeroErrors pass, littlesLaw pass, persistentConnections pass, binaryWireBytesMatchFrames pass):
+
+| transport | entries/msg | in flight | burst msg/s (first 2 s) | sustained msg/s | sustained entries/s | p50 RTT ms | p99 RTT ms | client CPU µs/msg | server CPU µs/msg | client CPU % | server CPU % | wire bytes/msg | connections | Little ratio |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| http-plain | 1 | 1 | 9,504 | 1,694 | 1,694 | 0.548 | 1.119 | 366 | 215 | 62 | 36 | 1,583 | 1 | 1.00 |
+| http-json | 1 | 1 | 3,376 | 783 | 783 | 1.229 | 1.951 | 907 | 402 | 71 | 32 | 1,778 | 1 | 1.00 |
+| framed-json | 1 | 1 | 21,145 | 3,401 | 3,401 | 0.266 | 0.610 | 167 | 132 | 57 | 45 | 1,326 | 1 | 1.00 |
+| framed-binary | 1 | 1 | 20,694 | 3,405 | 3,405 | 0.265 | 0.622 | 151 | 140 | 51 | 48 | 1,257 | 1 | 1.00 |
+| http-plain | 1 | 8 | 24,503 | 2,865 | 2,865 | 2.337 | 11.492 | 297 | 216 | 85 | 62 | 1,584 | 8 | 1.00 |
+| http-json | 1 | 8 | 6,977 | 1,010 | 1,010 | 6.846 | 25.834 | 899 | 427 | 91 | 43 | 1,779 | 8 | 1.00 |
+| framed-json | 1 | 8 | 74,496 | 10,049 | 10,049 | 0.628 | 2.342 | 90 | 82 | 91 | 82 | 1,329 | 1 | 1.00 |
+| framed-binary | 1 | 8 | 74,708 | 10,469 | 10,469 | 0.576 | 2.246 | 84 | 77 | 88 | 80 | 1,257 | 1 | 1.00 |
+| http-plain | 16 | 1 | 5,403 | 1,216 | 19,449 | 0.783 | 1.518 | 496 | 304 | 60 | 37 | 18,251 | 1 | 1.00 |
+| http-json | 16 | 1 | 2,778 | 651 | 10,421 | 1.480 | 2.511 | 1202 | 577 | 78 | 38 | 18,448 | 1 | 1.00 |
+| framed-json | 16 | 1 | 10,293 | 1,858 | 29,734 | 0.480 | 1.287 | 341 | 207 | 63 | 39 | 17,993 | 1 | 1.00 |
+| framed-binary | 16 | 1 | 8,653 | 1,700 | 27,201 | 0.515 | 1.426 | 306 | 291 | 52 | 49 | 17,969 | 1 | 1.00 |
+| http-plain | 16 | 8 | 14,516 | 1,712 | 27,395 | 3.806 | 18.007 | 460 | 315 | 79 | 54 | 18,259 | 8 | 1.00 |
+| http-json | 16 | 8 | 5,704 | 874 | 13,977 | 7.982 | 28.324 | 1052 | 519 | 92 | 45 | 18,465 | 8 | 1.00 |
+| framed-json | 16 | 8 | 21,995 | 3,200 | 51,200 | 2.121 | 7.926 | 247 | 195 | 79 | 62 | 18,001 | 1 | 1.00 |
+| framed-binary | 16 | 8 | 19,016 | 3,499 | 55,991 | 1.771 | 9.028 | 231 | 225 | 80 | 79 | 17,969 | 1 | 1.00 |
+
+**Reading.** In isolation the framed binary transport moves unbatched AppendEntries at
+77,988 messages/s against 8,616 for the replica's HTTP/JSON path
+(9.1x), at 14 µs of sender CPU
+per message against 127. The binary encoding contributes little: `framed-json`, the
+same connection with a JSON body, reaches 78,792 messages/s. Neither is HTTP itself the main cost:
+Node's bare http client and server reach 26,246 messages/s, so most of the replica's HTTP
+path cost is the axios client and the express stack on top of it. With 16-entry batches the framed/HTTP-JSON gap
+narrows to 3.5x, because per-message overhead is amortized. Under
+Windows' default throttling every transport runs several times slower in its sustained phase, and its burst phase
+is close to the opted-out figures, which is the throttling cliff of §8 seen again from the transport side. Whether this
+ceiling matters end to end is what the comparison sweep has to show: the replica's per-write path also includes the
+client-facing HTTP request, the log and `fsync`, and the engine itself.

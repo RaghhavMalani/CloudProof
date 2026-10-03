@@ -1,0 +1,3895 @@
+{
+  "schema": "cloudproof.raft-transport-bench/v1",
+  "generatedAt": "2026-10-03T13:24:10.540Z",
+  "git": {
+    "sha": "36e1a197c26a1112f2b3571d308b607d4afc0a17",
+    "dirty": false
+  },
+  "node": "v24.14.1",
+  "powerThrottling": "off",
+  "cpu": "Intel(R) Core(TM) i7-14650HX",
+  "options": {
+    "duration": 10000,
+    "warmup": 5000,
+    "repetitions": 3,
+    "port": 19101,
+    "transports": [
+      "http-plain",
+      "http-json",
+      "framed-json",
+      "framed-binary"
+    ],
+    "entries": [
+      1,
+      16
+    ],
+    "concurrency": [
+      1,
+      8
+    ],
+    "payload": 1024,
+    "client": null,
+    "power-throttling": "off"
+  },
+  "checks": {
+    "zeroErrors": true,
+    "littlesLaw": true,
+    "persistentConnections": true,
+    "binaryWireBytesMatchFrames": true
+  },
+  "rows": [
+    {
+      "transport": "http-plain",
+      "entriesPerMessage": 1,
+      "concurrency": 1,
+      "repetitions": 3,
+      "messagesPerSec": {
+        "mean": 11613.356359450778,
+        "min": 11248.999578890065,
+        "max": 12256.573280846264
+      },
+      "burstMessagesPerSec": {
+        "mean": 10218.166666666666,
+        "min": 9877,
+        "max": 10685
+      },
+      "entriesPerSec": {
+        "mean": 11613.356359450778,
+        "min": 11248.999578890065,
+        "max": 12256.573280846264
+      },
+      "rttP50Ms": {
+        "mean": 0.07033333333333334,
+        "min": 0.068,
+        "max": 0.072
+      },
+      "rttP99Ms": {
+        "mean": 0.20733333333333334,
+        "min": 0.19,
+        "max": 0.226
+      },
+      "clientCpuMicrosPerMessage": {
+        "mean": 60.080330792320545,
+        "min": 52.783602731790104,
+        "max": 64.79847532999223
+      },
+      "serverCpuMicrosPerMessage": {
+        "mean": 36.14565495303542,
+        "min": 33.63450271758312,
+        "max": 38.12103755803422
+      },
+      "clientCpuPercent": {
+        "mean": 69.54180897514344,
+        "min": 64.69460949092624,
+        "max": 73.44580735998797
+      },
+      "serverCpuPercent": {
+        "mean": 42.03528891992659,
+        "min": 38.12204105407804,
+        "max": 46.72208941183849
+      },
+      "wireBytesPerMessage": {
+        "mean": 1584.7251524870342,
+        "min": 1584.620897155361,
+        "max": 1584.8434687533147
+      },
+      "errors": 0,
+      "connectionsOpened": 1,
+      "littlesLawRatio": {
+        "mean": 0.997908813119137,
+        "min": 0.9974325075026642,
+        "max": 0.9981984875543951
+      },
+      "expectedFrameBytesPerMessage": null
+    },
+    {
+      "transport": "http-json",
+      "entriesPerMessage": 1,
+      "concurrency": 1,
+      "repetitions": 3,
+      "messagesPerSec": {
+        "mean": 4745.244730429263,
+        "min": 4321.11993572004,
+        "max": 5018.257408864758
+      },
+      "burstMessagesPerSec": {
+        "mean": 3592.1666666666665,
+        "min": 3519.5,
+        "max": 3724.5
+      },
+      "entriesPerSec": {
+        "mean": 4745.244730429263,
+        "min": 4321.11993572004,
+        "max": 5018.257408864758
+      },
+      "rttP50Ms": {
+        "mean": 0.18433333333333332,
+        "min": 0.167,
+        "max": 0.211
+      },
+      "rttP99Ms": {
+        "mean": 0.4523333333333334,
+        "min": 0.396,
+        "max": 0.495
+      },
+      "clientCpuMicrosPerMessage": {
+        "mean": 168.75949792481572,
+        "min": 161.59180582679048,
+        "max": 182.25791520088873
+      },
+      "serverCpuMicrosPerMessage": {
+        "mean": 68.38242185247783,
+        "min": 61.33673428719461,
+        "max": 77.74023329013146
+      },
+      "clientCpuPercent": {
+        "mean": 79.79256070532203,
+        "min": 78.75583108173329,
+        "max": 81.09092768021267
+      },
+      "serverCpuPercent": {
+        "mean": 32.23891000691729,
+        "min": 30.777288213135538,
+        "max": 33.591088015340816
+      },
+      "wireBytesPerMessage": {
+        "mean": 1777.9041371567494,
+        "min": 1777.9024978044647,
+        "max": 1777.9072394001112
+      },
+      "errors": 0,
+      "connectionsOpened": 1,
+      "littlesLawRatio": {
+        "mean": 0.9987523984252653,
+        "min": 0.998694674845182,
+        "max": 0.9988673870429177
+      },
+      "expectedFrameBytesPerMessage": null
+    },
+    {
+      "transport": "framed-json",
+      "entriesPerMessage": 1,
+      "concurrency": 1,
+      "repetitions": 3,
+      "messagesPerSec": {
+        "mean": 22392.82393637773,
+        "min": 22376.681207589125,
+        "max": 22409.707395606467
+      },
+      "burstMessagesPerSec": {
+        "mean": 20756.666666666668,
+        "min": 20024,
+        "max": 21846.5
+      },
+      "entriesPerSec": {
+        "mean": 22392.82393637773,
+        "min": 22376.681207589125,
+        "max": 22409.707395606467
+      },
+      "rttP50Ms": {
+        "mean": 0.039,
+        "min": 0.039,
+        "max": 0.039
+      },
+      "rttP99Ms": {
+        "mean": 0.11499999999999999,
+        "min": 0.109,
+        "max": 0.125
+      },
+      "clientCpuMicrosPerMessage": {
+        "mean": 27.333883227936642,
+        "min": 26.079971438771867,
+        "max": 29.12204801830631
+      },
+      "serverCpuMicrosPerMessage": {
+        "mean": 22.003632873486776,
+        "min": 21.2128384564199,
+        "max": 22.661549446626204
+      },
+      "clientCpuPercent": {
+        "mean": 61.20662877905772,
+        "min": 58.444452882865136,
+        "max": 65.16547846177428
+      },
+      "serverCpuPercent": {
+        "mean": 49.26992033833002,
+        "min": 47.49732780033795,
+        "max": 50.78109636387049
+      },
+      "wireBytesPerMessage": {
+        "mean": 1328.8727799523474,
+        "min": 1328.8723165759352,
+        "max": 1328.8731832239841
+      },
+      "errors": 0,
+      "connectionsOpened": 1,
+      "littlesLawRatio": {
+        "mean": 0.9976057673041764,
+        "min": 0.9975541018344445,
+        "max": 0.9976775430519093
+      },
+      "expectedFrameBytesPerMessage": null
+    },
+    {
+      "transport": "framed-binary",
+      "entriesPerMessage": 1,
+      "concurrency": 1,
+      "repetitions": 3,
+      "messagesPerSec": {
+        "mean": 22942.551131293323,
+        "min": 22234.44202548339,
+        "max": 23556.013794432398
+      },
+      "burstMessagesPerSec": {
+        "mean": 21521.5,
+        "min": 21178,
+        "max": 21984
+      },
+      "entriesPerSec": {
+        "mean": 22942.551131293323,
+        "min": 22234.44202548339,
+        "max": 23556.013794432398
+      },
+      "rttP50Ms": {
+        "mean": 0.03833333333333333,
+        "min": 0.038,
+        "max": 0.039
+      },
+      "rttP99Ms": {
+        "mean": 0.106,
+        "min": 0.105,
+        "max": 0.107
+      },
+      "clientCpuMicrosPerMessage": {
+        "mean": 25.396435888047694,
+        "min": 24.944494678705908,
+        "max": 26.283123751956392
+      },
+      "serverCpuMicrosPerMessage": {
+        "mean": 23.820057288553627,
+        "min": 23.47991832333601,
+        "max": 24.034396531563136
+      },
+      "clientCpuPercent": {
+        "mean": 58.23436062366043,
+        "min": 57.504736665159115,
+        "max": 58.759286074674186
+      },
+      "serverCpuPercent": {
+        "mean": 54.634548380350715,
+        "min": 53.43581757855813,
+        "max": 55.30635199302254
+      },
+      "wireBytesPerMessage": {
+        "mean": 1256.8719209727903,
+        "min": 1256.8717837406068,
+        "max": 1256.8720936649643
+      },
+      "errors": 0,
+      "connectionsOpened": 1,
+      "littlesLawRatio": {
+        "mean": 0.9975208132189431,
+        "min": 0.9974111714543225,
+        "max": 0.9975871588467303
+      },
+      "expectedFrameBytesPerMessage": 1256
+    },
+    {
+      "transport": "http-plain",
+      "entriesPerMessage": 1,
+      "concurrency": 8,
+      "repetitions": 3,
+      "messagesPerSec": {
+        "mean": 26245.92894214952,
+        "min": 25583.46964977011,
+        "max": 26990.484346030073
+      },
+      "burstMessagesPerSec": {
+        "mean": 24668.833333333332,
+        "min": 24303.5,
+        "max": 25380
+      },
+      "entriesPerSec": {
+        "mean": 26245.92894214952,
+        "min": 25583.46964977011,
+        "max": 26990.484346030073
+      },
+      "rttP50Ms": {
+        "mean": 0.2866666666666666,
+        "min": 0.284,
+        "max": 0.288
+      },
+      "rttP99Ms": {
+        "mean": 0.587,
+        "min": 0.522,
+        "max": 0.643
+      },
+      "clientCpuMicrosPerMessage": {
+        "mean": 38.272451272926155,
+        "min": 37.51662609713716,
+        "max": 38.77935520185122
+      },
+      "serverCpuMicrosPerMessage": {
+        "mean": 28.125938312036066,
+        "min": 26.686969956318286,
+        "max": 29.56236905469214
+      },
+      "clientCpuPercent": {
+        "mean": 100.41897057499263,
+        "min": 99.21104568442152,
+        "max": 101.2591909390644
+      },
+      "serverCpuPercent": {
+        "mean": 73.7492671655693,
+        "min": 72.02689708127373,
+        "max": 75.6287143118567
+      },
+      "wireBytesPerMessage": {
+        "mean": 1585.9150869528992,
+        "min": 1585.9134961301486,
+        "max": 1585.9164138966196
+      },
+      "errors": 0,
+      "connectionsOpened": 8,
+      "littlesLawRatio": {
+        "mean": 0.9996909465677426,
+        "min": 0.9996874918025813,
+        "max": 0.9996962174272194
+      },
+      "expectedFrameBytesPerMessage": null
+    },
+    {
+      "transport": "http-json",
+      "entriesPerMessage": 1,
+      "concurrency": 8,
+      "repetitions": 3,
+      "messagesPerSec": {
+        "mean": 8615.62657268945,
+        "min": 8220.561306182566,
+        "max": 9167.589420798015
+      },
+      "burstMessagesPerSec": {
+        "mean": 6934.5,
+        "min": 6552,
+        "max": 7438.5
+      },
+      "entriesPerSec": {
+        "mean": 8615.62657268945,
+        "min": 8220.561306182566,
+        "max": 9167.589420798015
+      },
+      "rttP50Ms": {
+        "mean": 0.8393333333333333,
+        "min": 0.799,
+        "max": 0.87
+      },
+      "rttP99Ms": {
+        "mean": 3.067,
+        "min": 2.999,
+        "max": 3.113
+      },
+      "clientCpuMicrosPerMessage": {
+        "mean": 126.8163396972257,
+        "min": 122.38063551972773,
+        "max": 130.7939365921312
+      },
+      "serverCpuMicrosPerMessage": {
+        "mean": 59.013599839872505,
+        "min": 55.90522836604016,
+        "max": 63.68768096547361
+      },
+      "clientCpuPercent": {
+        "mean": 109.12383494088715,
+        "min": 107.51995742325697,
+        "max": 112.19354195011934
+      },
+      "serverCpuPercent": {
+        "mean": 50.72186499389719,
+        "min": 48.587937442055576,
+        "max": 52.33235980815586
+      },
+      "wireBytesPerMessage": {
+        "mean": 1778.9590188529492,
+        "min": 1778.7953356529356,
+        "max": 1779.1673666183065
+      },
+      "errors": 0,
+      "connectionsOpened": 8,
+      "littlesLawRatio": {
+        "mean": 0.9998827277161927,
+        "min": 0.9998597258192229,
+        "max": 0.9999223090550425
+      },
+      "expectedFrameBytesPerMessage": null
+    },
+    {
+      "transport": "framed-json",
+      "entriesPerMessage": 1,
+      "concurrency": 8,
+      "repetitions": 3,
+      "messagesPerSec": {
+        "mean": 78792.4925607627,
+        "min": 76181.31460089993,
+        "max": 82104.69289328913
+      },
+      "burstMessagesPerSec": {
+        "mean": 76385.33333333333,
+        "min": 73961,
+        "max": 79319.5
+      },
+      "entriesPerSec": {
+        "mean": 78792.4925607627,
+        "min": 76181.31460089993,
+        "max": 82104.69289328913
+      },
+      "rttP50Ms": {
+        "mean": 0.09133333333333334,
+        "min": 0.089,
+        "max": 0.093
+      },
+      "rttP99Ms": {
+        "mean": 0.267,
+        "min": 0.253,
+        "max": 0.283
+      },
+      "clientCpuMicrosPerMessage": {
+        "mean": 14.033636837597802,
+        "min": 13.168343361021119,
+        "max": 14.686732057717755
+      },
+      "serverCpuMicrosPerMessage": {
+        "mean": 11.746840733225419,
+        "min": 11.36092368401822,
+        "max": 12.0651018657242
+      },
+      "clientCpuPercent": {
+        "mean": 110.41718498233581,
+        "min": 108.1182787570022,
+        "max": 111.88545553481188
+      },
+      "serverCpuPercent": {
+        "mean": 92.49391482689497,
+        "min": 89.99816673734355,
+        "max": 94.21094161796341
+      },
+      "wireBytesPerMessage": {
+        "mean": 1329.5630886838019,
+        "min": 1329.4416547646551,
+        "max": 1329.705181107349
+      },
+      "errors": 0,
+      "connectionsOpened": 1,
+      "littlesLawRatio": {
+        "mean": 0.9993905870953746,
+        "min": 0.9993817860920399,
+        "max": 0.9993999957438088
+      },
+      "expectedFrameBytesPerMessage": null
+    },
+    {
+      "transport": "framed-binary",
+      "entriesPerMessage": 1,
+      "concurrency": 8,
+      "repetitions": 3,
+      "messagesPerSec": {
+        "mean": 77987.9905101604,
+        "min": 75646.24452767971,
+        "max": 80835.76449385686
+      },
+      "burstMessagesPerSec": {
+        "mean": 75394.83333333333,
+        "min": 73655,
+        "max": 78066
+      },
+      "entriesPerSec": {
+        "mean": 77987.9905101604,
+        "min": 75646.24452767971,
+        "max": 80835.76449385686
+      },
+      "rttP50Ms": {
+        "mean": 0.09133333333333334,
+        "min": 0.089,
+        "max": 0.093
+      },
+      "rttP99Ms": {
+        "mean": 0.26566666666666666,
+        "min": 0.251,
+        "max": 0.273
+      },
+      "clientCpuMicrosPerMessage": {
+        "mean": 13.51260964830975,
+        "min": 12.989133661896561,
+        "max": 13.77749517153127
+      },
+      "serverCpuMicrosPerMessage": {
+        "mean": 12.192778230470672,
+        "min": 11.897664224120266,
+        "max": 12.483255428596502
+      },
+      "clientCpuPercent": {
+        "mean": 105.30739763798022,
+        "min": 104.2215768724581,
+        "max": 106.70196107425267
+      },
+      "serverCpuPercent": {
+        "mean": 95.10074227523198,
+        "min": 89.99493238535739,
+        "max": 98.59229106876131
+      },
+      "wireBytesPerMessage": {
+        "mean": 1256.8796073729234,
+        "min": 1256.8792431169961,
+        "max": 1256.8799076212472
+      },
+      "errors": 0,
+      "connectionsOpened": 1,
+      "littlesLawRatio": {
+        "mean": 0.9994081357028136,
+        "min": 0.9994060588583962,
+        "max": 0.9994111235903311
+      },
+      "expectedFrameBytesPerMessage": 1257
+    },
+    {
+      "transport": "http-plain",
+      "entriesPerMessage": 16,
+      "concurrency": 1,
+      "repetitions": 3,
+      "messagesPerSec": {
+        "mean": 7501.549002951975,
+        "min": 6748.764095822969,
+        "max": 7930.087540185853
+      },
+      "burstMessagesPerSec": {
+        "mean": 6509,
+        "min": 6305.5,
+        "max": 6799
+      },
+      "entriesPerSec": {
+        "mean": 120024.7840472316,
+        "min": 107980.2255331675,
+        "max": 126881.40064297365
+      },
+      "rttP50Ms": {
+        "mean": 0.11466666666666665,
+        "min": 0.109,
+        "max": 0.124
+      },
+      "rttP99Ms": {
+        "mean": 0.306,
+        "min": 0.283,
+        "max": 0.348
+      },
+      "clientCpuMicrosPerMessage": {
+        "mean": 89.63638760208323,
+        "min": 80.38337852323602,
+        "max": 98.86787979372889
+      },
+      "serverCpuMicrosPerMessage": {
+        "mean": 58.818219853881885,
+        "min": 54.69438871353175,
+        "max": 62.0591547626104
+      },
+      "clientCpuPercent": {
+        "mean": 66.87758799795425,
+        "min": 63.7447228465157,
+        "max": 70.1644414091412
+      },
+      "serverCpuPercent": {
+        "mean": 44.00835946547875,
+        "min": 41.881005144123456,
+        "max": 47.34235433528109
+      },
+      "wireBytesPerMessage": {
+        "mean": 18252.10654749295,
+        "min": 18252.09557821113,
+        "max": 18252.119288731952
+      },
+      "errors": 0,
+      "connectionsOpened": 1,
+      "littlesLawRatio": {
+        "mean": 0.9984784328706416,
+        "min": 0.9983700992406634,
+        "max": 0.9986848967539504
+      },
+      "expectedFrameBytesPerMessage": null
+    },
+    {
+      "transport": "http-json",
+      "entriesPerMessage": 16,
+      "concurrency": 1,
+      "repetitions": 3,
+      "messagesPerSec": {
+        "mean": 3568.8441401010696,
+        "min": 3489.3998255300085,
+        "max": 3697.4294779407796
+      },
+      "burstMessagesPerSec": {
+        "mean": 2735.8333333333335,
+        "min": 2683.5,
+        "max": 2823
+      },
+      "entriesPerSec": {
+        "mean": 57101.50624161711,
+        "min": 55830.397208480135,
+        "max": 59158.871647052474
+      },
+      "rttP50Ms": {
+        "mean": 0.24866666666666667,
+        "min": 0.239,
+        "max": 0.257
+      },
+      "rttP99Ms": {
+        "mean": 0.5920000000000001,
+        "min": 0.536,
+        "max": 0.668
+      },
+      "clientCpuMicrosPerMessage": {
+        "mean": 222.37265690920734,
+        "min": 208.7582158989478,
+        "max": 229.98238336080013
+      },
+      "serverCpuMicrosPerMessage": {
+        "mean": 94.03287607550196,
+        "min": 92.12626112358335,
+        "max": 96.29162606751878
+      },
+      "clientCpuPercent": {
+        "mean": 79.27461509712181,
+        "min": 77.18687812270953,
+        "max": 80.9469711531557
+      },
+      "serverCpuPercent": {
+        "mean": 33.543483463364964,
+        "min": 32.97116717931815,
+        "max": 34.06115126691282
+      },
+      "wireBytesPerMessage": {
+        "mean": 18445.383456444484,
+        "min": 18445.36647642747,
+        "max": 18445.39442310999
+      },
+      "errors": 0,
+      "connectionsOpened": 1,
+      "littlesLawRatio": {
+        "mean": 0.9988730557456482,
+        "min": 0.9988202048684521,
+        "max": 0.9989332500533273
+      },
+      "expectedFrameBytesPerMessage": null
+    },
+    {
+      "transport": "framed-json",
+      "entriesPerMessage": 16,
+      "concurrency": 1,
+      "repetitions": 3,
+      "messagesPerSec": {
+        "mean": 11129.16885050312,
+        "min": 10695.050055398222,
+        "max": 11706.91889396471
+      },
+      "burstMessagesPerSec": {
+        "mean": 10624.666666666666,
+        "min": 10189.5,
+        "max": 11117.5
+      },
+      "entriesPerSec": {
+        "mean": 178066.70160804992,
+        "min": 171120.80088637155,
+        "max": 187310.70230343536
+      },
+      "rttP50Ms": {
+        "mean": 0.07766666666666666,
+        "min": 0.075,
+        "max": 0.08
+      },
+      "rttP99Ms": {
+        "mean": 0.24733333333333332,
+        "min": 0.233,
+        "max": 0.272
+      },
+      "clientCpuMicrosPerMessage": {
+        "mean": 70.59056356681835,
+        "min": 64.05514602249917,
+        "max": 74.52483250801049
+      },
+      "serverCpuMicrosPerMessage": {
+        "mean": 40.27488196088411,
+        "min": 36.43942564768388,
+        "max": 44.842546188944574
+      },
+      "clientCpuPercent": {
+        "mean": 78.37909247782476,
+        "min": 74.9888399226464,
+        "max": 81.86953498104133
+      },
+      "serverCpuPercent": {
+        "mean": 44.68202067889742,
+        "min": 42.65716329864064,
+        "max": 47.951537992090536
+      },
+      "wireBytesPerMessage": {
+        "mean": 17994.832433466072,
+        "min": 17994.772552172937,
+        "max": 17994.88108925353
+      },
+      "errors": 0,
+      "connectionsOpened": 1,
+      "littlesLawRatio": {
+        "mean": 0.9986247361295586,
+        "min": 0.9986064595374241,
+        "max": 0.9986382010670816
+      },
+      "expectedFrameBytesPerMessage": null
+    },
+    {
+      "transport": "framed-binary",
+      "entriesPerMessage": 16,
+      "concurrency": 1,
+      "repetitions": 3,
+      "messagesPerSec": {
+        "mean": 10482.840565614724,
+        "min": 10205.291738392101,
+        "max": 10673.842788202655
+      },
+      "burstMessagesPerSec": {
+        "mean": 9237,
+        "min": 8968,
+        "max": 9739
+      },
+      "entriesPerSec": {
+        "mean": 167725.4490498356,
+        "min": 163284.66781427362,
+        "max": 170781.4846112425
+      },
+      "rttP50Ms": {
+        "mean": 0.07866666666666666,
+        "min": 0.076,
+        "max": 0.081
+      },
+      "rttP99Ms": {
+        "mean": 0.26766666666666666,
+        "min": 0.239,
+        "max": 0.304
+      },
+      "clientCpuMicrosPerMessage": {
+        "mean": 59.219039176282166,
+        "min": 55.73795308966705,
+        "max": 62.80740872595771
+      },
+      "serverCpuMicrosPerMessage": {
+        "mean": 57.62161007067861,
+        "min": 56.04445141311591,
+        "max": 59.43741662014741
+      },
+      "clientCpuPercent": {
+        "mean": 62.092170839304835,
+        "min": 58.91160062818908,
+        "max": 67.03964066752603
+      },
+      "serverCpuPercent": {
+        "mean": 60.41795026935989,
+        "min": 57.190673706136266,
+        "max": 62.81727812733874
+      },
+      "wireBytesPerMessage": {
+        "mean": 17965.03868528018,
+        "min": 17965.035254218234,
+        "max": 17965.043324448277
+      },
+      "errors": 0,
+      "connectionsOpened": 1,
+      "littlesLawRatio": {
+        "mean": 0.9987604643211753,
+        "min": 0.9987287189154743,
+        "max": 0.9987989673679133
+      },
+      "expectedFrameBytesPerMessage": 17951
+    },
+    {
+      "transport": "http-plain",
+      "entriesPerMessage": 16,
+      "concurrency": 8,
+      "repetitions": 3,
+      "messagesPerSec": {
+        "mean": 16274.084941525276,
+        "min": 15486.551501596387,
+        "max": 16754.877213366988
+      },
+      "burstMessagesPerSec": {
+        "mean": 15301.833333333334,
+        "min": 15070,
+        "max": 15585.5
+      },
+      "entriesPerSec": {
+        "mean": 260385.35906440442,
+        "min": 247784.82402554218,
+        "max": 268078.0354138718
+      },
+      "rttP50Ms": {
+        "mean": 0.4603333333333333,
+        "min": 0.451,
+        "max": 0.477
+      },
+      "rttP99Ms": {
+        "mean": 1.0683333333333334,
+        "min": 1.006,
+        "max": 1.13
+      },
+      "clientCpuMicrosPerMessage": {
+        "mean": 61.51825874862153,
+        "min": 59.77952718309271,
+        "max": 64.26970935601145
+      },
+      "serverCpuMicrosPerMessage": {
+        "mean": 47.90224146135085,
+        "min": 47.51942039092617,
+        "max": 48.15956285471312
+      },
+      "clientCpuPercent": {
+        "mean": 100.00488781021339,
+        "min": 99.53161639345024,
+        "max": 100.32318325460466
+      },
+      "serverCpuPercent": {
+        "mean": 77.96688691532606,
+        "min": 73.58775925273076,
+        "max": 80.465937274827
+      },
+      "wireBytesPerMessage": {
+        "mean": 18253.765520643326,
+        "min": 18253.739019630077,
+        "max": 18253.80998043432
+      },
+      "errors": 0,
+      "connectionsOpened": 8,
+      "littlesLawRatio": {
+        "mean": 0.9997157535064097,
+        "min": 0.9997092265278248,
+        "max": 0.9997197686082435
+      },
+      "expectedFrameBytesPerMessage": null
+    },
+    {
+      "transport": "http-json",
+      "entriesPerMessage": 16,
+      "concurrency": 8,
+      "repetitions": 3,
+      "messagesPerSec": {
+        "mean": 6602.738841624082,
+        "min": 6321.004243637172,
+        "max": 6749.05505129336
+      },
+      "burstMessagesPerSec": {
+        "mean": 5382.833333333333,
+        "min": 5315,
+        "max": 5498.5
+      },
+      "entriesPerSec": {
+        "mean": 105643.82146598531,
+        "min": 101136.06789819476,
+        "max": 107984.88082069375
+      },
+      "rttP50Ms": {
+        "mean": 1.0933333333333335,
+        "min": 1.066,
+        "max": 1.139
+      },
+      "rttP99Ms": {
+        "mean": 3.7936666666666667,
+        "min": 3.673,
+        "max": 3.915
+      },
+      "clientCpuMicrosPerMessage": {
+        "mean": 174.35832389967655,
+        "min": 167.88602804778512,
+        "max": 186.8702048564423
+      },
+      "serverCpuMicrosPerMessage": {
+        "mean": 84.16278442660207,
+        "min": 80.00296801958893,
+        "max": 87.7481610377284
+      },
+      "clientCpuPercent": {
+        "mean": 114.94807486312293,
+        "min": 113.12424536963806,
+        "max": 118.12073579069194
+      },
+      "serverCpuPercent": {
+        "mean": 55.51225004299071,
+        "min": 53.89750386372919,
+        "max": 57.18350338218075
+      },
+      "wireBytesPerMessage": {
+        "mean": 18448.646045760794,
+        "min": 18448.628350446725,
+        "max": 18448.661348964903
+      },
+      "errors": 0,
+      "connectionsOpened": 8,
+      "littlesLawRatio": {
+        "mean": 0.999855894636637,
+        "min": 0.9998365303209252,
+        "max": 0.9998744976343072
+      },
+      "expectedFrameBytesPerMessage": null
+    },
+    {
+      "transport": "framed-json",
+      "entriesPerMessage": 16,
+      "concurrency": 8,
+      "repetitions": 3,
+      "messagesPerSec": {
+        "mean": 22071.50889897456,
+        "min": 21795.741083694546,
+        "max": 22360.21696948331
+      },
+      "burstMessagesPerSec": {
+        "mean": 21538.333333333332,
+        "min": 21326.5,
+        "max": 21954.5
+      },
+      "entriesPerSec": {
+        "mean": 353144.14238359296,
+        "min": 348731.8573391127,
+        "max": 357763.47151173296
+      },
+      "rttP50Ms": {
+        "mean": 0.32033333333333336,
+        "min": 0.32,
+        "max": 0.321
+      },
+      "rttP99Ms": {
+        "mean": 1.5490000000000002,
+        "min": 1.442,
+        "max": 1.618
+      },
+      "clientCpuMicrosPerMessage": {
+        "mean": 52.967420977399854,
+        "min": 49.39938999847947,
+        "max": 55.59760856854062
+      },
+      "serverCpuMicrosPerMessage": {
+        "mean": 35.284162780571826,
+        "min": 34.44898616316199,
+        "max": 36.70145658905838
+      },
+      "clientCpuPercent": {
+        "mean": 116.86299762383157,
+        "min": 110.45810785261247,
+        "max": 122.64036650372641
+      },
+      "serverCpuPercent": {
+        "mean": 77.84273064128486,
+        "min": 76.53697232113775,
+        "max": 79.97911105577447
+      },
+      "wireBytesPerMessage": {
+        "mean": 17995.519417262523,
+        "min": 17995.511104353194,
+        "max": 17995.52785869939
+      },
+      "errors": 0,
+      "connectionsOpened": 1,
+      "littlesLawRatio": {
+        "mean": 0.9998727332510656,
+        "min": 0.9998387520641818,
+        "max": 0.9999196238767973
+      },
+      "expectedFrameBytesPerMessage": null
+    },
+    {
+      "transport": "framed-binary",
+      "entriesPerMessage": 16,
+      "concurrency": 8,
+      "repetitions": 3,
+      "messagesPerSec": {
+        "mean": 22808.841854582683,
+        "min": 21823.291834179978,
+        "max": 23313.33987129581
+      },
+      "burstMessagesPerSec": {
+        "mean": 19581.333333333332,
+        "min": 19492.5,
+        "max": 19684
+      },
+      "entriesPerSec": {
+        "mean": 364941.4696733229,
+        "min": 349172.66934687964,
+        "max": 373013.437940733
+      },
+      "rttP50Ms": {
+        "mean": 0.2906666666666667,
+        "min": 0.281,
+        "max": 0.306
+      },
+      "rttP99Ms": {
+        "mean": 1.5279999999999998,
+        "min": 1.267,
+        "max": 1.791
+      },
+      "clientCpuMicrosPerMessage": {
+        "mean": 39.2053967108273,
+        "min": 37.79986189089381,
+        "max": 40.58429011842094
+      },
+      "serverCpuMicrosPerMessage": {
+        "mean": 42.02787384861944,
+        "min": 40.39107248666798,
+        "max": 43.7408357771261
+      },
+      "clientCpuPercent": {
+        "mean": 89.4205684577784,
+        "min": 85.61722172115515,
+        "max": 94.5203809171351
+      },
+      "serverCpuPercent": {
+        "mean": 95.75133024807214,
+        "min": 94.02143040947908,
+        "max": 97.79220768573366
+      },
+      "wireBytesPerMessage": {
+        "mean": 17965.497786261683,
+        "min": 17965.48354485758,
+        "max": 17965.525559017595
+      },
+      "errors": 0,
+      "connectionsOpened": 1,
+      "littlesLawRatio": {
+        "mean": 1.000001154897652,
+        "min": 0.999807842859136,
+        "max": 1.0003270763181307
+      },
+      "expectedFrameBytesPerMessage": 17967
+    }
+  ],
+  "trials": [
+    {
+      "transport": "http-plain",
+      "entriesPerMessage": 1,
+      "concurrency": 1,
+      "repetition": 0,
+      "payloadBytes": 1024,
+      "powerThrottling": {
+        "mode": "off",
+        "applied": {
+          "36816": true,
+          "39360": true
+        }
+      },
+      "messages": 112482,
+      "errors": 0,
+      "messagesPerSec": 11248.999578890065,
+      "entriesPerSec": 11248.999578890065,
+      "burstMessagesPerSec": 10092.5,
+      "timeline": [
+        9075,
+        11110,
+        11842,
+        11548,
+        11540,
+        11173,
+        11364,
+        11448,
+        11540,
+        11567,
+        11607,
+        11611,
+        11259,
+        10531,
+        10383
+      ],
+      "rttMs": {
+        "p50": 0.072,
+        "p99": 0.226,
+        "p999": 0.328,
+        "mean": 0.08866855230170437
+      },
+      "clientCpu": {
+        "microsPerMessage": 62.65891431517932,
+        "percentOfOneCore": 70.48501007451608
+      },
+      "serverCpu": {
+        "microsPerMessage": 36.68142458348891,
+        "percentOfOneCore": 41.261736293863244
+      },
+      "wireBytesPerMessage": 1584.711091552426,
+      "connections": {
+        "opened": 1,
+        "openAtEnd": 1
+      },
+      "checks": {
+        "littlesLawRatio": 0.9974325075026642,
+        "expectedFrameBytesPerMessage": null
+      }
+    },
+    {
+      "transport": "http-json",
+      "entriesPerMessage": 1,
+      "concurrency": 1,
+      "repetition": 0,
+      "payloadBytes": 1024,
+      "powerThrottling": {
+        "mode": "off",
+        "applied": {
+          "8188": true,
+          "29788": true
+        }
+      },
+      "messages": 50182,
+      "errors": 0,
+      "messagesPerSec": 5018.257408864758,
+      "entriesPerSec": 5018.257408864758,
+      "burstMessagesPerSec": 3519.5,
+      "timeline": [
+        2990,
+        4049,
+        4417,
+        4781,
+        4896,
+        5089,
+        5335,
+        5673,
+        5425,
+        5421,
+        5137,
+        4995,
+        4283,
+        4235,
+        4588
+      ],
+      "rttMs": {
+        "p50": 0.167,
+        "p99": 0.466,
+        "p999": 2.055,
+        "mean": 0.19904666214977676
+      },
+      "clientCpu": {
+        "microsPerMessage": 161.59180582679048,
+        "percentOfOneCore": 81.09092768021267
+      },
+      "serverCpu": {
+        "microsPerMessage": 61.33673428719461,
+        "percentOfOneCore": 30.777288213135538
+      },
+      "wireBytesPerMessage": 1777.9026742656729,
+      "connections": {
+        "opened": 1,
+        "openAtEnd": 1
+      },
+      "checks": {
+        "littlesLawRatio": 0.9988673870429177,
+        "expectedFrameBytesPerMessage": null
+      }
+    },
+    {
+      "transport": "framed-json",
+      "entriesPerMessage": 1,
+      "concurrency": 1,
+      "repetition": 0,
+      "payloadBytes": 1024,
+      "powerThrottling": {
+        "mode": "off",
+        "applied": {
+          "33164": true,
+          "41964": true
+        }
+      },
+      "messages": 223921,
+      "errors": 0,
+      "messagesPerSec": 22392.083205937597,
+      "entriesPerSec": 22392.083205937597,
+      "burstMessagesPerSec": 20024,
+      "timeline": [
+        18584,
+        21464,
+        21903,
+        21849,
+        22433,
+        20840,
+        22770,
+        23004,
+        23029,
+        20881,
+        21620,
+        23264,
+        23491,
+        22782,
+        22201
+      ],
+      "rttMs": {
+        "p50": 0.039,
+        "p99": 0.125,
+        "p999": 0.209,
+        "mean": 0.04454941028309184
+      },
+      "clientCpu": {
+        "microsPerMessage": 26.79963022673175,
+        "percentOfOneCore": 60.00995499253376
+      },
+      "serverCpu": {
+        "microsPerMessage": 21.2128384564199,
+        "percentOfOneCore": 47.49732780033795
+      },
+      "wireBytesPerMessage": 1328.8723165759352,
+      "connections": {
+        "opened": 1,
+        "openAtEnd": 1
+      },
+      "checks": {
+        "littlesLawRatio": 0.9975541018344445,
+        "expectedFrameBytesPerMessage": null
+      }
+    },
+    {
+      "transport": "framed-binary",
+      "entriesPerMessage": 1,
+      "concurrency": 1,
+      "repetition": 0,
+      "payloadBytes": 1024,
+      "powerThrottling": {
+        "mode": "off",
+        "applied": {
+          "30524": true,
+          "44396": true
+        }
+      },
+      "messages": 235563,
+      "errors": 0,
+      "messagesPerSec": 23556.013794432398,
+      "entriesPerSec": 23556.013794432398,
+      "burstMessagesPerSec": 21402.5,
+      "timeline": [
+        19505,
+        23300,
+        23511,
+        23214,
+        21964,
+        22638,
+        23637,
+        23824,
+        23840,
+        23506,
+        23743,
+        22328,
+        24028,
+        23821,
+        24172
+      ],
+      "rttMs": {
+        "p50": 0.038,
+        "p99": 0.105,
+        "p999": 0.203,
+        "mean": 0.042342103386357605
+      },
+      "clientCpu": {
+        "microsPerMessage": 24.944494678705908,
+        "percentOfOneCore": 58.759286074674186
+      },
+      "serverCpu": {
+        "microsPerMessage": 23.47991832333601,
+        "percentOfOneCore": 55.30635199302254
+      },
+      "wireBytesPerMessage": 1256.8720936649643,
+      "connections": {
+        "opened": 1,
+        "openAtEnd": 1
+      },
+      "checks": {
+        "littlesLawRatio": 0.9974111714543225,
+        "expectedFrameBytesPerMessage": 1256
+      }
+    },
+    {
+      "transport": "http-plain",
+      "entriesPerMessage": 1,
+      "concurrency": 8,
+      "repetition": 0,
+      "payloadBytes": 1024,
+      "powerThrottling": {
+        "mode": "off",
+        "applied": {
+          "25188": true,
+          "34680": true
+        }
+      },
+      "messages": 261621,
+      "errors": 0,
+      "messagesPerSec": 26163.832830648375,
+      "entriesPerSec": 26163.832830648375,
+      "burstMessagesPerSec": 24323,
+      "timeline": [
+        22829,
+        25817,
+        26483,
+        26573,
+        26418,
+        25875,
+        26201,
+        26074,
+        26065,
+        26398,
+        26347,
+        26348,
+        26393,
+        25874,
+        26052
+      ],
+      "rttMs": {
+        "p50": 0.288,
+        "p99": 0.596,
+        "p999": 0.889,
+        "mean": 0.3056700440713854
+      },
+      "clientCpu": {
+        "microsPerMessage": 38.52137251979008,
+        "percentOfOneCore": 100.78667510149198
+      },
+      "serverCpu": {
+        "microsPerMessage": 28.128475925097757,
+        "percentOfOneCore": 73.5921901035775
+      },
+      "wireBytesPerMessage": 1585.9153508319287,
+      "connections": {
+        "opened": 8,
+        "openAtEnd": 8
+      },
+      "checks": {
+        "littlesLawRatio": 0.9996874918025813,
+        "expectedFrameBytesPerMessage": null
+      }
+    },
+    {
+      "transport": "http-json",
+      "entriesPerMessage": 1,
+      "concurrency": 8,
+      "repetition": 0,
+      "payloadBytes": 1024,
+      "powerThrottling": {
+        "mode": "off",
+        "applied": {
+          "17220": true,
+          "41792": true
+        }
+      },
+      "messages": 84581,
+      "errors": 0,
+      "messagesPerSec": 8458.728991087775,
+      "entriesPerSec": 8458.728991087775,
+      "burstMessagesPerSec": 6813,
+      "timeline": [
+        5879,
+        7747,
+        8428,
+        8493,
+        8576,
+        8242,
+        8488,
+        8504,
+        8534,
+        8208,
+        8285,
+        8834,
+        8416,
+        8619,
+        8444
+      ],
+      "rttMs": {
+        "p50": 0.849,
+        "p99": 3.089,
+        "p999": 3.681,
+        "mean": 0.9456359004977583
+      },
+      "clientCpu": {
+        "microsPerMessage": 127.27444697981817,
+        "percentOfOneCore": 107.65800544928518
+      },
+      "serverCpu": {
+        "microsPerMessage": 57.44789018810371,
+        "percentOfOneCore": 48.587937442055576
+      },
+      "wireBytesPerMessage": 1778.9143542876059,
+      "connections": {
+        "opened": 8,
+        "openAtEnd": 8
+      },
+      "checks": {
+        "littlesLawRatio": 0.9998597258192229,
+        "expectedFrameBytesPerMessage": null
+      }
+    },
+    {
+      "transport": "framed-json",
+      "entriesPerMessage": 1,
+      "concurrency": 8,
+      "repetition": 0,
+      "payloadBytes": 1024,
+      "powerThrottling": {
+        "mode": "off",
+        "applied": {
+          "12324": true,
+          "14016": true
+        }
+      },
+      "messages": 780930,
+      "errors": 0,
+      "messagesPerSec": 78091.47018809902,
+      "entriesPerSec": 78091.47018809902,
+      "burstMessagesPerSec": 75875.5,
+      "timeline": [
+        73867,
+        77884,
+        79352,
+        79864,
+        79253,
+        76039,
+        78689,
+        79236,
+        79110,
+        79294,
+        78871,
+        78195,
+        77563,
+        75366,
+        78546
+      ],
+      "rttMs": {
+        "p50": 0.092,
+        "p99": 0.265,
+        "p999": 0.862,
+        "mean": 0.10238147413980486
+      },
+      "clientCpu": {
+        "microsPerMessage": 14.245835094054526,
+        "percentOfOneCore": 111.24782065519338
+      },
+      "serverCpu": {
+        "microsPerMessage": 12.0651018657242,
+        "percentOfOneCore": 94.21094161796341
+      },
+      "wireBytesPerMessage": 1329.5424301794014,
+      "connections": {
+        "opened": 1,
+        "openAtEnd": 1
+      },
+      "checks": {
+        "littlesLawRatio": 0.9993899794502752,
+        "expectedFrameBytesPerMessage": null
+      }
+    },
+    {
+      "transport": "framed-binary",
+      "entriesPerMessage": 1,
+      "concurrency": 8,
+      "repetition": 0,
+      "payloadBytes": 1024,
+      "powerThrottling": {
+        "mode": "off",
+        "applied": {
+          "17136": true,
+          "35396": true
+        }
+      },
+      "messages": 774878,
+      "errors": 0,
+      "messagesPerSec": 77481.96250894459,
+      "entriesPerSec": 77481.96250894459,
+      "burstMessagesPerSec": 74463.5,
+      "timeline": [
+        72986,
+        75941,
+        77268,
+        77123,
+        74726,
+        76492,
+        77253,
+        78336,
+        77553,
+        77850,
+        77877,
+        78476,
+        76974,
+        75961,
+        78093
+      ],
+      "rttMs": {
+        "p50": 0.092,
+        "p99": 0.273,
+        "p999": 2.165,
+        "mean": 0.10318863304933362
+      },
+      "clientCpu": {
+        "microsPerMessage": 13.771200111501424,
+        "percentOfOneCore": 106.70196107425267
+      },
+      "serverCpu": {
+        "microsPerMessage": 12.483255428596502,
+        "percentOfOneCore": 96.7150033715772
+      },
+      "wireBytesPerMessage": 1256.879671380527,
+      "connections": {
+        "opened": 1,
+        "openAtEnd": 1
+      },
+      "checks": {
+        "littlesLawRatio": 0.9994072246597135,
+        "expectedFrameBytesPerMessage": 1257
+      }
+    },
+    {
+      "transport": "http-plain",
+      "entriesPerMessage": 16,
+      "concurrency": 1,
+      "repetition": 0,
+      "payloadBytes": 1024,
+      "powerThrottling": {
+        "mode": "off",
+        "applied": {
+          "620": true,
+          "40212": true
+        }
+      },
+      "messages": 79295,
+      "errors": 0,
+      "messagesPerSec": 7930.087540185853,
+      "entriesPerSec": 126881.40064297365,
+      "burstMessagesPerSec": 6305.5,
+      "timeline": [
+        5407,
+        7204,
+        7954,
+        7968,
+        8037,
+        7608,
+        8110,
+        8148,
+        7699,
+        7493,
+        8047,
+        7986,
+        7978,
+        8238,
+        7985
+      ],
+      "rttMs": {
+        "p50": 0.109,
+        "p99": 0.287,
+        "p999": 0.414,
+        "mean": 0.12589647897093267
+      },
+      "clientCpu": {
+        "microsPerMessage": 80.38337852323602,
+        "percentOfOneCore": 63.7447228465157
+      },
+      "serverCpu": {
+        "microsPerMessage": 59.7011160855035,
+        "percentOfOneCore": 47.34235433528109
+      },
+      "wireBytesPerMessage": 18252.119288731952,
+      "connections": {
+        "opened": 1,
+        "openAtEnd": 1
+      },
+      "checks": {
+        "littlesLawRatio": 0.9983700992406634,
+        "expectedFrameBytesPerMessage": null
+      }
+    },
+    {
+      "transport": "http-json",
+      "entriesPerMessage": 16,
+      "concurrency": 1,
+      "repetition": 0,
+      "payloadBytes": 1024,
+      "powerThrottling": {
+        "mode": "off",
+        "applied": {
+          "12800": true,
+          "41724": true
+        }
+      },
+      "messages": 36971,
+      "errors": 0,
+      "messagesPerSec": 3697.4294779407796,
+      "entriesPerSec": 59158.871647052474,
+      "burstMessagesPerSec": 2823,
+      "timeline": [
+        2523,
+        3123,
+        3172,
+        3362,
+        3621,
+        3609,
+        3680,
+        3678,
+        3674,
+        3647,
+        3719,
+        3757,
+        3703,
+        3784,
+        3717
+      ],
+      "rttMs": {
+        "p50": 0.239,
+        "p99": 0.536,
+        "p999": 2.381,
+        "mean": 0.270139081983175
+      },
+      "clientCpu": {
+        "microsPerMessage": 208.7582158989478,
+        "percentOfOneCore": 77.18687812270953
+      },
+      "serverCpu": {
+        "microsPerMessage": 92.12626112358335,
+        "percentOfOneCore": 34.06115126691282
+      },
+      "wireBytesPerMessage": 18445.36647642747,
+      "connections": {
+        "opened": 1,
+        "openAtEnd": 1
+      },
+      "checks": {
+        "littlesLawRatio": 0.9988202048684521,
+        "expectedFrameBytesPerMessage": null
+      }
+    },
+    {
+      "transport": "framed-json",
+      "entriesPerMessage": 16,
+      "concurrency": 1,
+      "repetition": 0,
+      "payloadBytes": 1024,
+      "powerThrottling": {
+        "mode": "off",
+        "applied": {
+          "12588": true,
+          "40912": true
+        }
+      },
+      "messages": 109856,
+      "errors": 0,
+      "messagesPerSec": 10985.537602146422,
+      "entriesPerSec": 175768.60163434275,
+      "burstMessagesPerSec": 10567,
+      "timeline": [
+        9698,
+        11436,
+        11477,
+        11422,
+        11547,
+        10915,
+        10906,
+        11020,
+        11040,
+        11181,
+        11071,
+        11051,
+        10937,
+        10865,
+        10878
+      ],
+      "rttMs": {
+        "p50": 0.078,
+        "p99": 0.237,
+        "p999": 1.068,
+        "mean": 0.09090402162831358
+      },
+      "clientCpu": {
+        "microsPerMessage": 74.52483250801049,
+        "percentOfOneCore": 81.86953498104133
+      },
+      "serverCpu": {
+        "microsPerMessage": 39.54267404602388,
+        "percentOfOneCore": 43.43736074596108
+      },
+      "wireBytesPerMessage": 17994.843658971746,
+      "connections": {
+        "opened": 1,
+        "openAtEnd": 1
+      },
+      "checks": {
+        "littlesLawRatio": 0.9986295477841705,
+        "expectedFrameBytesPerMessage": null
+      }
+    },
+    {
+      "transport": "framed-binary",
+      "entriesPerMessage": 16,
+      "concurrency": 1,
+      "repetition": 0,
+      "payloadBytes": 1024,
+      "powerThrottling": {
+        "mode": "off",
+        "applied": {
+          "31140": true,
+          "44736": true
+        }
+      },
+      "messages": 105691,
+      "errors": 0,
+      "messagesPerSec": 10569.387170249416,
+      "entriesPerSec": 169110.19472399066,
+      "burstMessagesPerSec": 9004,
+      "timeline": [
+        8678,
+        9330,
+        10133,
+        10218,
+        10246,
+        9869,
+        10382,
+        10276,
+        10838,
+        10670,
+        10810,
+        10641,
+        10769,
+        10834
+      ],
+      "rttMs": {
+        "p50": 0.079,
+        "p99": 0.239,
+        "p999": 3.711,
+        "mean": 0.09449923172266038
+      },
+      "clientCpu": {
+        "microsPerMessage": 55.73795308966705,
+        "percentOfOneCore": 58.91160062818908
+      },
+      "serverCpu": {
+        "microsPerMessage": 59.43741662014741,
+        "percentOfOneCore": 62.81727812733874
+      },
+      "wireBytesPerMessage": 17965.037477174024,
+      "connections": {
+        "opened": 1,
+        "openAtEnd": 1
+      },
+      "checks": {
+        "littlesLawRatio": 0.9987989673679133,
+        "expectedFrameBytesPerMessage": 17951
+      }
+    },
+    {
+      "transport": "http-plain",
+      "entriesPerMessage": 16,
+      "concurrency": 8,
+      "repetition": 0,
+      "payloadBytes": 1024,
+      "powerThrottling": {
+        "mode": "off",
+        "applied": {
+          "11496": true,
+          "19872": true
+        }
+      },
+      "messages": 154863,
+      "errors": 0,
+      "messagesPerSec": 15486.551501596387,
+      "entriesPerSec": 247784.82402554218,
+      "burstMessagesPerSec": 15070,
+      "timeline": [
+        14203,
+        15937,
+        16390,
+        15546,
+        15589,
+        15303,
+        15322,
+        15531,
+        15611,
+        15494,
+        15556,
+        15041,
+        15624,
+        15751,
+        15628
+      ],
+      "rttMs": {
+        "p50": 0.477,
+        "p99": 1.13,
+        "p999": 1.425,
+        "mean": 0.516427030988673
+      },
+      "clientCpu": {
+        "microsPerMessage": 64.26970935601145,
+        "percentOfOneCore": 99.53161639345024
+      },
+      "serverCpu": {
+        "microsPerMessage": 47.51942039092617,
+        "percentOfOneCore": 73.58775925273076
+      },
+      "wireBytesPerMessage": 18253.80998043432,
+      "connections": {
+        "opened": 8,
+        "openAtEnd": 8
+      },
+      "checks": {
+        "littlesLawRatio": 0.9997092265278248,
+        "expectedFrameBytesPerMessage": null
+      }
+    },
+    {
+      "transport": "http-json",
+      "entriesPerMessage": 16,
+      "concurrency": 8,
+      "repetition": 0,
+      "payloadBytes": 1024,
+      "powerThrottling": {
+        "mode": "off",
+        "applied": {
+          "13336": true,
+          "23324": true
+        }
+      },
+      "messages": 67491,
+      "errors": 0,
+      "messagesPerSec": 6749.05505129336,
+      "entriesPerSec": 107984.88082069375,
+      "burstMessagesPerSec": 5315,
+      "timeline": [
+        4897,
+        5733,
+        6483,
+        6579,
+        6629,
+        6661,
+        6537,
+        6639,
+        6838,
+        6969,
+        6702,
+        6902,
+        6747,
+        6882,
+        6608
+      ],
+      "rttMs": {
+        "p50": 1.066,
+        "p99": 3.673,
+        "p999": 4.583,
+        "mean": 1.185181212309798
+      },
+      "clientCpu": {
+        "microsPerMessage": 168.31873879480227,
+        "percentOfOneCore": 113.59924342903878
+      },
+      "serverCpu": {
+        "microsPerMessage": 84.73722422248892,
+        "percentOfOneCore": 57.18350338218075
+      },
+      "wireBytesPerMessage": 18448.628350446725,
+      "connections": {
+        "opened": 8,
+        "openAtEnd": 8
+      },
+      "checks": {
+        "littlesLawRatio": 0.9998566559546788,
+        "expectedFrameBytesPerMessage": null
+      }
+    },
+    {
+      "transport": "framed-json",
+      "entriesPerMessage": 16,
+      "concurrency": 8,
+      "repetition": 0,
+      "payloadBytes": 1024,
+      "powerThrottling": {
+        "mode": "off",
+        "applied": {
+          "29060": true,
+          "44488": true
+        }
+      },
+      "messages": 220621,
+      "errors": 0,
+      "messagesPerSec": 22058.56864374582,
+      "entriesPerSec": 352937.09829993313,
+      "burstMessagesPerSec": 21954.5,
+      "timeline": [
+        21528,
+        22381,
+        22401,
+        22334,
+        22111,
+        22057,
+        22090,
+        21920,
+        22487,
+        21745,
+        22391,
+        21683,
+        21817,
+        22218
+      ],
+      "rttMs": {
+        "p50": 0.32,
+        "p99": 1.587,
+        "p999": 4.295,
+        "mean": 0.3626123773348865
+      },
+      "clientCpu": {
+        "microsPerMessage": 55.59760856854062,
+        "percentOfOneCore": 122.64036650372641
+      },
+      "serverCpu": {
+        "microsPerMessage": 34.70204558949511,
+        "percentOfOneCore": 76.53697232113775
+      },
+      "wireBytesPerMessage": 17995.51928873498,
+      "connections": {
+        "opened": 1,
+        "openAtEnd": 1
+      },
+      "checks": {
+        "littlesLawRatio": 0.9998387520641818,
+        "expectedFrameBytesPerMessage": null
+      }
+    },
+    {
+      "transport": "framed-binary",
+      "entriesPerMessage": 16,
+      "concurrency": 8,
+      "repetition": 0,
+      "payloadBytes": 1024,
+      "powerThrottling": {
+        "mode": "off",
+        "applied": {
+          "33368": true,
+          "42060": true
+        }
+      },
+      "messages": 232898,
+      "errors": 0,
+      "messagesPerSec": 23289.893858272248,
+      "entriesPerSec": 372638.30173235596,
+      "burstMessagesPerSec": 19684,
+      "timeline": [
+        18711,
+        20657,
+        21455,
+        22065,
+        22258,
+        22059,
+        22386,
+        21826,
+        22847,
+        23776,
+        24134,
+        23865,
+        23660,
+        24212,
+        24141
+      ],
+      "rttMs": {
+        "p50": 0.285,
+        "p99": 1.526,
+        "p999": 5.631,
+        "mean": 0.34360897732054824
+      },
+      "clientCpu": {
+        "microsPerMessage": 40.58429011842094,
+        "percentOfOneCore": 94.5203809171351
+      },
+      "serverCpu": {
+        "microsPerMessage": 40.39107248666798,
+        "percentOfOneCore": 94.02143040947908
+      },
+      "wireBytesPerMessage": 17965.484254909876,
+      "connections": {
+        "opened": 1,
+        "openAtEnd": 1
+      },
+      "checks": {
+        "littlesLawRatio": 1.0003270763181307,
+        "expectedFrameBytesPerMessage": 17967
+      }
+    },
+    {
+      "transport": "http-json",
+      "entriesPerMessage": 1,
+      "concurrency": 1,
+      "repetition": 1,
+      "payloadBytes": 1024,
+      "powerThrottling": {
+        "mode": "off",
+        "applied": {
+          "20320": true,
+          "25232": true
+        }
+      },
+      "messages": 43208,
+      "errors": 0,
+      "messagesPerSec": 4321.11993572004,
+      "entriesPerSec": 4321.11993572004,
+      "burstMessagesPerSec": 3532.5,
+      "timeline": [
+        3141,
+        3924,
+        3748,
+        4059,
+        4235,
+        4124,
+        4603,
+        4245,
+        4591,
+        3645,
+        4084,
+        4186,
+        4574,
+        4594,
+        4557
+      ],
+      "rttMs": {
+        "p50": 0.211,
+        "p99": 0.495,
+        "p999": 2.095,
+        "mean": 0.23111951259026578
+      },
+      "clientCpu": {
+        "microsPerMessage": 182.25791520088873,
+        "percentOfOneCore": 78.75583108173329
+      },
+      "serverCpu": {
+        "microsPerMessage": 77.74023329013146,
+        "percentOfOneCore": 33.591088015340816
+      },
+      "wireBytesPerMessage": 1777.9072394001112,
+      "connections": {
+        "opened": 1,
+        "openAtEnd": 1
+      },
+      "checks": {
+        "littlesLawRatio": 0.9986951333876963,
+        "expectedFrameBytesPerMessage": null
+      }
+    },
+    {
+      "transport": "framed-json",
+      "entriesPerMessage": 1,
+      "concurrency": 1,
+      "repetition": 1,
+      "payloadBytes": 1024,
+      "powerThrottling": {
+        "mode": "off",
+        "applied": {
+          "41440": true,
+          "45412": true
+        }
+      },
+      "messages": 223748,
+      "errors": 0,
+      "messagesPerSec": 22376.681207589125,
+      "entriesPerSec": 22376.681207589125,
+      "burstMessagesPerSec": 21846.5,
+      "timeline": [
+        20342,
+        23351,
+        21860,
+        22242,
+        23120,
+        22594,
+        20474,
+        23124,
+        23326,
+        23046,
+        23283,
+        21117,
+        20638,
+        23273,
+        22879
+      ],
+      "rttMs": {
+        "p50": 0.039,
+        "p99": 0.111,
+        "p999": 0.188,
+        "mean": 0.04458148408030416
+      },
+      "clientCpu": {
+        "microsPerMessage": 29.12204801830631,
+        "percentOfOneCore": 65.16547846177428
+      },
+      "serverCpu": {
+        "microsPerMessage": 22.136510717414232,
+        "percentOfOneCore": 49.5313368507816
+      },
+      "wireBytesPerMessage": 1328.8731832239841,
+      "connections": {
+        "opened": 1,
+        "openAtEnd": 1
+      },
+      "checks": {
+        "littlesLawRatio": 0.9975856570261757,
+        "expectedFrameBytesPerMessage": null
+      }
+    },
+    {
+      "transport": "framed-binary",
+      "entriesPerMessage": 1,
+      "concurrency": 1,
+      "repetition": 1,
+      "payloadBytes": 1024,
+      "powerThrottling": {
+        "mode": "off",
+        "applied": {
+          "2268": true,
+          "14768": true
+        }
+      },
+      "messages": 230353,
+      "errors": 0,
+      "messagesPerSec": 23037.19757396417,
+      "entriesPerSec": 23037.19757396417,
+      "burstMessagesPerSec": 21984,
+      "timeline": [
+        20760,
+        23208,
+        22824,
+        23536,
+        23570,
+        22129,
+        23429,
+        23707,
+        23611,
+        23505,
+        23795,
+        23490,
+        19831,
+        23369,
+        23480
+      ],
+      "rttMs": {
+        "p50": 0.038,
+        "p99": 0.106,
+        "p999": 0.187,
+        "mean": 0.043302320351811745
+      },
+      "clientCpu": {
+        "microsPerMessage": 24.961689233480786,
+        "percentOfOneCore": 57.504736665159115
+      },
+      "serverCpu": {
+        "microsPerMessage": 23.945857010761745,
+        "percentOfOneCore": 55.16147556947148
+      },
+      "wireBytesPerMessage": 1256.8717837406068,
+      "connections": {
+        "opened": 1,
+        "openAtEnd": 1
+      },
+      "checks": {
+        "littlesLawRatio": 0.9975641093557768,
+        "expectedFrameBytesPerMessage": 1257
+      }
+    },
+    {
+      "transport": "http-plain",
+      "entriesPerMessage": 1,
+      "concurrency": 1,
+      "repetition": 1,
+      "payloadBytes": 1024,
+      "powerThrottling": {
+        "mode": "off",
+        "applied": {
+          "13676": true,
+          "22360": true
+        }
+      },
+      "messages": 122557,
+      "errors": 0,
+      "messagesPerSec": 12256.573280846264,
+      "entriesPerSec": 12256.573280846264,
+      "burstMessagesPerSec": 10685,
+      "timeline": [
+        9390,
+        11980,
+        12250,
+        11192,
+        11845,
+        11756,
+        12163,
+        11750,
+        11713,
+        12563,
+        12439,
+        12548,
+        12633,
+        12479,
+        12513
+      ],
+      "rttMs": {
+        "p50": 0.068,
+        "p99": 0.19,
+        "p999": 0.261,
+        "mean": 0.08143348237962297
+      },
+      "clientCpu": {
+        "microsPerMessage": 52.783602731790104,
+        "percentOfOneCore": 64.69460949092624
+      },
+      "serverCpu": {
+        "microsPerMessage": 38.12103755803422,
+        "percentOfOneCore": 46.72208941183849
+      },
+      "wireBytesPerMessage": 1584.8434687533147,
+      "connections": {
+        "opened": 1,
+        "openAtEnd": 1
+      },
+      "checks": {
+        "littlesLawRatio": 0.9980954443003519,
+        "expectedFrameBytesPerMessage": null
+      }
+    },
+    {
+      "transport": "http-json",
+      "entriesPerMessage": 1,
+      "concurrency": 8,
+      "repetition": 1,
+      "payloadBytes": 1024,
+      "powerThrottling": {
+        "mode": "off",
+        "applied": {
+          "6108": true,
+          "25352": true
+        }
+      },
+      "messages": 82198,
+      "errors": 0,
+      "messagesPerSec": 8220.561306182566,
+      "entriesPerSec": 8220.561306182566,
+      "burstMessagesPerSec": 6552,
+      "timeline": [
+        5898,
+        7206,
+        8153,
+        7781,
+        8362,
+        8168,
+        8131,
+        8005,
+        8193,
+        7942,
+        7970,
+        8065,
+        8088,
+        8848,
+        8791
+      ],
+      "rttMs": {
+        "p50": 0.87,
+        "p99": 3.113,
+        "p999": 3.763,
+        "mean": 0.9730939499744528
+      },
+      "clientCpu": {
+        "microsPerMessage": 130.7939365921312,
+        "percentOfOneCore": 107.51995742325697
+      },
+      "serverCpu": {
+        "microsPerMessage": 63.68768096547361,
+        "percentOfOneCore": 52.33235980815586
+      },
+      "wireBytesPerMessage": 1778.7953356529356,
+      "connections": {
+        "opened": 8,
+        "openAtEnd": 8
+      },
+      "checks": {
+        "littlesLawRatio": 0.9999223090550425,
+        "expectedFrameBytesPerMessage": null
+      }
+    },
+    {
+      "transport": "framed-json",
+      "entriesPerMessage": 1,
+      "concurrency": 8,
+      "repetition": 1,
+      "payloadBytes": 1024,
+      "powerThrottling": {
+        "mode": "off",
+        "applied": {
+          "13852": true,
+          "22496": true
+        }
+      },
+      "messages": 761776,
+      "errors": 0,
+      "messagesPerSec": 76181.31460089993,
+      "entriesPerSec": 76181.31460089993,
+      "burstMessagesPerSec": 73961,
+      "timeline": [
+        71738,
+        76184,
+        76193,
+        77893,
+        77476,
+        74935,
+        76083,
+        76902,
+        77006,
+        75614,
+        76924,
+        75595,
+        75914,
+        76409,
+        76408
+      ],
+      "rttMs": {
+        "p50": 0.093,
+        "p99": 0.283,
+        "p999": 0.904,
+        "mean": 0.10494961931066522
+      },
+      "clientCpu": {
+        "microsPerMessage": 14.686732057717755,
+        "percentOfOneCore": 111.88545553481188
+      },
+      "serverCpu": {
+        "microsPerMessage": 11.814496649933838,
+        "percentOfOneCore": 89.99816673734355
+      },
+      "wireBytesPerMessage": 1329.4416547646551,
+      "connections": {
+        "opened": 1,
+        "openAtEnd": 1
+      },
+      "checks": {
+        "littlesLawRatio": 0.9993999957438088,
+        "expectedFrameBytesPerMessage": null
+      }
+    },
+    {
+      "transport": "framed-binary",
+      "entriesPerMessage": 1,
+      "concurrency": 8,
+      "repetition": 1,
+      "payloadBytes": 1024,
+      "powerThrottling": {
+        "mode": "off",
+        "applied": {
+          "31616": true,
+          "37168": true
+        }
+      },
+      "messages": 756451,
+      "errors": 0,
+      "messagesPerSec": 75646.24452767971,
+      "entriesPerSec": 75646.24452767971,
+      "burstMessagesPerSec": 73655,
+      "timeline": [
+        71823,
+        75487,
+        76780,
+        76043,
+        75991,
+        73480,
+        76335,
+        76195,
+        75831,
+        76115,
+        75877,
+        75337,
+        75804,
+        76162,
+        75248
+      ],
+      "rttMs": {
+        "p50": 0.093,
+        "p99": 0.273,
+        "p999": 2.099,
+        "mean": 0.1056931383526527
+      },
+      "clientCpu": {
+        "microsPerMessage": 13.77749517153127,
+        "percentOfOneCore": 104.2215768724581
+      },
+      "serverCpu": {
+        "microsPerMessage": 11.897664224120266,
+        "percentOfOneCore": 89.99493238535739
+      },
+      "wireBytesPerMessage": 1256.8799076212472,
+      "connections": {
+        "opened": 1,
+        "openAtEnd": 1
+      },
+      "checks": {
+        "littlesLawRatio": 0.9994111235903311,
+        "expectedFrameBytesPerMessage": 1257
+      }
+    },
+    {
+      "transport": "http-plain",
+      "entriesPerMessage": 1,
+      "concurrency": 8,
+      "repetition": 1,
+      "payloadBytes": 1024,
+      "powerThrottling": {
+        "mode": "off",
+        "applied": {
+          "39588": true,
+          "43720": true
+        }
+      },
+      "messages": 255832,
+      "errors": 0,
+      "messagesPerSec": 25583.46964977011,
+      "entriesPerSec": 25583.46964977011,
+      "burstMessagesPerSec": 24303.5,
+      "timeline": [
+        22068,
+        26539,
+        26635,
+        26050,
+        25983,
+        24964,
+        25707,
+        25443,
+        25283,
+        25397,
+        25935,
+        26149,
+        26011,
+        25842,
+        25084
+      ],
+      "rttMs": {
+        "p50": 0.288,
+        "p99": 0.643,
+        "p999": 0.918,
+        "mean": 0.3126047073860945
+      },
+      "clientCpu": {
+        "microsPerMessage": 38.77935520185122,
+        "percentOfOneCore": 99.21104568442152
+      },
+      "serverCpu": {
+        "microsPerMessage": 29.56236905469214,
+        "percentOfOneCore": 75.6287143118567
+      },
+      "wireBytesPerMessage": 1585.9164138966196,
+      "connections": {
+        "opened": 8,
+        "openAtEnd": 8
+      },
+      "checks": {
+        "littlesLawRatio": 0.999689130473427,
+        "expectedFrameBytesPerMessage": null
+      }
+    },
+    {
+      "transport": "http-json",
+      "entriesPerMessage": 16,
+      "concurrency": 1,
+      "repetition": 1,
+      "payloadBytes": 1024,
+      "powerThrottling": {
+        "mode": "off",
+        "applied": {
+          "39256": true,
+          "40884": true
+        }
+      },
+      "messages": 34894,
+      "errors": 0,
+      "messagesPerSec": 3489.3998255300085,
+      "entriesPerSec": 55830.397208480135,
+      "burstMessagesPerSec": 2683.5,
+      "timeline": [
+        2423,
+        2944,
+        3007,
+        3053,
+        3350,
+        2833,
+        3397,
+        3657,
+        3589,
+        3603,
+        3651,
+        3630,
+        3675,
+        3570,
+        3278
+      ],
+      "rttMs": {
+        "p50": 0.25,
+        "p99": 0.668,
+        "p999": 2.431,
+        "mean": 0.28627652318449875
+      },
+      "clientCpu": {
+        "microsPerMessage": 228.37737146787413,
+        "percentOfOneCore": 79.6899960155002
+      },
+      "serverCpu": {
+        "microsPerMessage": 96.29162606751878,
+        "percentOfOneCore": 33.59813194386392
+      },
+      "wireBytesPerMessage": 18445.39442310999,
+      "connections": {
+        "opened": 1,
+        "openAtEnd": 1
+      },
+      "checks": {
+        "littlesLawRatio": 0.9989332500533273,
+        "expectedFrameBytesPerMessage": null
+      }
+    },
+    {
+      "transport": "framed-json",
+      "entriesPerMessage": 16,
+      "concurrency": 1,
+      "repetition": 1,
+      "payloadBytes": 1024,
+      "powerThrottling": {
+        "mode": "off",
+        "applied": {
+          "6372": true,
+          "26748": true
+        }
+      },
+      "messages": 106952,
+      "errors": 0,
+      "messagesPerSec": 10695.050055398222,
+      "entriesPerSec": 171120.80088637155,
+      "burstMessagesPerSec": 10189.5,
+      "timeline": [
+        9236,
+        11143,
+        11104,
+        11046,
+        10521,
+        10500,
+        10780,
+        10784,
+        10953,
+        10533,
+        10719,
+        11075,
+        10669,
+        10658,
+        10278
+      ],
+      "rttMs": {
+        "p50": 0.08,
+        "p99": 0.272,
+        "p999": 0.975,
+        "mean": 0.09337090096491761
+      },
+      "clientCpu": {
+        "microsPerMessage": 73.19171216994539,
+        "percentOfOneCore": 78.27890252978654
+      },
+      "serverCpu": {
+        "microsPerMessage": 44.842546188944574,
+        "percentOfOneCore": 47.951537992090536
+      },
+      "wireBytesPerMessage": 17994.772552172937,
+      "connections": {
+        "opened": 1,
+        "openAtEnd": 1
+      },
+      "checks": {
+        "littlesLawRatio": 0.9986064595374241,
+        "expectedFrameBytesPerMessage": null
+      }
+    },
+    {
+      "transport": "framed-binary",
+      "entriesPerMessage": 16,
+      "concurrency": 1,
+      "repetition": 1,
+      "payloadBytes": 1024,
+      "powerThrottling": {
+        "mode": "off",
+        "applied": {
+          "36708": true,
+          "36816": true
+        }
+      },
+      "messages": 102044,
+      "errors": 0,
+      "messagesPerSec": 10205.291738392101,
+      "entriesPerSec": 163284.66781427362,
+      "burstMessagesPerSec": 8968,
+      "timeline": [
+        8589,
+        9347,
+        9943,
+        9683,
+        9945,
+        9515,
+        10283,
+        10460,
+        9751,
+        10469,
+        9989,
+        10445,
+        10411,
+        10368,
+        10333
+      ],
+      "rttMs": {
+        "p50": 0.081,
+        "p99": 0.26,
+        "p999": 3.675,
+        "mean": 0.09786380874916854
+      },
+      "clientCpu": {
+        "microsPerMessage": 59.11175571322175,
+        "percentOfOneCore": 60.325271222199405
+      },
+      "serverCpu": {
+        "microsPerMessage": 56.04445141311591,
+        "percentOfOneCore": 57.190673706136266
+      },
+      "wireBytesPerMessage": 17965.043324448277,
+      "connections": {
+        "opened": 1,
+        "openAtEnd": 1
+      },
+      "checks": {
+        "littlesLawRatio": 0.9987287189154743,
+        "expectedFrameBytesPerMessage": 17967
+      }
+    },
+    {
+      "transport": "http-plain",
+      "entriesPerMessage": 16,
+      "concurrency": 1,
+      "repetition": 1,
+      "payloadBytes": 1024,
+      "powerThrottling": {
+        "mode": "off",
+        "applied": {
+          "11828": true,
+          "30228": true
+        }
+      },
+      "messages": 78253,
+      "errors": 0,
+      "messagesPerSec": 7825.795372847103,
+      "entriesPerSec": 125212.72596555365,
+      "burstMessagesPerSec": 6422.5,
+      "timeline": [
+        5561,
+        7284,
+        7802,
+        7810,
+        7946,
+        7735,
+        7770,
+        7828,
+        7844,
+        7938,
+        7713,
+        7912,
+        7718,
+        7946,
+        7852
+      ],
+      "rttMs": {
+        "p50": 0.111,
+        "p99": 0.283,
+        "p999": 0.42,
+        "mean": 0.1276144914571947
+      },
+      "clientCpu": {
+        "microsPerMessage": 89.65790448928476,
+        "percentOfOneCore": 70.1644414091412
+      },
+      "serverCpu": {
+        "microsPerMessage": 54.69438871353175,
+        "percentOfOneCore": 42.80171891703171
+      },
+      "wireBytesPerMessage": 18252.10477553576,
+      "connections": {
+        "opened": 1,
+        "openAtEnd": 1
+      },
+      "checks": {
+        "littlesLawRatio": 0.9986848967539504,
+        "expectedFrameBytesPerMessage": null
+      }
+    },
+    {
+      "transport": "http-json",
+      "entriesPerMessage": 16,
+      "concurrency": 8,
+      "repetition": 1,
+      "payloadBytes": 1024,
+      "powerThrottling": {
+        "mode": "off",
+        "applied": {
+          "2900": true,
+          "19312": true
+        }
+      },
+      "messages": 67385,
+      "errors": 0,
+      "messagesPerSec": 6738.157229941713,
+      "entriesPerSec": 107810.51567906741,
+      "burstMessagesPerSec": 5498.5,
+      "timeline": [
+        4962,
+        6035,
+        6357,
+        6712,
+        6957,
+        6837,
+        6851,
+        6643,
+        6753,
+        6728,
+        6671,
+        6838,
+        6659,
+        6690,
+        6722
+      ],
+      "rttMs": {
+        "p50": 1.075,
+        "p99": 3.793,
+        "p999": 4.471,
+        "mean": 1.1871192238628798
+      },
+      "clientCpu": {
+        "microsPerMessage": 167.88602804778512,
+        "percentOfOneCore": 113.12424536963806
+      },
+      "serverCpu": {
+        "microsPerMessage": 80.00296801958893,
+        "percentOfOneCore": 53.89750386372919
+      },
+      "wireBytesPerMessage": 18448.661348964903,
+      "connections": {
+        "opened": 8,
+        "openAtEnd": 8
+      },
+      "checks": {
+        "littlesLawRatio": 0.9998744976343072,
+        "expectedFrameBytesPerMessage": null
+      }
+    },
+    {
+      "transport": "framed-json",
+      "entriesPerMessage": 16,
+      "concurrency": 8,
+      "repetition": 1,
+      "payloadBytes": 1024,
+      "powerThrottling": {
+        "mode": "off",
+        "applied": {
+          "6460": true,
+          "13352": true
+        }
+      },
+      "messages": 223606,
+      "errors": 0,
+      "messagesPerSec": 22360.21696948331,
+      "entriesPerSec": 357763.47151173296,
+      "burstMessagesPerSec": 21326.5,
+      "timeline": [
+        21172,
+        21481,
+        21459,
+        22297,
+        22126,
+        22062,
+        22173,
+        22223,
+        22387,
+        22369,
+        22542,
+        22496,
+        22550,
+        22313
+      ],
+      "rttMs": {
+        "p50": 0.32,
+        "p99": 1.442,
+        "p999": 2.729,
+        "mean": 0.3577495246102357
+      },
+      "clientCpu": {
+        "microsPerMessage": 49.39938999847947,
+        "percentOfOneCore": 110.45810785261247
+      },
+      "serverCpu": {
+        "microsPerMessage": 34.44898616316199,
+        "percentOfOneCore": 77.01210854694237
+      },
+      "wireBytesPerMessage": 17995.511104353194,
+      "connections": {
+        "opened": 1,
+        "openAtEnd": 1
+      },
+      "checks": {
+        "littlesLawRatio": 0.9999196238767973,
+        "expectedFrameBytesPerMessage": null
+      }
+    },
+    {
+      "transport": "framed-binary",
+      "entriesPerMessage": 16,
+      "concurrency": 8,
+      "repetition": 1,
+      "payloadBytes": 1024,
+      "powerThrottling": {
+        "mode": "off",
+        "applied": {
+          "8320": true,
+          "23036": true
+        }
+      },
+      "messages": 233149,
+      "errors": 0,
+      "messagesPerSec": 23313.33987129581,
+      "entriesPerSec": 373013.437940733,
+      "burstMessagesPerSec": 19567.5,
+      "timeline": [
+        18847,
+        20288,
+        21979,
+        21648,
+        21432,
+        22017,
+        22204,
+        22021,
+        23064,
+        23929,
+        23221,
+        23935,
+        24061,
+        24508
+      ],
+      "rttMs": {
+        "p50": 0.281,
+        "p99": 1.267,
+        "p999": 6.127,
+        "mean": 0.34308523733748986
+      },
+      "clientCpu": {
+        "microsPerMessage": 37.79986189089381,
+        "percentOfOneCore": 88.12410273504497
+      },
+      "serverCpu": {
+        "microsPerMessage": 41.95171328206426,
+        "percentOfOneCore": 97.79220768573366
+      },
+      "wireBytesPerMessage": 17965.48354485758,
+      "connections": {
+        "opened": 1,
+        "openAtEnd": 1
+      },
+      "checks": {
+        "littlesLawRatio": 0.999807842859136,
+        "expectedFrameBytesPerMessage": 17967
+      }
+    },
+    {
+      "transport": "http-plain",
+      "entriesPerMessage": 16,
+      "concurrency": 8,
+      "repetition": 1,
+      "payloadBytes": 1024,
+      "powerThrottling": {
+        "mode": "off",
+        "applied": {
+          "20548": true,
+          "33628": true
+        }
+      },
+      "messages": 167549,
+      "errors": 0,
+      "messagesPerSec": 16754.877213366988,
+      "entriesPerSec": 268078.0354138718,
+      "burstMessagesPerSec": 15250,
+      "timeline": [
+        13804,
+        16696,
+        17062,
+        16924,
+        16921,
+        16629,
+        16768,
+        16472,
+        16930,
+        16783,
+        17170,
+        16682,
+        16784,
+        16679,
+        16637
+      ],
+      "rttMs": {
+        "p50": 0.453,
+        "p99": 1.006,
+        "p999": 1.285,
+        "mean": 0.4773383905603743
+      },
+      "clientCpu": {
+        "microsPerMessage": 59.77952718309271,
+        "percentOfOneCore": 100.15986378258526
+      },
+      "serverCpu": {
+        "microsPerMessage": 48.02774113841324,
+        "percentOfOneCore": 80.465937274827
+      },
+      "wireBytesPerMessage": 18253.739019630077,
+      "connections": {
+        "opened": 8,
+        "openAtEnd": 8
+      },
+      "checks": {
+        "littlesLawRatio": 0.9997182653831609,
+        "expectedFrameBytesPerMessage": null
+      }
+    },
+    {
+      "transport": "framed-json",
+      "entriesPerMessage": 1,
+      "concurrency": 1,
+      "repetition": 2,
+      "payloadBytes": 1024,
+      "powerThrottling": {
+        "mode": "off",
+        "applied": {
+          "17084": true,
+          "18704": true
+        }
+      },
+      "messages": 224080,
+      "errors": 0,
+      "messagesPerSec": 22409.707395606467,
+      "entriesPerSec": 22409.707395606467,
+      "burstMessagesPerSec": 20399.5,
+      "timeline": [
+        17822,
+        22977,
+        23420,
+        23206,
+        23135,
+        19973,
+        23326,
+        23520,
+        22001,
+        22031,
+        21958,
+        22265,
+        22366,
+        23392,
+        23246
+      ],
+      "rttMs": {
+        "p50": 0.039,
+        "p99": 0.109,
+        "p999": 0.185,
+        "mean": 0.044519882631198875
+      },
+      "clientCpu": {
+        "microsPerMessage": 26.079971438771867,
+        "percentOfOneCore": 58.444452882865136
+      },
+      "serverCpu": {
+        "microsPerMessage": 22.661549446626204,
+        "percentOfOneCore": 50.78109636387049
+      },
+      "wireBytesPerMessage": 1328.8728400571224,
+      "connections": {
+        "opened": 1,
+        "openAtEnd": 1
+      },
+      "checks": {
+        "littlesLawRatio": 0.9976775430519093,
+        "expectedFrameBytesPerMessage": null
+      }
+    },
+    {
+      "transport": "framed-binary",
+      "entriesPerMessage": 1,
+      "concurrency": 1,
+      "repetition": 2,
+      "payloadBytes": 1024,
+      "powerThrottling": {
+        "mode": "off",
+        "applied": {
+          "27780": true,
+          "30156": true
+        }
+      },
+      "messages": 222348,
+      "errors": 0,
+      "messagesPerSec": 22234.44202548339,
+      "entriesPerSec": 22234.44202548339,
+      "burstMessagesPerSec": 21178,
+      "timeline": [
+        20267,
+        22089,
+        22369,
+        22250,
+        22535,
+        21271,
+        22345,
+        22341,
+        22113,
+        22309,
+        22010,
+        22409,
+        22519,
+        22345,
+        22671
+      ],
+      "rttMs": {
+        "p50": 0.039,
+        "p99": 0.107,
+        "p999": 0.182,
+        "mean": 0.044866750319318714
+      },
+      "clientCpu": {
+        "microsPerMessage": 26.283123751956392,
+        "percentOfOneCore": 58.439059131147985
+      },
+      "serverCpu": {
+        "microsPerMessage": 24.034396531563136,
+        "percentOfOneCore": 53.43581757855813
+      },
+      "wireBytesPerMessage": 1256.8718855127997,
+      "connections": {
+        "opened": 1,
+        "openAtEnd": 1
+      },
+      "checks": {
+        "littlesLawRatio": 0.9975871588467303,
+        "expectedFrameBytesPerMessage": 1257
+      }
+    },
+    {
+      "transport": "http-plain",
+      "entriesPerMessage": 1,
+      "concurrency": 1,
+      "repetition": 2,
+      "payloadBytes": 1024,
+      "powerThrottling": {
+        "mode": "off",
+        "applied": {
+          "21192": true,
+          "33176": true
+        }
+      },
+      "messages": 113336,
+      "errors": 0,
+      "messagesPerSec": 11334.496218616008,
+      "entriesPerSec": 11334.496218616008,
+      "burstMessagesPerSec": 9877,
+      "timeline": [
+        8925,
+        10829,
+        12074,
+        10554,
+        8991,
+        9005,
+        10137,
+        10201,
+        11730,
+        12253,
+        11893,
+        11984,
+        11344,
+        12488,
+        12297
+      ],
+      "rttMs": {
+        "p50": 0.071,
+        "p99": 0.206,
+        "p999": 0.303,
+        "mean": 0.08806730076939225
+      },
+      "clientCpu": {
+        "microsPerMessage": 64.79847532999223,
+        "percentOfOneCore": 73.44580735998797
+      },
+      "serverCpu": {
+        "microsPerMessage": 33.63450271758312,
+        "percentOfOneCore": 38.12204105407804
+      },
+      "wireBytesPerMessage": 1584.620897155361,
+      "connections": {
+        "opened": 1,
+        "openAtEnd": 1
+      },
+      "checks": {
+        "littlesLawRatio": 0.9981984875543951,
+        "expectedFrameBytesPerMessage": null
+      }
+    },
+    {
+      "transport": "http-json",
+      "entriesPerMessage": 1,
+      "concurrency": 1,
+      "repetition": 2,
+      "payloadBytes": 1024,
+      "powerThrottling": {
+        "mode": "off",
+        "applied": {
+          "17524": true,
+          "33868": true
+        }
+      },
+      "messages": 48963,
+      "errors": 0,
+      "messagesPerSec": 4896.35684670299,
+      "entriesPerSec": 4896.35684670299,
+      "burstMessagesPerSec": 3724.5,
+      "timeline": [
+        3324,
+        4125,
+        4223,
+        4771,
+        4859,
+        4839,
+        4857,
+        4753,
+        5280,
+        5100,
+        4970,
+        4396,
+        4444,
+        5043,
+        5268
+      ],
+      "rttMs": {
+        "p50": 0.175,
+        "p99": 0.396,
+        "p999": 2.099,
+        "mean": 0.20396688928374634
+      },
+      "clientCpu": {
+        "microsPerMessage": 162.42877274676798,
+        "percentOfOneCore": 79.53092335402013
+      },
+      "serverCpu": {
+        "microsPerMessage": 66.07029798010743,
+        "percentOfOneCore": 32.34835379227551
+      },
+      "wireBytesPerMessage": 1777.9024978044647,
+      "connections": {
+        "opened": 1,
+        "openAtEnd": 1
+      },
+      "checks": {
+        "littlesLawRatio": 0.998694674845182,
+        "expectedFrameBytesPerMessage": null
+      }
+    },
+    {
+      "transport": "framed-json",
+      "entriesPerMessage": 1,
+      "concurrency": 8,
+      "repetition": 2,
+      "payloadBytes": 1024,
+      "powerThrottling": {
+        "mode": "off",
+        "applied": {
+          "21896": true,
+          "39268": true
+        }
+      },
+      "messages": 821060,
+      "errors": 0,
+      "messagesPerSec": 82104.69289328913,
+      "entriesPerSec": 82104.69289328913,
+      "burstMessagesPerSec": 79319.5,
+      "timeline": [
+        76783,
+        81856,
+        82289,
+        81027,
+        81886,
+        79148,
+        81752,
+        82720,
+        82052,
+        83034,
+        82426,
+        82395,
+        82886,
+        82211,
+        82448
+      ],
+      "rttMs": {
+        "p50": 0.089,
+        "p99": 0.253,
+        "p999": 0.828,
+        "mean": 0.09737633753928576
+      },
+      "clientCpu": {
+        "microsPerMessage": 13.168343361021119,
+        "percentOfOneCore": 108.1182787570022
+      },
+      "serverCpu": {
+        "microsPerMessage": 11.36092368401822,
+        "percentOfOneCore": 93.2726361253779
+      },
+      "wireBytesPerMessage": 1329.705181107349,
+      "connections": {
+        "opened": 1,
+        "openAtEnd": 1
+      },
+      "checks": {
+        "littlesLawRatio": 0.9993817860920399,
+        "expectedFrameBytesPerMessage": null
+      }
+    },
+    {
+      "transport": "framed-binary",
+      "entriesPerMessage": 1,
+      "concurrency": 8,
+      "repetition": 2,
+      "payloadBytes": 1024,
+      "powerThrottling": {
+        "mode": "off",
+        "applied": {
+          "22360": true,
+          "44536": true
+        }
+      },
+      "messages": 808368,
+      "errors": 0,
+      "messagesPerSec": 80835.76449385686,
+      "entriesPerSec": 80835.76449385686,
+      "burstMessagesPerSec": 78066,
+      "timeline": [
+        75364,
+        80768,
+        81555,
+        81381,
+        82715,
+        79289,
+        81833,
+        81290,
+        80783,
+        81940,
+        79824,
+        81053,
+        81114,
+        80361,
+        80799
+      ],
+      "rttMs": {
+        "p50": 0.089,
+        "p99": 0.251,
+        "p999": 2.135,
+        "mean": 0.09890731560378539
+      },
+      "clientCpu": {
+        "microsPerMessage": 12.989133661896561,
+        "percentOfOneCore": 104.99865496722988
+      },
+      "serverCpu": {
+        "microsPerMessage": 12.197415038695247,
+        "percentOfOneCore": 98.59229106876131
+      },
+      "wireBytesPerMessage": 1256.8792431169961,
+      "connections": {
+        "opened": 1,
+        "openAtEnd": 1
+      },
+      "checks": {
+        "littlesLawRatio": 0.9994060588583962,
+        "expectedFrameBytesPerMessage": 1257
+      }
+    },
+    {
+      "transport": "http-plain",
+      "entriesPerMessage": 1,
+      "concurrency": 8,
+      "repetition": 2,
+      "payloadBytes": 1024,
+      "powerThrottling": {
+        "mode": "off",
+        "applied": {
+          "14860": true,
+          "19312": true
+        }
+      },
+      "messages": 269907,
+      "errors": 0,
+      "messagesPerSec": 26990.484346030073,
+      "entriesPerSec": 26990.484346030073,
+      "burstMessagesPerSec": 25380,
+      "timeline": [
+        23449,
+        27311,
+        27651,
+        27270,
+        27201,
+        26751,
+        26871,
+        26913,
+        27134,
+        26876,
+        26790,
+        27057,
+        27085,
+        27128,
+        27289
+      ],
+      "rttMs": {
+        "p50": 0.284,
+        "p99": 0.522,
+        "p999": 0.751,
+        "mean": 0.296310715913258
+      },
+      "clientCpu": {
+        "microsPerMessage": 37.51662609713716,
+        "percentOfOneCore": 101.2591909390644
+      },
+      "serverCpu": {
+        "microsPerMessage": 26.686969956318286,
+        "percentOfOneCore": 72.02689708127373
+      },
+      "wireBytesPerMessage": 1585.9134961301486,
+      "connections": {
+        "opened": 8,
+        "openAtEnd": 8
+      },
+      "checks": {
+        "littlesLawRatio": 0.9996962174272194,
+        "expectedFrameBytesPerMessage": null
+      }
+    },
+    {
+      "transport": "http-json",
+      "entriesPerMessage": 1,
+      "concurrency": 8,
+      "repetition": 2,
+      "payloadBytes": 1024,
+      "powerThrottling": {
+        "mode": "off",
+        "applied": {
+          "21576": true,
+          "41136": true
+        }
+      },
+      "messages": 91673,
+      "errors": 0,
+      "messagesPerSec": 9167.589420798015,
+      "entriesPerSec": 9167.589420798015,
+      "burstMessagesPerSec": 7438.5,
+      "timeline": [
+        6478,
+        8399,
+        9033,
+        9107,
+        9184,
+        8911,
+        8839,
+        9234,
+        9155,
+        9264,
+        9176,
+        9280,
+        9217,
+        9209,
+        9387
+      ],
+      "rttMs": {
+        "p50": 0.799,
+        "p99": 2.999,
+        "p999": 3.613,
+        "mean": 0.8725226249822842
+      },
+      "clientCpu": {
+        "microsPerMessage": 122.38063551972773,
+        "percentOfOneCore": 112.19354195011934
+      },
+      "serverCpu": {
+        "microsPerMessage": 55.90522836604016,
+        "percentOfOneCore": 51.24529773148016
+      },
+      "wireBytesPerMessage": 1779.1673666183065,
+      "connections": {
+        "opened": 8,
+        "openAtEnd": 8
+      },
+      "checks": {
+        "littlesLawRatio": 0.9998661482743127,
+        "expectedFrameBytesPerMessage": null
+      }
+    },
+    {
+      "transport": "framed-json",
+      "entriesPerMessage": 16,
+      "concurrency": 1,
+      "repetition": 2,
+      "payloadBytes": 1024,
+      "powerThrottling": {
+        "mode": "off",
+        "applied": {
+          "6840": true,
+          "16088": true
+        }
+      },
+      "messages": 117071,
+      "errors": 0,
+      "messagesPerSec": 11706.91889396471,
+      "entriesPerSec": 187310.70230343536,
+      "burstMessagesPerSec": 11117.5,
+      "timeline": [
+        10427,
+        11808,
+        12126,
+        10851,
+        11737,
+        11702,
+        12275,
+        11266,
+        12140,
+        12161,
+        11601,
+        11690,
+        11333,
+        11372,
+        11536
+      ],
+      "rttMs": {
+        "p50": 0.075,
+        "p99": 0.233,
+        "p999": 0.884,
+        "mean": 0.08530324760188707
+      },
+      "clientCpu": {
+        "microsPerMessage": 64.05514602249917,
+        "percentOfOneCore": 74.9888399226464
+      },
+      "serverCpu": {
+        "microsPerMessage": 36.43942564768388,
+        "percentOfOneCore": 42.65716329864064
+      },
+      "wireBytesPerMessage": 17994.88108925353,
+      "connections": {
+        "opened": 1,
+        "openAtEnd": 1
+      },
+      "checks": {
+        "littlesLawRatio": 0.9986382010670816,
+        "expectedFrameBytesPerMessage": null
+      }
+    },
+    {
+      "transport": "framed-binary",
+      "entriesPerMessage": 16,
+      "concurrency": 1,
+      "repetition": 2,
+      "payloadBytes": 1024,
+      "powerThrottling": {
+        "mode": "off",
+        "applied": {
+          "2908": true,
+          "25304": true
+        }
+      },
+      "messages": 106739,
+      "errors": 0,
+      "messagesPerSec": 10673.842788202655,
+      "entriesPerSec": 170781.4846112425,
+      "burstMessagesPerSec": 9739,
+      "timeline": [
+        9101,
+        10377,
+        10815,
+        10543,
+        11016,
+        10523,
+        10836,
+        10959,
+        9656,
+        10248,
+        10914,
+        10775,
+        11009,
+        10902,
+        10904
+      ],
+      "rttMs": {
+        "p50": 0.076,
+        "p99": 0.304,
+        "p999": 3.657,
+        "mean": 0.09357020957663141
+      },
+      "clientCpu": {
+        "microsPerMessage": 62.80740872595771,
+        "percentOfOneCore": 67.03964066752603
+      },
+      "serverCpu": {
+        "microsPerMessage": 57.38296217877252,
+        "percentOfOneCore": 61.245898974604664
+      },
+      "wireBytesPerMessage": 17965.035254218234,
+      "connections": {
+        "opened": 1,
+        "openAtEnd": 1
+      },
+      "checks": {
+        "littlesLawRatio": 0.9987537066801383,
+        "expectedFrameBytesPerMessage": 17967
+      }
+    },
+    {
+      "transport": "http-plain",
+      "entriesPerMessage": 16,
+      "concurrency": 1,
+      "repetition": 2,
+      "payloadBytes": 1024,
+      "powerThrottling": {
+        "mode": "off",
+        "applied": {
+          "39692": true,
+          "45904": true
+        }
+      },
+      "messages": 67484,
+      "errors": 0,
+      "messagesPerSec": 6748.764095822969,
+      "entriesPerSec": 107980.2255331675,
+      "burstMessagesPerSec": 6799,
+      "timeline": [
+        6132,
+        7466,
+        8548,
+        8720,
+        8145,
+        8079,
+        7391,
+        7711,
+        7762,
+        6668,
+        6304,
+        6343,
+        6258,
+        5703,
+        5279
+      ],
+      "rttMs": {
+        "p50": 0.124,
+        "p99": 0.348,
+        "p999": 0.552,
+        "mean": 0.14793527947365084
+      },
+      "clientCpu": {
+        "microsPerMessage": 98.86787979372889,
+        "percentOfOneCore": 66.72359973820588
+      },
+      "serverCpu": {
+        "microsPerMessage": 62.0591547626104,
+        "percentOfOneCore": 41.881005144123456
+      },
+      "wireBytesPerMessage": 18252.09557821113,
+      "connections": {
+        "opened": 1,
+        "openAtEnd": 1
+      },
+      "checks": {
+        "littlesLawRatio": 0.9983803026173114,
+        "expectedFrameBytesPerMessage": null
+      }
+    },
+    {
+      "transport": "http-json",
+      "entriesPerMessage": 16,
+      "concurrency": 1,
+      "repetition": 2,
+      "payloadBytes": 1024,
+      "powerThrottling": {
+        "mode": "off",
+        "applied": {
+          "29296": true,
+          "33084": true
+        }
+      },
+      "messages": 35194,
+      "errors": 0,
+      "messagesPerSec": 3519.7031168324215,
+      "entriesPerSec": 56315.249869318744,
+      "burstMessagesPerSec": 2701,
+      "timeline": [
+        2290,
+        3112,
+        3110,
+        3045,
+        3214,
+        3277,
+        3388,
+        3438,
+        3789,
+        3642,
+        3617,
+        3360,
+        3617,
+        3483,
+        3585
+      ],
+      "rttMs": {
+        "p50": 0.257,
+        "p99": 0.572,
+        "p999": 2.405,
+        "mean": 0.28379260385293537
+      },
+      "clientCpu": {
+        "microsPerMessage": 229.98238336080013,
+        "percentOfOneCore": 80.9469711531557
+      },
+      "serverCpu": {
+        "microsPerMessage": 93.68074103540376,
+        "percentOfOneCore": 32.97116717931815
+      },
+      "wireBytesPerMessage": 18445.389469795988,
+      "connections": {
+        "opened": 1,
+        "openAtEnd": 1
+      },
+      "checks": {
+        "littlesLawRatio": 0.9988657123151653,
+        "expectedFrameBytesPerMessage": null
+      }
+    },
+    {
+      "transport": "framed-json",
+      "entriesPerMessage": 16,
+      "concurrency": 8,
+      "repetition": 2,
+      "payloadBytes": 1024,
+      "powerThrottling": {
+        "mode": "off",
+        "applied": {
+          "11752": true,
+          "24628": true
+        }
+      },
+      "messages": 217975,
+      "errors": 0,
+      "messagesPerSec": 21795.741083694546,
+      "entriesPerSec": 348731.8573391127,
+      "burstMessagesPerSec": 21334,
+      "timeline": [
+        21599,
+        21069,
+        21753,
+        21724,
+        22217,
+        20735,
+        21867,
+        21692,
+        22205,
+        20921,
+        22328,
+        21885,
+        22147,
+        22126
+      ],
+      "rttMs": {
+        "p50": 0.321,
+        "p99": 1.618,
+        "p999": 2.671,
+        "mean": 0.3669927331115951
+      },
+      "clientCpu": {
+        "microsPerMessage": 53.90526436517949,
+        "percentOfOneCore": 117.49051851515581
+      },
+      "serverCpu": {
+        "microsPerMessage": 36.70145658905838,
+        "percentOfOneCore": 79.97911105577447
+      },
+      "wireBytesPerMessage": 17995.52785869939,
+      "connections": {
+        "opened": 1,
+        "openAtEnd": 1
+      },
+      "checks": {
+        "littlesLawRatio": 0.9998598238122176,
+        "expectedFrameBytesPerMessage": null
+      }
+    },
+    {
+      "transport": "framed-binary",
+      "entriesPerMessage": 16,
+      "concurrency": 8,
+      "repetition": 2,
+      "payloadBytes": 1024,
+      "powerThrottling": {
+        "mode": "off",
+        "applied": {
+          "8320": true,
+          "12328": true
+        }
+      },
+      "messages": 218240,
+      "errors": 0,
+      "messagesPerSec": 21823.291834179978,
+      "entriesPerSec": 349172.66934687964,
+      "burstMessagesPerSec": 19492.5,
+      "timeline": [
+        18670,
+        20315,
+        21027,
+        20868,
+        20872,
+        20922,
+        21770,
+        20850,
+        20767,
+        21982,
+        22539,
+        22691,
+        21873,
+        22357,
+        22546
+      ],
+      "rttMs": {
+        "p50": 0.306,
+        "p99": 1.791,
+        "p999": 5.955,
+        "mean": 0.36653262142594967
+      },
+      "clientCpu": {
+        "microsPerMessage": 39.23203812316716,
+        "percentOfOneCore": 85.61722172115515
+      },
+      "serverCpu": {
+        "microsPerMessage": 43.7408357771261,
+        "percentOfOneCore": 95.44035264900367
+      },
+      "wireBytesPerMessage": 17965.525559017595,
+      "connections": {
+        "opened": 1,
+        "openAtEnd": 1
+      },
+      "checks": {
+        "littlesLawRatio": 0.9998685455156886,
+        "expectedFrameBytesPerMessage": 17955
+      }
+    },
+    {
+      "transport": "http-plain",
+      "entriesPerMessage": 16,
+      "concurrency": 8,
+      "repetition": 2,
+      "payloadBytes": 1024,
+      "powerThrottling": {
+        "mode": "off",
+        "applied": {
+          "10652": true,
+          "23512": true
+        }
+      },
+      "messages": 165803,
+      "errors": 0,
+      "messagesPerSec": 16580.826109612455,
+      "entriesPerSec": 265293.2177537993,
+      "burstMessagesPerSec": 15585.5,
+      "timeline": [
+        13864,
+        17307,
+        17518,
+        16502,
+        17145,
+        16999,
+        16213,
+        16136,
+        16449,
+        16751,
+        16560,
+        16358,
+        16613,
+        16977,
+        16734
+      ],
+      "rttMs": {
+        "p50": 0.451,
+        "p99": 1.069,
+        "p999": 1.4,
+        "mean": 0.48234979946079903
+      },
+      "clientCpu": {
+        "microsPerMessage": 60.50553970676043,
+        "percentOfOneCore": 100.32318325460466
+      },
+      "serverCpu": {
+        "microsPerMessage": 48.15956285471312,
+        "percentOfOneCore": 79.84696421842042
+      },
+      "wireBytesPerMessage": 18253.747561865588,
+      "connections": {
+        "opened": 8,
+        "openAtEnd": 8
+      },
+      "checks": {
+        "littlesLawRatio": 0.9997197686082435,
+        "expectedFrameBytesPerMessage": null
+      }
+    },
+    {
+      "transport": "http-json",
+      "entriesPerMessage": 16,
+      "concurrency": 8,
+      "repetition": 2,
+      "payloadBytes": 1024,
+      "powerThrottling": {
+        "mode": "off",
+        "applied": {
+          "36600": true,
+          "38488": true
+        }
+      },
+      "messages": 63215,
+      "errors": 0,
+      "messagesPerSec": 6321.004243637172,
+      "entriesPerSec": 101136.06789819476,
+      "burstMessagesPerSec": 5335,
+      "timeline": [
+        4819,
+        5851,
+        6163,
+        6583,
+        6232,
+        6299,
+        6139,
+        6443,
+        6589,
+        6659,
+        6204,
+        6104,
+        6268,
+        6186,
+        6340
+      ],
+      "rttMs": {
+        "p50": 1.139,
+        "p99": 3.915,
+        "p999": 4.719,
+        "mean": 1.2654147876295159
+      },
+      "clientCpu": {
+        "microsPerMessage": 186.8702048564423,
+        "percentOfOneCore": 118.12073579069194
+      },
+      "serverCpu": {
+        "microsPerMessage": 87.7481610377284,
+        "percentOfOneCore": 55.4557428830622
+      },
+      "wireBytesPerMessage": 18448.648437870757,
+      "connections": {
+        "opened": 8,
+        "openAtEnd": 8
+      },
+      "checks": {
+        "littlesLawRatio": 0.9998365303209252,
+        "expectedFrameBytesPerMessage": null
+      }
+    }
+  ]
+}
