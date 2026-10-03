@@ -164,3 +164,55 @@ fsync probe on this machine (outside Raft, added with the methodology amendment)
 itself alternates between a fast and a slow fsync regime, which is the most likely cause. The baseline sweep did not record a disk-state covariate,
 so its trials cannot be assigned to a regime after the fact. Every later sweep samples one immediately before
 each trial (see the methodology amendments).
+
+## 4. Optimizations under test
+
+Every optimization is an independent `RaftNode` option and is **off by default**: with no options the engine
+takes exactly the code paths of the baseline measured above, and a 60-seed simulator fingerprint of the
+default engine is unchanged. Named combinations live in [`replica/raft-profiles.js`](replica/raft-profiles.js). The
+same profile drives the live replica (`RAFT_PROFILE=<name>`) and the deterministic simulator
+(`raftProfile` in a schedule, `--raft-profile` on the search CLI), so the configuration that is benchmarked
+is the configuration that is fault-tested.
+
+- **Group commit** (`groupCommit`, §5): one write + `fsync` for everything appended in an event-loop turn,
+  and a lazily persisted commit index.
+
+## 5. Group commit: design and durability argument
+
+**What changes.** With group commit on, `_appendToLog` encodes entries into the log store's buffer
+(`LogStore.appendBuffered`) and schedules a flush at the end of the current event-loop turn
+(`maxDelayMs: 0`), after a bounded delay, or immediately once `maxEntries` are waiting. The flush is one
+`writeSync` + one `fsyncSync` for every buffered record, in append order. The commit index, which Raft keeps
+in volatile state and which the replica persists only so a restart can replay its committed prefix
+promptly, is written at most once per `metaIntervalMs` instead of with a write + `fsync` + rename on every
+advance. Term and vote still persist synchronously, and carry the latest commit index with them.
+
+**What does not change.** A write is acknowledged to its client only after it is committed, and an entry
+is committed only when a majority of voters hold it *durably*. Three rules enforce that:
+
+1. *A follower never acknowledges a volatile entry.* Its successful AppendEntries response is prepared when
+   the RPC is processed but released only when every entry it acknowledges (through `matchIndex`) is
+   flushed. Heartbeats are held the same way, because a heartbeat's `prevLogIndex` can name an entry the
+   follower has appended but not yet flushed.
+2. *A prepared acknowledgement is re-validated when it is released.* If the term moved on, or the log was
+   truncated in between (tracked by a log epoch), the "success" describes a log the follower no longer has.
+   It is replaced by a rejection that carries the current term, so a deposed leader can never count an entry
+   that has since been overwritten.
+3. *The leader counts its own copy only once it is durable* (Raft thesis §10.2.1). The leader may send an
+   entry to followers before its own `fsync` finishes, which is what hides the leader's disk latency behind
+   replication, but `_advanceCommitIndex` counts the leader toward the majority only for indexes below its
+   durable length.
+
+A lagging persisted commit index is always safe: a restarted node replays a shorter committed prefix, and
+the leader supplies the rest. A crash (`stop()`) deliberately does **not** flush; only graceful shutdown
+(`flushDurable()`) does. The simulator models the crash by dropping a node's unflushed buffer, exactly as a
+real crash loses a write that was never fsynced.
+
+**Tests.** [`replica/group-commit.test.js`](replica/group-commit.test.js) covers each rule: no ack before
+durability; a crash before the grouped flush loses only unacknowledged entries; a crash after the flush
+keeps them; an ack prepared in one term is revoked after a term change; a heartbeat naming a buffered index
+is held; truncation with a pending buffer writes the retained prefix durably; the leader counts itself only
+once durable; appends in one turn share one `fsync` on the real `LogStore`; a lagging persisted commit
+index loses nothing on restart; and group commit off keeps the original synchronous contract. The
+`group-commit-delay` simulator profile (an 8 ms flush window and a 4-entry cap, strictly more adversarial
+than the benchmarked setting) runs through the materialized schedule search.

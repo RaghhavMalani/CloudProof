@@ -42,6 +42,12 @@ const REAL_CLOCK = {
     clearTimeout: (handle) => clearTimeout(handle),
     setInterval: (fn, ms) => setInterval(fn, ms),
     clearInterval: (handle) => clearInterval(handle),
+    // End of the current event-loop turn: everything already read from the
+    // sockets in this turn is processed first, which is what lets group
+    // commit batch it. Clocks without these (the simulator's VirtualClock)
+    // fall back to setTimeout(fn, 0).
+    setImmediate: (fn) => setImmediate(fn),
+    clearImmediate: (handle) => clearImmediate(handle),
 };
 
 /**
@@ -174,9 +180,29 @@ class RaftNode {
          * simulator never passes one.
          */
         perf = null,
+        /**
+         * Durable group commit (Phase IV-A). Off by default, which keeps the
+         * original contract exactly: every append is fsynced before the call
+         * returns. When enabled, appends are buffered and flushed together —
+         * one write and one fsync for everything appended in the same event-
+         * loop turn (maxDelayMs 0), a bounded delay, or as soon as maxEntries
+         * are waiting — and nothing that depends on durability happens before
+         * the flush: a follower does not acknowledge, and a leader does not
+         * count its own copy toward a majority. The commit index, which Raft
+         * does not require to be durable at all, is persisted lazily, at most
+         * once per metaIntervalMs. See CLOUDPROOF-PHASE-IV-A.md §5.
+         */
+        groupCommit = null,
     }) {
         this._clock = clock;
         this._perf = perf;
+        this._groupCommit = groupCommit && groupCommit.enabled !== false
+            ? {
+                maxEntries: Math.max(1, groupCommit.maxEntries ?? 1024),
+                maxDelayMs: Math.max(0, groupCommit.maxDelayMs ?? 0),
+                metaIntervalMs: Math.max(0, groupCommit.metaIntervalMs ?? 100),
+            }
+            : null;
         this._random = random;
         this._randomElectionTimeout = randomElectionTimeout;
         this.replicaId = replicaId;
@@ -254,6 +280,12 @@ class RaftNode {
             : logPath || this.storagePath.replace(/\.json$/, '') + '.log';
         this._logStore = logStore
             ?? (this.logPath === false ? null : new LogStore(this.logPath));
+        // Group commit needs a store that can separate "appended" from
+        // "durable". Without one (no storage at all) every append is as
+        // durable as it will ever be, so the synchronous path is exact.
+        if (this._groupCommit && !(this._logStore && typeof this._logStore.appendBuffered === 'function')) {
+            this._groupCommit = null;
+        }
         if (perf) {
             if (this._store && typeof this._store.setPerf === 'function') this._store.setPerf(perf);
             if (this._logStore && typeof this._logStore.setPerf === 'function') this._logStore.setPerf(perf);
@@ -284,6 +316,18 @@ class RaftNode {
         const storedCommit = Number.isInteger(stable.commitIndex) ? stable.commitIndex : -1;
         this.commitIndex = Math.min(storedCommit, this.log.length - 1);
         this.lastApplied = -1;
+
+        // Group-commit bookkeeping. Entries [0, _durableLength) are on stable
+        // storage; the store's pending buffer holds exactly the rest. With
+        // group commit off this always equals log.length.
+        this._durableLength = this.log.length;
+        this._flushHandle = null;
+        this._durableWaiters = [];
+        this._metaDirty = false;
+        this._metaTimer = null;
+        // Bumped on every truncation, so an acknowledgement prepared before a
+        // truncation is never sent after it.
+        this._logEpoch = 0;
 
         // Leader volatile state, keyed by peer URL.
         this.nextIndex = {};
@@ -422,7 +466,136 @@ class RaftNode {
 
     /** Durably records term / vote / commitIndex. Cheap: the file is ~100 bytes. */
     _persistState() {
+        this._metaDirty = false;
         if (this._store) this._store.save(this._persistentSnapshot());
+    }
+
+    /**
+     * Records that commitIndex advanced.
+     *
+     * Raft keeps commitIndex in volatile state; it is persisted here only so a
+     * restarted node can replay its committed prefix without waiting for a
+     * leader. A persisted value that lags the true one is therefore always
+     * safe — restart replays a shorter prefix and the leader supplies the
+     * rest — while a synchronous rewrite of the metadata file on every advance
+     * costs an fsync and a rename on the critical path of every write. Under
+     * group commit it is coalesced to at most one write per metaIntervalMs.
+     * Term and vote changes still persist synchronously (and carry the latest
+     * commitIndex with them), because those are the values safety depends on.
+     */
+    _persistCommitIndex() {
+        if (!this._groupCommit) {
+            this._persistState();
+            return;
+        }
+        this._metaDirty = true;
+        if (this._metaTimer !== null) return;
+        this._metaTimer = this._clock.setTimeout(() => {
+            this._metaTimer = null;
+            if (this._metaDirty) this._persistState();
+        }, this._groupCommit.metaIntervalMs);
+        if (this._metaTimer && this._metaTimer.unref) this._metaTimer.unref();
+    }
+
+    /** Runs `fn` at the end of the current event-loop turn (virtual: next tick of the clock). */
+    _defer(fn) {
+        if (typeof this._clock.setImmediate === 'function') {
+            return { immediate: this._clock.setImmediate(fn) };
+        }
+        return { timeout: this._clock.setTimeout(fn, 0) };
+    }
+
+    _cancelDeferred(handle) {
+        if (!handle) return;
+        if (handle.immediate !== undefined) this._clock.clearImmediate(handle.immediate);
+        else this._clock.clearTimeout(handle.timeout);
+    }
+
+    _scheduleFlush() {
+        if (this._logStore.pendingCount >= this._groupCommit.maxEntries) {
+            this._flushLog();
+            return;
+        }
+        if (this._flushHandle !== null) return;
+        this._flushHandle = this._groupCommit.maxDelayMs > 0
+            ? { timeout: this._clock.setTimeout(() => this._flushLog(), this._groupCommit.maxDelayMs) }
+            : this._defer(() => this._flushLog());
+    }
+
+    /**
+     * One durable write for everything appended since the last flush, then
+     * everything that was waiting on it: follower acknowledgements, the
+     * leader's own vote toward a majority, and the lazy commit index.
+     */
+    _flushLog() {
+        this._cancelDeferred(this._flushHandle);
+        this._flushHandle = null;
+        if (!this._groupCommit) return;
+        const before = this._durableLength;
+        if (this._logStore.pendingCount > 0) this._logStore.flush();
+        this._durableLength = this.log.length;
+        if (this._perf && this._durableLength > before) {
+            this._perf.observeValue('groupCommit.entriesPerFlush', this._durableLength - before);
+            this._perf.entriesDurable(before, this._durableLength);
+        }
+        this._releaseDurableWaiters();
+        if (this.state === STATES.LEADER) this._advanceCommitIndex();
+    }
+
+    /** Public: make everything appended so far durable now (graceful shutdown). */
+    flushDurable() {
+        if (this._groupCommit) this._flushLog();
+        if (this._metaDirty) this._persistState();
+    }
+
+    _releaseDurableWaiters() {
+        if (this._durableWaiters.length === 0) return;
+        const ready = [];
+        const waiting = [];
+        for (const waiter of this._durableWaiters) {
+            // A waiter whose term or log epoch has moved on is released at
+            // once: it will be revoked, and the stale leader should hear so now
+            // rather than whenever the log next reaches the old length.
+            const obsolete = waiter.term !== this.currentTerm || waiter.epoch !== this._logEpoch;
+            (obsolete || waiter.need <= this._durableLength ? ready : waiting).push(waiter);
+        }
+        this._durableWaiters = waiting;
+        for (const waiter of ready) waiter.release();
+    }
+
+    /**
+     * A follower's successful AppendEntries response under group commit.
+     *
+     * The response is prepared when the RPC is processed but not sent until
+     * the entries it acknowledges are durable. It is then re-validated: if the
+     * term moved on or the log was truncated in the meantime, the prepared
+     * "success" describes a log this node no longer has, and sending it could
+     * let a deposed leader count an entry that has since been overwritten. It
+     * is replaced by a plain rejection carrying the current term instead.
+     */
+    _acknowledgeWhenDurable(response) {
+        const term = response.term;
+        const epoch = this._logEpoch;
+        return new Promise((resolve) => {
+            this._durableWaiters.push({
+                need: response.matchIndex + 1,
+                term,
+                epoch,
+                release: () => {
+                    if (this.currentTerm === term && this._logEpoch === epoch && !this.paused) {
+                        resolve(response);
+                    } else {
+                        if (this._perf) this._perf.count('groupCommit.revokedAcks');
+                        resolve({
+                            term: this.currentTerm,
+                            success: false,
+                            conflictIndex: this.log.length,
+                            logLength: this.log.length,
+                        });
+                    }
+                },
+            });
+        });
     }
 
     /**
@@ -433,8 +606,14 @@ class RaftNode {
         if (entries.length === 0) return;
         const firstIndex = this.log.length;
         this.log.push(...entries);
-        if (this._logStore) this._logStore.append(entries);
-        if (this._perf) this._perf.entriesDurable(firstIndex, this.log.length);
+        if (this._groupCommit) {
+            this._logStore.appendBuffered(entries);
+            this._scheduleFlush();
+        } else {
+            if (this._logStore) this._logStore.append(entries);
+            this._durableLength = this.log.length;
+            if (this._perf) this._perf.entriesDurable(firstIndex, this.log.length);
+        }
         // Config entries are live the instant they land. See _refreshConfiguration.
         if (entries.some((e) => e.data && e.data.op === 'config')) this._refreshConfiguration();
     }
@@ -456,8 +635,13 @@ class RaftNode {
         if (index >= this.log.length) return;
         const hadConfig = this.log.slice(index).some((e) => e.data && e.data.op === 'config');
         this.log = this.log.slice(0, index);
+        // rewrite() replaces the file with the whole in-memory log and drops
+        // any buffered appends, so afterwards everything retained is durable.
         if (this._logStore) this._logStore.rewrite(this.log);
+        this._durableLength = this.log.length;
+        this._logEpoch += 1;
         if (this._perf) this._perf.forgetFrom(index);
+        this._releaseDurableWaiters();
         // Rolling back a config entry must roll back the configuration with it,
         // or a node keeps enforcing a membership the cluster has discarded.
         if (hadConfig) this._refreshConfiguration();
@@ -504,6 +688,13 @@ class RaftNode {
         this._stopHeartbeat();
         if (this._leaseTickTimer) this._clock.clearInterval(this._leaseTickTimer);
         this._leaseTickTimer = null;
+        // A stop is a crash as far as durability is concerned: buffered
+        // appends and a lazy commit index are *not* flushed here. Graceful
+        // shutdown calls flushDurable() first.
+        this._cancelDeferred(this._flushHandle);
+        this._flushHandle = null;
+        if (this._metaTimer !== null) this._clock.clearTimeout(this._metaTimer);
+        this._metaTimer = null;
         if (this._logStore) this._logStore.close();
     }
 
@@ -528,6 +719,10 @@ class RaftNode {
         // votedFor is deliberately retained: clearing it in the same term could
         // let this node vote twice after a pause or restart.
         this._resetElectionTimer();
+        // A pause cancels pending flushes; the buffered entries are still in
+        // memory, so resume the durability work that was interrupted.
+        if (this._groupCommit && this._logStore.pendingCount > 0) this._scheduleFlush();
+        if (this._metaDirty) this._persistCommitIndex();
         console.log(`[${this.replicaId}] *** RESUMED · stable state restored ***`);
     }
 
@@ -740,6 +935,8 @@ class RaftNode {
             this.currentTerm = term;
             this.votedFor = null;
             this._persistState();
+            // Acknowledgements prepared for the previous term are now revoked.
+            this._releaseDurableWaiters();
         }
 
         this.state = STATES.FOLLOWER;
@@ -851,20 +1048,31 @@ class RaftNode {
         entries = [],
         leaderCommit = -1,
     }) {
-        if (!this._perf) {
+        if (!this._perf && !this._groupCommit) {
             return this._handleAppendEntries({
                 term, leaderId, leaderUrl, prevLogIndex, prevLogTerm, entries, leaderCommit,
             });
         }
-        const receivedAt = this._perf.now();
-        const response = this._handleAppendEntries({
+        const receivedAt = this._perf ? this._perf.now() : 0;
+        const prepared = this._handleAppendEntries({
             term, leaderId, leaderUrl, prevLogIndex, prevLogTerm, entries, leaderCommit,
         });
-        if (entries.length > 0) {
-            this._perf.observeMs('follower.append', this._perf.now() - receivedAt);
-            this._perf.observeValue('follower.entriesPerAppend', entries.length);
+        // Under group commit a success is only sent once everything it
+        // acknowledges is durable. That includes heartbeats, whose
+        // prevLogIndex can name an entry this node has appended but not yet
+        // flushed.
+        const response = this._groupCommit && prepared.success && prepared.matchIndex >= this._durableLength
+            ? this._acknowledgeWhenDurable(prepared)
+            : prepared;
+        if (this._perf) {
+            this._perf.count(entries.length > 0 ? 'follower.appendEntries' : 'follower.heartbeats');
+            if (entries.length > 0) {
+                this._perf.observeValue('follower.entriesPerAppend', entries.length);
+                const record = () => this._perf.observeMs('follower.append', this._perf.now() - receivedAt);
+                if (response === prepared) record();
+                else response.then(record);
+            }
         }
-        this._perf.count(entries.length > 0 ? 'follower.appendEntries' : 'follower.heartbeats');
         return response;
     }
 
@@ -970,7 +1178,7 @@ class RaftNode {
             if (next > this.commitIndex) {
                 if (this._perf) this._perf.entriesCommitted(this.commitIndex, next);
                 this.commitIndex = next;
-                this._persistState();
+                this._persistCommitIndex();
                 this._applyCommittedEntries();
             }
         }
@@ -1033,8 +1241,12 @@ class RaftNode {
             // Only voters count. A learner acknowledging an entry must never
             // contribute to a majority — that is the entire point of it being a
             // learner — and a leader that has removed itself no longer counts
-            // its own copy either.
-            let replicated = this.isVoter ? 1 : 0;
+            // its own copy either. Under group commit the leader's copy counts
+            // only once it is durable (Raft thesis §10.2.1): the leader may
+            // replicate before its own fsync, but never counts an entry it
+            // could still lose.
+            const selfDurable = !this._groupCommit || this._durableLength > index;
+            let replicated = this.isVoter && selfDurable ? 1 : 0;
             for (const peerUrl of this.voterPeers) {
                 if ((this.matchIndex[peerUrl] ?? -1) >= index) replicated += 1;
             }
@@ -1042,7 +1254,7 @@ class RaftNode {
             if (replicated >= this.quorumSize) {
                 if (this._perf) this._perf.entriesCommitted(this.commitIndex, index);
                 this.commitIndex = index;
-                this._persistState();
+                this._persistCommitIndex();
                 this._applyCommittedEntries();
                 this._releaseCommitWaiters();
                 this._scheduleCommitBroadcast();
@@ -1215,7 +1427,7 @@ class RaftNode {
         if (this._perf) this._perf.entryAdmitted(entry.index);
         this._appendToLog([entry]);
 
-        console.log(`[${this.replicaId}] Entry persisted · index=${entry.index}`);
+        console.log(`[${this.replicaId}] ${this._groupCommit ? 'Entry appended' : 'Entry persisted'} · index=${entry.index}`);
         void this._replicateAll();
 
         const committed = await this._awaitCommit(entry.index);

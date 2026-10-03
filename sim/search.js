@@ -35,6 +35,7 @@ const CLI_DEFAULTS = {
     out: null,
     replay: null,
     verbose: false,
+    'raft-profile': null,
 };
 
 function parseArgs(argv = process.argv.slice(2)) {
@@ -46,7 +47,7 @@ function parseArgs(argv = process.argv.slice(2)) {
         const key = token.replace(/^--/, '');
         if (!Object.hasOwn(options, key)) continue;
         const value = argv[++index];
-        if (['out', 'replay'].includes(key)) options[key] = value;
+        if (['out', 'replay', 'raft-profile'].includes(key)) options[key] = value;
         else options[key] = Number(value);
     }
     return options;
@@ -141,6 +142,7 @@ async function search(options = {}) {
             drop: settings.drop,
             membership: Boolean(settings.membership),
             coverageHint: coverage.nextHint(),
+            ...(settings['raft-profile'] ? { raftProfile: settings['raft-profile'] } : {}),
         });
         const result = await runWithoutProtocolChatter(
             () => runSchedule(schedule, { recording: true }), !settings.verbose,
@@ -224,7 +226,8 @@ async function main() {
     }
 
     output('searching ' + (options.seed > 0 ? 1 : options.runs)
-        + ' materialized schedules with domain-separated decision tapes');
+        + ' materialized schedules with domain-separated decision tapes'
+        + (options['raft-profile'] ? ' (raft profile: ' + options['raft-profile'] + ')' : ''));
     const outcome = await search(options);
     output('searched ' + outcome.runs + ' schedules in '
         + (outcome.elapsedMs / 1000).toFixed(1) + 's; violations: ' + outcome.failures.length);

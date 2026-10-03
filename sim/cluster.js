@@ -29,14 +29,36 @@ class MemoryStableStore {
 }
 
 class MemoryLogStore {
-    constructor() { this.entries = []; this.appends = 0; this.rewrites = 0; }
+    constructor() {
+        this.entries = []; this.appends = 0; this.rewrites = 0;
+        // Group commit: appended but not yet durable. A simulated crash drops
+        // these (SimCluster.crash), exactly as a real crash loses a write that
+        // was never fsynced — which is what the group-commit tests depend on.
+        this.pending = [];
+        this.flushes = 0;
+    }
+    get pendingCount() { return this.pending.length; }
     load() { return this.entries.map((e) => JSON.parse(JSON.stringify(e))); }
     append(entries) {
         this.entries.push(...entries.map((e) => JSON.parse(JSON.stringify(e))));
         this.appends += entries.length;
     }
+    appendBuffered(entries) {
+        this.pending.push(...entries.map((e) => JSON.parse(JSON.stringify(e))));
+    }
+    flush() {
+        const count = this.pending.length;
+        if (count === 0) return 0;
+        this.entries.push(...this.pending);
+        this.pending = [];
+        this.appends += count;
+        this.flushes += 1;
+        return count;
+    }
+    dropPending() { this.pending = []; }
     rewrite(entries) {
         this.entries = entries.map((e) => JSON.parse(JSON.stringify(e)));
+        this.pending = [];
         this.rewrites += 1;
     }
     close() {}
@@ -61,7 +83,12 @@ class SimCluster {
         recorderOptions = {},
         decisionTrace = null,
         decisionStreams = null,
+        // Extra RaftNode options (the Phase IV-A optimizations). Empty by
+        // default, so the default cluster is the exact engine every existing
+        // schedule and artifact was recorded on.
+        raftOptions = null,
     } = {}) {
+        this.raftOptions = raftOptions || {};
         this.clock = new VirtualClock();
         this.decisionStreams = decisionStreams || new DecisionStreams({
             seed, decisions: decisionTrace, clock: this.clock,
@@ -125,6 +152,8 @@ class SimCluster {
             commitTimeoutMs: 1500,
             ...this.config,
             electionTimeoutMin: this.config.electionTimeoutMin + timeoutOffset,
+            // May be per node, e.g. to give each node its own disk latency.
+            ...(typeof this.raftOptions === 'function' ? this.raftOptions(index) : this.raftOptions),
         });
 
         this.network.register(url, {
@@ -274,6 +303,8 @@ class SimCluster {
         const url = this.urls[index];
         const node = this.nodes.get(url);
         if (node) node.stop();
+        // Anything appended but not yet flushed never reached the disk.
+        this.stores[index].log.dropPending();
         this.network.crash(url);
         this.nodes.delete(url);
         this.recorder?.record(EVENT_TYPES.FAULT_APPLIED, {

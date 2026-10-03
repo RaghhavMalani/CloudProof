@@ -12,6 +12,7 @@ const { RaftNode } = require('./raft');
 const { decodeVector } = require('./state-machine');
 const { RaftPerf } = require('./raft-perf');
 const { createPerfService } = require('./perf-service');
+const { optionsFromEnv } = require('./raft-profiles');
 
 // Benchmark instrumentation (Phase IV-A). Off unless explicitly enabled; when
 // off, the Raft engine sees `perf: null` and every hook is a null check.
@@ -32,11 +33,15 @@ const PEERS = (process.env.PEERS || '').split(',').filter(Boolean);
 const GATEWAY_URL = process.env.GATEWAY_URL || 'http://gateway:4000';
 const NODE_URL = process.env.NODE_URL || `http://${REPLICA_ID}:${PORT}`;
 
+// Phase IV-A optimizations (group commit, ...) are opt-in; see raft-profiles.js.
+const RAFT_OPTIONS = optionsFromEnv(process.env);
+
 const raft = new RaftNode({
     replicaId: REPLICA_ID,
     peers: PEERS,
     nodeUrl: NODE_URL,
     perf,
+    ...RAFT_OPTIONS,
 
     // Every node applies committed entries. Only the leader publishes the
     // client-visible event, preventing follower echo duplicates.
@@ -81,7 +86,14 @@ app.post('/pre-vote', (req, res) => {
 // Empty entries are heartbeats. The same consistency checks therefore repair a
 // lagging follower and propagate leaderCommit even when no client is drawing.
 app.post('/append-entries', (req, res) => {
-    res.json(raft.handleAppendEntries(req.body));
+    // Under group commit a successful response is a promise that resolves
+    // once the acknowledged entries are durable.
+    const response = raft.handleAppendEntries(req.body);
+    if (response && typeof response.then === 'function') {
+        response.then((ready) => res.json(ready), (error) => res.status(500).json({ error: error.message }));
+    } else {
+        res.json(response);
+    }
 });
 
 app.post('/stroke', async (req, res) => {
@@ -568,11 +580,13 @@ if (perf) {
 const server = app.listen(PORT, () => {
     console.log(`[${REPLICA_ID}] Listening on ${PORT}`);
     console.log(`[${REPLICA_ID}] Peers: ${PEERS.join(', ') || '(single node)'}`);
+    console.log(`[${REPLICA_ID}] Raft options: ${JSON.stringify(RAFT_OPTIONS)}`);
 });
 if (perfService) perfService.attachServer(server);
 
 function shutdown(signal) {
     console.log(`[${REPLICA_ID}] ${signal} · flushing and stopping`);
+    raft.flushDurable();
     raft.stop();
     server.close(() => process.exit(0));
     setTimeout(() => process.exit(1), 5000).unref();
