@@ -1,0 +1,54 @@
+{
+  "schema": "cloudproof.raft-bench.comparison-plan/v1",
+  "frozenAt": "2026-10-03",
+  "status": "Windows-default power-policy control (methodology amendment 2). Environment analysis only: not part of the primary optimization ranking. Frozen before its first trial.",
+  "purpose": "Quantify how Windows process power throttling changes baseline and optimized-binary behaviour at 1 KiB: throughput, p99, event-loop lag, CPU, send delay and saturation.",
+  "primaryPayloadBytes": 1024,
+  "fixedRates": true,
+  "curves": [
+    {
+      "config": "baseline",
+      "payloadBytes": 1024,
+      "repetitions": 3,
+      "powerThrottling": "os-default",
+      "role": "control"
+    },
+    {
+      "config": "optimized-binary",
+      "payloadBytes": 1024,
+      "repetitions": 3,
+      "powerThrottling": "os-default",
+      "role": "control"
+    },
+    {
+      "config": "baseline",
+      "payloadBytes": 1024,
+      "repetitions": 3,
+      "powerThrottling": "disabled",
+      "role": "control"
+    },
+    {
+      "config": "optimized-binary",
+      "payloadBytes": 1024,
+      "repetitions": 3,
+      "powerThrottling": "disabled",
+      "role": "control"
+    }
+  ],
+  "rates": [
+    100,
+    300,
+    1000,
+    2500
+  ],
+  "rateRationale": "100/s comfortably below the historical baseline knee (300/s), 300/s at it, 1000/s and 2500/s CPU-relevant for the optimized engine. Not the comparison ladder, which is unchanged.",
+  "fractions": [],
+  "trial": {
+    "warmupMs": 5000,
+    "durationMs": 20000,
+    "timeoutMs": 10000,
+    "connections": 128,
+    "generators": 4,
+    "keySpace": 1000
+  }
+}

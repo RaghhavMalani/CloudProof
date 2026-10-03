@@ -150,7 +150,31 @@ are not reported anywhere.
   zero duplicated acknowledged writes when the leader is killed inside each of six sensitive windows, and
   (b) a transport-isolation benchmark has measured the HTTP and framed transports outside Raft and the disk.
 
-## 3. Baseline saturation
+### Amendment 2 (2026-10-03): one verified process power policy
+
+Recorded in `methodology.json` before the opt-out verification, the Windows-default control and any comparison
+trial. Windows 11 throttles busy background processes about 3 s after they become busy (§8), which affects the
+replicas and load generators and hurts CPU-bound configurations far more than the fsync-bound baseline. Therefore:
+
+- **Primary comparison.** Every replica, load generator and the sweep driver, in every trial of all nine
+  configurations, baseline included, opts out of per-process power throttling. The remeasured interleaved baseline
+  is the comparator for every effect size. **No system-wide setting is changed**, including the power plan.
+- **Verified, or the run stops.** Every trial records `powerThrottling`: requested policy, platform, mechanism, the
+  SHA-256 of the helper code, and each process's mask as Windows reports it. A process that cannot be verified stops
+  the run, so a mixed environment cannot enter the data.
+- **Historical baseline.** `d5d7e00` is preserved exactly and is labelled *historical baseline under Windows' default
+  process power policy*. It is never the denominator of a speedup; speedups come only from the matched final
+  experiment.
+- **Control.** A small paired experiment ([`windows-power-control/plan.json`](artifacts/perf/phase-iv-a/windows-power-control/plan.json)):
+  baseline and optimized-binary at 1 KiB and 100/300/1000/2500 writes/s, under both policies, interleaved. It
+  quantifies the policy's effect. It is environment analysis, not part of the ranking, and no profile is retuned
+  after it.
+
+## 3. Historical baseline — Windows default process power policy
+
+_Recorded at `35c8169` under Windows' default process power policy, before power throttling was identified (§8).
+It is preserved exactly as recorded. The primary comparison remeasures baseline, interleaved, with power throttling
+disabled (amendment 2); speedups are computed only from that matched experiment._
 
 <!-- BEGIN GENERATED:knee-table -->
 | configuration | payload | knee (offered/s) | max stable (achieved/s) | first unstable/s | peak achieved at any rate/s | p50 @knee ms | p99 @knee ms | p99.9 @knee ms |
@@ -382,11 +406,10 @@ cliff entirely. That changes no system setting and affects only the processes it
 ([`packages/raft-bench/power-throttling.js`](packages/raft-bench/power-throttling.js)).
 
 **Consequences.** The committed baseline (`d5d7e00`) ran under Windows' default, throttled after the first seconds
-of each trial. It stays the historical record and is not re-labelled. It was disk-bound, so throttling mostly
-inflates its CPU figures rather than moving its knee, but that is an expectation, not a measurement. A configuration
-that saturates on CPU is hit by the throttle far harder than one that saturates on `fsync`, so a comparison run
-under the default would partly measure Windows' background scheduling. How the comparison sweep treats it is an
-open decision, to be recorded as methodology amendment 2 before the first comparison trial.
+of each trial. It stays the historical record, labelled as such. A configuration that saturates on CPU is hit by the
+throttle far harder than one that saturates on `fsync`, so a comparison run under the default would partly measure
+Windows' background scheduling. Amendment 2 therefore puts every benchmark-owned process of the comparison under
+one verified policy, throttling disabled, and adds a small paired control to measure the policy's effect.
 
 ## 9. Transport isolation
 

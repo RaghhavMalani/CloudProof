@@ -192,6 +192,68 @@
           "etcd condition (only after the CloudProof comparison report)"
         ]
       }
+    },
+    {
+      "id": 2,
+      "recordedAt": "2026-10-03",
+      "recordedBefore": "the opt-out verification, the Windows-default control and the first comparison trial",
+      "subject": "Process power policy (Windows power throttling / Efficiency mode)",
+      "observation": [
+        "Windows 11 was observed to throttle busy background child processes about 3 s after they become busy, for the rest of the process's life: the clock drops and an unpinned process moves to efficiency cores.",
+        "An isolated CPU probe (pure SHA-256 loop, no I/O; artifacts/perf/phase-iv-a/power-throttling-probe.json) measured a 4.3x sustained drop under the default policy; pinning to a P-core left 3.1x, high priority 4.2x; the per-process opt-out removed it.",
+        "The behaviour affected the replicas and the load-generator child processes the harness starts, and the transport benchmark's processes (both sides of the transport, as measured in transport-isolation/os-default).",
+        "The committed baseline (d5d7e00) and the first durability gate (25b832f) were recorded under that default policy.",
+        "CPU-bound optimized profiles are affected far more strongly than the fsync-bound baseline, so a comparison that does not control the policy is biased against the optimizations that move the bottleneck to CPU."
+      ],
+      "decision": {
+        "primaryComparison": "Every process of every trial of the interleaved comparison (comparison-plan.json, unchanged) opts out of per-process power throttling: all three replicas, all four load generators and the sweep driver, for all nine configurations including baseline. The remeasured interleaved baseline is the comparator for every optimization effect size.",
+        "systemSettings": "No system-wide setting is modified: not the power plan, not the power mode, not any Windows or Defender setting. The opt-out is the per-process switch behind Task Manager's Efficiency mode, applied only to benchmark-owned processes.",
+        "historicalBaseline": "d5d7e00 is preserved exactly and is labelled HISTORICAL BASELINE — Windows default process power policy. It is not regenerated, its report is not amended and its artifacts are not replaced. It is reported separately as the original system under Windows' default process policy, and is never the denominator of an optimization speedup.",
+        "claimRule": "Speedups and effect sizes are computed only from the matched final experiment (unthrottled interleaved baseline vs unthrottled interleaved profile). The historical 300 writes/s knee remains historically true but was measured under a different OS scheduling policy.",
+        "noRetuning": "No Raft profile is retuned after seeing the control results.",
+        "diskHandling": "The disk sentinel, its bins and the regime analysis of amendment 1 are unchanged; slow-storage trials are kept."
+      },
+      "implementation": {
+        "commit": "f9ddfff11282e403817cdf516f0087b05edabfa8",
+        "mechanism": "SetProcessInformation(ProcessPowerThrottling, ControlMask=EXECUTION_SPEED, StateMask=0), read back with GetProcessInformation",
+        "files": {
+          "tools/windows/disable-power-throttling.ps1": "91fc490239ce4d2c2ec2ab3efa1143f1b44472be6817643c0e62cad68450ca4c",
+          "packages/raft-bench/power-throttling.js": "ca980c571c622c14edfb10f59ad9c5af2caa9d63be08caced39d5d38f40c05a9"
+        },
+        "hashing": "SHA-256 of the file with line endings normalized to LF (every trial records the same hashes)",
+        "perTrialRecord": "record.powerThrottling: requested, applied, platform, mechanism, script/module SHA-256, and per process (role, pid, ControlMask, StateMask, inRequestedState)",
+        "failureRule": "If the policy cannot be verified on any process, the run stops (PowerPolicyError); it is never recorded as an ordinary failed trial, so a mixed environment cannot enter the data.",
+        "inheritance": "Child processes do not inherit the policy (a child of an opted-out parent reports ControlMask 0), so each process is set and verified individually; the os-default arm is set explicitly (ControlMask 0) and verified the same way."
+      },
+      "verification": {
+        "probe": "node tools/raft-power-throttling-probe.js --conditions default,opted-out --repeat 3 --out artifacts/perf/phase-iv-a/power-throttling-verification.json",
+        "requirement": "Across at least 3 runs each, the opted-out process must not show the persistent cliff of the default process; reported as initial (0-2.5 s), after 3 s (3.5-4.0 s), steady (4 s to end) and steady/initial.",
+        "harness": "A smoke trial must show every harness-spawned process (replica1-3, loadgen1-4, driver) verified, and the transport benchmark records its client and server."
+      },
+      "control": {
+        "role": "Environment analysis only; not part of the primary optimization ranking.",
+        "plan": "artifacts/perf/phase-iv-a/windows-power-control/plan.json",
+        "planSha256": "5a2cb5ff0c4ce4a21fbe4e5d34a2c5d2c087f862cef04479fc018d717ca4ec68",
+        "design": "baseline and optimized-binary, 1 KiB, fixed rates 100, 300, 1000, 2500 writes/s (below, at and above the historical baseline knee, and CPU-relevant for the optimized engine), 3 repetitions, each under os-default and disabled, all four arms interleaved by the same Williams order, same windows, same disk sentinel. The comparison ladder is unchanged.",
+        "reported": [
+          "throughput",
+          "p50/p99",
+          "leader CPU and CPU per op",
+          "leader event-loop utilization and setImmediate lag p99",
+          "generator send lag p99 and client queue wait p99",
+          "stability (saturation)",
+          "disk regimes"
+        ],
+        "tool": "tools/raft-bench-interleaved.js --plan <control plan> --out artifacts/perf/phase-iv-a/windows-power-control; report: tools/raft-power-control-report.js"
+      },
+      "unchanged": [
+        "comparison-plan.json and its SHA-256 (amendment 1)",
+        "configurations, payload roles and repetitions",
+        "Williams Latin-square order",
+        "disk sentinel and regime bins",
+        "stability rule, stop rule, knee definition, saturation fractions",
+        "etcd condition"
+      ]
     }
   ]
 }

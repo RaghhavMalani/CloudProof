@@ -89,3 +89,17 @@ test('optimized-http and optimized-binary differ only in the transport', () => {
     assert.deepEqual(binary, { ...PROFILES['optimized-http'] });
     assert.equal(PROFILES['optimized-http'].logHotPath, false);
 });
+
+test('amendment 2 pins the power-policy helper and the control plan that are in the tree', () => {
+    const { helperIdentity } = require('./power-throttling');
+    const methodology = JSON.parse(fs.readFileSync(path.join(PERF, 'methodology.json'), 'utf8'));
+    const amendment = methodology.amendments.find((a) => a.id === 2);
+    const lf = (file) => crypto.createHash('sha256').update(fs.readFileSync(path.join(ROOT, file), 'utf8').replace(/\r\n/g, '\n')).digest('hex');
+    for (const [file, sha] of Object.entries(amendment.implementation.files)) assert.equal(lf(file), sha, file);
+    assert.equal(helperIdentity().moduleSha256, amendment.implementation.files['packages/raft-bench/power-throttling.js']);
+    const controlPlan = fs.readFileSync(path.join(ROOT, amendment.control.plan));
+    assert.equal(crypto.createHash('sha256').update(controlPlan).digest('hex'), amendment.control.planSha256);
+    const plan = JSON.parse(controlPlan);
+    assert.deepEqual([...new Set(plan.curves.map((c) => c.powerThrottling))].sort(), ['disabled', 'os-default']);
+    assert.ok(plan.fixedRates);
+});
