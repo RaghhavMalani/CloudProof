@@ -11,8 +11,11 @@
  *
  * A client process sends AppendEntries requests, closed loop with C requests
  * in flight, to a server in its own process whose handler decodes the request
- * fully and answers a fixed success. Three transports:
+ * fully and answers a fixed success. Both processes are fresh for every trial.
+ * Transports:
  *
+ *   http-plain     Node's http client (keep-alive agent) -> a bare http server
+ *                  that parses the JSON body: Node's HTTP stack with no library
  *   http-json      axios -> express + express.json, exactly the replica's
  *                  default path (Node's global agent keeps connections alive)
  *   framed-json    the framed transport's one multiplexed TCP connection, with
@@ -26,6 +29,21 @@
  * cost only. Reported per trial: messages/s, entries/s, p50/p99 round trip,
  * client and server CPU (µs per message, % of one core), and wire bytes per
  * message counted on the server's sockets.
+ *
+ * Two phases per trial, from a per-second timeline of completions: *burst*,
+ * the first two seconds of load, and *sustained*, the measurement window,
+ * which opens after a 5 s warmup. On the benchmark machine (Windows 11, Node
+ * 24) Node's HTTP stack runs several times faster for about the first 3 s of
+ * load in a process and then drops, and stays down, for the life of the
+ * process. This happens with or without axios/express and over named pipes as
+ * well as loopback TCP; the framed transport does not do it. The replicas run
+ * for far longer than 3 s, so sustained is the comparison figure; burst is
+ * reported so the effect is visible rather than averaged in.
+ *
+ * The cause is Windows power throttling (EcoQoS) of busy background
+ * processes (packages/raft-bench/power-throttling.js). --power-throttling off
+ * opts the client and server processes out before load starts;
+ * --power-throttling os-default leaves Windows' default behaviour.
  *
  * Internal consistency is checked and recorded, not assumed: Little's law
  * (msg/s x mean RTT ~= C), zero errors, connection reuse, and for the binary
@@ -42,20 +60,23 @@ const { parseArgs } = require('../packages/raft-bench/cli');
 const { LogLinearHistogram } = require('../replica/perf-histogram');
 const { entryJson } = require('../replica/entry-codec');
 const { TYPES, encodeRequest, encodeResponse, decodeBody } = require('../replica/raft-codec');
+const { disablePowerThrottling } = require('../packages/raft-bench/power-throttling');
 
 const ROOT = path.join(__dirname, '..');
 
 const DEFAULTS = {
     duration: 10000,
-    warmup: 2000,
+    warmup: 5000,
     repetitions: 3,
     port: 19101,
-    transports: ['http-json', 'framed-json', 'framed-binary'],
+    transports: ['http-plain', 'http-json', 'framed-json', 'framed-binary'],
     entries: [1, 16],
     concurrency: [1, 8],
     payload: 1024,
     out: path.join(ROOT, 'artifacts', 'perf', 'phase-iv-a', 'transport-isolation'),
     serve: null,
+    client: null,
+    'power-throttling': 'os-default',
 };
 
 // ── server (child process) ──────────────────────────────────────────────────
@@ -70,7 +91,18 @@ function serve(kind, port) {
     let connections = 0;
     const track = (socket) => { connections += 1; sockets.add(socket); socket.on('close', () => sockets.delete(socket)); };
     let server;
-    if (kind === 'http-json') {
+    if (kind === 'http-plain') {
+        server = http.createServer((req, res) => {
+            const chunks = [];
+            req.on('data', (chunk) => chunks.push(chunk));
+            req.on('end', () => {
+                const out = JSON.stringify(answer(JSON.parse(Buffer.concat(chunks).toString('utf8'))));
+                res.writeHead(200, { 'content-type': 'application/json', 'content-length': Buffer.byteLength(out) });
+                res.end(out);
+            });
+        });
+        server.on('connection', track);
+    } else if (kind === 'http-json') {
         const express = require('../replica/node_modules/express');
         const app = express();
         app.use(express.json({ limit: '2mb' }));
@@ -144,6 +176,23 @@ function makeEntries(count, payload) {
 
 function clientFor(kind, port) {
     const url = `http://127.0.0.1:${port}`;
+    if (kind === 'http-plain') {
+        const agent = new http.Agent({ keepAlive: true });
+        const post = (body) => new Promise((resolve, reject) => {
+            const payload = Buffer.from(JSON.stringify(body));
+            const req = http.request(`${url}/append-entries`, {
+                method: 'POST', agent, headers: { 'content-type': 'application/json', 'content-length': payload.length },
+            }, (res) => {
+                const chunks = [];
+                res.on('data', (chunk) => chunks.push(chunk));
+                res.on('end', () => resolve({ data: JSON.parse(Buffer.concat(chunks).toString('utf8')) }));
+            });
+            req.setTimeout(5000, () => req.destroy(new Error('ETIMEDOUT')));
+            req.on('error', reject);
+            req.end(payload);
+        });
+        return { post, close: () => agent.destroy() };
+    }
     if (kind === 'http-json') {
         const axios = require('../replica/node_modules/axios');
         return { post: (body) => axios.post(`${url}/append-entries`, body, { timeout: 5000 }), close: () => {} };
@@ -157,6 +206,9 @@ function clientFor(kind, port) {
 async function trial({ kind, entries: entryCount, concurrency, options, repetition }) {
     const server = startServer(kind, options.port);
     await server.ready;
+    const throttling = options['power-throttling'] === 'off'
+        ? { mode: 'off', applied: disablePowerThrottling([server.child.pid, process.pid]) }
+        : { mode: 'os-default' };
     const client = clientFor(kind, options.port);
     const nextEntries = makeEntries(entryCount, options.payload);
     let prevLogIndex = 999;
@@ -169,6 +221,10 @@ async function trial({ kind, entries: entryCount, concurrency, options, repetiti
     const histogram = new LogLinearHistogram();
     let measuring = false;
     let stop = false;
+    let completed = 0;
+    const timeline = [];
+    let lastCompleted = 0;
+    const ticker = setInterval(() => { timeline.push(completed - lastCompleted); lastCompleted = completed; }, 1000);
     let messages = 0;
     let errors = 0;
     let latencySumMs = 0;
@@ -178,6 +234,7 @@ async function trial({ kind, entries: entryCount, concurrency, options, repetiti
             try {
                 const response = await client.post(body());
                 if (!response.data || response.data.success !== true) throw new Error('bad response');
+                completed += 1;
                 if (measuring) {
                     const ms = performance.now() - t0;
                     histogram.record(ms * 1000);
@@ -201,6 +258,7 @@ async function trial({ kind, entries: entryCount, concurrency, options, repetiti
     const cpu = process.cpuUsage(cpuStart);
     const serverSide = await server.measure();
     stop = true;
+    clearInterval(ticker);
     await Promise.all(loops);
     client.close();
     await server.stop();
@@ -219,10 +277,13 @@ async function trial({ kind, entries: entryCount, concurrency, options, repetiti
         concurrency,
         repetition,
         payloadBytes: options.payload,
+        powerThrottling: throttling,
         messages,
         errors,
         messagesPerSec: messages / seconds,
         entriesPerSec: (messages * entryCount) / seconds,
+        burstMessagesPerSec: timeline.length >= 2 ? (timeline[0] + timeline[1]) / 2 : null,
+        timeline,
         rttMs: { p50: summary.p50, p99: summary.p99, p999: summary.p999, mean: meanMs },
         clientCpu: { microsPerMessage: messages ? clientCpuMicros / messages : null, percentOfOneCore: (clientCpuMicros / 1000 / wallMs) * 100 },
         serverCpu: { microsPerMessage: messages ? serverSide.cpuMicros / messages : null, percentOfOneCore: (serverSide.cpuMicros / 1000 / serverSide.wallMs) * 100 },
@@ -251,6 +312,7 @@ function aggregate(records) {
         concurrency: rs[0].concurrency,
         repetitions: rs.length,
         messagesPerSec: range(rs.map((r) => r.messagesPerSec)),
+        burstMessagesPerSec: range(rs.map((r) => r.burstMessagesPerSec)),
         entriesPerSec: range(rs.map((r) => r.entriesPerSec)),
         rttP50Ms: range(rs.map((r) => r.rttMs.p50)),
         rttP99Ms: range(rs.map((r) => r.rttMs.p99)),
@@ -271,24 +333,42 @@ const fi = (v) => (v === null || v === undefined || !Number.isFinite(v) ? '—' 
 
 function markdown(rows) {
     const lines = [
-        '| transport | entries/msg | in flight | msg/s | entries/s | p50 RTT ms | p99 RTT ms | client CPU µs/msg | server CPU µs/msg | client CPU % | server CPU % | wire bytes/msg | connections | Little ratio |',
-        '|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|',
+        '| transport | entries/msg | in flight | burst msg/s (first 2 s) | sustained msg/s | sustained entries/s | p50 RTT ms | p99 RTT ms | client CPU µs/msg | server CPU µs/msg | client CPU % | server CPU % | wire bytes/msg | connections | Little ratio |',
+        '|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|',
     ];
     for (const r of rows) {
-        lines.push(`| ${r.transport} | ${r.entriesPerMessage} | ${r.concurrency} | ${fi(r.messagesPerSec.mean)} | ${fi(r.entriesPerSec.mean)} | `
+        lines.push(`| ${r.transport} | ${r.entriesPerMessage} | ${r.concurrency} | ${fi(r.burstMessagesPerSec.mean)} | ${fi(r.messagesPerSec.mean)} | ${fi(r.entriesPerSec.mean)} | `
             + `${f(r.rttP50Ms.mean, 3)} | ${f(r.rttP99Ms.mean, 3)} | ${f(r.clientCpuMicrosPerMessage.mean)} | ${f(r.serverCpuMicrosPerMessage.mean)} | `
             + `${f(r.clientCpuPercent.mean)} | ${f(r.serverCpuPercent.mean)} | ${fi(r.wireBytesPerMessage.mean)} | ${r.connectionsOpened} | ${f(r.littlesLawRatio.mean, 2)} |`);
     }
     return lines.join('\n');
 }
 
+/** Runs one trial with its client in a fresh process (and the server in another). */
+function runClientProcess(spec, options) {
+    const args = ['--client', JSON.stringify(spec), '--duration', `${options.duration}ms`, '--warmup', `${options.warmup}ms`,
+        '--port', String(options.port), '--payload', String(options.payload), '--power-throttling', options['power-throttling']];
+    return new Promise((resolve, reject) => {
+        const child = fork(__filename, args, { stdio: ['ignore', 'inherit', 'inherit', 'ipc'] });
+        let record = null;
+        child.on('message', (message) => { if (message.type === 'record') record = message.record; });
+        child.on('exit', (code) => (record ? resolve(record) : reject(new Error(`client process exited ${code} without a record`))));
+    });
+}
+
 async function main() {
     const options = parseArgs(process.argv.slice(2), DEFAULTS, {
         durations: ['duration', 'warmup'],
         lists: { transports: String, entries: Number, concurrency: Number },
-        strings: ['out', 'serve'],
+        strings: ['out', 'serve', 'client', 'power-throttling'],
     });
     if (options.serve) { serve(options.serve, options.port); return; }
+    if (options.client) {
+        const spec = JSON.parse(options.client);
+        const record = await trial({ ...spec, options });
+        process.send({ type: 'record', record }, () => process.exit(0));
+        return;
+    }
     const records = [];
     for (let repetition = 0; repetition < options.repetitions; repetition += 1) {
         // Interleaved: every combination once per repetition, rotating the
@@ -301,7 +381,7 @@ async function main() {
             }
         }
         for (const combo of combos) {
-            const record = await trial({ ...combo, options, repetition });
+            const record = await runClientProcess({ ...combo, repetition }, options);
             records.push(record);
             process.stdout.write(`${record.transport} e=${record.entriesPerMessage} c=${record.concurrency} rep=${repetition + 1}: `
                 + `${fi(record.messagesPerSec)} msg/s p50=${f(record.rttMs.p50, 3)}ms p99=${f(record.rttMs.p99, 3)}ms `
@@ -325,6 +405,7 @@ async function main() {
         generatedAt: new Date().toISOString(),
         git: { sha: git('rev-parse HEAD'), dirty: git('status --porcelain --untracked-files=no').length > 0 },
         node: process.version,
+        powerThrottling: options['power-throttling'],
         cpu: os.cpus()[0].model,
         options: { ...options, out: undefined, serve: undefined },
         checks,
