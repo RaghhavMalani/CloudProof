@@ -17,8 +17,9 @@ Every number in the result tables below is generated from the raw trial records 
 ## Status
 
 <!-- BEGIN GENERATED:status -->
-_Comparison sweep closed (801 trials, `b43d68d`) and reported (§11). Pending: leader CPU profiles (baseline vs optimized),
-final regression, etcd (only after those). The historical baseline (`d5d7e00`) is unchanged._
+_Phase IV-A (CloudProof side) complete: historical baseline (`d5d7e00`), optimizations, durability gates, the
+Windows-default control, the interleaved comparison (801 trials, §11), leader profiles and a green final regression
+(§12). Not yet run: etcd._
 <!-- END GENERATED:status -->
 
 ## 1. Environment (Step 0)
@@ -655,3 +656,61 @@ measured separately, at the end of the sweep (block 5).
   (9,600/s) in its three slow-regime repetitions. Both are the disk regime, and neither changes a pre-registered
   result.
 - **Thermal state** was observed in blocks 2–5 (`host-telemetry-block*.jsonl`), not controlled, and decides nothing.
+
+### Where the leader spends its time (step 8)
+
+Leader CPU profiles at the pre-registered points, one trial each, power throttling disabled:
+[`comparison-profiles/`](artifacts/perf/phase-iv-a/comparison-profiles/). Columns are shares of *busy* leader time.
+
+| profile | offered/s | achieved/s | busy % of wall | fs-sync-io | axios | express | node-http | streams-net | json | console-logging | raft-engine | raft-log-store | raft-transport | state-machine | gc | instrumentation |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| baseline 1024 B A-sub-saturation | 250 | 250 | 65.7 | 59.2 | 8.7 | 3.9 | 5.5 | 7.5 | 0.3 | 2.5 | 3.8 | 0.7 | 0.0 | 0.5 | 0.5 | 0.3 |
+| baseline 1024 B B-knee | 500 | 441 | 96.6 | 79.3 | 2.6 | 3.1 | 2.2 | 3.5 | 0.1 | 2.0 | 1.9 | 0.8 | 0.0 | 0.3 | 0.3 | 0.3 |
+| baseline 1024 B C-overloaded | 750 | 828 | 98.2 | 80.5 | 0.9 | 3.8 | 1.6 | 3.1 | 0.0 | 2.3 | 1.9 | 1.0 | 0.0 | 0.3 | 0.4 | 0.2 |
+| optimized-binary 1024 B A-sub-saturation | 6,000 | 5,997 | 94.6 | 33.2 | 0.0 | 13.3 | 4.8 | 20.7 | 0.5 | 0.0 | 4.3 | 2.5 | 1.2 | 2.4 | 1.3 | 0.7 |
+| optimized-binary 1024 B B-knee | 12,000 | 8,456 | 90.3 | 31.9 | 0.0 | 12.3 | 4.7 | 22.2 | 0.1 | 0.0 | 4.3 | 3.6 | 0.5 | 2.3 | 2.0 | 0.6 |
+| optimized-binary 1024 B C-overloaded | 15,000 | 10,564 | 91.0 | 17.3 | 0.0 | 15.7 | 6.1 | 26.2 | 0.2 | 0.0 | 5.3 | 3.7 | 0.6 | 3.0 | 2.3 | 0.9 |
+
+The baseline leader is a storage loop. Synchronous fsync is 59% of busy time at half the knee and about 80% at and past
+it. The HTTP stack on both sides (axios, express, node-http, streams) shrinks as fsync grows. The optimized leader has a
+different shape: synchronous fsync is 17–33%, because group commit amortizes it but the flush still runs on the event
+loop. Socket I/O is 21–26% and the client-facing express and node-http request path 17–22%, while the Raft engine, log
+store and framed transport together are under 10%. With the engine optimized, the leader's time goes to serving
+requests and to the remaining synchronous flush, not to consensus logic. Both knee profiles came out unstable in their
+single trial (baseline 88%, optimized-binary 71% achieved), consistent with their 3/5 knees.
+
+## 12. Final correctness regression (step 9)
+
+Run at `dd0ab9d` on a clean tree, after the sweep and the profiles
+([`final-regression.txt`](artifacts/perf/phase-iv-a/final-regression.txt)). Every step passed:
+
+- replica suite 118/118. Node suites (simulator, packages, refund-provider, tools): 215 passed, 0 failed, and 1 skipped
+  by design (the off-Windows power-policy branch). Syntax check of every module; web bundle current.
+- Default-engine 60-seed simulator fingerprint unchanged (`1f73f666…`).
+- Linearizability: the default 100-schedule search, and 200-schedule searches for all nine sweep profiles,
+  `group-pipeline` and the four stress profiles, found 0 violations.
+- Targeted fault campaign: 900 runs over baseline and the four stress profiles, 0 failures, windows hit. Mutants: 5/5
+  killed.
+- Agent and multi-agent campaigns (1,000 schedules each) found no violation, and their mutant benchmarks killed every
+  mutant. The Phase I replay of `failure-1337` reproduced byte-identically, and the Phase I acceptance gate and the
+  Phase II-A / II-A.2 smoke gates passed. Python (`ml/cloudproof`): 44 passed.
+- Live durability gate under the comparison's power policy (`1b55e36`): 30 forced leader deaths, 157,788 acknowledged
+  writes, 0 missing, 0 duplicates.
+
+## 13. Known limitations and follow-ups
+
+- **Harness under extreme overload.** At 15,000–20,000/s the load generators' reconnect storm and the harness's
+  per-request connections can exhaust local ports. Eight trials failed this way, all above their curves' first
+  unstable rung. Follow-ups: keep-alive connections for the harness's own requests, reconnect backoff in the
+  generator, and a guard in `stop-sweep.ps1` against a reused PID.
+- **Ladder resolution** at 6,000 → 8,000/s hides differences among the configurations that tie at 6,000/s.
+- **Optimized-binary's knee is marginal and storage-sensitive** (fast regime 12,000/s, slow 10,000/s). The robust
+  statement is 10,000/s, stable in 5/5 repetitions.
+- **Transport-only measured below baseline** (300 vs 500/s); the cause is not established.
+- **The group-commit flush is still a synchronous fsync on the leader's event loop**, 17–33% of its busy time in the
+  optimized profile: the obvious next candidate, outside Phase IV-A's scope.
+- **Windows-specific environment.** The fsync regimes, power throttling and thermal behaviour are properties of this
+  laptop. The production target (Linux, ext4/xfs) differs, and nothing here is a claim about it.
+- **Pre-existing, untouched.** `_scheduleCommitBroadcast` in `replica/raft.js` clears `_noopIndex` inside its timer.
+  This predates Phase IV-A and was left alone.
+- **etcd** has not been run. Per the methodology, it comes only after this report.
