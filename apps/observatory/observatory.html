@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#000000">
+  <title>CloudProof · GNN Observatory</title>
+  <meta name="description" content="An observability tool for relational failure prediction: replay how a heterogeneous GNN separates two cloud topologies with identical pooled features but different failure outcomes. Hidden states, per-edge messages, relation weights and risk come from the real CloudProof model and frozen corpus.">
+  <link rel="stylesheet" href="observatory.css">
+  <!-- three.js is pinned to one release and loaded from the CDN; the site has no npm dependencies. -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body class="obs">
+  <a class="obs-skip" href="#obs-panel">Skip to the numbers</a>
+  <header class="obs-top">
+    <a class="obs-brand" href="index.html"><i aria-hidden="true">CP</i><span>CLOUDPROOF</span></a>
+    <h1>GNN OBSERVATORY</h1>
+    <p class="obs-top-meta" id="obs-model-meta">LOADING REPLAY…</p>
+    <nav class="obs-top-links" aria-label="Related">
+      <a href="index.html">CONSOLE</a>
+      <a href="https://github.com/RaghhavMalani/cloudproof/blob/main/CLOUDPROOF-PHASE-II-B2.md" rel="noreferrer">PHASE II-B.2 REPORT</a>
+    </nav>
+  </header>
+
+  <main class="obs-main">
+    <section class="obs-stage" id="obs-stage" aria-label="Three-dimensional view of the probe Kubernetes graph and the model's message passing">
+      <div class="obs-canvas-host" id="obs-canvas-host"></div>
+      <div class="obs-labels" id="obs-labels" aria-hidden="true"></div>
+      <img class="obs-fallback-img" id="obs-fallback-img" alt="Still frame of the GNN Observatory: the probe Kubernetes graph with relation-coloured edges and the risk orb" hidden>
+
+      <div class="obs-hud obs-hud-top">
+        <div class="obs-control" role="radiogroup" aria-label="Edge-destruction ablation" id="obs-modes"></div>
+        <div class="obs-control" role="radiogroup" aria-label="Pair member shown in 3D" id="obs-members"></div>
+      </div>
+      <div class="obs-hud obs-hud-phase" aria-hidden="true">
+        <span class="obs-phase-name" id="obs-phase-name">—</span>
+        <ol class="obs-phase-steps" id="obs-phase-steps"></ol>
+      </div>
+      <div class="obs-hud obs-hud-legend" id="obs-legend" aria-label="Relation colours and weight norms"></div>
+      <p class="obs-hud obs-mode-note" id="obs-mode-note" aria-live="polite"></p>
+      <div class="obs-tooltip" id="obs-tooltip" role="tooltip" hidden></div>
+      <p class="obs-fatal" id="obs-fatal" hidden></p>
+    </section>
+
+    <aside class="obs-panel" id="obs-panel" tabindex="-1" aria-label="Probe pair, risks and published results">
+      <section class="obs-block obs-lede" aria-label="What this page is">
+        <p class="obs-kicker">OBSERVABILITY FOR RELATIONAL FAILURE PREDICTION</p>
+        <p class="obs-lede-text">Replay how a heterogeneous GNN separates two cloud topologies with identical pooled features but different failure outcomes.</p>
+      </section>
+      <section class="obs-block" id="obs-probe" aria-labelledby="obs-probe-title">
+        <h2 id="obs-probe-title">PROBE PAIR</h2>
+        <p class="obs-sub" id="obs-probe-rule"></p>
+        <div class="obs-pair" id="obs-pair"></div>
+        <div class="obs-margin" id="obs-margin"></div>
+      </section>
+      <section class="obs-block" aria-labelledby="obs-blind-title">
+        <h2 id="obs-blind-title">TOPOLOGY-BLIND VIEW</h2>
+        <p class="obs-copy" id="obs-blind"></p>
+      </section>
+      <section class="obs-block" aria-labelledby="obs-published-title">
+        <h2 id="obs-published-title">PUBLISHED · PHASE II-B.2</h2>
+        <p class="obs-sub" id="obs-published-sub"></p>
+        <div class="obs-onpair" id="obs-onpair"></div>
+        <div class="obs-table-wrap"><table class="obs-table" id="obs-table"></table></div>
+        <p class="obs-sub" id="obs-table-note"></p>
+        <blockquote class="obs-claim" id="obs-claim"></blockquote>
+      </section>
+    </aside>
+  </main>
+
+  <footer class="obs-foot">
+    <div class="obs-timeline">
+      <button type="button" class="obs-play" id="obs-play" aria-label="Play the training replay">▶</button>
+      <div class="obs-scrub">
+        <input type="range" id="obs-scrubber" min="0" max="0" value="0" step="1" aria-label="Training replay frame">
+        <svg class="obs-spark" id="obs-spark" viewBox="0 0 600 34" preserveAspectRatio="none" aria-hidden="true"></svg>
+      </div>
+      <p class="obs-frame" id="obs-frame">—</p>
+    </div>
+    <p class="obs-status" id="obs-status">● LOADING</p>
+    <p class="obs-notice" id="obs-notice"></p>
+    <p class="obs-keys">KEYS · SPACE play/pause · ←/→ scrub (shift ×10) · 1–6 ablation · A/B pair member · hover a node for its features and hidden-state norms</p>
+  </footer>
+
+  <script type="module" src="observatory.js"></script>
+</body>
+</html>

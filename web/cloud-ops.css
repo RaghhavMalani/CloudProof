@@ -23,10 +23,10 @@ body[data-mode="agent"] .ops{display:none!important}
 .product-nav .pn-brand i{width:22px;height:22px;border:1.5px solid var(--op-cyan);border-radius:5px;display:grid;place-items:center;font-style:normal;font-size:11px;color:var(--op-cyan);letter-spacing:0}
 .product-nav nav{display:flex;align-items:stretch;height:100%;gap:2px;overflow-x:auto;scrollbar-width:none}
 .product-nav nav::-webkit-scrollbar{display:none}
-.product-nav nav button{all:unset;cursor:pointer;display:flex;align-items:center;padding:0 14px;font:700 11px/1 var(--op-mono);letter-spacing:.12em;color:var(--op-muted);border-bottom:2px solid transparent;white-space:nowrap}
-.product-nav nav button:hover{color:var(--op-ink)}
+.product-nav nav button,.product-nav nav a{all:unset;cursor:pointer;display:flex;align-items:center;padding:0 14px;font:700 11px/1 var(--op-mono);letter-spacing:.12em;color:var(--op-muted);border-bottom:2px solid transparent;white-space:nowrap}
+.product-nav nav button:hover,.product-nav nav a:hover{color:var(--op-ink)}
 .product-nav nav button[aria-current="page"]{color:var(--op-ink);border-bottom-color:var(--op-cyan)}
-.product-nav nav button:focus-visible{outline:2px solid var(--op-cyan);outline-offset:-4px}
+.product-nav nav button:focus-visible,.product-nav nav a:focus-visible{outline:2px solid var(--op-cyan);outline-offset:-4px}
 .product-nav .pn-meta{margin-left:auto;font:10px/1.3 var(--op-mono);color:var(--op-faint);text-align:right;white-space:nowrap}
 .product-nav .pn-meta b{color:var(--op-muted);font-weight:600}
 
