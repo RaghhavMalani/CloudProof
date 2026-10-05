@@ -21,8 +21,13 @@ $counters = @(
 )
 $keys = @('processorPerformancePct', 'processorFrequencyMHz', 'performanceLimitPct', 'processorUtilityPct', 'processorTimePct')
 New-Item -ItemType Directory -Force -Path (Split-Path -Parent $OutFile) | Out-Null
+# Follow the process, not just its pid: Windows can reuse the number.
+$watchedStart = if ($WhilePid -gt 0) { (Get-Process -Id $WhilePid -ErrorAction SilentlyContinue).StartTime } else { $null }
 while ($true) {
-    if ($WhilePid -gt 0 -and -not (Get-Process -Id $WhilePid -ErrorAction SilentlyContinue)) { break }
+    if ($WhilePid -gt 0) {
+        $watched = Get-Process -Id $WhilePid -ErrorAction SilentlyContinue
+        if (-not $watched -or $watched.StartTime -ne $watchedStart) { break }
+    }
     try {
         $sample = Get-Counter -Counter $counters -SampleInterval $IntervalSeconds -MaxSamples 1 -ErrorAction Stop
         $row = [ordered]@{ ts = $sample.Timestamp.ToUniversalTime().ToString('o') }

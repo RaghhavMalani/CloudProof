@@ -20,6 +20,8 @@ $sweep = Start-Process -FilePath $node -WorkingDirectory $Worktree -WindowStyle 
 $guard = Start-Process -FilePath "powershell.exe" -WindowStyle Hidden -PassThru `
     -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$(Join-Path $Worktree 'tools\windows\keep-awake-while.ps1')`"", "-WhilePid", $sweep.Id) `
     -RedirectStandardOutput (Join-Path $Out "keep-awake.log")
-[pscustomobject]@{ sweepPid = $sweep.Id; keepAwakePid = $guard.Id; startedAt = (Get-Date).ToString("o"); out = $Out } |
+# The process start time identifies the sweep beyond its pid, which Windows
+# can reuse once the sweep has exited (stop-sweep.ps1 checks it).
+[pscustomobject]@{ sweepPid = $sweep.Id; sweepStartTime = $sweep.StartTime.ToUniversalTime().ToString("o"); keepAwakePid = $guard.Id; startedAt = (Get-Date).ToString("o"); out = $Out } |
     ConvertTo-Json | Set-Content -Path (Join-Path $Out "launch.json")
 "sweep pid $($sweep.Id), keep-awake pid $($guard.Id); log: $(Join-Path $Out 'sweep.log')"
