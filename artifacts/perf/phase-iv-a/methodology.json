@@ -254,6 +254,61 @@
         "stability rule, stop rule, knee definition, saturation fractions",
         "etcd condition"
       ]
+    },
+    {
+      "id": 3,
+      "recordedAt": "2026-10-05",
+      "kind": "operational note; no change to the plan, the harness, the configurations or the analysis",
+      "subject": "Voluntary interruption for host thermal load, resumption in cool-down blocks, read-only host telemetry",
+      "interruption": {
+        "statement": "The comparison sweep was interrupted after 367 completed trials because sustained execution materially heated the benchmark host (a laptop). Completed trials were retained, the machine is allowed to return to a stable thermal state, and the remaining predetermined trial order is resumed without rerunning completed observations.",
+        "stoppedAt": "2026-10-05T07:25Z",
+        "how": "tools/windows/stop-sweep.ps1 semantics: the stop waited until the trial in progress was appended to trials.jsonl, then ended the sweep driver and its whole process tree. The next trial had only just started; nothing of it was recorded.",
+        "completedTrials": 367,
+        "firstTrialStartedAt": "2026-10-05T04:20:55.324Z",
+        "lastTrialStartedAt": "2026-10-05T07:25:15.271Z",
+        "trialsJsonlSha256AtInterruption": "f1ce15346405069680a88ec3f593d4579079b6e5cc1b8d9d80e20c283481b0a2",
+        "curvesRetiredByTheStopRule": [
+          "pipeline-only@1024B at 500/s",
+          "transport-only@1024B at 750/s",
+          "baseline@64B at 750/s",
+          "baseline@16384B at 750/s",
+          "baseline@1024B at 1000/s",
+          "batch-only@1024B at 1000/s"
+        ],
+        "rungInProgress": "rung 1500/s",
+        "diskRegimesSoFar": {
+          "fast": 205,
+          "slow": 162
+        },
+        "powerPolicyVerified": "367/367",
+        "blockFiles": "Logs of this first block are kept as sweep-block1.log/.err, launch-block1.json and keep-awake-block1.log; each later block gets its own."
+      },
+      "resumption": {
+        "rule": "Resume only after a long cool-down, with the same pinned worktree (0b2d2b9) and tools/windows/start-detached-sweep.ps1: recorded trials are skipped and the remaining order is unchanged. No completed trial is rerun, however slow or unstable it looks.",
+        "blocks": "The remainder may be run in blocks of bounded length, each ended at a trial boundary with tools/windows/stop-sweep.ps1 and followed by a cool-down. Block boundaries are recorded with the block logs.",
+        "attendance": "The benchmark is not left running unattended on the laptop to finish faster; reproducibility takes precedence over finishing in one session."
+      },
+      "hostTelemetry": {
+        "environmentalVariables": [
+          "disk fsync regime (recorded per trial, amendment 1)",
+          "Windows process power policy (controlled, amendment 2)",
+          "thermal state / CPU frequency (this amendment: observed, not controlled)"
+        ],
+        "available": "Read-only Windows performance counters, no elevation: % Processor Performance, Processor Frequency (MHz), % Performance Limit, % Processor Utility, % Processor Time.",
+        "unavailable": "CPU temperature and thermal-zone throttle reasons: this machine exposes no thermal-zone counter instance and the WMI thermal class needs elevation, so neither is recorded and no temperature is claimed.",
+        "sampler": "tools/windows/host-telemetry.ps1 runs as a separate process next to each resumed block (every 5 s) and writes host-telemetry-block<N>.jsonl beside the trials; trials are joined to it by timestamp. It does not touch the harness.",
+        "use": "Descriptive only: reported alongside results, never used to include, exclude or rerun a trial. The first block has no such log (disclosed asymmetry).",
+        "files": {
+          "tools/windows/host-telemetry.ps1": "9c8add3bb081aa2f03ce43977ede1116c96d6ab150c9aab051821ee84e0bfd14",
+          "tools/windows/stop-sweep.ps1": "31ff84d29d8b802f572a5412433b202f660ebe3fa83f0b7e8898865dc2bd3bd7"
+        }
+      },
+      "unchanged": [
+        "comparison-plan.json (SHA-256 515f5ce2...)",
+        "the pinned sweep worktree at 0b2d2b9 and every harness file in it",
+        "amendments 1 and 2 in full"
+      ]
     }
   ]
 }

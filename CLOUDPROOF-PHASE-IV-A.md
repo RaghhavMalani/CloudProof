@@ -170,6 +170,18 @@ replicas and load generators and hurts CPU-bound configurations far more than th
   quantifies the policy's effect. It is environment analysis, not part of the ranking, and no profile is retuned
   after it.
 
+### Amendment 3 (2026-10-05): interruption for thermal load, resumption in blocks
+
+An operational note; the plan, the harness and the analysis are unchanged. The comparison sweep was interrupted after
+367 completed trials because sustained execution materially heated the benchmark host. Completed trials were
+retained, and `trials.jsonl` is hashed in the amendment at the moment of interruption. The machine is allowed to
+return to a stable thermal state, and the remaining predetermined order is resumed from the same pinned worktree
+without rerunning any completed observation. The remainder may run in cool-down blocks, each stopped at a trial
+boundary. Thermal state is a third environmental variable, after the disk regime (recorded) and the process power
+policy (controlled). It is observed, not controlled: a separate read-only sampler logs processor frequency, %
+performance, % performance limit and utilization next to each resumed block. CPU temperature is not exposed on this
+machine without elevation and is not recorded. The telemetry is descriptive and never decides which trials count.
+
 ## 3. Historical baseline — Windows default process power policy
 
 _Recorded at `35c8169` under Windows' default process power policy, before power throttling was identified (§8).

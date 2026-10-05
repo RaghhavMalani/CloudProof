@@ -1,0 +1,133 @@
+{
+  "schema": "cloudproof.raft-bench.comparison-plan/v1",
+  "frozenAt": "2026-10-03",
+  "status": "frozen before the first comparison trial (methodology.json amendment 1); a change requires a new amendment and a new output directory",
+  "primaryPayloadBytes": 1024,
+  "curves": [
+    {
+      "config": "baseline",
+      "payloadBytes": 1024,
+      "repetitions": 5,
+      "role": "primary"
+    },
+    {
+      "config": "group-commit",
+      "payloadBytes": 1024,
+      "repetitions": 5,
+      "role": "primary"
+    },
+    {
+      "config": "pipeline-only",
+      "payloadBytes": 1024,
+      "repetitions": 5,
+      "role": "primary"
+    },
+    {
+      "config": "batch-only",
+      "payloadBytes": 1024,
+      "repetitions": 5,
+      "role": "primary"
+    },
+    {
+      "config": "group-batch",
+      "payloadBytes": 1024,
+      "repetitions": 5,
+      "role": "primary"
+    },
+    {
+      "config": "group-batch-pipeline",
+      "payloadBytes": 1024,
+      "repetitions": 5,
+      "role": "primary"
+    },
+    {
+      "config": "optimized-http",
+      "payloadBytes": 1024,
+      "repetitions": 5,
+      "role": "primary"
+    },
+    {
+      "config": "optimized-binary",
+      "payloadBytes": 1024,
+      "repetitions": 5,
+      "role": "primary"
+    },
+    {
+      "config": "transport-only",
+      "payloadBytes": 1024,
+      "repetitions": 5,
+      "role": "primary"
+    },
+    {
+      "config": "baseline",
+      "payloadBytes": 64,
+      "repetitions": 3,
+      "role": "payload-sensitivity"
+    },
+    {
+      "config": "optimized-http",
+      "payloadBytes": 64,
+      "repetitions": 3,
+      "role": "payload-sensitivity"
+    },
+    {
+      "config": "optimized-binary",
+      "payloadBytes": 64,
+      "repetitions": 3,
+      "role": "payload-sensitivity"
+    },
+    {
+      "config": "baseline",
+      "payloadBytes": 16384,
+      "repetitions": 3,
+      "role": "payload-sensitivity"
+    },
+    {
+      "config": "optimized-http",
+      "payloadBytes": 16384,
+      "repetitions": 3,
+      "role": "payload-sensitivity"
+    },
+    {
+      "config": "optimized-binary",
+      "payloadBytes": 16384,
+      "repetitions": 3,
+      "role": "payload-sensitivity"
+    }
+  ],
+  "rates": [
+    100,
+    200,
+    300,
+    500,
+    750,
+    1000,
+    1500,
+    2000,
+    3000,
+    4000,
+    5000,
+    6000,
+    8000,
+    10000,
+    12000,
+    15000,
+    20000,
+    25000,
+    30000,
+    40000
+  ],
+  "fractions": [
+    0.5,
+    0.8
+  ],
+  "trial": {
+    "warmupMs": 5000,
+    "durationMs": 20000,
+    "timeoutMs": 10000,
+    "connections": 128,
+    "generators": 4,
+    "keySpace": 1000
+  },
+  "dryRunRungs": 3
+}
