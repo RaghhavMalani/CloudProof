@@ -82,6 +82,9 @@ a{color:inherit}
 .obs-panel{border-left:1px solid var(--ob-line);background:#030404;overflow-y:auto;min-height:0;scrollbar-width:thin;scrollbar-color:var(--ob-line-2) transparent}
 .obs-block{padding:16px 18px;border-bottom:1px solid var(--ob-line)}
 .obs-block h2{margin:0 0 8px;font:700 10px/1.2 var(--ob-mono);letter-spacing:.2em;color:var(--ob-muted)}
+.obs-lede{padding-top:18px;padding-bottom:16px}
+.obs-kicker{margin:0 0 7px;font:700 9.5px/1.3 var(--ob-mono);letter-spacing:.18em;color:var(--ob-cyan)}
+.obs-lede-text{margin:0;font:500 15px/1.45 var(--ob-sans);color:var(--ob-ink)}
 .obs-sub{margin:0 0 10px;font:500 10px/1.5 var(--ob-mono);letter-spacing:.03em;color:var(--ob-faint)}
 .obs-copy{margin:0;font-size:12.5px;line-height:1.55;color:var(--ob-ink-2)}
 .obs-copy b{color:var(--ob-ink);font-weight:600}

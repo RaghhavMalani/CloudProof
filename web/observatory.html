@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#000000">
   <title>CloudProof · GNN Observatory</title>
-  <meta name="description" content="A replay of the real CloudProof HeterogeneousRiskGNN training and reasoning over a frozen Kubernetes counterfactual pair: hidden states, per-edge messages, relation weights and risk under every edge-destruction ablation.">
+  <meta name="description" content="An observability tool for relational failure prediction: replay how a heterogeneous GNN separates two cloud topologies with identical pooled features but different failure outcomes. Hidden states, per-edge messages, relation weights and risk come from the real CloudProof model and frozen corpus.">
   <link rel="stylesheet" href="observatory.css">
   <!-- three.js is pinned to one release and loaded from the CDN; the site has no npm dependencies. -->
   <script type="importmap">
@@ -50,6 +50,10 @@
     </section>
 
     <aside class="obs-panel" id="obs-panel" tabindex="-1" aria-label="Probe pair, risks and published results">
+      <section class="obs-block obs-lede" aria-label="What this page is">
+        <p class="obs-kicker">OBSERVABILITY FOR RELATIONAL FAILURE PREDICTION</p>
+        <p class="obs-lede-text">Replay how a heterogeneous GNN separates two cloud topologies with identical pooled features but different failure outcomes.</p>
+      </section>
       <section class="obs-block" id="obs-probe" aria-labelledby="obs-probe-title">
         <h2 id="obs-probe-title">PROBE PAIR</h2>
         <p class="obs-sub" id="obs-probe-rule"></p>

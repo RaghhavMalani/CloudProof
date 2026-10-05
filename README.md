@@ -395,11 +395,14 @@ Full reports: [Phase I](CLOUDPROOF.md) · [II-A](CLOUDPROOF-PHASE-II-A.md) · [I
 
 ### GNN Observatory
 
+**An observability tool for relational failure prediction.** `web/observatory.html` replays how a heterogeneous GNN separates two cloud topologies with identical pooled features but different failure outcomes.
+
 ![GNN Observatory: the probe pair's Kubernetes graph with relation-coloured message passing, the risk orb, the pair panel and the published Phase II-B.2 table](docs/observatory/observatory-full.png)
 
-`web/observatory.html` replays a real `HeterogeneousRiskGNN` training run on one frozen counterfactual pair, in 3D. Nothing on it is decorative. Node size and glow come from each node's hidden-state norm, pulses from each edge's message norm in each layer and direction, and edge glow from the Frobenius norm of each relation's weights. The risk orb shows the sigmoid risk of the shown pair member under the chosen ablation (full, no edges, randomized, rewired, collapsed, random labels). All of it is read from `web/observatory/replay.json`.
+The replay is a real `HeterogeneousRiskGNN` training run on one frozen counterfactual pair, shown in 3D. Nothing on it is decorative. Node size and glow come from each node's hidden-state norm, pulses from each edge's message norm in each layer and direction, and edge glow from the Frobenius norm of each relation's weights. The risk orb shows the sigmoid risk of the shown pair member under the chosen ablation (full, no edges, randomized, rewired, collapsed, random labels). All of it is read from `web/observatory/replay.json`.
 
 - **It visualizes a short demo run, not the published result.** That run used one seed and four epochs on the first 24,000 rows of the frozen training split, about a minute on one CPU thread. The page's published table, and the supported-claim sentence it quotes, are copied at export time from the Phase II-B.2 result JSON and from this README, and tests fail if they drift.
+- **Data flows one way only:** research artifacts → export → Observatory. The page is never a source of truth, and no number is ever copied from it into a report.
 - **The probe is chosen by rule, not by score:** the first relational-only, valid, outcome-discordant pair in the test split. That is `pair-00035` (node-concentration). Its members have identical pooled inputs; in member B, `pod/api-2` runs on the node that crashes. A topology-blind model must score the two the same.
 - **The tap is opt-in and side-effect free.** `train_member(viz_tap=...)` (`train.py --viz-tap PATH`) records under `no_grad` in eval mode, with hooks that exist only during a recording. A test proves that training with the tap gives bit-identical weights to training without it.
 - **Controls.** Space plays or pauses, ←/→ scrub, 1–6 switch the ablation, A/B switch the pair member, and hovering a node shows its features and hidden-state norms. The page shows a still image if WebGL is unavailable and honours `prefers-reduced-motion`.
