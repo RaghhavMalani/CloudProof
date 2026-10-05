@@ -18,7 +18,8 @@ const path = require('path');
 const crypto = require('crypto');
 const { fork } = require('child_process');
 const { LocalCluster, sleep } = require('./cluster');
-const { configEnv } = require('./configs');
+const { EtcdCluster } = require('./etcd-cluster');
+const { configEnv, systemOf } = require('./configs');
 const { LogLinearHistogram } = require('../../replica/perf-histogram');
 const { probeDisk, sentinelRecord } = require('./disk-sentinel');
 const { applyPolicy, PowerPolicyError } = require('./power-throttling');
@@ -118,6 +119,73 @@ function summarizeReplica(snapshot, windowSeconds, okOps) {
     };
 }
 
+/**
+ * One etcd member's window, in the shape summarizeReplica produces for a
+ * CloudProof replica, from the /metrics differences (etcd-cluster.js). Where
+ * etcd has no equivalent the field is null, never a guess:
+ *
+ *   logFsyncsPerSec   WAL fsyncs (etcd_disk_wal_fsync_duration_seconds_count)
+ *   metaSavesPerSec   bbolt backend commits, each ending in an fsync (the applied state);
+ *                     CloudProof's counterpart is its metadata save
+ *   otherSyncsPerSec  snapshot and snapshot-db fsyncs (CloudProof: none)
+ *   AppendEntries     not exported by etcd: null
+ *   entriesPerFsync   proposals committed / WAL fsyncs on that member
+ *   net               raft message bytes to and from all peers; the client
+ *                     side is the gateway's gRPC bytes, not the HTTP bytes
+ */
+function summarizeEtcdMember(snapshot, windowSeconds, okOps) {
+    const c = snapshot.counters;
+    const g = snapshot.gauges;
+    const perSec = (value, digits = 1) => (value === null ? null : num(value / windowSeconds, digits));
+    const cpuMicros = c.cpuSeconds === null ? null : c.cpuSeconds * 1e6;
+    return {
+        replicaId: snapshot.replicaId,
+        memberId: snapshot.memberId,
+        state: snapshot.state,
+        term: snapshot.status.term,
+        electionsTotal: null,
+        leaderChangesInWindow: c.leaderChanges,
+        cpuPercentOfOneCore: cpuMicros === null ? null : num((cpuMicros / 1e6 / windowSeconds) * 100, 1),
+        cpuUserMicros: null,
+        cpuSystemMicros: null,
+        cpuMicros: cpuMicros === null ? null : Math.round(cpuMicros),
+        cpuMicrosPerOp: okOps > 0 && cpuMicros !== null ? num(cpuMicros / okOps, 1) : null,
+        eventLoopUtilization: null,
+        eventLoopImmediateLagMs: null,
+        eventLoopDelayTimerMs: null,
+        memory: { rssBytesAtClose: g.residentMemoryBytes, peakRss: null },
+        net: {
+            peerSentBytes: c.peerSentBytes,
+            peerReceivedBytes: c.peerReceivedBytes,
+            clientGrpcSentBytes: c.clientGrpcSentBytes,
+            clientGrpcReceivedBytes: c.clientGrpcReceivedBytes,
+        },
+        rates: {
+            logFsyncsPerSec: perSec(c.walFsyncs),
+            metaSavesPerSec: perSec(c.backendCommits),
+            otherSyncsPerSec: c.snapshotFsyncs === null && c.snapshotDbFsyncs === null
+                ? null : perSec((c.snapshotFsyncs || 0) + (c.snapshotDbFsyncs || 0)),
+            appendEntriesPerSec: null,
+            heartbeatsPerSec: null,
+            logBytesPerSec: perSec(c.walWriteBytes, 0),
+            proposalsCommittedPerSec: perSec(c.proposalsCommitted),
+        },
+        etcd: {
+            counters: c,
+            gauges: g,
+            meanWalFsyncMs: c.walFsyncs ? num((c.walFsyncSeconds / c.walFsyncs) * 1000, 3) : null,
+            meanBackendCommitMs: c.backendCommits ? num((c.backendCommitSeconds / c.backendCommits) * 1000, 3) : null,
+            scrapeWindowSeconds: num(snapshot.scrapeWindowSeconds, 3),
+        },
+        stages: {
+            'log.entriesPerFsync': c.walFsyncs ? {
+                mean: num(c.proposalsCommitted / c.walFsyncs, 2),
+                source: 'etcd_server_proposals_committed_total / etcd_disk_wal_fsync_duration_seconds_count',
+            } : null,
+        },
+    };
+}
+
 function stability(trial) {
     const rule = STABILITY_RULE;
     const reasons = [];
@@ -155,8 +223,17 @@ async function runTrial({
 }) {
     if (!rate || rate <= 0) throw new Error('rate must be positive');
     const runId = crypto.randomBytes(6).toString('hex');
-    const env = { ...configEnv(config), ...extraEnv };
-    const cluster = new LocalCluster({ basePort, dataRoot, env, label: config, powerThrottling });
+    // The same trial for every system; only the cluster and the wire format
+    // of a write differ (methodology amendment 4).
+    const system = systemOf(config);
+    const etcd = system === 'etcd';
+    if (etcd && profile) throw new Error('CPU profiles are recorded for CloudProof replicas only');
+    const env = etcd ? { ...extraEnv } : { ...configEnv(config), ...extraEnv };
+    const cluster = etcd
+        ? new EtcdCluster({ basePort, dataRoot, label: config, powerThrottling })
+        : new LocalCluster({ basePort, dataRoot, env, label: config, powerThrottling });
+    // A missing or different etcd binary is a setup error, not a result.
+    if (etcd) cluster.verifyBinary();
     const startedAt = new Date().toISOString();
     // Disk-regime covariate (methodology amendment 1): sampled immediately
     // before the cluster starts, with nothing else of the benchmark running.
@@ -188,6 +265,7 @@ async function runTrial({
             drainMs,
             workerIndex,
             workers: generators,
+            protocol: etcd ? 'etcd-v3-json' : 'cloudproof-kv',
         }));
         workers = forked.map((w) => w.done);
         workerChildren = forked.map((w) => w.child);
@@ -225,7 +303,7 @@ async function runTrial({
         record = summarizeTrial({
             runId, config, env, rate, payloadBytes, connections, generators, keySpace,
             warmupMs, durationMs, timeoutMs, repetition, startedAt,
-            leader, statusesAtEnd, results, serverSnapshots, diskBytes, systemCpu,
+            leader, statusesAtEnd, results, serverSnapshots, diskBytes, systemCpu, system,
         });
     } catch (error) {
         // A policy that could not be applied is not a result: the benchmark
@@ -240,7 +318,7 @@ async function runTrial({
         // result, not a harness crash: it is recorded as a failed, unstable
         // trial, with the replica logs kept for diagnosis.
         const exited = await Promise.all(cluster.processes.map(async (child, index) => ({
-            replica: `replica${index + 1}`,
+            replica: etcd ? cluster.names[index] : `replica${index + 1}`,
             exitCode: child ? child.exitCode : null,
             signal: child ? child.signalCode : null,
         })));
@@ -260,6 +338,7 @@ async function runTrial({
     }
     const diskAfter = await probeDisk(sentinelDir);
     record.diskSentinel = sentinelRecord(diskBefore, diskAfter, { windowOpenedAt });
+    record.system = etcd ? cluster.identity() : { name: 'cloudproof' };
     record.harness = { controlRetries: cluster.controlRetries };
     record.powerThrottling = powerPolicy || { requested: powerThrottling, applied: false, note: 'trial failed before the policy was applied' };
     return { record, cpuProfile };
@@ -308,8 +387,9 @@ function failedTrial({
 function summarizeTrial({
     runId, config, env, rate, payloadBytes, connections, generators, keySpace,
     warmupMs, durationMs, timeoutMs, repetition, startedAt,
-    leader, statusesAtEnd, results, serverSnapshots, diskBytes, systemCpu = null,
+    leader, statusesAtEnd, results, serverSnapshots, diskBytes, systemCpu = null, system = 'cloudproof',
 }) {
+    const etcd = system === 'etcd';
     const windowSeconds = durationMs / 1000;
     const sum = (field) => results.reduce((total, r) => total + r.counts[field], 0);
     const mergeCounts = (field) => {
@@ -359,12 +439,31 @@ function summarizeTrial({
     }));
     const generatorLag = histogram('generatorLag').summary(1000);
 
-    const replicas = serverSnapshots.map((snapshot) => summarizeReplica(snapshot, windowSeconds, okCompletedInWindow));
+    const summarize = etcd ? summarizeEtcdMember : summarizeReplica;
+    const replicas = serverSnapshots.map((snapshot) => summarize(snapshot, windowSeconds, okCompletedInWindow));
     const leaderAtEnd = statusesAtEnd.filter((s) => s.state === 'LEADER');
     const leaderSnapshot = replicas.find((r) => r.state === 'LEADER') || null;
     const followerSnapshots = replicas.filter((r) => r.state !== 'LEADER');
-    const replicationBytes = followerSnapshots.reduce((total, r) => total + r.net.inboundRead + r.net.inboundWritten, 0);
-    const clientBytes = leaderSnapshot ? leaderSnapshot.net.inboundRead + leaderSnapshot.net.inboundWritten : null;
+    // CloudProof: TCP payload bytes on the followers' inbound sockets (replication)
+    // and on the leader's (clients). etcd: raft message bytes to and from every
+    // peer on the followers, and the gateway's gRPC bytes on the leader.
+    const replicationBytes = etcd
+        ? followerSnapshots.reduce((total, r) => total + (r.net.peerSentBytes || 0) + (r.net.peerReceivedBytes || 0), 0)
+        : followerSnapshots.reduce((total, r) => total + r.net.inboundRead + r.net.inboundWritten, 0);
+    const clientBytes = !leaderSnapshot ? null : etcd
+        ? (leaderSnapshot.net.clientGrpcSentBytes || 0) + (leaderSnapshot.net.clientGrpcReceivedBytes || 0)
+        : leaderSnapshot.net.inboundRead + leaderSnapshot.net.inboundWritten;
+    // Whole-cluster CPU and durable syncs per committed op, for the matched
+    // comparison: every server process, not only the leader.
+    const cpuOf = (r) => (r.cpuMicros !== undefined ? r.cpuMicros : r.cpuUserMicros + r.cpuSystemMicros);
+    const cpus = replicas.map(cpuOf);
+    const clusterCpuMicros = cpus.length && cpus.every(Number.isFinite) ? cpus.reduce((a, b) => a + b, 0) : null;
+    const ratesSum = (field) => replicas.reduce((t, r) => t + (r.rates[field] || 0), 0);
+    // From the raw window counters, not the rounded rates.
+    const syncsOf = (r) => (etcd
+        ? ['walFsyncs', 'backendCommits', 'snapshotFsyncs', 'snapshotDbFsyncs'].reduce((t, k) => t + (r.etcd.counters[k] || 0), 0)
+        : (r.counters['log.fsyncs'] || 0) + (r.counters['meta.saves'] || 0));
+    const clusterSyncs = replicas.reduce((t, r) => t + syncsOf(r), 0);
 
     const trial = {
         schema: 'cloudproof.raft-bench.trial/v1',
@@ -374,7 +473,9 @@ function summarizeTrial({
         env,
         repetition,
         workload: {
-            operation: 'PUT /kv/:key {"value": <payloadBytes ASCII>} (op=set, no clientId/seqNo)',
+            operation: etcd
+                ? 'POST /v3/kv/put {"key": base64(k<i>), "value": base64(<payloadBytes ASCII>)} (etcd Put, no lease, no prevKv)'
+                : 'PUT /kv/:key {"value": <payloadBytes ASCII>} (op=set, no clientId/seqNo)',
             payloadBytes,
             keySpace,
             arrival: 'open-loop, constant spacing (1/rate), interleaved across generator processes',
@@ -415,6 +516,10 @@ function summarizeTrial({
             clientBytesPerOp: okCompletedInWindow > 0 && clientBytes !== null ? num(clientBytes / okCompletedInWindow, 1) : null,
             clusterLogFsyncsPerSec: num(replicas.reduce((t, r) => t + (r.rates.logFsyncsPerSec || 0), 0), 1),
             clusterMetaSavesPerSec: num(replicas.reduce((t, r) => t + (r.rates.metaSavesPerSec || 0), 0), 1),
+            clusterOtherSyncsPerSec: num(ratesSum('otherSyncsPerSec'), 1),
+            clusterCpuMicrosPerOp: okCompletedInWindow > 0 && clusterCpuMicros !== null
+                ? num(clusterCpuMicros / okCompletedInWindow, 1) : null,
+            clusterDurableSyncsPerOp: okCompletedInWindow > 0 ? num(clusterSyncs / okCompletedInWindow, 4) : null,
             diskBytesAtEnd: diskBytes,
         },
         // Everything on the machine, including the cluster and generators;

@@ -31,10 +31,30 @@ const CONFIGS = Object.fromEntries(PROFILE_CONFIGS.map(([name, description]) => 
     env: name === 'baseline' ? {} : { RAFT_PROFILE: name },
 }]));
 
+/**
+ * Systems other than CloudProof that the same harness drives, with the same
+ * generator, ladder, windows and stability rule (methodology amendment 4).
+ * They are not replica profiles, so they stay out of CONFIGS.
+ */
+const EXTERNAL_SYSTEMS = Object.freeze({
+    etcd: {
+        system: 'etcd',
+        description: 'Stock etcd v3.7.2 (official release), three members on loopback, every flag at its default '
+            + 'except names, data directories, URLs and the initial cluster; clients use the v3 HTTP/JSON gateway.',
+    },
+});
+
+/** 'cloudproof' for a replica profile, the system's name for an external system. */
+function systemOf(name) {
+    if (CONFIGS[name]) return 'cloudproof';
+    if (EXTERNAL_SYSTEMS[name]) return EXTERNAL_SYSTEMS[name].system;
+    throw new Error(`unknown benchmark config "${name}" (known: ${[...Object.keys(CONFIGS), ...Object.keys(EXTERNAL_SYSTEMS)].join(', ')})`);
+}
+
 function configEnv(name) {
     const config = CONFIGS[name];
     if (!config) throw new Error(`unknown benchmark config "${name}" (known: ${Object.keys(CONFIGS).join(', ')})`);
     return { ...config.env };
 }
 
-module.exports = { CONFIGS, configEnv };
+module.exports = { CONFIGS, EXTERNAL_SYSTEMS, configEnv, systemOf };

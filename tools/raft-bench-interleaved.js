@@ -35,7 +35,8 @@ const { runTrial, STABILITY_RULE } = require('../packages/raft-bench/run');
 const { parseArgs } = require('../packages/raft-bench/cli');
 const { readTrials, groupTrials, mean } = require('../packages/raft-bench/aggregate');
 const { captureEnvironment } = require('../packages/raft-bench/environment');
-const { CONFIGS } = require('../packages/raft-bench/configs');
+const { CONFIGS, EXTERNAL_SYSTEMS } = require('../packages/raft-bench/configs');
+const { EtcdCluster } = require('../packages/raft-bench/etcd-cluster');
 const { ORDER_SCHEME, orderedRound } = require('../packages/raft-bench/order');
 const { SENTINEL } = require('../packages/raft-bench/disk-sentinel');
 const { STOP_RULE } = require('./raft-bench-sweep');
@@ -62,7 +63,7 @@ function loadPlan(file) {
     const plan = JSON.parse(text);
     if (plan.schema !== 'cloudproof.raft-bench.comparison-plan/v1') throw new Error(`unexpected plan schema ${plan.schema}`);
     for (const curve of plan.curves) {
-        if (!CONFIGS[curve.config]) throw new Error(`plan names unknown config ${curve.config}`);
+        if (!CONFIGS[curve.config] && !EXTERNAL_SYSTEMS[curve.config]) throw new Error(`plan names unknown config ${curve.config}`);
     }
     return { plan, sha256: crypto.createHash('sha256').update(text).digest('hex') };
 }
@@ -170,8 +171,13 @@ async function main() {
     if (!dryRun) {
         fs.mkdirSync(outDir, { recursive: true });
         const environmentFile = path.join(outDir, 'environment.json');
+        // A plan with etcd refuses to start without the pinned binary, before
+        // any trial is recorded.
+        const etcdIdentity = plan.curves.some((c) => EXTERNAL_SYSTEMS[c.config])
+            ? new EtcdCluster({ dataRoot: options['data-dir'] }).verifyBinary() : null;
         if (!fs.existsSync(environmentFile)) {
             const environment = captureEnvironment({ root: ROOT, dataDir: options['data-dir'] });
+            if (etcdIdentity) environment.etcd = etcdIdentity;
             fs.writeFileSync(environmentFile, `${JSON.stringify(environment, null, 2)}\n`);
         }
         const recordedPlan = path.join(outDir, 'plan.json');

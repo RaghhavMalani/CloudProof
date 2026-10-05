@@ -48,6 +48,36 @@ function makeValue(bytes, seed) {
     return out;
 }
 
+/**
+ * Wire format of one write, per target system. Both store the same key
+ * (k<i>) and the same value bytes; only the request differs.
+ *
+ *   cloudproof-kv  PUT <prefix>k<i>   {"value": "<value>"}
+ *   etcd-v3-json   POST /v3/kv/put    {"key": base64(k<i>), "value": base64(<value>)}
+ *
+ * etcd's HTTP/JSON gateway carries protobuf `bytes` fields as base64, so its
+ * body is about a third larger for the same stored value (disclosed in
+ * methodology amendment 4). Bodies are built once, never per request.
+ * Returns keyIndex -> { method, path, body }.
+ */
+function requestBuilder({ protocol = 'cloudproof-kv', routePrefix = '/kv/', value, keySpace }) {
+    if (protocol === 'cloudproof-kv') {
+        const body = Buffer.from(JSON.stringify({ value }), 'utf8');
+        return (keyIndex) => ({ method: 'PUT', path: `${routePrefix}k${keyIndex}`, body });
+    }
+    if (protocol === 'etcd-v3-json') {
+        const b64 = (text) => Buffer.from(text, 'utf8').toString('base64');
+        const valueB64 = b64(value);
+        const requests = Array.from({ length: keySpace }, (_, keyIndex) => ({
+            method: 'POST',
+            path: '/v3/kv/put',
+            body: Buffer.from(JSON.stringify({ key: b64(`k${keyIndex}`), value: valueB64 }), 'utf8'),
+        }));
+        return (keyIndex) => requests[keyIndex];
+    }
+    throw new Error(`unknown load-generator protocol ${protocol}`);
+}
+
 function run(config) {
     const {
         target,              // e.g. http://127.0.0.1:17001
@@ -64,6 +94,7 @@ function run(config) {
         workerIndex,
         workers,
         path: routePrefix = '/kv/',
+        protocol = 'cloudproof-kv',
         precisionSpinMs = 17,
     } = config;
 
@@ -75,7 +106,7 @@ function run(config) {
         scheduling: 'fifo',
     });
     const value = makeValue(payloadBytes, 0x9e3779b9);
-    const body = Buffer.from(JSON.stringify({ value }), 'utf8');
+    const requestFor = requestBuilder({ protocol, routePrefix, value, keySpace });
     const intervalMs = 1000 / ratePerSecond;
     const totalMs = warmupMs + durationMs;
     const windowStart = warmupMs;
@@ -185,14 +216,14 @@ function run(config) {
     const CONNECT_ERRORS = new Set(['ECONNREFUSED', 'EADDRINUSE', 'EADDRNOTAVAIL']);
     let connectBackoffMs = 0;
 
-    function sendRecord(record, path) {
+    function sendRecord(record, request) {
         const req = http.request({
             agent,
             host: url.hostname,
             port: url.port,
-            method: 'PUT',
-            path,
-            headers: { 'content-type': 'application/json', 'content-length': body.length },
+            method: request.method,
+            path: request.path,
+            headers: { 'content-type': 'application/json', 'content-length': request.body.length },
         });
         record.req = req;
         const markSent = () => {
@@ -222,13 +253,13 @@ function run(config) {
                 connectBackoffMs = Math.min(1000, Math.max(10, connectBackoffMs * 2));
                 counts.connectRetries += 1;
                 setTimeout(() => {
-                    if (!record.done && relative() < record.deadline) sendRecord(record, path);
+                    if (!record.done && relative() < record.deadline) sendRecord(record, request);
                 }, connectBackoffMs);
                 return;
             }
             complete(record, 'network', error.code || 'ERROR');
         });
-        req.end(body);
+        req.end(request.body);
     }
 
     function dispatch(k) {
@@ -254,8 +285,9 @@ function run(config) {
         };
         inflight.set(record.id, record);
         queued += 1;
-        sendRecord(record, routePrefix + 'k' + (globalIndex % keySpace));
-        if (measured) counts.bytesRequestBody += body.length;
+        const request = requestFor(globalIndex % keySpace);
+        sendRecord(record, request);
+        if (measured) counts.bytesRequestBody += request.body.length;
     }
 
     function sweepDeadlines() {
@@ -350,4 +382,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { makeValue };
+module.exports = { makeValue, requestBuilder };

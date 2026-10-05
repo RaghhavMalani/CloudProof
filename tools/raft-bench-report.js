@@ -257,6 +257,70 @@ function keyTable(rows, payload) {
     return lines.join('\n');
 }
 
+/**
+ * The matched etcd comparison (methodology amendment 4): every curve of a
+ * sweep that contains etcd, at one payload, read at its knee. Cluster CPU and
+ * durable syncs per op are means over the knee trials' own records
+ * (server.clusterCpuMicrosPerOp, server.clusterDurableSyncsPerOp). For
+ * CloudProof "log" is its log fsync and "state" its metadata save; for etcd
+ * they are the WAL fsync and the bbolt backend commit (other syncs: snapshot
+ * fsyncs, counted in the total).
+ */
+function matchedRows(curves, trials, payload) {
+    const selected = curves.filter((c) => c.payloadBytes === payload);
+    const etcd = selected.find((c) => c.config === 'etcd');
+    if (!etcd) return [];
+    return selected.map((curve) => {
+        const at = (fraction) => pointAt(curve, fraction);
+        const knee = at(1);
+        const kneeTrials = knee ? trials.filter((t) => t.directory === curve.directory && t.config === curve.config
+            && t.workload.payloadBytes === payload && (t.phase || 'ladder') === 'ladder' && t.load.offeredRate === knee.rate) : [];
+        const meanOf = (fn) => mean(kneeTrials.map(fn).filter(Number.isFinite));
+        const achieved = knee ? knee.achievedPerSec.mean : null;
+        const perOp = (perSec) => (achieved && Number.isFinite(perSec) ? perSec / achieved : null);
+        return {
+            config: curve.config,
+            system: curve.config === 'etcd' ? 'etcd' : 'cloudproof',
+            kneeRate: curve.knee.kneeRate,
+            kneeStableVotes: knee ? `${knee.stableVotes}/${knee.repetitions}` : null,
+            maxStableThroughputPerSec: curve.knee.maxStableThroughputPerSec,
+            vsEtcd: etcd.knee.maxStableThroughputPerSec && curve.knee.maxStableThroughputPerSec
+                ? curve.knee.maxStableThroughputPerSec / etcd.knee.maxStableThroughputPerSec : null,
+            p99At50Ms: at(0.5) ? at(0.5).latencyAllMs.p99 : null,
+            p99At80Ms: at(0.8) ? at(0.8).latencyAllMs.p99 : null,
+            p99AtKneeMs: knee ? knee.latencyAllMs.p99 : null,
+            leaderCpuPercent: knee ? knee.leader.cpuPercentOfOneCore.mean : null,
+            leaderCpuMicrosPerOp: knee ? knee.leader.cpuMicrosPerOp.mean : null,
+            clusterCpuMicrosPerOp: meanOf((t) => t.server.clusterCpuMicrosPerOp),
+            durableSyncsPerOp: meanOf((t) => t.server.clusterDurableSyncsPerOp),
+            logSyncsPerOp: knee ? perOp(knee.cluster.logFsyncsPerSec.mean) : null,
+            stateSyncsPerOp: knee ? perOp(knee.cluster.metaSavesPerSec.mean) : null,
+            entriesPerLeaderFsync: knee ? knee.leader.entriesPerFsyncMean.mean : null,
+            replicationBytesPerOp: knee ? knee.cluster.replicationBytesPerOp.mean : null,
+            kneeTrials: kneeTrials.length,
+        };
+    });
+}
+
+function matchedTable(rows) {
+    const lines = [
+        '| system | stable throughput (ops/s) | vs etcd | knee (offered/s, stable reps) | p99 @ 0.5x ms | p99 @ 0.8x ms | p99 @ knee ms | leader CPU % | leader CPU µs/op | cluster CPU µs/op | durable syncs / op | log·WAL fsyncs / op | meta·bbolt syncs / op | entries / leader fsync | repl bytes / op |',
+        '|---|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|',
+    ];
+    for (const row of rows) {
+        lines.push(`| ${CONFIG_LABEL[row.config] || row.config} | ${fmtInt(row.maxStableThroughputPerSec)} | `
+            + `${row.vsEtcd === null ? '—' : `${row.vsEtcd.toFixed(2)}x`} | ${fmtInt(row.kneeRate)} (${row.kneeStableVotes || '—'}) | `
+            + `${fmt(row.p99At50Ms, 2)} | ${fmt(row.p99At80Ms, 2)} | ${fmt(row.p99AtKneeMs, 2)} | ${fmt(row.leaderCpuPercent, 0)} | `
+            + `${fmt(row.leaderCpuMicrosPerOp, 0)} | ${fmt(row.clusterCpuMicrosPerOp, 0)} | ${fmt(row.durableSyncsPerOp, 3)} | `
+            + `${fmt(row.logSyncsPerOp, 3)} | ${fmt(row.stateSyncsPerOp, 3)} | ${fmt(row.entriesPerLeaderFsync, 1)} | `
+            + `${fmtInt(row.replicationBytesPerOp)} |`);
+    }
+    lines.push('', 'CloudProof: log fsync and metadata save. etcd: WAL fsync and bbolt backend commit; durable syncs also '
+        + 'count etcd\'s snapshot fsyncs. etcd replication bytes are raft message bytes on the followers\' peer links, '
+        + 'CloudProof\'s are TCP payload bytes on the followers\' sockets. All values at each curve\'s own knee.');
+    return lines.join('\n');
+}
+
 function pooledP99(trials) {
     if (!trials.length) return null;
     const merged = new LogLinearHistogram();
@@ -372,7 +436,8 @@ function saturationSvg(curves, payload) {
     const parts = [
         `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12">`,
         `<rect width="${width}" height="${height}" fill="#ffffff"/>`,
-        `<text x="${margin.left}" y="22" font-size="14" font-weight="600" fill="#111827">p99 end-to-end latency vs offered load — ${payload} B writes, 3-replica CloudProof Raft (log-log)</text>`,
+        `<text x="${margin.left}" y="22" font-size="14" font-weight="600" fill="#111827">p99 end-to-end latency vs offered load — ${payload} B writes, `
+            + `${selected.some((c) => c.config === 'etcd') ? '3-member CloudProof and etcd clusters' : '3-replica CloudProof Raft'} (log-log)</text>`,
     ];
     const decades = [];
     for (let d = Math.floor(lx(minY)); d <= Math.ceil(lx(maxY)); d += 1) decades.push(10 ** d);
@@ -469,6 +534,9 @@ function main() {
     for (const curve of curves) blocks[`curve-${curve.config}-${curve.payloadBytes}`] = curveTable(curve);
     const profiles = profileTable(root, options.profiles ? path.resolve(options.profiles) : null);
     if (profiles) blocks['profile-table'] = profiles;
+    const matched = Object.fromEntries(payloads.map((payload) => [payload, matchedRows(curves, trials, payload)])
+        .filter(([, list]) => list.length));
+    for (const [payload, list] of Object.entries(matched)) blocks[`etcd-matched-${payload}`] = matchedTable(list);
 
     const svgFiles = [];
     for (const payload of payloads) {
@@ -484,6 +552,7 @@ function main() {
         generatedBy: 'tools/raft-bench-report.js',
         inputs: hashes,
         comparison: rows,
+        ...(Object.keys(matched).length ? { etcdMatched: matched } : {}),
         regimeSensitivity: regimes,
         curves: curves.map((c) => ({
             config: c.config,
@@ -505,6 +574,9 @@ function main() {
     const report = ['# Phase IV-A generated benchmark report', '',
         '_Generated by `node tools/raft-bench-report.js` from the raw trial records. Do not edit by hand._', ''];
     report.push('## Saturation knees', '', blocks['knee-table'], '');
+    for (const payload of Object.keys(matched)) {
+        report.push(`## Matched etcd comparison — ${payload} B`, '', blocks[`etcd-matched-${payload}`], '');
+    }
     for (const payload of payloads) report.push(`## Headline — ${payload} B (speedup vs the interleaved baseline of this sweep)`, '', blocks[`headline-${payload}`], '');
     for (const payload of payloads) report.push(`## Key comparison — ${payload} B`, '', blocks[`key-table-${payload}`], '');
     for (const payload of regimePayloads) {
@@ -532,4 +604,7 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { comparisonRows, replaceGenerated, saturationSvg, csvRows, loadCurves, regimeRows, keyTable, headlineTable, trialsCsv };
+module.exports = {
+    comparisonRows, replaceGenerated, saturationSvg, csvRows, loadCurves, regimeRows, keyTable, headlineTable, trialsCsv,
+    matchedRows, matchedTable,
+};
