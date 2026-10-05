@@ -1,0 +1,4 @@
+SUCCESS: The process with PID 18640 (child process of PID 44848) has been terminated.
+SUCCESS: The process with PID 44848 (child process of PID 49172) has been terminated.
+
+stopped sweep pid 44848 after trial 603 (was 602 when the stop was requested)
