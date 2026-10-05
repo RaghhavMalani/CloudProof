@@ -19,6 +19,7 @@ from .metrics import evaluate_binary_risk, threshold_for_f1
 from .model import ModelConfig, build_model, ensemble_predict
 from .runtime import artifact_manifest, json_dump
 from .tensorize import CloudProofTensorizer, collate_graphs
+from .viz_tap import VizTapSpec, probe_provenance, probe_samples, select_probe_pair
 
 
 ABLATIONS = (
@@ -98,7 +99,16 @@ def train_member(
     train_label_overrides: tuple[float, ...] | None = None,
     validation_label_overrides: tuple[float, ...] | None = None,
     tensorizer: CloudProofTensorizer | None = None,
+    viz_tap: VizTapSpec | None = None,
 ) -> tuple[nn.Module, dict]:
+    """Train one ensemble member.
+
+    ``viz_tap`` (opt-in, default off) attaches a :class:`~ml.cloudproof.viz_tap.VizTap`
+    that records the probe batch before the first step, after every ``every``
+    optimizer steps, at the end of each epoch (with validation metrics) and once
+    for the restored best checkpoint. It observes without side effects, so the
+    returned model and member record are identical with or without it.
+    """
     seed_everything(seed)
     model = build_model(config).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
@@ -123,6 +133,10 @@ def train_member(
     best_nll = float("inf")
     epochs_without_improvement = 0
     history = []
+    tap = viz_tap.attach(model, seed=seed) if viz_tap is not None else None
+    step = 0
+    if tap is not None:
+        tap.emit(step=step, epoch=0, train_loss=None, phase="init")
     for epoch in range(1, epochs + 1):
         train_data.set_epoch(epoch)
         model.train()
@@ -138,12 +152,17 @@ def train_member(
             optimizer.step()
             loss_sum += float(loss.detach()) * batch.graph_count
             examples += batch.graph_count
+            step += 1
+            if tap is not None and tap.due(step):
+                tap.emit(step=step, epoch=epoch, train_loss=float(loss.detach()))
         validation_loader = _validation_loader(
             validation_path, batch_size, max_validation_records, validation_label_overrides, tensorizer
         )
         labels, probabilities = _member_predictions(model, validation_loader, device)
         metrics = evaluate_binary_risk(labels, probabilities)
         history.append({"epoch": epoch, "trainLoss": loss_sum / max(1, examples), "validation": metrics})
+        if tap is not None:
+            tap.emit(step=step, epoch=epoch, train_loss=history[-1]["trainLoss"], phase="epoch", validation=metrics)
         if metrics["nll"] < best_nll - 1e-8:
             best_nll = metrics["nll"]
             best_epoch = epoch
@@ -157,6 +176,8 @@ def train_member(
         raise RuntimeError("training produced no model state")
     model.load_state_dict(best_state)
     model.to(device).eval()
+    if tap is not None:
+        tap.emit(step=step, epoch=best_epoch, train_loss=None, phase="best")
     return model, {"seed": seed, "bestEpoch": best_epoch, "bestValidationNll": best_nll, "history": history}
 
 
@@ -182,6 +203,8 @@ def train_ensemble(
     permuted_labels: bool = False,
     label_permutation_seed: int = 99173,
     torch_threads: int = 1,
+    viz_tap_path: str | Path | None = None,
+    viz_tap_every: int = 50,
 ) -> dict:
     if len(seeds) != 5:
         raise ValueError("Phase II-B requires exactly five independently initialized models")
@@ -252,9 +275,26 @@ def train_ensemble(
     }
     json_dump(output / "config.json", config)
 
+    viz_tap = None
+    if viz_tap_path is not None:
+        # The probe pair lives in a causal corpus's counterfactual-pair file. Every
+        # member appends its own header and frames to the same tap file.
+        if not hasattr(manifest, "auxiliary_path"):
+            raise ValueError("--viz-tap needs a causal corpus with counterfactual pairs")
+        pair = select_probe_pair(manifest.auxiliary_path("pairs"))
+        viz_tap = VizTapSpec(
+            path=Path(viz_tap_path),
+            probe_batch=probe_samples(pair),
+            every=viz_tap_every,
+            header=probe_provenance(manifest.directory, pair),
+        )
+
     models = []
     members = []
     for index, seed in enumerate(seeds):
+        member_tap = None
+        if viz_tap is not None:
+            member_tap = VizTapSpec(viz_tap.path, viz_tap.probe_batch, viz_tap.every, viz_tap.header, append=index > 0)
         model, member = train_member(
             seed=seed,
             config=model_config,
@@ -272,6 +312,7 @@ def train_ensemble(
             device=device,
             train_label_overrides=train_label_overrides,
             validation_label_overrides=validation_label_overrides,
+            viz_tap=member_tap,
         )
         torch.save(model.state_dict(), output / f"member-{index}.pt")
         models.append(model)
@@ -330,6 +371,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--permuted-labels", action="store_true")
     parser.add_argument("--label-permutation-seed", type=int, default=99173)
     parser.add_argument("--threads", type=int, default=1)
+    parser.add_argument(
+        "--viz-tap",
+        metavar="PATH",
+        help="opt-in: record the GNN Observatory tap (JSON Lines) for a frozen probe pair; off by default",
+    )
+    parser.add_argument("--viz-tap-every", type=int, default=50, metavar="N", help="tap every N optimizer steps")
     return parser.parse_args()
 
 
@@ -357,6 +404,8 @@ def main() -> None:
         permuted_labels=args.permuted_labels,
         label_permutation_seed=args.label_permutation_seed,
         torch_threads=args.threads,
+        viz_tap_path=args.viz_tap,
+        viz_tap_every=args.viz_tap_every,
     )
     print(json.dumps({"out": str(Path(args.out).resolve()), "validation": result["validation"]}, indent=2))
 
