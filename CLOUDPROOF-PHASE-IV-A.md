@@ -17,9 +17,8 @@ Every number in the result tables below is generated from the raw trial records 
 ## Status
 
 <!-- BEGIN GENERATED:status -->
-_Baseline recorded at harness commit `35c8169` (clean tree) and committed as immutable history in
-`artifacts/perf/phase-iv-a/{baseline-environment.json, baseline/, profiles/baseline/, baseline-report/}`.
-Optimization sweeps pending._
+_Comparison sweep closed (801 trials, `b43d68d`) and reported (§11). Pending: leader CPU profiles (baseline vs optimized),
+final regression, etcd (only after those). The historical baseline (`d5d7e00`) is unchanged._
 <!-- END GENERATED:status -->
 
 ## 1. Environment (Step 0)
@@ -546,3 +545,113 @@ its requested state: system-managed in the default arm, opted out in the other.
   recorded as failed: the harness could not reach the saturated leader to collect its window. The replicas were
   healthy. The harness now retries those post-window requests and records the retries (`659c649`). Disk regimes
   varied across trials and are listed per row.
+
+## 11. Comparison results (interleaved, power throttling disabled)
+
+801 trials in five blocks (amendment 3), from the pinned worktree `0b2d2b9`, every process verified opted out of power
+throttling. Generated report: [`comparison-report/REPORT.md`](artifacts/perf/phase-iv-a/comparison-report/REPORT.md),
+from [`comparison/trials.jsonl`](artifacts/perf/phase-iv-a/comparison/trials.jsonl) only. **Every speedup below is
+relative to the baseline measured in this same sweep**, never to the historical baseline of §3.
+
+### Headline — 1 KiB (primary)
+
+| profile | stable throughput (ops/s) | vs interleaved baseline | knee (offered/s, stable reps) | knee p99 ms | knee p99.9 ms | p99 @ 0.8x knee ms | CPU µs/op | fsync+meta / op | entries / fsync | AppendEntries / op | entries / AppendEntries |
+|---|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Baseline | 502 | 1.0x | 500 (3/5) | 1768.45 | 1874.94 | 277.76 | 723 | 2.688 | 1.0 | 0.649 | 3.7 |
+| Group commit | 5,999 | 12.0x | 6,000 (5/5) | 28.91 | 34.53 | 1007.10 | 114 | 0.096 | 29.1 | 0.049 | 49.0 |
+| Pipeline only | 200 | 0.4x | 200 (5/5) | 498.94 | 522.24 | 432.64 | 1151 | 3.673 | 1.0 | 1.058 | 3.2 |
+| Batch only | 502 | 1.0x | 500 (4/5) | 973.31 | 1007.62 | 121.53 | 459 | 1.599 | 1.0 | 0.231 | 29.3 |
+| Group + batch | 6,000 | 12.0x | 6,000 (5/5) | 20.94 | 25.25 | 24.14 | 123 | 0.170 | 15.5 | 0.083 | 30.6 |
+| Group + batch + pipeline | 6,000 | 12.0x | 6,000 (5/5) | 31.09 | 40.35 | 35.36 | 150 | 0.198 | 54.9 | 0.184 | 12.0 |
+| Optimized HTTP | 6,001 | 12.0x | 6,000 (5/5) | 27.95 | 32.99 | 42.37 | 125 | 0.147 | 48.3 | 0.146 | 14.9 |
+| Optimized binary | 10,600 | 21.1x | 12,000 (3/5) | 9625.60 | 9666.56 | 3004.41 | 76 | 0.091 | 50.8 | 0.069 | 40.0 |
+| Baseline + framed TCP only | 300 | 0.6x | 300 (5/5) | 99.26 | 155.90 | 69.69 | 693 | 2.598 | 1.0 | 0.597 | 6.4 |
+
+"Stable throughput" is the mean achieved rate at the knee: the highest ladder rate that is majority-stable with
+every lower rate majority-stable (pre-registered). The knee columns pool every repetition at that rate, stable or
+not, which is why a marginal knee (optimized binary, 3/5) shows a multi-second pooled p99. The 0.8x-knee column is
+measured separately, at the end of the sweep (block 5).
+
+### Payload sensitivity — 64 B and 16 KiB
+
+| profile | stable throughput (ops/s) | vs interleaved baseline | knee (offered/s, stable reps) | knee p99 ms | knee p99.9 ms | p99 @ 0.8x knee ms | CPU µs/op | fsync+meta / op | entries / fsync | AppendEntries / op | entries / AppendEntries |
+|---|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Baseline | 299 | 1.0x | 300 (3/3) | 99.58 | 106.69 | 69.76 | 1111 | 3.437 | 1.0 | 0.954 | 4.7 |
+| Optimized HTTP | 6,000 | 20.0x | 6,000 (3/3) | 25.14 | 31.15 | 48.32 | 143 | 0.264 | 47.3 | 0.253 | 8.1 |
+| Optimized binary | 9,995 | 33.4x | 10,000 (3/3) | 40.64 | 48.35 | 154.37 | 71 | 0.105 | 48.9 | 0.083 | 35.0 |
+
+| profile | stable throughput (ops/s) | vs interleaved baseline | knee (offered/s, stable reps) | knee p99 ms | knee p99.9 ms | p99 @ 0.8x knee ms | CPU µs/op | fsync+meta / op | entries / fsync | AppendEntries / op | entries / AppendEntries |
+|---|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Baseline | 300 | 1.0x | 300 (3/3) | 117.31 | 131.71 | 60.09 | 1223 | 2.954 | 1.0 | 0.755 | 5.7 |
+| Optimized HTTP | 3,013 | 10.0x | 3,000 (3/3) | 170.88 | 259.33 | 57.38 | 316 | 0.167 | 46.8 | 0.165 | 14.8 |
+| Optimized binary | 3,003 | 10.0x | 3,000 (3/3) | 43.49 | 57.41 | 29.17 | 250 | 0.273 | 16.8 | 0.228 | 9.8 |
+
+### Disk-regime sensitivity — 1 KiB
+
+| configuration | disk regime | trials | sentinel median fsync ms | regime knee (offered/s) | achieved @ regime knee | gaps below knee | achieved @ overall knee (n) | p99 @ overall knee ms |
+|---|---|---:|---:|---:|---:|---|---:|---:|
+| Baseline | fast | 19 | 0.33 | 300 | 300 (5) | — | 492 (2) | 419.84 |
+| Baseline | slow | 11 | 1.72 | 500 | 508 (3) | 100, 300 | 508 (3) | 1801.21 |
+| Group commit | fast | 25 | 0.33 | 6,000 | 5,998 (2) | 1000 | 5,998 (2) | 26.72 |
+| Group commit | slow | 45 | 1.74 | 6,000 | 6,000 (3) | — | 6,000 (3) | 29.68 |
+| Pipeline only | fast | 11 | 0.35 | 200 | 200 (2) | — | 200 (2) | 6.61 |
+| Pipeline only | slow | 9 | 1.71 | 200 | 199 (3) | 100 | 199 (3) | 504.06 |
+| Batch only | fast | 11 | 0.31 | 200 | 200 (3) | — | 498 (2) | 241.66 |
+| Batch only | slow | 19 | 1.67 | 500 | 505 (3) | — | 505 (3) | 984.06 |
+| Group + batch | fast | 41 | 0.33 | 6,000 | 6,001 (2) | — | 6,001 (2) | 9.10 |
+| Group + batch | slow | 39 | 1.74 | 6,000 | 6,000 (3) | 100 | 6,000 (3) | 21.81 |
+| Group + batch + pipeline | fast | 37 | 0.34 | 8,000 | 8,003 (1) | 1000 | 6,000 (2) | 31.95 |
+| Group + batch + pipeline | slow | 33 | 1.78 | 6,000 | 6,000 (3) | 100 | 6,000 (3) | 30.77 |
+| Optimized HTTP | fast | 37 | 0.33 | 6,000 | 6,000 (1) | 750 | 6,000 (1) | 28.51 |
+| Optimized HTTP | slow | 33 | 1.71 | 6,000 | 6,001 (4) | 100, 200, 4000 | 6,001 (4) | 27.79 |
+| Optimized binary | fast | 43 | 0.32 | 12,000 | 12,023 (3) | 1000 | 12,023 (3) | 109.18 |
+| Optimized binary | slow | 42 | 1.72 | 10,000 | 10,066 (2) | 100 | 8,466 (2) | 9641.98 |
+| Baseline + framed TCP only | fast | 16 | 0.34 | 300 | 300 (3) | — | 300 (3) | 103.74 |
+| Baseline + framed TCP only | slow | 9 | 1.66 | 300 | 300 (2) | 100 | 300 (2) | 70.33 |
+
+### What the numbers say
+
+1. **The baseline saturates on synchronous durability.** Each committed write costs about 2.7 fsync-class operations
+   (log append plus metadata rewrite), one entry per fsync, at about 36% of one leader core at its knee. The re-measured
+   baseline knee is **500 writes/s** at 1 KiB. The historical 300/s of §3 was measured under Windows' default process
+   policy and is not the denominator for anything here.
+2. **Group commit removes that bound: about 6,000 writes/s, 12x.** fsync and metadata operations per write fall from
+   2.69 to 0.10, with 29 entries per fsync. Stop-and-wait replication already batches what accumulates while a request is
+   in flight (49 entries per AppendEntries), so the engine moves from storage-bound towards CPU-bound (68% of a core).
+   It reaches 6,000/s in both the fast and the slow fsync regime.
+3. **Batching alone does not help.** Batch-only cuts AppendEntries per write from 0.65 to 0.23 (29 entries per request)
+   and fsyncs per write to 1.6, but the leader still fsyncs every write before acknowledging, so the knee stays at
+   500/s. On top of group commit, explicit bounded batches do not raise the knee on this ladder (6,000/s either way).
+4. **Pipelining alone regresses, to 200 writes/s (0.4x).** It sends a request per write while earlier ones are still in
+   flight: AppendEntries per write rise from 0.65 to 1.06, entries per request fall to 3.2, and every request costs a
+   follower its own synchronous fsync (3.67 fsync-class operations per write) plus an HTTP round trip on the
+   axios/express path (1,151 µs of leader CPU per write). This is small-request amplification. Pipelining helps nothing
+   until group commit and batching make each request carry many entries.
+5. **With every engine optimization the leader becomes CPU-bound, and the transport becomes the ceiling.** Group + batch
+   + pipeline and optimized-HTTP sit at the same 6,000/s rung. The framed transport (optimized binary) raises the knee to
+   **12,000/s (10,600 achieved, 21x)**, at 76 µs of leader CPU per write and about 90% of a core. That knee is marginal
+   and storage-sensitive: 3 of 5 repetitions are stable at 12,000/s. All three ran in the fast fsync regime, and both
+   unstable ones in the slow regime; the regime knees are 12,000/s (fast) and 10,000/s (slow). All 5 repetitions are
+   stable at 10,000/s (about 20x).
+6. **Most of the transport gain is the connection and framing, not the binary encoding.** In isolation (§9), framed
+   JSON and framed binary move the same number of AppendEntries. The Raft sweep compared HTTP with framed binary only, so
+   this split rests on the isolation benchmark.
+7. **The transport alone does not help a storage-bound engine.** Transport-only reached 300 writes/s against the
+   baseline's 500; why it measured lower is not established here.
+8. **Payload.** At 64 B the optimized engine reaches 6,000/s over HTTP (20x) and 10,000/s framed (33x, all repetitions
+   stable). At 16 KiB both optimized variants stop at 3,000/s (10x), where bytes per write dominate.
+
+### Measurement notes
+
+- **Ladder resolution.** The rate ladder steps 6,000 → 8,000/s, so configurations that tie at 6,000 may differ by up to
+  a third.
+- **Harness failures.** 8 trials failed: local ephemeral ports were exhausted on the harness's own post-window requests
+  at 15,000–20,000/s. All replicas were alive, and every failure sits above its curve's first unstable rung, so no knee
+  is affected. The 64 B optimized-binary ladder ended at 20,000/s because of them.
+- **Generator.** Generator lag p99 stayed below 0.4 ms (median) in every load band. 7 trials exceeded the 5 ms flag;
+  none is a stable repetition a knee depends on, and one (optimized HTTP at 1,000/s) had a 3 s machine-wide stall.
+- **Two cells disagree with the ladder.** Group commit's p99 at 0.8x knee (1.0 s) comes from one slow-regime repetition
+  with a 55x latency blow-up within its window; the other four are 12–36 ms. Optimized binary is unstable at 0.8x knee
+  (9,600/s) in its three slow-regime repetitions. Both are the disk regime, and neither changes a pre-registered
+  result.
+- **Thermal state** was observed in blocks 2–5 (`host-telemetry-block*.jsonl`), not controlled, and decides nothing.
