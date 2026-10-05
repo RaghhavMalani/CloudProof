@@ -51,6 +51,8 @@ const DEFAULTS = {
     doc: null,
     sweeps: null,
     out: null,
+    // Directory of CPU-profile summaries (<config>/*.json); default <root>/profiles.
+    profiles: null,
 };
 
 const fmt = (value, digits = 1) => (value === null || value === undefined || !Number.isFinite(value)
@@ -186,8 +188,8 @@ function kneeTable(rows) {
     return lines.join('\n');
 }
 
-function profileTable(root) {
-    const dir = path.join(root, 'profiles');
+function profileTable(root, profilesDir = null) {
+    const dir = profilesDir || path.join(root, 'profiles');
     if (!fs.existsSync(dir)) return null;
     const summaries = [];
     for (const config of fs.readdirSync(dir)) {
@@ -447,7 +449,7 @@ function replaceGenerated(docText, blocks) {
 
 function main() {
     const options = parseArgs(process.argv.slice(2), DEFAULTS, {
-        strings: ['root', 'doc', 'out'], lists: { sweeps: String },
+        strings: ['root', 'doc', 'out', 'profiles'], lists: { sweeps: String },
     });
     const root = path.resolve(options.root);
     const outDir = options.out ? path.resolve(options.out) : root;
@@ -465,7 +467,7 @@ function main() {
     const regimePayloads = [...new Set(regimes.map((r) => r.payloadBytes))];
     for (const payload of regimePayloads) blocks[`regimes-${payload}`] = regimeTable(regimes, payload);
     for (const curve of curves) blocks[`curve-${curve.config}-${curve.payloadBytes}`] = curveTable(curve);
-    const profiles = profileTable(root);
+    const profiles = profileTable(root, options.profiles ? path.resolve(options.profiles) : null);
     if (profiles) blocks['profile-table'] = profiles;
 
     const svgFiles = [];

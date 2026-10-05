@@ -13,6 +13,10 @@
  * inclusive frames, key paths) is written to --out; the raw .cpuprofile and
  * the folded stacks (flame-graph input) go to .bench-data/profiles and are
  * referenced from the summary by SHA-256.
+ *
+ * --power-throttling disabled (default; methodology amendment 2) or os-default
+ * selects the process power policy of every process of each trial; the
+ * verified policy is recorded in each summary.
  */
 
 const fs = require('fs');
@@ -40,13 +44,14 @@ const DEFAULTS = {
     out: null,
     raw: path.join(ROOT, '.bench-data', 'profiles'),
     'data-dir': path.join(ROOT, '.bench-data', 'cluster'),
+    'power-throttling': 'disabled',
 };
 
 async function main() {
     const options = parseArgs(process.argv.slice(2), DEFAULTS, {
         durations: ['duration', 'warmup', 'timeout'],
         lists: { rates: Number, labels: String },
-        strings: ['config', 'out', 'raw', 'data-dir'],
+        strings: ['config', 'out', 'raw', 'data-dir', 'power-throttling'],
     });
     if (!options.out) throw new Error('--out is required');
     if (options.labels.length !== options.rates.length) throw new Error('--labels must match --rates');
@@ -69,6 +74,7 @@ async function main() {
             basePort: options.port,
             dataRoot: options['data-dir'],
             profile: { intervalUs: options.interval },
+            powerThrottling: options['power-throttling'],
         });
         process.stdout.write(`${label}: ${formatTrial(record)}\n`);
         const rawText = JSON.stringify(cpuProfile);
@@ -96,6 +102,8 @@ async function main() {
                 stable: record.stability.stable,
                 leaderCpuPercentOfOneCore: record.server.leader ? record.server.leader.cpuPercentOfOneCore : null,
                 leaderEventLoopUtilization: record.server.leader ? record.server.leader.eventLoopUtilization : null,
+                powerThrottling: { requested: record.powerThrottling.requested, applied: record.powerThrottling.applied },
+                diskRegime: record.diskSentinel ? record.diskSentinel.regime : null,
             },
             topFoldedStacks: foldedStacks.slice(0, 40).map(([stack, micros]) => ({ stack, ms: Number((micros / 1000).toFixed(1)) })),
             raw: {
