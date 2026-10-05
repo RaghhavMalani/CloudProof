@@ -74,6 +74,7 @@ class LocalCluster {
         this.nodeArgs = nodeArgs;
         this.powerThrottling = powerThrottling;
         this.powerPolicy = null;
+        this.controlRetries = 0;
         this.urls = Array.from({ length: size }, (_, i) => `http://127.0.0.1:${basePort + i}`);
         this.processes = [];
         this.exits = [];
@@ -162,9 +163,31 @@ class LocalCluster {
         throw new Error('no stable leader elected');
     }
 
+    /**
+     * The harness's own requests to a replica (perf window reset and
+     * collection). A leader saturated far beyond its knee can refuse new
+     * connections for a while, and a connect storm from the load generators
+     * can briefly exhaust local ports; neither says anything about the
+     * measured window, which is already closed when the window is collected.
+     * Connect errors are retried for up to ~10 s and counted in
+     * `controlRetries` (recorded on the trial) instead of failing the trial.
+     */
+    async controlRequest(url, options) {
+        for (let attempt = 0; ; attempt += 1) {
+            try {
+                return await requestJson(url, options);
+            } catch (error) {
+                const transient = ['ECONNREFUSED', 'EADDRINUSE', 'ECONNRESET'].includes(error.code);
+                if (!transient || attempt >= 19) throw error;
+                this.controlRetries += 1;
+                await sleep(500);
+            }
+        }
+    }
+
     async perfAll(pathname, method = 'GET') {
         return Promise.all(this.urls.map(async (url) => {
-            const response = await requestJson(`${url}${pathname}`, { method, timeoutMs: 30000 });
+            const response = await this.controlRequest(`${url}${pathname}`, { method, timeoutMs: 30000 });
             if (response.status !== 200) throw new Error(`${url}${pathname} -> ${response.status}`);
             return response.data;
         }));

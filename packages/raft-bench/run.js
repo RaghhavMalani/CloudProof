@@ -260,6 +260,7 @@ async function runTrial({
     }
     const diskAfter = await probeDisk(sentinelDir);
     record.diskSentinel = sentinelRecord(diskBefore, diskAfter, { windowOpenedAt });
+    record.harness = { controlRetries: cluster.controlRetries };
     record.powerThrottling = powerPolicy || { requested: powerThrottling, applied: false, note: 'trial failed before the policy was applied' };
     return { record, cpuProfile };
 }
