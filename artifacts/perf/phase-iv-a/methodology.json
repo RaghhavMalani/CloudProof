@@ -309,6 +309,146 @@
         "the pinned sweep worktree at 0b2d2b9 and every harness file in it",
         "amendments 1 and 2 in full"
       ]
+    },
+    {
+      "id": 4,
+      "recordedAt": "2026-10-05",
+      "recordedBefore": "the first trial of the etcd comparison",
+      "subject": "The matched same-machine etcd comparison (question 4)",
+      "condition": "methodology.etcd.condition is met: the CloudProof comparison report is 094f5a9 and the CloudProof side of the study closed at d519d9f.",
+      "whyCloudProofIsRemeasured": "After the 801-trial sweep (pinned worktree 0b2d2b9) the harness got two fixes for extreme overload: generator connect backoff and kept-alive harness connections (d100c2e), and a reused-pid guard in the sweep tools (f5456a9). etcd must not be compared against CloudProof numbers from the pre-fix harness, so baseline, optimized-http and optimized-binary are re-measured in this sweep, interleaved with etcd, on one harness. The 801-trial results stay as reported in section 11; differences between the two sweeps' CloudProof curves are reported, not reconciled.",
+      "etcd": {
+        "release": "v3.7.2 (latest stable release when recorded; published 2026-09-22 by etcd-io)",
+        "source": "https://github.com/etcd-io/etcd/releases/tag/v3.7.2",
+        "archive": {
+          "file": "etcd-v3.7.2-windows-amd64.zip",
+          "bytes": 24508798,
+          "sha256": "76989536a5f333642687fbd85603087c3deb4d316fd86fdfb63897b05f851cf4",
+          "verifiedAgainst": [
+            "the release SHA256SUMS (676 bytes, SHA-256 90a2123114ae15025b1b868723a79ac0514bcd406bc8ad164de676dd193ba62b)",
+            "the GitHub release asset digest"
+          ],
+          "verifiedBefore": "extraction"
+        },
+        "binary": {
+          "file": ".bench-data/etcd/etcd-v3.7.2-windows-amd64/etcd.exe (gitignored)",
+          "sha256": "fae2288f43e5d845e5f07c31a4817899804d4f66f09152b6c3fec0d726b9169a",
+          "reportedVersion": "etcd Version: 3.7.2, Git SHA: 68c065e, Go Version: go1.26.8, Go OS/Arch: windows/amd64",
+          "enforcement": "EtcdCluster refuses any binary with another SHA-256; every trial records the hash it ran."
+        },
+        "installedSystemWide": false,
+        "members": 3,
+        "topology": "loopback; client URLs 127.0.0.1:17001-17003 (the CloudProof replica ports), peer URLs 127.0.0.1:17101-17103; fresh data directories per trial under the same --data-dir as the CloudProof replicas, on the same drive",
+        "flagsSet": [
+          "--name",
+          "--data-dir",
+          "--listen-client-urls",
+          "--advertise-client-urls",
+          "--listen-peer-urls",
+          "--initial-advertise-peer-urls",
+          "--initial-cluster",
+          "--initial-cluster-state new",
+          "--initial-cluster-token <random per trial>"
+        ],
+        "defaultsKept": {
+          "text": "Every other flag is etcd's default, read from etcd --help of this binary. Nothing is tuned, before or after seeing results.",
+          "values": [
+            "--snapshot-count 10000",
+            "--heartbeat-interval 100 (ms), --election-timeout 1000 (ms)",
+            "--quota-backend-bytes 0 (the built-in 2 GiB)",
+            "--backend-batch-interval and --backend-batch-limit unset (etcd's built-in values; a functional smoke trial showed about 10 backend commits/s per member)",
+            "--auto-compaction-retention 0 (off)",
+            "--unsafe-no-fsync false: WAL and backend fsyncs on",
+            "--metrics basic, --log-level info, logs to a file per member",
+            "GOMAXPROCS: Go's default for the machine"
+          ]
+        }
+      },
+      "client": {
+        "generator": "unchanged: the open-loop generator, 4 processes, 128 connections, constant spacing, 1000 keys round-robin by global arrival index, the same 1 KiB ASCII value bytes, latency from the intended arrival, timeouts at 10 s",
+        "request": "POST /v3/kv/put on the leader's client URL, through etcd's built-in HTTP/JSON gateway; key and value base64 in JSON, as the gateway requires for protobuf bytes fields (request body about 1.4 KiB against about 1.04 KiB for CloudProof). A 2xx response is OK.",
+        "target": "the leader, found from /v3/maintenance/status, as for CloudProof (an etcd follower would forward the proposal)."
+      },
+      "telemetry": {
+        "method": "each member's /metrics, scraped when the measurement window opens and closes; window values are the differences (packages/raft-bench/etcd-cluster.js WINDOW_COUNTERS)",
+        "mapping": {
+          "cpu": "process_cpu_seconds_total (Windows GetProcessTimes, the same clock as Node's process.cpuUsage for the replicas)",
+          "logFsyncs": "etcd_disk_wal_fsync_duration_seconds_count (CloudProof: log fsyncs)",
+          "metaSaves": "etcd_disk_backend_commit_duration_seconds_count: bbolt commits, each ending in an fsync (CloudProof: metadata saves, each fsynced)",
+          "otherSyncs": "etcd_snap_fsync_duration_seconds_count + etcd_snap_db_fsync_duration_seconds_count (CloudProof: none)",
+          "entriesPerFsync": "etcd_server_proposals_committed_total / WAL fsyncs, per member",
+          "replicationBytes": "etcd_network_peer_sent_bytes_total + etcd_network_peer_received_bytes_total on the followers: raft message bytes, not socket bytes (CloudProof: TCP payload bytes on the followers' sockets)",
+          "clientBytes": "etcd_network_client_grpc_{sent,received}_bytes_total on the leader: the gateway's gRPC messages, not the HTTP bytes",
+          "leadership": "etcd_server_leader_changes_seen_total in the window, and the leader and term from /v3/maintenance/status at the start and the end"
+        },
+        "notAvailableForEtcd": [
+          "AppendEntries count and entries per AppendEntries",
+          "event-loop utilization and lag",
+          "per-stage latency histograms",
+          "leader CPU profiles"
+        ],
+        "recordedAsNull": "A field without an etcd equivalent is null in the trial record, never estimated."
+      },
+      "plan": {
+        "file": "artifacts/perf/phase-iv-a/etcd-plan.json",
+        "sha256": "2f01e8cc6e8a66599589c5328e738b7234e82c4c4398d0fca6f61ae32cc008f1",
+        "curves": [
+          "baseline@1024B x5",
+          "optimized-http@1024B x5",
+          "optimized-binary@1024B x5",
+          "etcd@1024B x5"
+        ],
+        "payloads": "1 KiB only, by the user's decision on 2026-10-05: question 4 is answered at the primary payload. etcd's payload sensitivity is not measured; that is disclosed, not inferred.",
+        "unchanged": [
+          "rate ladder",
+          "warmup 5 s, window 20 s, timeout 10 s, drain 12 s, fresh cluster per trial",
+          "stability rule v1",
+          "stop rule v1",
+          "knee definition",
+          "0.5x and 0.8x knee fraction points",
+          "Williams Latin-square order v1",
+          "disk sentinel v1, its bins and the regime analysis",
+          "power policy: disabled for every benchmark-owned process (the etcd members, the generators and the driver), verified per process"
+        ],
+        "tool": "tools/raft-bench-interleaved.js",
+        "output": "artifacts/perf/phase-iv-a/etcd/",
+        "report": "node tools/raft-bench-report.js --sweeps etcd --out artifacts/perf/phase-iv-a/etcd-report --profiles <none>"
+      },
+      "analysis": {
+        "gap": "The gap is the ratio of maximum stable throughput between etcd and each CloudProof configuration in this sweep, with p99 at 0.5x, 0.8x and the knee, leader and whole-cluster CPU per op, and durable syncs per op, all from this sweep's trials. No speedup is computed against any other sweep.",
+        "scope": "A statement about these two systems on this laptop, under this workload. It is not a claim about etcd in general or about Linux deployments."
+      },
+      "mismatchesToDisclose": [
+        "language/runtime: Go with goroutines across all cores against Node, one event loop per replica plus the libuv pool",
+        "transport: etcd clients go HTTP/JSON -> grpc-gateway -> gRPC inside the member, and replication uses etcd's rafthttp streams. CloudProof clients hit an express handler directly, and replication is HTTP/1.1 + JSON (optimized-http) or framed TCP (optimized-binary).",
+        "persistence: etcd writes a WAL (64 MB preallocated segments) and applies to a bbolt B+tree that keeps every MVCC revision, with no compaction during a trial. CloudProof writes an append-only line log plus JSON metadata, and its state machine is in memory and rebuilt from the log.",
+        "durability point: both fsync the log on a quorum before acknowledging. etcd commits bbolt in periodic batches after the acknowledgement and recovers from the WAL. CloudProof's baseline saves its metadata synchronously, and its group-commit profiles persist the commit index lazily.",
+        "client semantics: both are last-writer-wins puts without deduplication (methodology.workload). The etcd response carries a revision header.",
+        "batching: etcd batches proposals per raft Ready cycle by design. CloudProof batches only in the optimized profiles.",
+        "request size: base64 makes the etcd request body about a third larger for the same stored value",
+        "hardware sharing: all members and generators share one laptop, as for CloudProof",
+        "host load: other applications were left running by the user's decision (a Vite dev server for another project, a preview server, Codex runtime processes). They are recorded in environment.json and affect all four interleaved curves alike.",
+        "disk footprint: etcd preallocates WAL segments and its bbolt file (about 400 MB per trial at 300/s), unlike CloudProof"
+      ],
+      "operational": "Amendment 3 applies: blocks of about 60 minutes, each ended at a trial boundary with tools/windows/stop-sweep.ps1 and followed by a cool-down; the host-telemetry sampler runs next to every block; never left running unattended; recorded trials are never rerun.",
+      "implementation": {
+        "commit": "01946341f0173a48d9564fbd1e4195afa2c703ba",
+        "hashing": "SHA-256 of the file with line endings normalized to LF",
+        "files": {
+          "packages/raft-bench/etcd-cluster.js": "dc6802b13a76cd8655ef7ebca3ea7ab0777fe86ddcd82ff79079ad603367fd11",
+          "packages/raft-bench/loadgen-worker.js": "03487669381c1f7f498962a3985fedf8a4e82198090de024bd70fe2d6afd8d22",
+          "packages/raft-bench/run.js": "3e93327d9a2ac353c3fc158a613ff7bc8024f305ffdda160691f169235f60350",
+          "packages/raft-bench/configs.js": "08ce1643db709bd8b22d6b75ba993fd9ed0f9a110dfc75e5ff3eb7f91de44157",
+          "tools/raft-bench-interleaved.js": "3e26bdf7c6941cc4a50cbc23fb9701fe192fe641095dcacdc5dd1316154b56af",
+          "tools/raft-bench-report.js": "85625226643db2bdc25ca8a40a42d67d9e8b6164d22631bcae789ec779fe104a"
+        },
+        "tests": "packages/raft-bench/etcd.test.js (unit tests, plus a live three-member trial skipped without the pinned binary)"
+      },
+      "unchanged": [
+        "amendments 1-3 in full",
+        "comparison-plan.json and the 801-trial sweep in comparison/",
+        "the nine replica profiles"
+      ]
     }
   ]
 }

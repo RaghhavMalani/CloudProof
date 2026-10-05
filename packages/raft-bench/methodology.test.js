@@ -90,6 +90,28 @@ test('optimized-http and optimized-binary differ only in the transport', () => {
     assert.equal(PROFILES['optimized-http'].logHotPath, false);
 });
 
+test('amendment 4 pins the etcd plan, the harness files and the etcd binary that are in the tree', () => {
+    const { ETCD_BINARY_SHA256 } = require('./etcd-cluster');
+    const { EXTERNAL_SYSTEMS } = require('./configs');
+    const methodology = JSON.parse(fs.readFileSync(path.join(PERF, 'methodology.json'), 'utf8'));
+    const amendment = methodology.amendments.find((a) => a.id === 4);
+    const planText = fs.readFileSync(path.join(ROOT, amendment.plan.file));
+    assert.equal(crypto.createHash('sha256').update(planText).digest('hex'), amendment.plan.sha256);
+    const plan = JSON.parse(planText);
+    assert.deepEqual(plan.curves.map((c) => `${c.config}@${c.payloadBytes}B x${c.repetitions}`),
+        amendment.plan.curves);
+    for (const curve of plan.curves) assert.ok(CONFIGS[curve.config] || EXTERNAL_SYSTEMS[curve.config], curve.config);
+    // Everything but the curves is the frozen comparison plan's.
+    const comparison = JSON.parse(fs.readFileSync(path.join(PERF, 'comparison-plan.json'), 'utf8'));
+    assert.deepEqual(plan.rates, comparison.rates);
+    assert.deepEqual(plan.fractions, comparison.fractions);
+    assert.deepEqual(plan.trial, comparison.trial);
+    assert.equal(plan.powerThrottling, 'disabled');
+    const lf = (file) => crypto.createHash('sha256').update(fs.readFileSync(path.join(ROOT, file), 'utf8').replace(/\r\n/g, '\n')).digest('hex');
+    for (const [file, sha] of Object.entries(amendment.implementation.files)) assert.equal(lf(file), sha, file);
+    assert.equal(ETCD_BINARY_SHA256, amendment.etcd.binary.sha256);
+});
+
 test('amendment 2 pins the power-policy helper and the control plan that are in the tree', () => {
     const { helperIdentity } = require('./power-throttling');
     const methodology = JSON.parse(fs.readFileSync(path.join(PERF, 'methodology.json'), 'utf8'));

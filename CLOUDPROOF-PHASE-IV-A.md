@@ -182,6 +182,49 @@ policy (controlled). It is observed, not controlled: a separate read-only sample
 performance, % performance limit and utilization next to each resumed block. CPU temperature is not exposed on this
 machine without elevation and is not recorded. The telemetry is descriptive and never decides which trials count.
 
+### Amendment 4 (2026-10-05): the matched etcd comparison, frozen before any etcd data
+
+Question 4 is answered by a new interleaved sweep of four 1 KiB curves, five repetitions each:
+
+- CloudProof `baseline`, `optimized-http` and `optimized-binary`, re-measured;
+- stock etcd v3.7.2 with three members.
+
+The plan is [`etcd-plan.json`](artifacts/perf/phase-iv-a/etcd-plan.json), SHA-256 `2f01e8cc…`, with output in
+`etcd/`. CloudProof is re-measured because the harness fixes `d100c2e` and `f5456a9` came after the 801-trial sweep:
+etcd is never compared against numbers from the earlier harness.
+
+The trials are matched in everything except the system under test: the open-loop generator, rate ladder, windows,
+stability and stop rules, knee fractions, Williams order, disk sentinel, power-policy opt-out for every process,
+drive and loopback topology. etcd is the official release, with the archive checksum verified against the release's
+`SHA256SUMS` and GitHub's asset digest before extraction. Nothing is installed system-wide, and the harness refuses
+any `etcd.exe` but the pinned one. Every etcd flag is at its default except the cluster topology. Clients use etcd's
+HTTP/JSON gateway (`POST /v3/kv/put`, base64 key and value).
+
+etcd telemetry comes from each member's `/metrics`, differenced over the window. The mapping is:
+
+| quantity | etcd | CloudProof |
+|---|---|---|
+| CPU | process CPU | process CPU |
+| log syncs | WAL fsyncs | log fsyncs |
+| state syncs | bbolt commits | metadata saves |
+| other syncs | snapshot fsyncs | none |
+| replication bytes | raft message bytes on peer links | TCP payload bytes |
+
+A quantity etcd does not export (AppendEntries, event loop, stage histograms) is recorded as null. Payload
+sensitivity for etcd is not measured; that was the user's decision, and it is disclosed.
+
+The mismatches recorded in the amendment are:
+
+- Go against Node;
+- grpc-gateway and rafthttp against express and HTTP/framed TCP;
+- WAL and bbolt MVCC against a line log and an in-memory state machine;
+- when state reaches disk;
+- built-in proposal batching;
+- base64 request bodies;
+- other applications left running on the host.
+
+The run uses amendment 3's cool-down blocks of about 60 minutes.
+
 ## 3. Historical baseline — Windows default process power policy
 
 _Recorded at `35c8169` under Windows' default process power policy, before power throttling was identified (§8).
