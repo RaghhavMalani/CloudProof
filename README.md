@@ -393,6 +393,24 @@ Node-concentration is a **degree** effect: how many pods sit on the node that cr
 
 Full reports: [Phase I](CLOUDPROOF.md) · [II-A](CLOUDPROOF-PHASE-II-A.md) · [II-B](CLOUDPROOF-PHASE-II-B.md) · [II-B.1 audit](CLOUDPROOF-PHASE-II-B1-ATTRIBUTION-AUDIT.md) · [II-A.2 corpus](CLOUDPROOF-PHASE-II-A2-CAUSAL-CORPUS.md) · [**II-B.2 attribution**](CLOUDPROOF-PHASE-II-B2.md)
 
+### GNN Observatory
+
+![GNN Observatory: the probe pair's Kubernetes graph with relation-coloured message passing, the risk orb, the pair panel and the published Phase II-B.2 table](docs/observatory/observatory-full.png)
+
+`web/observatory.html` replays a real `HeterogeneousRiskGNN` training run on one frozen counterfactual pair, in 3D. Nothing on it is decorative. Node size and glow come from each node's hidden-state norm, pulses from each edge's message norm in each layer and direction, and edge glow from the Frobenius norm of each relation's weights. The risk orb shows the sigmoid risk of the shown pair member under the chosen ablation (full, no edges, randomized, rewired, collapsed, random labels). All of it is read from `web/observatory/replay.json`.
+
+- **It visualizes a short demo run, not the published result.** That run used one seed and four epochs on the first 24,000 rows of the frozen training split, about a minute on one CPU thread. The page's published table, and the supported-claim sentence it quotes, are copied at export time from the Phase II-B.2 result JSON and from this README, and tests fail if they drift.
+- **The probe is chosen by rule, not by score:** the first relational-only, valid, outcome-discordant pair in the test split. That is `pair-00035` (node-concentration). Its members have identical pooled inputs; in member B, `pod/api-2` runs on the node that crashes. A topology-blind model must score the two the same.
+- **The tap is opt-in and side-effect free.** `train_member(viz_tap=...)` (`train.py --viz-tap PATH`) records under `no_grad` in eval mode, with hooks that exist only during a recording. A test proves that training with the tap gives bit-identical weights to training without it.
+- **Controls.** Space plays or pauses, ←/→ scrub, 1–6 switch the ablation, A/B switch the pair member, and hovering a node shows its features and hidden-state norms. The page shows a still image if WebGL is unavailable and honours `prefers-reduced-motion`.
+
+```bash
+# Regenerate the replay (needs the frozen corpus; verifies its hashes against the freeze record first)
+python -m ml.cloudproof.export_observatory demo
+# Re-render the no-WebGL fallback still and the README images (headless Chrome or Edge)
+node tools/observatory-capture.js --all
+```
+
 ---
 
 ## 8. Retrieval and model serving
@@ -535,6 +553,7 @@ docker compose up --build
 
 # Browser: Operations Console + Agent Lab (static; real modules under a virtual clock)
 node tools/build-web.js && npx serve web
+# ...and the GNN Observatory at /observatory.html (replay of a demo training run)
 
 # Operations Console verifier from a terminal: verify, export and re-check evidence
 node tools/cloudproof-ops.js verify --demo rollout-payment
@@ -603,7 +622,7 @@ cloudproof/
 │   └── stream/         Partitioned log, consumer groups, watermarks, event-time windows
 ├── ml/cloudproof/      PyTorch GNN, tensorizer, training, attribution, statistics (plus tests)
 ├── serving/            Embedding service, ONNX/hash embedders, S3 artifact loader
-├── apps/ · web/        Operations Console, Flight Deck, Bug Museum and the generated static build
+├── apps/ · web/        Operations Console, Flight Deck, Bug Museum, GNN Observatory and the generated static build
 ├── k8s/                Raft StatefulSet, serving tier, CloudProof flagship, kind, KEDA, MinIO, monitoring
 ├── infra/terraform/    Split-tier EKS, IRSA, S3, Secrets Manager, cost guard
 ├── tools/              CLIs: search, benchmarks, corpus, freeze, kind replay, cold-start, cost model
