@@ -474,3 +474,63 @@ Windows' default throttling every transport runs several times slower in its sus
 is close to the opted-out figures, which is the throttling cliff of §8 seen again from the transport side. Whether this
 ceiling matters end to end is what the comparison sweep has to show: the replica's per-write path also includes the
 client-facing HTTP request, the log and `fsync`, and the engine itself.
+
+## 10. Windows-default power-policy control (environment analysis)
+
+The control from amendment 2 ([`windows-power-control/`](artifacts/perf/phase-iv-a/windows-power-control/REPORT.md)).
+It ran baseline and optimized-binary at 1 KiB and 100, 300, 1,000 and 2,500 writes/s, under Windows' default process
+policy and with throttling disabled, with all four arms interleaved: 3 repetitions, 48 trials. Run at
+`1b55e36`. It is not part of the optimization ranking. Every process of every trial was verified in
+its requested state: system-managed in the default arm, opted out in the other.
+
+| config | policy | offered/s | stable | achieved/s | p50 ms | p99 ms | leader CPU % | CPU µs/op | ELU | loop lag p99 ms | send lag p99 ms | client queue p99 ms | disk regimes |
+|---|---|---:|:---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| baseline | os-default | 100 | 3/3 | 100 | 13.87 | 29.86 | 51 | 5128 | 0.65 | 7.40 | 0.67 | 0.96 | intermediate 1, fast 2 |
+| baseline | disabled | 100 | 3/3 | 100 | 4.00 | 13.69 | 19 | 1875 | 0.25 | 0.30 | 0.04 | 0.20 | fast 2, intermediate 1 |
+| baseline | os-default | 300 | 3/3 | 303 | 64.80 | 508.93 | 60 | 1975 | 1.00 | 122.07 | 0.49 | 36.67 | fast 1, slow 2 |
+| baseline | disabled | 300 | 3/3 | 300 | 7.12 | 147.33 | 31 | 1050 | 0.75 | 28.74 | 0.05 | 0.14 | intermediate 1, fast 1, slow 1 |
+| baseline | os-default | 1,000 | 0/3 | 363 | 9338.88 | 10002.43 | 55 | 1863 | 1.00 | 169.45 | 13.32 | 9912.32 | intermediate 1, fast 1, slow 1 |
+| baseline | disabled | 1,000 | 0/3 | 905 | 15.45 | 9781.25 | 42 | 476 | 1.00 | 110.68 | 0.06 | 7193.94 | fast 2, slow 1 |
+| baseline | os-default | 2,500 | 0/3 | 80 | 9904.13 | 10002.43 | 77 | 3257 | 1.00 | 96.00 | 29.76 | 10002.43 | fast 1, slow 2 |
+| baseline | disabled | 2,500 | 0/3 | 1,479 | 8404.99 | 10002.43 | 44 | 312 | 1.00 | 33.75 | 0.76 | 9961.47 | slow 3 |
+| optimized-binary | os-default | 100 | 3/3 | 100 | 3.79 | 8.37 | 25 | 2513 | 0.34 | 1.98 | 0.40 | 0.80 | intermediate 1, fast 2 |
+| optimized-binary | disabled | 100 | 3/3 | 100 | 1.46 | 2.77 | 10 | 961 | 0.12 | 0.37 | 0.04 | 0.21 | fast 2, intermediate 1 |
+| optimized-binary | os-default | 300 | 3/3 | 300 | 8.96 | 21.28 | 50 | 1667 | 0.92 | 6.88 | 0.45 | 0.55 | slow 2, fast 1 |
+| optimized-binary | disabled | 300 | 3/3 | 300 | 1.16 | 2.17 | 18 | 586 | 0.26 | 0.23 | 0.03 | 0.13 | intermediate 3 |
+| optimized-binary | os-default | 1,000 | 3/3 | 1,000 | 13.56 | 30.80 | 72 | 715 | 1.00 | 12.78 | 0.52 | 0.37 | slow 2, fast 1 |
+| optimized-binary | disabled | 1,000 | 3/3 | 1,000 | 1.03 | 11.46 | 42 | 416 | 0.76 | 0.72 | 0.04 | 0.10 | slow 1, intermediate 2 |
+| optimized-binary | os-default | 2,500 | 0/3 | 2,183 | 2736.13 | 5046.27 | 90 | 411 | 0.99 | 40.59 | 1.45 | 4568.40 | slow 3 |
+| optimized-binary | disabled | 2,500 | 3/3 | 2,501 | 8.54 | 16.48 | 42 | 166 | 1.00 | 5.79 | 0.10 | 0.10 | slow 2, intermediate 1 |
+
+**Policy effect** (ratios of the arms above):
+
+| config | offered/s | achieved: disabled ÷ default | p99: default ÷ disabled | leader CPU µs/op: default ÷ disabled | loop lag p99: default ÷ disabled | stable (default / disabled) |
+|---|---:|---:|---:|---:|---:|---|
+| baseline | 100 | 1.00 | 2.18 | 2.73 | 24.72 | 3/3 / 3/3 |
+| baseline | 300 | 0.99 | 3.45 | 1.88 | 4.25 | 3/3 / 3/3 |
+| baseline | 1,000 | 2.49 | 1.02 | 3.91 | 1.53 | 0/3 / 0/3 |
+| baseline | 2,500 | 18.47 | 1.00 | 10.45 | 2.84 | 0/3 / 0/3 |
+| optimized-binary | 100 | 1.00 | 3.02 | 2.62 | 5.35 | 3/3 / 3/3 |
+| optimized-binary | 300 | 1.00 | 9.79 | 2.84 | 30.32 | 3/3 / 3/3 |
+| optimized-binary | 1,000 | 1.00 | 2.69 | 1.72 | 17.85 | 3/3 / 3/3 |
+| optimized-binary | 2,500 | 1.15 | 306.22 | 2.48 | 7.01 | 0/3 / 3/3 |
+
+**Reading.**
+
+- **Below the knee** (100 and 300/s), both arms carry the offered load (open loop). The default policy costs latency and
+  CPU: baseline p99 is 2.2–3.5x higher and optimized-binary
+  3.0–9.8x. Leader CPU per operation is
+  1.9–2.7x (baseline) and 2.6–2.8x
+  (optimized-binary) higher, and leader event-loop lag up to 30x.
+- **The policy alone moves the optimized engine's saturation point.** At 2,500/s optimized-binary is stable in
+  3/3 repetitions with throttling disabled (p99 16.5 ms). It is stable in
+  0/3 under the default (achieved 2,183/s, p99 5.0 s).
+- **The fsync-bound baseline is less sensitive.** Its knee on this grid is 300/s in both arms, and it is unstable at
+  1,000/s and above in both. Disabling throttling raised its overloaded throughput at 1,000/s
+  (905 vs 363/s) without making it stable.
+- **Consequence.** Comparing the historical, throttled baseline with an unthrottled optimized system would overstate
+  the optimizations. That is why the primary comparison holds the policy fixed (amendment 2).
+- **Recorded failures.** Two of the 48 trials (baseline, Windows default, 2,500/s, about 8x that arm's knee) are
+  recorded as failed: the harness could not reach the saturated leader to collect its window. The replicas were
+  healthy. The harness now retries those post-window requests and records the retries (`659c649`). Disk regimes
+  varied across trials and are listed per row.

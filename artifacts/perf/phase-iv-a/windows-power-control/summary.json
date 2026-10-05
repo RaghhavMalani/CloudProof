@@ -1,0 +1,463 @@
+{
+  "schema": "cloudproof.power-control/v1",
+  "generatedAt": "2026-10-05T04:15:24.596Z",
+  "plan": "Quantify how Windows process power throttling changes baseline and optimized-binary behaviour at 1 KiB: throughput, p99, event-loop lag, CPU, send delay and saturation.",
+  "checks": {
+    "allTrialsRecorded": true,
+    "everyPolicyVerified": true,
+    "everyProcessInRequestedState": true,
+    "noFailedTrials": false,
+    "sentinelOnEveryTrial": true
+  },
+  "rows": [
+    {
+      "config": "baseline",
+      "policy": "os-default",
+      "rate": 100,
+      "repetitions": 3,
+      "stableVotes": 3,
+      "achievedPerSec": 100,
+      "achievedRatio": 1,
+      "p50Ms": 13.871,
+      "p99Ms": 29.855,
+      "leaderCpuPercent": 51.26666666666667,
+      "leaderCpuMicrosPerOp": 5127.533333333334,
+      "leaderElu": 0.6453333333333333,
+      "leaderLoopLagP99Ms": 7.399,
+      "generatorLagP99Ms": 0.6676666666666667,
+      "clientQueueWaitP99Ms": 0.9593333333333334,
+      "regimes": {
+        "intermediate": 1,
+        "fast": 2
+      },
+      "policiesVerified": true
+    },
+    {
+      "config": "baseline",
+      "policy": "disabled",
+      "rate": 100,
+      "repetitions": 3,
+      "stableVotes": 3,
+      "achievedPerSec": 100,
+      "achievedRatio": 0.9998333333333335,
+      "p50Ms": 4.005,
+      "p99Ms": 13.687,
+      "leaderCpuPercent": 18.733333333333334,
+      "leaderCpuMicrosPerOp": 1875.3,
+      "leaderElu": 0.24833333333333332,
+      "leaderLoopLagP99Ms": 0.2993333333333333,
+      "generatorLagP99Ms": 0.035333333333333335,
+      "clientQueueWaitP99Ms": 0.19766666666666666,
+      "regimes": {
+        "fast": 2,
+        "intermediate": 1
+      },
+      "policiesVerified": true
+    },
+    {
+      "config": "baseline",
+      "policy": "os-default",
+      "rate": 300,
+      "repetitions": 3,
+      "stableVotes": 3,
+      "achievedPerSec": 302.93333333333334,
+      "achievedRatio": 1.0097222222222222,
+      "p50Ms": 64.799,
+      "p99Ms": 508.927,
+      "leaderCpuPercent": 60.166666666666664,
+      "leaderCpuMicrosPerOp": 1975.4333333333332,
+      "leaderElu": 1,
+      "leaderLoopLagP99Ms": 122.07366666666667,
+      "generatorLagP99Ms": 0.48533333333333334,
+      "clientQueueWaitP99Ms": 36.667,
+      "regimes": {
+        "fast": 1,
+        "slow": 2
+      },
+      "policiesVerified": true
+    },
+    {
+      "config": "baseline",
+      "policy": "disabled",
+      "rate": 300,
+      "repetitions": 3,
+      "stableVotes": 3,
+      "achievedPerSec": 299.7333333333333,
+      "achievedRatio": 0.9991111111111112,
+      "p50Ms": 7.115,
+      "p99Ms": 147.327,
+      "leaderCpuPercent": 31.433333333333334,
+      "leaderCpuMicrosPerOp": 1049.6666666666667,
+      "leaderElu": 0.7463333333333333,
+      "leaderLoopLagP99Ms": 28.741666666666664,
+      "generatorLagP99Ms": 0.05299999999999999,
+      "clientQueueWaitP99Ms": 0.14300000000000002,
+      "regimes": {
+        "intermediate": 1,
+        "fast": 1,
+        "slow": 1
+      },
+      "policiesVerified": true
+    },
+    {
+      "config": "baseline",
+      "policy": "os-default",
+      "rate": 1000,
+      "repetitions": 3,
+      "stableVotes": 0,
+      "achievedPerSec": 363,
+      "achievedRatio": 0.36296666666666666,
+      "p50Ms": 9338.879,
+      "p99Ms": 10002.431,
+      "leaderCpuPercent": 55.13333333333333,
+      "leaderCpuMicrosPerOp": 1863.1333333333332,
+      "leaderElu": 1,
+      "leaderLoopLagP99Ms": 169.44966666666667,
+      "generatorLagP99Ms": 13.323666666666668,
+      "clientQueueWaitP99Ms": 9912.319,
+      "regimes": {
+        "intermediate": 1,
+        "fast": 1,
+        "slow": 1
+      },
+      "policiesVerified": true
+    },
+    {
+      "config": "baseline",
+      "policy": "disabled",
+      "rate": 1000,
+      "repetitions": 3,
+      "stableVotes": 0,
+      "achievedPerSec": 905.0666666666666,
+      "achievedRatio": 0.9050499999999998,
+      "p50Ms": 15.447,
+      "p99Ms": 9781.247,
+      "leaderCpuPercent": 42.233333333333334,
+      "leaderCpuMicrosPerOp": 476.09999999999997,
+      "leaderElu": 1,
+      "leaderLoopLagP99Ms": 110.68433333333333,
+      "generatorLagP99Ms": 0.05933333333333333,
+      "clientQueueWaitP99Ms": 7193.940333333335,
+      "regimes": {
+        "fast": 2,
+        "slow": 1
+      },
+      "policiesVerified": true
+    },
+    {
+      "config": "baseline",
+      "policy": "os-default",
+      "rate": 2500,
+      "repetitions": 3,
+      "stableVotes": 0,
+      "achievedPerSec": 80.10000000000001,
+      "achievedRatio": 0.03204666666666667,
+      "p50Ms": 9904.127,
+      "p99Ms": 10002.431,
+      "leaderCpuPercent": 76.7,
+      "leaderCpuMicrosPerOp": 3256.9,
+      "leaderElu": 1,
+      "leaderLoopLagP99Ms": 95.999,
+      "generatorLagP99Ms": 29.759,
+      "clientQueueWaitP99Ms": 10002.431,
+      "regimes": {
+        "fast": 1,
+        "slow": 2
+      },
+      "policiesVerified": true
+    },
+    {
+      "config": "baseline",
+      "policy": "disabled",
+      "rate": 2500,
+      "repetitions": 3,
+      "stableVotes": 0,
+      "achievedPerSec": 1479.2333333333333,
+      "achievedRatio": 0.5916866666666667,
+      "p50Ms": 8404.991,
+      "p99Ms": 10002.431,
+      "leaderCpuPercent": 44.29999999999999,
+      "leaderCpuMicrosPerOp": 311.7,
+      "leaderElu": 0.9983333333333334,
+      "leaderLoopLagP99Ms": 33.745666666666665,
+      "generatorLagP99Ms": 0.755,
+      "clientQueueWaitP99Ms": 9961.471,
+      "regimes": {
+        "slow": 3
+      },
+      "policiesVerified": true
+    },
+    {
+      "config": "optimized-binary",
+      "policy": "os-default",
+      "rate": 100,
+      "repetitions": 3,
+      "stableVotes": 3,
+      "achievedPerSec": 100,
+      "achievedRatio": 1,
+      "p50Ms": 3.789,
+      "p99Ms": 8.367,
+      "leaderCpuPercent": 25.133333333333336,
+      "leaderCpuMicrosPerOp": 2513,
+      "leaderElu": 0.3423333333333333,
+      "leaderLoopLagP99Ms": 1.9783333333333333,
+      "generatorLagP99Ms": 0.4013333333333334,
+      "clientQueueWaitP99Ms": 0.8043333333333335,
+      "regimes": {
+        "intermediate": 1,
+        "fast": 2
+      },
+      "policiesVerified": true
+    },
+    {
+      "config": "optimized-binary",
+      "policy": "disabled",
+      "rate": 100,
+      "repetitions": 3,
+      "stableVotes": 3,
+      "achievedPerSec": 100,
+      "achievedRatio": 1,
+      "p50Ms": 1.455,
+      "p99Ms": 2.773,
+      "leaderCpuPercent": 9.6,
+      "leaderCpuMicrosPerOp": 960.8333333333334,
+      "leaderElu": 0.123,
+      "leaderLoopLagP99Ms": 0.37000000000000005,
+      "generatorLagP99Ms": 0.041666666666666664,
+      "clientQueueWaitP99Ms": 0.20533333333333334,
+      "regimes": {
+        "fast": 2,
+        "intermediate": 1
+      },
+      "policiesVerified": true
+    },
+    {
+      "config": "optimized-binary",
+      "policy": "os-default",
+      "rate": 300,
+      "repetitions": 3,
+      "stableVotes": 3,
+      "achievedPerSec": 299.96666666666664,
+      "achievedRatio": 0.9999444444444444,
+      "p50Ms": 8.959,
+      "p99Ms": 21.279,
+      "leaderCpuPercent": 50,
+      "leaderCpuMicrosPerOp": 1666.8,
+      "leaderElu": 0.9226666666666666,
+      "leaderLoopLagP99Ms": 6.881666666666667,
+      "generatorLagP99Ms": 0.4543333333333333,
+      "clientQueueWaitP99Ms": 0.5493333333333333,
+      "regimes": {
+        "slow": 2,
+        "fast": 1
+      },
+      "policiesVerified": true
+    },
+    {
+      "config": "optimized-binary",
+      "policy": "disabled",
+      "rate": 300,
+      "repetitions": 3,
+      "stableVotes": 3,
+      "achievedPerSec": 299.96666666666664,
+      "achievedRatio": 0.9999444444444444,
+      "p50Ms": 1.163,
+      "p99Ms": 2.173,
+      "leaderCpuPercent": 17.566666666666666,
+      "leaderCpuMicrosPerOp": 586.0333333333333,
+      "leaderElu": 0.26466666666666666,
+      "leaderLoopLagP99Ms": 0.22699999999999998,
+      "generatorLagP99Ms": 0.03266666666666667,
+      "clientQueueWaitP99Ms": 0.13266666666666668,
+      "regimes": {
+        "intermediate": 3
+      },
+      "policiesVerified": true
+    },
+    {
+      "config": "optimized-binary",
+      "policy": "os-default",
+      "rate": 1000,
+      "repetitions": 3,
+      "stableVotes": 3,
+      "achievedPerSec": 1000.2666666666668,
+      "achievedRatio": 1.0002666666666666,
+      "p50Ms": 13.559,
+      "p99Ms": 30.799,
+      "leaderCpuPercent": 71.53333333333333,
+      "leaderCpuMicrosPerOp": 715.4333333333334,
+      "leaderElu": 1,
+      "leaderLoopLagP99Ms": 12.775,
+      "generatorLagP99Ms": 0.5203333333333333,
+      "clientQueueWaitP99Ms": 0.37166666666666665,
+      "regimes": {
+        "slow": 2,
+        "fast": 1
+      },
+      "policiesVerified": true
+    },
+    {
+      "config": "optimized-binary",
+      "policy": "disabled",
+      "rate": 1000,
+      "repetitions": 3,
+      "stableVotes": 3,
+      "achievedPerSec": 999.7333333333332,
+      "achievedRatio": 0.9997166666666667,
+      "p50Ms": 1.033,
+      "p99Ms": 11.463,
+      "leaderCpuPercent": 41.53333333333333,
+      "leaderCpuMicrosPerOp": 415.5,
+      "leaderElu": 0.7576666666666666,
+      "leaderLoopLagP99Ms": 0.7156666666666668,
+      "generatorLagP99Ms": 0.03833333333333334,
+      "clientQueueWaitP99Ms": 0.09733333333333333,
+      "regimes": {
+        "slow": 1,
+        "intermediate": 2
+      },
+      "policiesVerified": true
+    },
+    {
+      "config": "optimized-binary",
+      "policy": "os-default",
+      "rate": 2500,
+      "repetitions": 3,
+      "stableVotes": 0,
+      "achievedPerSec": 2183,
+      "achievedRatio": 0.8732000000000001,
+      "p50Ms": 2736.127,
+      "p99Ms": 5046.271,
+      "leaderCpuPercent": 89.83333333333333,
+      "leaderCpuMicrosPerOp": 411.43333333333334,
+      "leaderElu": 0.9916666666666667,
+      "leaderLoopLagP99Ms": 40.58566666666667,
+      "generatorLagP99Ms": 1.452,
+      "clientQueueWaitP99Ms": 4568.404333333333,
+      "regimes": {
+        "slow": 3
+      },
+      "policiesVerified": true
+    },
+    {
+      "config": "optimized-binary",
+      "policy": "disabled",
+      "rate": 2500,
+      "repetitions": 3,
+      "stableVotes": 3,
+      "achievedPerSec": 2501.1,
+      "achievedRatio": 1.0004266666666666,
+      "p50Ms": 8.543,
+      "p99Ms": 16.479,
+      "leaderCpuPercent": 41.5,
+      "leaderCpuMicrosPerOp": 165.86666666666665,
+      "leaderElu": 0.999,
+      "leaderLoopLagP99Ms": 5.793666666666667,
+      "generatorLagP99Ms": 0.09533333333333334,
+      "clientQueueWaitP99Ms": 0.10166666666666667,
+      "regimes": {
+        "slow": 2,
+        "intermediate": 1
+      },
+      "policiesVerified": true
+    }
+  ],
+  "ratios": [
+    {
+      "config": "baseline",
+      "rate": 100,
+      "achievedOffOverDefault": 1,
+      "p99DefaultOverOff": 2.18126689559436,
+      "cpuUsPerOpDefaultOverOff": 2.734246964930056,
+      "loopLagDefaultOverOff": 24.718262806236083,
+      "stable": {
+        "os-default": "3/3",
+        "disabled": "3/3"
+      }
+    },
+    {
+      "config": "baseline",
+      "rate": 300,
+      "achievedOffOverDefault": 0.9894366197183098,
+      "p99DefaultOverOff": 3.454404148594623,
+      "cpuUsPerOpDefaultOverOff": 1.8819625277865986,
+      "loopLagDefaultOverOff": 4.247271672948681,
+      "stable": {
+        "os-default": "3/3",
+        "disabled": "3/3"
+      }
+    },
+    {
+      "config": "baseline",
+      "rate": 1000,
+      "achievedOffOverDefault": 2.4932966023875114,
+      "p99DefaultOverOff": 1.0226130676385128,
+      "cpuUsPerOpDefaultOverOff": 3.9133235314709793,
+      "loopLagDefaultOverOff": 1.5309272917275256,
+      "stable": {
+        "os-default": "0/3",
+        "disabled": "0/3"
+      }
+    },
+    {
+      "config": "baseline",
+      "rate": 2500,
+      "achievedOffOverDefault": 18.467332501040364,
+      "p99DefaultOverOff": 1,
+      "cpuUsPerOpDefaultOverOff": 10.44882900224575,
+      "loopLagDefaultOverOff": 2.844780070527574,
+      "stable": {
+        "os-default": "0/3",
+        "disabled": "0/3"
+      }
+    },
+    {
+      "config": "optimized-binary",
+      "rate": 100,
+      "achievedOffOverDefault": 1,
+      "p99DefaultOverOff": 3.017309772809232,
+      "cpuUsPerOpDefaultOverOff": 2.6154379878577623,
+      "loopLagDefaultOverOff": 5.346846846846846,
+      "stable": {
+        "os-default": "3/3",
+        "disabled": "3/3"
+      }
+    },
+    {
+      "config": "optimized-binary",
+      "rate": 300,
+      "achievedOffOverDefault": 1,
+      "p99DefaultOverOff": 9.79245283018868,
+      "cpuUsPerOpDefaultOverOff": 2.844206814174393,
+      "loopLagDefaultOverOff": 30.315712187958887,
+      "stable": {
+        "os-default": "3/3",
+        "disabled": "3/3"
+      }
+    },
+    {
+      "config": "optimized-binary",
+      "rate": 1000,
+      "achievedOffOverDefault": 0.9994668088509728,
+      "p99DefaultOverOff": 2.6868184593910844,
+      "cpuUsPerOpDefaultOverOff": 1.7218612113918974,
+      "loopLagDefaultOverOff": 17.85048905449464,
+      "stable": {
+        "os-default": "3/3",
+        "disabled": "3/3"
+      }
+    },
+    {
+      "config": "optimized-binary",
+      "rate": 2500,
+      "achievedOffOverDefault": 1.145716903344022,
+      "p99DefaultOverOff": 306.22434613750835,
+      "cpuUsPerOpDefaultOverOff": 2.4805064308681675,
+      "loopLagDefaultOverOff": 7.005178068005294,
+      "stable": {
+        "os-default": "0/3",
+        "disabled": "3/3"
+      }
+    }
+  ]
+}
