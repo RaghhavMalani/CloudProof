@@ -173,9 +173,12 @@ Each trial is assigned the fsync regime of the disk sentinel sampled immediately
 
 | profile | offered/s | achieved/s | busy % of wall | fs-sync-io | axios | express | node-http | streams-net | json | console-logging | raft-engine | raft-log-store | raft-transport | state-machine | gc | instrumentation |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| baseline 1024 B A-sub-saturation | 150 | 150 | 38.5 | 55.0 | 10.9 | 3.1 | 6.8 | 7.9 | 0.3 | 2.6 | 3.2 | 0.5 | 0.0 | 0.5 | 0.8 | 0.7 |
-| baseline 1024 B B-knee | 300 | 300 | 63.4 | 61.6 | 8.6 | 3.5 | 5.3 | 7.0 | 0.3 | 2.1 | 3.4 | 0.7 | 0.0 | 0.5 | 0.5 | 0.3 |
-| baseline 1024 B C-overloaded | 500 | 494 | 98.0 | 87.4 | 1.0 | 2.3 | 1.1 | 1.8 | 0.0 | 1.8 | 1.3 | 0.6 | 0.0 | 0.2 | 0.1 | 0.2 |
+| baseline 1024 B A-sub-saturation | 250 | 250 | 65.7 | 59.2 | 8.7 | 3.9 | 5.5 | 7.5 | 0.3 | 2.5 | 3.8 | 0.7 | 0.0 | 0.5 | 0.5 | 0.3 |
+| baseline 1024 B B-knee | 500 | 441 | 96.6 | 79.3 | 2.6 | 3.1 | 2.2 | 3.5 | 0.1 | 2.0 | 1.9 | 0.8 | 0.0 | 0.3 | 0.3 | 0.3 |
+| baseline 1024 B C-overloaded | 750 | 828 | 98.2 | 80.5 | 0.9 | 3.8 | 1.6 | 3.1 | 0.0 | 2.3 | 1.9 | 1.0 | 0.0 | 0.3 | 0.4 | 0.2 |
+| optimized-binary 1024 B A-sub-saturation | 6,000 | 5,997 | 94.6 | 33.2 | 0.0 | 13.3 | 4.8 | 20.7 | 0.5 | 0.0 | 4.3 | 2.5 | 1.2 | 2.4 | 1.3 | 0.7 |
+| optimized-binary 1024 B B-knee | 12,000 | 8,456 | 90.3 | 31.9 | 0.0 | 12.3 | 4.7 | 22.2 | 0.1 | 0.0 | 4.3 | 3.6 | 0.5 | 2.3 | 2.0 | 0.6 |
+| optimized-binary 1024 B C-overloaded | 15,000 | 10,564 | 91.0 | 17.3 | 0.0 | 15.7 | 6.1 | 26.2 | 0.2 | 0.0 | 5.3 | 3.7 | 0.6 | 3.0 | 2.3 | 0.9 |
 
 Category columns are percent of *busy* (non-idle) sampled time on the leader.
 
