@@ -1,0 +1,4 @@
+SUCCESS: The process with PID 25396 (child process of PID 7816) has been terminated.
+SUCCESS: The process with PID 7816 (child process of PID 37504) has been terminated.
+
+stopped sweep pid 7816 after trial 711 (was 710 when the stop was requested)
