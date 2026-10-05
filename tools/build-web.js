@@ -223,6 +223,11 @@ const ASSETS = [
     ['apps/ops/cloud-ops.js', 'web/cloud-ops.js'],
     ['apps/ops/fixtures/rollout-payment.evidence.json', 'web/ops-evidence-rollout-payment.json'],
     ['artifacts/cloudproof/phase-iii-pilot/pilot.json', 'web/phase-iii-pilot.json'],
+    // GNN Observatory. Its data (web/observatory/replay.json) is written by
+    // `python -m ml.cloudproof.export_observatory`, not by this build.
+    ['apps/observatory/observatory.html', 'web/observatory.html'],
+    ['apps/observatory/observatory.js', 'web/observatory.js'],
+    ['apps/observatory/observatory.css', 'web/observatory.css'],
 ];
 
 function build() {
