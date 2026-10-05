@@ -327,6 +327,8 @@ function summarizeTrial({
     const networkErrors = mergeCounts('networkErrors');
     const timeoutsSent = sum('timeoutsSent');
     const timeoutsUnsent = sum('timeoutsUnsent');
+    // Not errors: connection attempts retried after a backoff (loadgen-worker.js).
+    const connectRetries = sum('connectRetries');
     const errorCount = Object.values(httpErrors).reduce((a, b) => a + b, 0)
         + Object.values(networkErrors).reduce((a, b) => a + b, 0)
         + timeoutsSent + timeoutsUnsent;
@@ -387,7 +389,7 @@ function summarizeTrial({
         achievedPerSec: num(okCompletedInWindow / windowSeconds, 1),
         achievedRatio: scheduled > 0 ? okCompletedInWindow / scheduled : 0,
         errorRate: scheduled > 0 ? errorCount / scheduled : 0,
-        errors: { http: httpErrors, network: networkErrors, timeoutsSent, timeoutsUnsent, total: errorCount },
+        errors: { http: httpErrors, network: networkErrors, timeoutsSent, timeoutsUnsent, connectRetries, total: errorCount },
         latencyAllMs: latencyAll.summary(1000),
         latencyOkMs: latencyOk.summary(1000),
         serviceOkMs: histogram('serviceOk').summary(1000),

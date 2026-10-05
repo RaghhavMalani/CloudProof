@@ -101,6 +101,9 @@ function run(config) {
         networkErrors: {},    // code -> count
         timeoutsSent: 0,
         timeoutsUnsent: 0,
+        // Connection attempts that failed before the request reached the
+        // server and were retried after a backoff (see sendRecord).
+        connectRetries: 0,
         completedInWindow: 0, // any response whose completion falls in the window
         okCompletedInWindow: 0,
         bytesRequestBody: 0,
@@ -172,6 +175,62 @@ function run(config) {
         }
     }
 
+    // Connection-establishment failures (the server refused, or this machine
+    // ran out of local ports) mean the request never reached the server, so
+    // it is safe to retry, and retrying at once only feeds a connect storm.
+    // Such a request stays queued in the client and is re-sent after a
+    // per-worker exponential backoff (10 ms doubling to 1 s, reset by any
+    // response); its latency is still charged from its intended arrival, and
+    // past its deadline it is a timeout like any other.
+    const CONNECT_ERRORS = new Set(['ECONNREFUSED', 'EADDRINUSE', 'EADDRNOTAVAIL']);
+    let connectBackoffMs = 0;
+
+    function sendRecord(record, path) {
+        const req = http.request({
+            agent,
+            host: url.hostname,
+            port: url.port,
+            method: 'PUT',
+            path,
+            headers: { 'content-type': 'application/json', 'content-length': body.length },
+        });
+        record.req = req;
+        const markSent = () => {
+            if (record.done || record.sentAt !== null) return;
+            record.sentAt = relative();
+            queued -= 1;
+            sent += 1;
+            if (record.measured) hist.clientQueueWait.record((record.sentAt - record.dispatchedAt) * 1000);
+        };
+        req.on('socket', (socket) => {
+            if (socket.connecting) socket.once('connect', markSent);
+            else markSent();
+        });
+        req.on('response', (res) => {
+            connectBackoffMs = 0;
+            res.resume();
+            res.on('end', () => {
+                if (record.sentAt === null) markSent();
+                const ok = res.statusCode >= 200 && res.statusCode < 300;
+                complete(record, ok ? 'ok' : 'http', res.statusCode);
+            });
+            res.on('error', () => complete(record, 'network', 'ERESPONSE'));
+        });
+        req.on('error', (error) => {
+            if (record.done) return;
+            if (record.sentAt === null && CONNECT_ERRORS.has(error.code)) {
+                connectBackoffMs = Math.min(1000, Math.max(10, connectBackoffMs * 2));
+                counts.connectRetries += 1;
+                setTimeout(() => {
+                    if (!record.done && relative() < record.deadline) sendRecord(record, path);
+                }, connectBackoffMs);
+                return;
+            }
+            complete(record, 'network', error.code || 'ERROR');
+        });
+        req.end(body);
+    }
+
     function dispatch(k) {
         const scheduledAt = phaseMs + k * intervalMs;
         const dispatchedAt = relative();
@@ -186,6 +245,7 @@ function run(config) {
         const record = {
             id: sequence += 1,
             scheduledAt,
+            dispatchedAt,
             deadline: scheduledAt + timeoutMs,
             sentAt: null,
             measured,
@@ -194,41 +254,7 @@ function run(config) {
         };
         inflight.set(record.id, record);
         queued += 1;
-
-        const req = http.request({
-            agent,
-            host: url.hostname,
-            port: url.port,
-            method: 'PUT',
-            path: routePrefix + 'k' + (globalIndex % keySpace),
-            headers: { 'content-type': 'application/json', 'content-length': body.length },
-        });
-        record.req = req;
-        const markSent = () => {
-            if (record.done || record.sentAt !== null) return;
-            record.sentAt = relative();
-            queued -= 1;
-            sent += 1;
-            if (record.measured) hist.clientQueueWait.record((record.sentAt - dispatchedAt) * 1000);
-        };
-        req.on('socket', (socket) => {
-            if (socket.connecting) socket.once('connect', markSent);
-            else markSent();
-        });
-        req.on('response', (res) => {
-            res.resume();
-            res.on('end', () => {
-                if (record.sentAt === null) markSent();
-                const ok = res.statusCode >= 200 && res.statusCode < 300;
-                complete(record, ok ? 'ok' : 'http', res.statusCode);
-            });
-            res.on('error', () => complete(record, 'network', 'ERESPONSE'));
-        });
-        req.on('error', (error) => {
-            if (record.done) return;
-            complete(record, 'network', error.code || 'ERROR');
-        });
-        req.end(body);
+        sendRecord(record, routePrefix + 'k' + (globalIndex % keySpace));
         if (measured) counts.bytesRequestBody += body.length;
     }
 

@@ -20,8 +20,12 @@ const REPLICA_ENTRY = path.join(ROOT, 'replica', 'index.js');
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/** Minimal JSON-over-HTTP helper with its own short-lived agent. */
-function requestJson(url, { method = 'GET', body = null, timeoutMs = 5000 } = {}) {
+/**
+ * Minimal JSON-over-HTTP helper. Without `agent` every call opens its own
+ * connection; LocalCluster passes a keep-alive agent so the harness's own
+ * polling does not consume a local port per request.
+ */
+function requestJson(url, { method = 'GET', body = null, timeoutMs = 5000, agent = false } = {}) {
     return new Promise((resolve, reject) => {
         const target = new URL(url);
         const payload = body === null ? null : Buffer.from(JSON.stringify(body));
@@ -30,7 +34,7 @@ function requestJson(url, { method = 'GET', body = null, timeoutMs = 5000 } = {}
             port: target.port,
             path: target.pathname + target.search,
             method,
-            agent: false,
+            agent,
             headers: payload
                 ? { 'content-type': 'application/json', 'content-length': payload.length }
                 : {},
@@ -75,6 +79,11 @@ class LocalCluster {
         this.powerThrottling = powerThrottling;
         this.powerPolicy = null;
         this.controlRetries = 0;
+        // One keep-alive agent for the harness's own requests (health, status,
+        // perf, profiles), destroyed when the cluster stops. Under overload the
+        // previous connection-per-request pattern, together with the load
+        // generators' reconnects, exhausted local ports.
+        this.agent = new http.Agent({ keepAlive: true, maxSockets: 4 });
         this.urls = Array.from({ length: size }, (_, i) => `http://127.0.0.1:${basePort + i}`);
         this.processes = [];
         this.exits = [];
@@ -124,7 +133,7 @@ class LocalCluster {
         for (const url of this.urls) {
             for (;;) {
                 try {
-                    const response = await requestJson(`${url}/health`, { timeoutMs: 1000 });
+                    const response = await requestJson(`${url}/health`, { timeoutMs: 1000, agent: this.agent });
                     if (response.status === 200) break;
                 } catch (_) { /* not up yet */ }
                 if (Date.now() > deadline) throw new Error(`${url} did not become healthy`);
@@ -136,7 +145,7 @@ class LocalCluster {
     async statuses() {
         return Promise.all(this.urls.map(async (url) => {
             try {
-                const response = await requestJson(`${url}/status`, { timeoutMs: 1000 });
+                const response = await requestJson(`${url}/status`, { timeoutMs: 1000, agent: this.agent });
                 return { url, ...response.data };
             } catch (error) {
                 return { url, error: error.message };
@@ -175,7 +184,7 @@ class LocalCluster {
     async controlRequest(url, options) {
         for (let attempt = 0; ; attempt += 1) {
             try {
-                return await requestJson(url, options);
+                return await requestJson(url, { agent: this.agent, ...options });
             } catch (error) {
                 const transient = ['ECONNREFUSED', 'EADDRINUSE', 'ECONNRESET'].includes(error.code);
                 if (!transient || attempt >= 19) throw error;
@@ -197,12 +206,12 @@ class LocalCluster {
     collectPerf() { return this.perfAll('/perf'); }
 
     async startProfile(url, intervalUs = 250) {
-        const response = await requestJson(`${url}/perf/profile/start?intervalUs=${intervalUs}`, { method: 'POST' });
+        const response = await this.controlRequest(`${url}/perf/profile/start?intervalUs=${intervalUs}`, { method: 'POST' });
         if (response.status !== 200) throw new Error(`profile start failed: ${JSON.stringify(response.data)}`);
     }
 
     async stopProfile(url) {
-        const response = await requestJson(`${url}/perf/profile/stop`, { method: 'POST', timeoutMs: 60000 });
+        const response = await this.controlRequest(`${url}/perf/profile/stop`, { method: 'POST', timeoutMs: 60000 });
         if (response.status !== 200) throw new Error(`profile stop failed: ${JSON.stringify(response.data)}`);
         return response.data.profile;
     }
@@ -248,6 +257,7 @@ class LocalCluster {
 
     async stop({ keepData = false } = {}) {
         await Promise.all(this.processes.map((_, index) => this.kill(index)));
+        this.agent.destroy();
         if (!keepData) {
             // Windows can hold a handle for a moment after TerminateProcess.
             for (let attempt = 0; attempt < 20; attempt += 1) {

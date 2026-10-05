@@ -193,3 +193,55 @@ test('durations parse with units', () => {
     assert.equal(parseDuration('2m'), 120000);
     assert.equal(parseDuration('10'), 10000);
 });
+
+test('a refused connection is retried after a backoff, never sent twice, and its wait is charged', async () => {
+    // Nothing listens on the port for the first 300 ms of load. Those arrivals
+    // fail to connect (the request never reached a server), are retried with
+    // backoff, and succeed once the server is up: no network error, every
+    // arrival answered exactly once, and the wait counts against latency.
+    const probe = await listen(() => {});
+    const { port } = probe.address();
+    await new Promise((resolve) => probe.close(resolve));
+    const received = new Map();
+    let server = null;
+    const startEpochMs = Date.now() + 200;
+    const opened = new Promise((resolve) => {
+        setTimeout(async () => {
+            server = http.createServer((req, res) => {
+                received.set(req.url, (received.get(req.url) || 0) + 1);
+                req.resume();
+                req.on('end', () => res.end('{"ok":true}'));
+            });
+            server.keepAliveTimeout = 60000;
+            server.listen(port, '127.0.0.1', resolve);
+        }, startEpochMs - Date.now() + 300);
+    });
+    const result = await runWorker({
+        target: `http://127.0.0.1:${port}`, ratePerSecond: 50, phaseMs: 0, connections: 4, payloadBytes: 64,
+        keySpace: 100000, warmupMs: 0, durationMs: 1000, timeoutMs: 10000, drainMs: 10000, startEpochMs, workerIndex: 0, workers: 1,
+    });
+    await opened;
+    server.close();
+    assert.ok(result.counts.connectRetries > 0, 'early arrivals were retried');
+    assert.deepEqual(result.counts.networkErrors, {});
+    assert.equal(result.counts.ok, result.counts.scheduled);
+    assert.ok([...received.values()].every((n) => n === 1), 'no request reached the server twice');
+    const latency = LogLinearHistogram.fromJSON(result.histograms.latencyAll).summary(1000);
+    assert.ok(latency.max >= 250, `the connect wait is charged (max ${latency.max} ms)`);
+});
+
+test('the harness polls replicas over one kept-alive connection, not one per request', async () => {
+    const { LocalCluster } = require('./cluster');
+    let connections = 0;
+    const server = await listen((req, res) => {
+        req.resume();
+        req.on('end', () => res.end('{"state":"LEADER","commitIndex":0}'));
+    });
+    server.on('connection', () => { connections += 1; });
+    const cluster = new LocalCluster({ size: 1, basePort: server.address().port, dataRoot: path.join(__dirname, '.unused') });
+    for (let i = 0; i < 10; i += 1) await cluster.statuses();
+    await cluster.controlRequest(`${cluster.urls[0]}/perf`, {});
+    cluster.agent.destroy();
+    server.close();
+    assert.equal(connections, 1);
+});
