@@ -1,0 +1,4 @@
+SUCCESS: The process with PID 35032 (child process of PID 31784) has been terminated.
+SUCCESS: The process with PID 31784 (child process of PID 34064) has been terminated.
+
+stopped sweep pid 31784 after trial 487 (was 486 when the stop was requested)
