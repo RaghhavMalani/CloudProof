@@ -884,6 +884,22 @@ Run at `dd0ab9d` on a clean tree, after the sweep and the profiles
 - Live durability gate under the comparison's power policy (`1b55e36`): 30 forced leader deaths, 157,788 acknowledged
   writes, 0 missing, 0 duplicates.
 
+**Closure re-run after the etcd comparison.** The same 34 steps were rerun at `357d3fd` on a clean tree
+([`final-regression-closure.txt`](artifacts/perf/phase-iv-a/final-regression-closure.txt)), and every one passed:
+
+- replica suite 118/118;
+- Node suites 226 passed, 0 failed and the same 1 skipped by design, now including the etcd harness tests and a live
+  three-member etcd trial;
+- the fingerprint is unchanged (`1f73f666…`);
+- every linearizability search found 0 violations;
+- the fault campaign had 0 failures, and the mutants were 5/5 killed;
+- the agent and multi-agent campaigns, the Phase I replay and gates, and the Phase II smoke gates passed, and Python
+  had 44 passed.
+
+This run used a linked Windows worktree, which checks text files out with CRLF. The relational fixture that
+`sim/cloud-causal-relational.test.js` compares byte for byte was therefore checked out again with LF first: the
+same blob, matching the main checkout and Linux CI.
+
 ## 14. Known limitations and follow-ups
 
 - **Harness under extreme overload.** At 15,000–20,000/s the load generators' reconnect storm and the harness's
