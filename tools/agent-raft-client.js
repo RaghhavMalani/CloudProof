@@ -245,4 +245,30 @@ class RaftAgentClient {
     }
 }
 
-module.exports = { AgentCommandError, RaftAgentClient, requestJson };
+/**
+ * A leader that was elected moments ago refuses lease reads until a quorum has
+ * answered it within the lease window (RaftNode.read: electionTimeoutMin minus
+ * heartbeatInterval), and the read routes answer that refusal with a 503.
+ * /status reports the new leader before its lease is valid, so a read right
+ * after a failover can be refused. The refusal is the safe answer, not a
+ * failure: this waits it out, for that refusal only. Any other error, and a
+ * lease still refused at the deadline, is thrown unchanged.
+ */
+function isStaleLeaseRefusal(error) {
+    return error instanceof AgentCommandError && error.status === 503
+        && /^Stale leader lease/.test(error.message);
+}
+
+async function retryStaleLease(read, { timeoutMs = 10000, intervalMs = 100 } = {}) {
+    const deadline = Date.now() + timeoutMs;
+    for (;;) {
+        try {
+            return await read();
+        } catch (error) {
+            if (!isStaleLeaseRefusal(error) || Date.now() >= deadline) throw error;
+            await new Promise((resolve) => setTimeout(resolve, intervalMs));
+        }
+    }
+}
+
+module.exports = { AgentCommandError, RaftAgentClient, requestJson, isStaleLeaseRefusal, retryStaleLease };
