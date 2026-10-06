@@ -1,0 +1,4 @@
+SUCCESS: The process with PID 25948 (child process of PID 10436) has been terminated.
+SUCCESS: The process with PID 10436 (child process of PID 26316) has been terminated.
+
+stopped sweep pid 10436 after trial 191 (was 190 when the stop was requested)

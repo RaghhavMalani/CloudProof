@@ -29,17 +29,46 @@ class MemoryStableStore {
 }
 
 class MemoryLogStore {
-    constructor() { this.entries = []; this.appends = 0; this.rewrites = 0; }
+    constructor() {
+        this.entries = []; this.appends = 0; this.rewrites = 0;
+        // Group commit: appended but not yet durable. A simulated crash drops
+        // these (SimCluster.crash), exactly as a real crash loses a write that
+        // was never fsynced — which is what the group-commit tests depend on.
+        this.pending = [];
+        this.flushes = 0;
+    }
+    get pendingCount() { return this.pending.length; }
     load() { return this.entries.map((e) => JSON.parse(JSON.stringify(e))); }
     append(entries) {
         this.entries.push(...entries.map((e) => JSON.parse(JSON.stringify(e))));
         this.appends += entries.length;
     }
+    appendBuffered(entries) {
+        this.pending.push(...entries.map((e) => JSON.parse(JSON.stringify(e))));
+    }
+    flush() {
+        const count = this.pending.length;
+        if (count === 0) return 0;
+        this.entries.push(...this.pending);
+        this.pending = [];
+        this.appends += count;
+        this.flushes += 1;
+        return count;
+    }
+    dropPending() { this.pending = []; }
     rewrite(entries) {
         this.entries = entries.map((e) => JSON.parse(JSON.stringify(e)));
+        this.pending = [];
         this.rewrites += 1;
     }
     close() {}
+}
+
+/** A profile's `wire` selects the transport, not an engine option. */
+function engineOptions(options) {
+    if (!options || options.wire === undefined) return options;
+    const { wire, ...rest } = options;
+    return rest;
 }
 
 class SimCluster {
@@ -61,7 +90,16 @@ class SimCluster {
         recorderOptions = {},
         decisionTrace = null,
         decisionStreams = null,
+        // Extra RaftNode options (the Phase IV-A optimizations). Empty by
+        // default, so the default cluster is the exact engine every existing
+        // schedule and artifact was recorded on.
+        raftOptions = null,
+        // Optional wrapper around each node's transport (sim/wire-codec.js
+        // routes every RPC through the framed binary codec).
+        wrapTransport = null,
     } = {}) {
+        this.raftOptions = raftOptions || {};
+        this.wrapTransport = wrapTransport;
         this.clock = new VirtualClock();
         this.decisionStreams = decisionStreams || new DecisionStreams({
             seed, decisions: decisionTrace, clock: this.clock,
@@ -109,7 +147,7 @@ class SimCluster {
             members: this.urls.slice(0, this.voters),
             // Bound to this node's URL so the network can tell who is sending
             // and apply partitions to vote requests as well as replication.
-            transport: this.network.forNode(url),
+            transport: this.wrapTransport ? this.wrapTransport(this.network.forNode(url)) : this.network.forNode(url),
             clock: this.clock,
             // Election jitter comes from the seeded PRNG, not Math.random.
             // Without this the schedule differs on every run and the whole
@@ -125,6 +163,8 @@ class SimCluster {
             commitTimeoutMs: 1500,
             ...this.config,
             electionTimeoutMin: this.config.electionTimeoutMin + timeoutOffset,
+            // May be per node, e.g. to give each node its own disk latency.
+            ...engineOptions(typeof this.raftOptions === 'function' ? this.raftOptions(index) : this.raftOptions),
         });
 
         this.network.register(url, {
@@ -274,6 +314,8 @@ class SimCluster {
         const url = this.urls[index];
         const node = this.nodes.get(url);
         if (node) node.stop();
+        // Anything appended but not yet flushed never reached the disk.
+        this.stores[index].log.dropPending();
         this.network.crash(url);
         this.nodes.delete(url);
         this.recorder?.record(EVENT_TYPES.FAULT_APPLIED, {

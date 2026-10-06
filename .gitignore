@@ -42,3 +42,12 @@ artifacts/cloudproof/phase-ii-b2/models/*/*
 !artifacts/cloudproof/phase-iii-pilot/
 artifacts/cloudproof/phase-iii-pilot/*
 !artifacts/cloudproof/phase-iii-pilot/pilot.json
+
+# Phase IV-A performance artifacts: every recorded trial, sweep, profile
+# summary and generated report is committed; raw profiles stay in .bench-data
+!artifacts/perf/
+artifacts/perf/*
+!artifacts/perf/phase-iv-a/
+
+# Phase IV-A benchmark scratch data (cluster data dirs, raw CPU profiles)
+.bench-data/

@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 420" width="760" height="420" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12">
+<rect width="760" height="420" fill="#ffffff"/>
+<text x="70" y="22" font-size="14" font-weight="600" fill="#111827">p99 end-to-end latency vs offered load — 1024 B writes, 3-member CloudProof and etcd clusters (log-log)</text>
+<line x1="70" x2="560" y1="308.4" y2="308.4" stroke="#e5e7eb"/>
+<text x="62" y="312.4" text-anchor="end" fill="#4b5563">10 ms</text>
+<line x1="70" x2="560" y1="223.9" y2="223.9" stroke="#e5e7eb"/>
+<text x="62" y="227.9" text-anchor="end" fill="#4b5563">100 ms</text>
+<line x1="70" x2="560" y1="139.4" y2="139.4" stroke="#e5e7eb"/>
+<text x="62" y="143.4" text-anchor="end" fill="#4b5563">1000 ms</text>
+<line x1="70" x2="560" y1="54.9" y2="54.9" stroke="#e5e7eb"/>
+<text x="62" y="58.9" text-anchor="end" fill="#4b5563">10000 ms</text>
+<line x1="70.0" x2="70.0" y1="40" y2="364" stroke="#f3f4f6"/>
+<text x="70.0" y="382" text-anchor="middle" fill="#4b5563">100</text>
+<line x1="177.4" x2="177.4" y1="40" y2="364" stroke="#f3f4f6"/>
+<text x="177.4" y="382" text-anchor="middle" fill="#4b5563">300</text>
+<line x1="267.0" x2="267.0" y1="40" y2="364" stroke="#f3f4f6"/>
+<text x="267.0" y="382" text-anchor="middle" fill="#4b5563">750</text>
+<line x1="334.8" x2="334.8" y1="40" y2="364" stroke="#f3f4f6"/>
+<text x="334.8" y="382" text-anchor="middle" fill="#4b5563">1.5k</text>
+<line x1="402.6" x2="402.6" y1="40" y2="364" stroke="#f3f4f6"/>
+<text x="402.6" y="382" text-anchor="middle" fill="#4b5563">3k</text>
+<line x1="452.6" x2="452.6" y1="40" y2="364" stroke="#f3f4f6"/>
+<text x="452.6" y="382" text-anchor="middle" fill="#4b5563">5k</text>
+<line x1="498.5" x2="498.5" y1="40" y2="364" stroke="#f3f4f6"/>
+<text x="498.5" y="382" text-anchor="middle" fill="#4b5563">8k</text>
+<line x1="538.2" x2="538.2" y1="40" y2="364" stroke="#f3f4f6"/>
+<text x="538.2" y="382" text-anchor="middle" fill="#4b5563">12k</text>
+<rect x="70" y="40" width="490" height="324" fill="none" stroke="#9ca3af"/>
+<text x="315" y="408" text-anchor="middle" fill="#111827">offered load (writes/s, open loop)</text>
+<path d="M70.0,294.3 L137.8,252.9 L177.4,222.1 L227.4,163.2 L267.0,54.9 L295.2,54.9" fill="none" stroke="#1f6feb" stroke-width="2"/>
+<circle cx="70.0" cy="294.3" r="3.5" fill="#1f6feb"/>
+<circle cx="137.8" cy="252.9" r="3.5" fill="#1f6feb"/>
+<circle cx="177.4" cy="222.1" r="3.5" fill="#1f6feb"/>
+<circle cx="227.4" cy="163.2" r="3.5" fill="#1f6feb"/>
+<circle cx="267.0" cy="54.9" r="3.5" fill="#ffffff" stroke="#1f6feb" stroke-width="1.5"/>
+<circle cx="295.2" cy="54.9" r="3.5" fill="#ffffff" stroke="#1f6feb" stroke-width="1.5"/>
+<circle cx="227.4" cy="163.2" r="7" fill="none" stroke="#1f6feb" stroke-width="1.5"/>
+<line x1="576" x2="596" y1="50" y2="50" stroke="#1f6feb" stroke-width="2"/>
+<text x="602" y="54" fill="#111827">Baseline</text>
+<path d="M70.0,334.1 L137.8,300.2 L177.4,297.2 L227.4,289.4 L267.0,285.4 L295.2,288.8 L334.8,279.1 L363.0,281.8 L402.6,273.1 L430.7,281.0 L452.6,277.8 L470.4,273.4 L498.5,117.0 L520.3,62.2" fill="none" stroke="#d97706" stroke-width="2"/>
+<circle cx="70.0" cy="334.1" r="3.5" fill="#d97706"/>
+<circle cx="137.8" cy="300.2" r="3.5" fill="#d97706"/>
+<circle cx="177.4" cy="297.2" r="3.5" fill="#d97706"/>
+<circle cx="227.4" cy="289.4" r="3.5" fill="#d97706"/>
+<circle cx="267.0" cy="285.4" r="3.5" fill="#d97706"/>
+<circle cx="295.2" cy="288.8" r="3.5" fill="#d97706"/>
+<circle cx="334.8" cy="279.1" r="3.5" fill="#d97706"/>
+<circle cx="363.0" cy="281.8" r="3.5" fill="#d97706"/>
+<circle cx="402.6" cy="273.1" r="3.5" fill="#d97706"/>
+<circle cx="430.7" cy="281.0" r="3.5" fill="#d97706"/>
+<circle cx="452.6" cy="277.8" r="3.5" fill="#d97706"/>
+<circle cx="470.4" cy="273.4" r="3.5" fill="#d97706"/>
+<circle cx="498.5" cy="117.0" r="3.5" fill="#ffffff" stroke="#d97706" stroke-width="1.5"/>
+<circle cx="520.3" cy="62.2" r="3.5" fill="#ffffff" stroke="#d97706" stroke-width="1.5"/>
+<circle cx="470.4" cy="273.4" r="7" fill="none" stroke="#d97706" stroke-width="1.5"/>
+<line x1="576" x2="596" y1="70" y2="70" stroke="#d97706" stroke-width="2"/>
+<text x="602" y="74" fill="#111827">Optimized HTTP</text>
+<path d="M70.0,340.7 L137.8,311.6 L177.4,305.2 L227.4,294.9 L267.0,299.0 L295.2,293.7 L334.8,292.0 L363.0,290.4 L402.6,289.7 L430.7,292.2 L452.6,289.9 L470.4,287.9 L498.5,281.0 L520.3,212.7 L538.2,83.6 L560.0,66.2" fill="none" stroke="#16a34a" stroke-width="2"/>
+<circle cx="70.0" cy="340.7" r="3.5" fill="#16a34a"/>
+<circle cx="137.8" cy="311.6" r="3.5" fill="#16a34a"/>
+<circle cx="177.4" cy="305.2" r="3.5" fill="#16a34a"/>
+<circle cx="227.4" cy="294.9" r="3.5" fill="#16a34a"/>
+<circle cx="267.0" cy="299.0" r="3.5" fill="#16a34a"/>
+<circle cx="295.2" cy="293.7" r="3.5" fill="#16a34a"/>
+<circle cx="334.8" cy="292.0" r="3.5" fill="#16a34a"/>
+<circle cx="363.0" cy="290.4" r="3.5" fill="#16a34a"/>
+<circle cx="402.6" cy="289.7" r="3.5" fill="#16a34a"/>
+<circle cx="430.7" cy="292.2" r="3.5" fill="#16a34a"/>
+<circle cx="452.6" cy="289.9" r="3.5" fill="#16a34a"/>
+<circle cx="470.4" cy="287.9" r="3.5" fill="#16a34a"/>
+<circle cx="498.5" cy="281.0" r="3.5" fill="#16a34a"/>
+<circle cx="520.3" cy="212.7" r="3.5" fill="#16a34a"/>
+<circle cx="538.2" cy="83.6" r="3.5" fill="#ffffff" stroke="#16a34a" stroke-width="1.5"/>
+<circle cx="560.0" cy="66.2" r="3.5" fill="#ffffff" stroke="#16a34a" stroke-width="1.5"/>
+<circle cx="520.3" cy="212.7" r="7" fill="none" stroke="#16a34a" stroke-width="1.5"/>
+<line x1="576" x2="596" y1="90" y2="90" stroke="#16a34a" stroke-width="2"/>
+<text x="602" y="94" fill="#111827">Optimized binary</text>
+<path d="M70.0,349.1 L137.8,191.9 L177.4,299.8 L227.4,295.8 L267.0,292.3 L295.2,296.7 L334.8,294.5 L363.0,292.0 L402.6,292.8 L430.7,290.4 L452.6,290.3 L470.4,287.6 L498.5,277.5 L520.3,137.6 L538.2,70.4" fill="none" stroke="#9333ea" stroke-width="2"/>
+<circle cx="70.0" cy="349.1" r="3.5" fill="#9333ea"/>
+<circle cx="137.8" cy="191.9" r="3.5" fill="#9333ea"/>
+<circle cx="177.4" cy="299.8" r="3.5" fill="#9333ea"/>
+<circle cx="227.4" cy="295.8" r="3.5" fill="#9333ea"/>
+<circle cx="267.0" cy="292.3" r="3.5" fill="#9333ea"/>
+<circle cx="295.2" cy="296.7" r="3.5" fill="#9333ea"/>
+<circle cx="334.8" cy="294.5" r="3.5" fill="#9333ea"/>
+<circle cx="363.0" cy="292.0" r="3.5" fill="#9333ea"/>
+<circle cx="402.6" cy="292.8" r="3.5" fill="#9333ea"/>
+<circle cx="430.7" cy="290.4" r="3.5" fill="#9333ea"/>
+<circle cx="452.6" cy="290.3" r="3.5" fill="#9333ea"/>
+<circle cx="470.4" cy="287.6" r="3.5" fill="#9333ea"/>
+<circle cx="498.5" cy="277.5" r="3.5" fill="#9333ea"/>
+<circle cx="520.3" cy="137.6" r="3.5" fill="#ffffff" stroke="#9333ea" stroke-width="1.5"/>
+<circle cx="538.2" cy="70.4" r="3.5" fill="#ffffff" stroke="#9333ea" stroke-width="1.5"/>
+<circle cx="498.5" cy="277.5" r="7" fill="none" stroke="#9333ea" stroke-width="1.5"/>
+<line x1="576" x2="596" y1="110" y2="110" stroke="#9333ea" stroke-width="2"/>
+<text x="602" y="114" fill="#111827">etcd</text>
+<text x="576" y="144" fill="#4b5563">filled = stable, hollow =</text>
+<text x="576" y="159" fill="#4b5563">unstable, ring = knee</text>
+<text x="576" y="174" fill="#4b5563">p99 over all arrivals,</text>
+<text x="576" y="189" fill="#4b5563">from intended send time</text>
+</svg>

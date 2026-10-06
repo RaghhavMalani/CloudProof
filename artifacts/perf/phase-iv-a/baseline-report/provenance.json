@@ -1,0 +1,54 @@
+{
+  "schema": "cloudproof.raft-bench.baseline-provenance/v1",
+  "statement": "Baseline recorded and reported at the harness commit with a clean tree, before any optimized configuration was swept. This directory is immutable history: later reports are written elsewhere and never overwrite it.",
+  "harnessCommit": "35c8169cf50d8248a941578426efa9be1414ed80",
+  "recordedFrom": "a git worktree detached at the harness commit",
+  "environmentGit": {
+    "sha": "35c8169cf50d8248a941578426efa9be1414ed80",
+    "branch": "HEAD",
+    "dirty": false,
+    "dirtyFiles": []
+  },
+  "trials": {
+    "count": 63,
+    "firstStartedAt": "2026-09-25T03:10:03.563Z",
+    "lastStartedAt": "2026-09-25T03:39:22.449Z",
+    "configs": [
+      "baseline"
+    ]
+  },
+  "reportGenerator": {
+    "command": "node tools/raft-bench-report.js --root <copy of baseline/ + profiles/>",
+    "commit": "35c8169cf50d8248a941578426efa9be1414ed80",
+    "file": "tools/raft-bench-report.js",
+    "sha256": "58c07ed9757caeffc01d6c35631a66bc6446ef06d83fdcffd77cfee2b66516aa",
+    "generatedAt": "2026-10-03T11:40:38.833Z"
+  },
+  "methodology": {
+    "file": "artifacts/perf/phase-iv-a/methodology.json",
+    "committedIn": "35c8169",
+    "sha256": "c2aea6ae6972c16a00ff59b70096877b093158115960893a05e9b087d4dd8c3d"
+  },
+  "inputs": {
+    "artifacts/perf/phase-iv-a/baseline-environment.json": "99d72579146a79dffacb4fc0736c950f195b5d23499ddfde90da566aa705214c",
+    "artifacts/perf/phase-iv-a/baseline/environment.json": "632e680579864fca06f637f93a124a1c1b8d0d3d3b625cce453ab874234112ca",
+    "artifacts/perf/phase-iv-a/baseline/sweep.json": "659f3c7b67ef47e533e0ea3e574466a0f1be7b0b03b68062440173519c3fab77",
+    "artifacts/perf/phase-iv-a/baseline/trials.jsonl": "ba7f6889297faf7c765e624fdc84969cc7e26d336d43a603795f4c02d1f7744c",
+    "artifacts/perf/phase-iv-a/profiles/baseline/baseline-1024B-A-sub-saturation.json": "1bb388026e16d80f9de37c53c33ac5d215a6b878f920fcad2c399e0811b32ab2",
+    "artifacts/perf/phase-iv-a/profiles/baseline/baseline-1024B-B-knee.json": "fead4f6010662d02344b1936e94fd1b86d0fa2bfc71ef4d3e8507047e791bd56",
+    "artifacts/perf/phase-iv-a/profiles/baseline/baseline-1024B-C-overloaded.json": "69bf1654985f25c0427a6923ab980761aac64b1eb610666390049377219b61eb",
+    "artifacts/perf/phase-iv-a/profiles/baseline/trials.jsonl": "07fa626c700677c5032d06bd836c2c66b6335e50adf946b14529eb06a8195761"
+  },
+  "outputs": {
+    "artifacts/perf/phase-iv-a/baseline-report/REPORT.md": "be7bbf22594f90aa880a9ec92de154e83664112b28ed2fc071ff303600fcf8c1",
+    "artifacts/perf/phase-iv-a/baseline-report/saturation-1024B.svg": "9b10f7a61ac876eb03cbc4cad049a363cafcd639353d460dacb2c57aeb33dff2",
+    "artifacts/perf/phase-iv-a/baseline-report/saturation-16384B.svg": "9e1af7b4b492213fddfd26e1203482dddf05035c18039fdb32047b3fb2b022b3",
+    "artifacts/perf/phase-iv-a/baseline-report/saturation-64B.svg": "c3ad61d86422782d0c71c3933236595bdf0ef63d8515ca41650029024a374476",
+    "artifacts/perf/phase-iv-a/baseline-report/summary.csv": "51184b9627042bea248ca23688263f390fef069f6d7c0a4a64fc69d244457b9b",
+    "artifacts/perf/phase-iv-a/baseline-report/summary.json": "ac7594c126f3f49a78dd8e3ad7e9fd68b50cb61b35a1863d1852d0ed48ffc47f"
+  },
+  "knownLimitations": [
+    "No per-trial disk-state covariate was recorded; repetitions of one point fall into two latency regimes that cannot be assigned after the fact.",
+    "Windows 11 laptop, NTFS on NVMe, Defender real-time protection on, interactive applications open."
+  ]
+}

@@ -324,25 +324,43 @@ class SimNetwork {
 
                 let data;
                 try { data = handler(body); } catch (error) { return reject(error); }
-
-                // The reply takes its own trip back, and can be lost on the way.
-                // A response dropped after the request was applied is the case
-                // that produces "the write succeeded but the client saw a
-                // timeout" — precisely the ambiguity the linearizability checker
-                // has to reason about.
-                if (this.responseDropRng.chance(this.dropRate, 'response-drop', decision)) {
-                    this.stats.dropped += 1;
-                    return fail('ETIMEDOUT');
+                // A handler may answer later (a group-commit follower replies
+                // once its append is durable). Synchronous answers take the
+                // original path unchanged, so existing schedules replay
+                // exactly; a deferred one departs when it is ready, and is
+                // lost if the node crashed in the meantime.
+                if (data && typeof data.then === 'function') {
+                    data.then((ready) => {
+                        if (this.crashed.has(target) || this.handlers.get(target) !== node) {
+                            return fail('ECONNRESET');
+                        }
+                        return this._reply({ resolve, fail, data: ready, target, from, kind, route, rpcId, decision });
+                    }, reject);
+                    return undefined;
                 }
-                const back = this.responseLatencyRng.range(this.minLatency, this.maxLatency, 'response-latency', decision);
-                this._emit({ type: 'reply', rpcId, from: target, to: from, kind, route, latency: back, response: data, at: this.clock.now() });
-                this.clock.setTimeout(() => {
-                    this.stats.delivered += 1;
-                    this._emit({ type: 'delivered', rpcId, from: target, to: from, kind, route, response: data, at: this.clock.now() });
-                    resolve({ data });
-                }, back);
+                return this._reply({ resolve, fail, data, target, from, kind, route, rpcId, decision });
             }, latency);
         });
+    }
+
+    _reply({ resolve, fail, data, target, from, kind, route, rpcId, decision }) {
+        // The reply takes its own trip back, and can be lost on the way.
+        // A response dropped after the request was applied is the case
+        // that produces "the write succeeded but the client saw a
+        // timeout" — precisely the ambiguity the linearizability checker
+        // has to reason about.
+        if (this.responseDropRng.chance(this.dropRate, 'response-drop', decision)) {
+            this.stats.dropped += 1;
+            return fail('ETIMEDOUT');
+        }
+        const back = this.responseLatencyRng.range(this.minLatency, this.maxLatency, 'response-latency', decision);
+        this._emit({ type: 'reply', rpcId, from: target, to: from, kind, route, latency: back, response: data, at: this.clock.now() });
+        this.clock.setTimeout(() => {
+            this.stats.delivered += 1;
+            this._emit({ type: 'delivered', rpcId, from: target, to: from, kind, route, response: data, at: this.clock.now() });
+            resolve({ data });
+        }, back);
+        return undefined;
     }
 }
 

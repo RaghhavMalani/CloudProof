@@ -1,0 +1,763 @@
+{
+  "schema": "cloudproof.raft-bench.profile-summary/v1",
+  "label": "A-sub-saturation",
+  "sampledWallMs": 14948.9,
+  "samples": 26494,
+  "medianSampleIntervalUs": 546,
+  "busyPercentOfWall": 38.55,
+  "categories": [
+    {
+      "category": "idle",
+      "ms": 9185.8,
+      "percentOfWall": 61.45,
+      "percentOfBusy": null
+    },
+    {
+      "category": "fs-sync-io",
+      "ms": 3171,
+      "percentOfWall": 21.21,
+      "percentOfBusy": 55.02
+    },
+    {
+      "category": "axios",
+      "ms": 628.4,
+      "percentOfWall": 4.2,
+      "percentOfBusy": 10.9
+    },
+    {
+      "category": "streams-net",
+      "ms": 453.3,
+      "percentOfWall": 3.03,
+      "percentOfBusy": 7.87
+    },
+    {
+      "category": "node-http",
+      "ms": 392,
+      "percentOfWall": 2.62,
+      "percentOfBusy": 6.8
+    },
+    {
+      "category": "raft-engine",
+      "ms": 183,
+      "percentOfWall": 1.22,
+      "percentOfBusy": 3.18
+    },
+    {
+      "category": "express",
+      "ms": 180.6,
+      "percentOfWall": 1.21,
+      "percentOfBusy": 3.13
+    },
+    {
+      "category": "console-logging",
+      "ms": 148,
+      "percentOfWall": 0.99,
+      "percentOfBusy": 2.57
+    },
+    {
+      "category": "node-internal-other",
+      "ms": 137.5,
+      "percentOfWall": 0.92,
+      "percentOfBusy": 2.39
+    },
+    {
+      "category": "timers-microtasks",
+      "ms": 124.3,
+      "percentOfWall": 0.83,
+      "percentOfBusy": 2.16
+    },
+    {
+      "category": "program",
+      "ms": 96.6,
+      "percentOfWall": 0.65,
+      "percentOfBusy": 1.68
+    },
+    {
+      "category": "buffer-string",
+      "ms": 53.5,
+      "percentOfWall": 0.36,
+      "percentOfBusy": 0.93
+    },
+    {
+      "category": "gc",
+      "ms": 45.4,
+      "percentOfWall": 0.3,
+      "percentOfBusy": 0.79
+    },
+    {
+      "category": "instrumentation",
+      "ms": 38.9,
+      "percentOfWall": 0.26,
+      "percentOfBusy": 0.67
+    },
+    {
+      "category": "state-machine",
+      "ms": 30.3,
+      "percentOfWall": 0.2,
+      "percentOfBusy": 0.53
+    },
+    {
+      "category": "raft-log-store",
+      "ms": 29.8,
+      "percentOfWall": 0.2,
+      "percentOfBusy": 0.52
+    },
+    {
+      "category": "replica-http-routes",
+      "ms": 23.3,
+      "percentOfWall": 0.16,
+      "percentOfBusy": 0.4
+    },
+    {
+      "category": "json",
+      "ms": 16.1,
+      "percentOfWall": 0.11,
+      "percentOfBusy": 0.28
+    },
+    {
+      "category": "fs-other",
+      "ms": 10.6,
+      "percentOfWall": 0.07,
+      "percentOfBusy": 0.18
+    },
+    {
+      "category": "v8-builtin",
+      "ms": 0.6,
+      "percentOfWall": 0,
+      "percentOfBusy": 0.01
+    }
+  ],
+  "topSelf": [
+    {
+      "frame": "(idle) ",
+      "category": "idle",
+      "ms": 9185.8,
+      "percentOfWall": 61.45,
+      "percentOfBusy": 159.39
+    },
+    {
+      "frame": "fsync ",
+      "category": "fs-sync-io",
+      "ms": 2315.1,
+      "percentOfWall": 15.49,
+      "percentOfBusy": 40.17
+    },
+    {
+      "frame": "rename ",
+      "category": "fs-sync-io",
+      "ms": 290.3,
+      "percentOfWall": 1.94,
+      "percentOfBusy": 5.04
+    },
+    {
+      "frame": "writev ",
+      "category": "streams-net",
+      "ms": 207.6,
+      "percentOfWall": 1.39,
+      "percentOfBusy": 3.6
+    },
+    {
+      "frame": "open ",
+      "category": "fs-sync-io",
+      "ms": 205.8,
+      "percentOfWall": 1.38,
+      "percentOfBusy": 3.57
+    },
+    {
+      "frame": "consoleCall ",
+      "category": "console-logging",
+      "ms": 132.8,
+      "percentOfWall": 0.89,
+      "percentOfBusy": 2.31
+    },
+    {
+      "frame": "mkdir ",
+      "category": "fs-sync-io",
+      "ms": 125.1,
+      "percentOfWall": 0.84,
+      "percentOfBusy": 2.17
+    },
+    {
+      "frame": "setKeepAlive ",
+      "category": "streams-net",
+      "ms": 113.6,
+      "percentOfWall": 0.76,
+      "percentOfBusy": 1.97
+    },
+    {
+      "frame": "_save replica/raft.js:84",
+      "category": "raft-engine",
+      "ms": 102.7,
+      "percentOfWall": 0.69,
+      "percentOfBusy": 1.78
+    },
+    {
+      "frame": "(program) ",
+      "category": "program",
+      "ms": 96.6,
+      "percentOfWall": 0.65,
+      "percentOfBusy": 1.68
+    },
+    {
+      "frame": "writeFileUtf8 ",
+      "category": "fs-sync-io",
+      "ms": 68.5,
+      "percentOfWall": 0.46,
+      "percentOfBusy": 1.19
+    },
+    {
+      "frame": "close ",
+      "category": "fs-sync-io",
+      "ms": 62.9,
+      "percentOfWall": 0.42,
+      "percentOfBusy": 1.09
+    },
+    {
+      "frame": "execute ",
+      "category": "node-http",
+      "ms": 54,
+      "percentOfWall": 0.36,
+      "percentOfBusy": 0.94
+    },
+    {
+      "frame": "writeBuffer ",
+      "category": "fs-sync-io",
+      "ms": 50.8,
+      "percentOfWall": 0.34,
+      "percentOfBusy": 0.88
+    },
+    {
+      "frame": "writeString ",
+      "category": "fs-sync-io",
+      "ms": 45.7,
+      "percentOfWall": 0.31,
+      "percentOfBusy": 0.79
+    },
+    {
+      "frame": "(garbage collector) ",
+      "category": "gc",
+      "ms": 45.4,
+      "percentOfWall": 0.3,
+      "percentOfBusy": 0.79
+    },
+    {
+      "frame": "runMicrotasks ",
+      "category": "timers-microtasks",
+      "ms": 45.3,
+      "percentOfWall": 0.3,
+      "percentOfBusy": 0.79
+    },
+    {
+      "frame": "addRequest node:_http_agent:292",
+      "category": "node-http",
+      "ms": 44.2,
+      "percentOfWall": 0.3,
+      "percentOfBusy": 0.77
+    },
+    {
+      "frame": "socketOnData node:_http_client:608",
+      "category": "node-http",
+      "ms": 42,
+      "percentOfWall": 0.28,
+      "percentOfBusy": 0.73
+    },
+    {
+      "frame": "mergeConfig node_modules/axios/dist/node/axios.cjs:4281",
+      "category": "axios",
+      "ms": 41.2,
+      "percentOfWall": 0.28,
+      "percentOfBusy": 0.71
+    },
+    {
+      "frame": "transformResponse node_modules/axios/dist/node/axios.cjs:2110",
+      "category": "axios",
+      "ms": 36.5,
+      "percentOfWall": 0.24,
+      "percentOfBusy": 0.63
+    },
+    {
+      "frame": "dispatchHttpRequest node_modules/axios/dist/node/axios.cjs:3541",
+      "category": "axios",
+      "ms": 36.3,
+      "percentOfWall": 0.24,
+      "percentOfBusy": 0.63
+    },
+    {
+      "frame": "_addHeaderLine node:_http_incoming:382",
+      "category": "node-http",
+      "ms": 34.9,
+      "percentOfWall": 0.23,
+      "percentOfBusy": 0.61
+    },
+    {
+      "frame": "getProxyForUrl node_modules/axios/dist/node/axios.cjs:2309",
+      "category": "axios",
+      "ms": 33,
+      "percentOfWall": 0.22,
+      "percentOfBusy": 0.57
+    },
+    {
+      "frame": "request node_modules/follow-redirects/index.js:528",
+      "category": "axios",
+      "ms": 28.2,
+      "percentOfWall": 0.19,
+      "percentOfBusy": 0.49
+    },
+    {
+      "frame": "forEach node_modules/axios/dist/node/axios.cjs:373",
+      "category": "axios",
+      "ms": 26,
+      "percentOfWall": 0.17,
+      "percentOfBusy": 0.45
+    },
+    {
+      "frame": "emit node:events:455",
+      "category": "node-internal-other",
+      "ms": 25.4,
+      "percentOfWall": 0.17,
+      "percentOfBusy": 0.44
+    },
+    {
+      "frame": "sanitizeValue node_modules/axios/dist/node/axios.cjs:1039",
+      "category": "axios",
+      "ms": 24.3,
+      "percentOfWall": 0.16,
+      "percentOfBusy": 0.42
+    },
+    {
+      "frame": "(anonymous) ",
+      "category": "buffer-string",
+      "ms": 23.9,
+      "percentOfWall": 0.16,
+      "percentOfBusy": 0.41
+    },
+    {
+      "frame": "transformRequest node_modules/axios/dist/node/axios.cjs:2069",
+      "category": "axios",
+      "ms": 23.8,
+      "percentOfWall": 0.16,
+      "percentOfBusy": 0.41
+    }
+  ],
+  "topInclusive": [
+    {
+      "frame": "processTicksAndRejections node:internal/process/task_queues:72",
+      "ms": 4967.7,
+      "percentOfWall": 33.23,
+      "percentOfBusy": 86.2
+    },
+    {
+      "frame": "_replicateToPeer replica/raft.js:1085",
+      "ms": 3020.4,
+      "percentOfWall": 20.2,
+      "percentOfBusy": 52.41
+    },
+    {
+      "frame": "runMicrotasks ",
+      "ms": 2782.5,
+      "percentOfWall": 18.61,
+      "percentOfBusy": 48.28
+    },
+    {
+      "frame": "_advanceCommitIndex replica/raft.js:1025",
+      "ms": 2404.8,
+      "percentOfWall": 16.09,
+      "percentOfBusy": 41.73
+    },
+    {
+      "frame": "emit node:events:455",
+      "ms": 2353.8,
+      "percentOfWall": 15.75,
+      "percentOfBusy": 40.84
+    },
+    {
+      "frame": "fsync ",
+      "ms": 2315.1,
+      "percentOfWall": 15.49,
+      "percentOfBusy": 40.17
+    },
+    {
+      "frame": "save replica/raft.js:74",
+      "ms": 2253.9,
+      "percentOfWall": 15.08,
+      "percentOfBusy": 39.11
+    },
+    {
+      "frame": "_persistState replica/raft.js:424",
+      "ms": 2253.9,
+      "percentOfWall": 15.08,
+      "percentOfBusy": 39.11
+    },
+    {
+      "frame": "_save replica/raft.js:84",
+      "ms": 2245.2,
+      "percentOfWall": 15.02,
+      "percentOfBusy": 38.96
+    },
+    {
+      "frame": "propose replica/index.js:125",
+      "ms": 1850.7,
+      "percentOfWall": 12.38,
+      "percentOfBusy": 32.11
+    },
+    {
+      "frame": "next node_modules/express/lib/router/index.js:177",
+      "ms": 1755.7,
+      "percentOfWall": 11.74,
+      "percentOfBusy": 30.46
+    },
+    {
+      "frame": "endReadableNT node:internal/streams/readable:1723",
+      "ms": 1751.1,
+      "percentOfWall": 11.71,
+      "percentOfBusy": 30.39
+    },
+    {
+      "frame": "(anonymous) node_modules/express/lib/router/index.js:280",
+      "ms": 1738.1,
+      "percentOfWall": 11.63,
+      "percentOfBusy": 30.16
+    },
+    {
+      "frame": "handle node_modules/express/lib/router/layer.js:86",
+      "ms": 1725.2,
+      "percentOfWall": 11.54,
+      "percentOfBusy": 29.94
+    },
+    {
+      "frame": "onEnd node_modules/raw-body/index.js:272",
+      "ms": 1686.4,
+      "percentOfWall": 11.28,
+      "percentOfBusy": 29.26
+    },
+    {
+      "frame": "done node_modules/raw-body/index.js:213",
+      "ms": 1682.7,
+      "percentOfWall": 11.26,
+      "percentOfBusy": 29.2
+    },
+    {
+      "frame": "invokeCallback node_modules/raw-body/index.js:230",
+      "ms": 1680.7,
+      "percentOfWall": 11.24,
+      "percentOfBusy": 29.16
+    },
+    {
+      "frame": "runInAsyncScope node:async_hooks:221",
+      "ms": 1678.5,
+      "percentOfWall": 11.23,
+      "percentOfBusy": 29.12
+    },
+    {
+      "frame": "(anonymous) node_modules/body-parser/lib/read.js:79",
+      "ms": 1677.4,
+      "percentOfWall": 11.22,
+      "percentOfBusy": 29.11
+    },
+    {
+      "frame": "param node_modules/express/lib/router/index.js:359",
+      "ms": 1651.7,
+      "percentOfWall": 11.05,
+      "percentOfBusy": 28.66
+    },
+    {
+      "frame": "dispatch node_modules/express/lib/router/route.js:101",
+      "ms": 1651,
+      "percentOfWall": 11.04,
+      "percentOfBusy": 28.65
+    },
+    {
+      "frame": "next node_modules/express/lib/router/route.js:121",
+      "ms": 1650.4,
+      "percentOfWall": 11.04,
+      "percentOfBusy": 28.64
+    },
+    {
+      "frame": "clientAppend replica/raft.js:1186",
+      "ms": 1649.4,
+      "percentOfWall": 11.03,
+      "percentOfBusy": 28.62
+    },
+    {
+      "frame": "(anonymous) replica/index.js:280",
+      "ms": 1648.5,
+      "percentOfWall": 11.03,
+      "percentOfBusy": 28.6
+    },
+    {
+      "frame": "_appendToLog replica/raft.js:432",
+      "ms": 1039.5,
+      "percentOfWall": 6.95,
+      "percentOfBusy": 18.04
+    },
+    {
+      "frame": "append replica/log-store.js:154",
+      "ms": 1032.6,
+      "percentOfWall": 6.91,
+      "percentOfBusy": 17.92
+    },
+    {
+      "frame": "process_params node_modules/express/lib/router/index.js:338",
+      "ms": 860.9,
+      "percentOfWall": 5.76,
+      "percentOfBusy": 14.94
+    },
+    {
+      "frame": "_replicateAll replica/raft.js:1160",
+      "ms": 613.5,
+      "percentOfWall": 4.1,
+      "percentOfBusy": 10.65
+    },
+    {
+      "frame": "(anonymous) replica/raft.js:1163",
+      "ms": 598.3,
+      "percentOfWall": 4,
+      "percentOfBusy": 10.38
+    },
+    {
+      "frame": "wrap node_modules/axios/dist/node/axios.cjs:26",
+      "ms": 582.1,
+      "percentOfWall": 3.89,
+      "percentOfBusy": 10.1
+    }
+  ],
+  "keyPaths": {
+    "LogStore.append (encode+write+fsync)": {
+      "ms": 1032.6,
+      "percentOfWall": 6.91,
+      "percentOfBusy": 17.92
+    },
+    "StableStateStore.save (metadata persist)": {
+      "ms": 2253.9,
+      "percentOfWall": 15.08,
+      "percentOfBusy": 39.11
+    },
+    "RaftNode.clientAppend": {
+      "ms": 1649.4,
+      "percentOfWall": 11.03,
+      "percentOfBusy": 28.62
+    },
+    "RaftNode.handleAppendEntries": {
+      "ms": 0,
+      "percentOfWall": 0,
+      "percentOfBusy": 0
+    },
+    "RaftNode._replicateToPeer": {
+      "ms": 3020.4,
+      "percentOfWall": 20.2,
+      "percentOfBusy": 52.41
+    },
+    "RaftNode._advanceCommitIndex": {
+      "ms": 2404.8,
+      "percentOfWall": 16.09,
+      "percentOfBusy": 41.73
+    },
+    "express jsonParser": {
+      "ms": 54.5,
+      "percentOfWall": 0.36,
+      "percentOfBusy": 0.95
+    },
+    "axios request": {
+      "ms": 339.6,
+      "percentOfWall": 2.27,
+      "percentOfBusy": 5.89
+    },
+    "console.log": {
+      "ms": 90.6,
+      "percentOfWall": 0.61,
+      "percentOfBusy": 1.57
+    }
+  },
+  "config": "baseline",
+  "payloadBytes": 1024,
+  "offeredRate": 150,
+  "samplingIntervalUs": 250,
+  "leaderReplica": "replica2",
+  "trial": {
+    "runId": "5dcae5742b33",
+    "achievedPerSec": 149.9,
+    "latencyAllMs": {
+      "count": 2250,
+      "min": 2.56,
+      "mean": 3.744672,
+      "p50": 3.155,
+      "p90": 4.057,
+      "p95": 9.807,
+      "p99": 10.567,
+      "p999": 41.535,
+      "max": 49.464
+    },
+    "stable": true,
+    "leaderCpuPercentOfOneCore": 40.5,
+    "leaderEventLoopUtilization": 0.439
+  },
+  "topFoldedStacks": [
+    {
+      "stack": "(idle) ",
+      "ms": 9185.8
+    },
+    {
+      "stack": "processTicksAndRejections node:internal/process/task_queues:72;runMicrotasks ;_replicateToPeer replica/raft.js:1085;_advanceCommitIndex replica/raft.js:1025;_persistState replica/raft.js:424;save replica/raft.js:74;_save replica/raft.js:84;fsync ",
+      "ms": 1372
+    },
+    {
+      "stack": "processTicksAndRejections node:internal/process/task_queues:72;endReadableNT node:internal/streams/readable:1723;emit node:events:455;onEnd node_modules/raw-body/index.js:272;done node_modules/raw-body/index.js:213;invokeCallback node_modules/raw-body/index.js:230;runInAsyncScope node:async_hooks:221;(anonymous) node_modules/body-parser/lib/read.js:79;next node_modules/express/lib/router/index.js:177;process_params node_modules/express/lib/router/index.js:338;param node_modules/express/lib/router/index.js:359;param node_modules/express/lib/router/index.js:359;(anonymous) node_modules/express/lib/router/index.js:280;handle node_modules/express/lib/router/layer.js:86;dispatch node_modules/express/lib/router/route.js:101;next node_modules/express/lib/router/route.js:121;handle node_modules/express/lib/router/layer.js:86;(anonymous) replica/index.js:280;propose replica/index.js:125;clientAppend replica/raft.js:1186;_appendToLog replica/raft.js:432;append replica/log-store.js:154;fsync ",
+      "ms": 479.5
+    },
+    {
+      "stack": "processTicksAndRejections node:internal/process/task_queues:72;endReadableNT node:internal/streams/readable:1723;emit node:events:455;onEnd node_modules/raw-body/index.js:272;done node_modules/raw-body/index.js:213;invokeCallback node_modules/raw-body/index.js:230;runInAsyncScope node:async_hooks:221;(anonymous) node_modules/body-parser/lib/read.js:79;next node_modules/express/lib/router/index.js:177;param node_modules/express/lib/router/index.js:359;param node_modules/express/lib/router/index.js:359;(anonymous) node_modules/express/lib/router/index.js:280;handle node_modules/express/lib/router/layer.js:86;dispatch node_modules/express/lib/router/route.js:101;next node_modules/express/lib/router/route.js:121;handle node_modules/express/lib/router/layer.js:86;(anonymous) replica/index.js:280;propose replica/index.js:125;clientAppend replica/raft.js:1186;_appendToLog replica/raft.js:432;append replica/log-store.js:154;fsync ",
+      "ms": 460.6
+    },
+    {
+      "stack": "processTicksAndRejections node:internal/process/task_queues:72;runMicrotasks ;_replicateToPeer replica/raft.js:1085;_advanceCommitIndex replica/raft.js:1025;_persistState replica/raft.js:424;save replica/raft.js:74;_save replica/raft.js:84;rename ",
+      "ms": 288.7
+    },
+    {
+      "stack": "processTicksAndRejections node:internal/process/task_queues:72;runMicrotasks ;_replicateToPeer replica/raft.js:1085;_advanceCommitIndex replica/raft.js:1025;_persistState replica/raft.js:424;save replica/raft.js:74;_save replica/raft.js:84;open ",
+      "ms": 205.8
+    },
+    {
+      "stack": "processTicksAndRejections node:internal/process/task_queues:72;runMicrotasks ;_replicateToPeer replica/raft.js:1085;_advanceCommitIndex replica/raft.js:1025;_persistState replica/raft.js:424;save replica/raft.js:74;_save replica/raft.js:84;mkdirSync node:fs:1334;mkdir ",
+      "ms": 125.1
+    },
+    {
+      "stack": "processTicksAndRejections node:internal/process/task_queues:72;runMicrotasks ;_replicateToPeer replica/raft.js:1085;_advanceCommitIndex replica/raft.js:1025;_persistState replica/raft.js:424;save replica/raft.js:74;_save replica/raft.js:84",
+      "ms": 102.7
+    },
+    {
+      "stack": "(program) ",
+      "ms": 96.6
+    },
+    {
+      "stack": "processTicksAndRejections node:internal/process/task_queues:72;onSocketNT node:_http_client:953;_flushOutput node:_http_outgoing:1154;Writable.uncork node:internal/streams/writable:518;clearBuffer node:internal/streams/writable:742;doWrite node:internal/streams/writable:585;Socket._writeGeneric node:net:935;writevGeneric node:internal/stream_base_commons:121;writev ",
+      "ms": 92.7
+    },
+    {
+      "stack": "processTicksAndRejections node:internal/process/task_queues:72;runMicrotasks ;_replicateToPeer replica/raft.js:1085;_advanceCommitIndex replica/raft.js:1025;_persistState replica/raft.js:424;save replica/raft.js:74;_save replica/raft.js:84;writeFileSync node:fs:2393;writeFileUtf8 ",
+      "ms": 68.5
+    },
+    {
+      "stack": "processTicksAndRejections node:internal/process/task_queues:72;emitFreeNT node:_http_client:877;emit node:events:455;onFree node:_http_agent:444;emit node:events:455;(anonymous) node:_http_agent:138;keepSocketAlive node:_http_agent:552;Socket.setKeepAlive node:net:626;setKeepAlive ",
+      "ms": 66.1
+    },
+    {
+      "stack": "processTicksAndRejections node:internal/process/task_queues:72;runMicrotasks ;_replicateToPeer replica/raft.js:1085;_advanceCommitIndex replica/raft.js:1025;_persistState replica/raft.js:424;save replica/raft.js:74;_save replica/raft.js:84;close ",
+      "ms": 62.9
+    },
+    {
+      "stack": "onStreamRead node:internal/stream_base_commons:166;readableAddChunkPushByteMode node:internal/streams/readable:465;addChunk node:internal/streams/readable:552;emit node:events:455;socketOnData node:_http_client:608;execute ",
+      "ms": 54
+    },
+    {
+      "stack": "processTicksAndRejections node:internal/process/task_queues:72;runMicrotasks ;_replicateToPeer replica/raft.js:1085;_advanceCommitIndex replica/raft.js:1025;consoleCall ",
+      "ms": 53.7
+    },
+    {
+      "stack": "processTicksAndRejections node:internal/process/task_queues:72;onSocketNT node:_http_client:953;tickOnSocket node:_http_client:885;emit node:events:455;eventHandlers.<computed> node_modules/follow-redirects/index.js:55;emit node:events:455;handleRequestSocket node_modules/axios/dist/node/axios.cjs:4095;Socket.setKeepAlive node:net:626;setKeepAlive ",
+      "ms": 47.5
+    },
+    {
+      "stack": "(garbage collector) ",
+      "ms": 45.4
+    },
+    {
+      "stack": "processTicksAndRejections node:internal/process/task_queues:72;runMicrotasks ",
+      "ms": 45.3
+    },
+    {
+      "stack": "processTicksAndRejections node:internal/process/task_queues:72;runMicrotasks ;propose replica/index.js:125;json node_modules/express/lib/response.js:250;send node_modules/express/lib/response.js:111;end node:_http_outgoing:1029;Writable.uncork node:internal/streams/writable:518;clearBuffer node:internal/streams/writable:742;doWrite node:internal/streams/writable:585;Socket._writeGeneric node:net:935;writevGeneric node:internal/stream_base_commons:121;writev ",
+      "ms": 44
+    },
+    {
+      "stack": "onStreamRead node:internal/stream_base_commons:166;readableAddChunkPushByteMode node:internal/streams/readable:465;addChunk node:internal/streams/readable:552;emit node:events:455;socketOnData node:_http_client:608",
+      "ms": 42
+    },
+    {
+      "stack": "processTicksAndRejections node:internal/process/task_queues:72;endReadableNT node:internal/streams/readable:1723;emit node:events:455;onEnd node_modules/raw-body/index.js:272;done node_modules/raw-body/index.js:213;invokeCallback node_modules/raw-body/index.js:230;runInAsyncScope node:async_hooks:221;(anonymous) node_modules/body-parser/lib/read.js:79;next node_modules/express/lib/router/index.js:177;param node_modules/express/lib/router/index.js:359;param node_modules/express/lib/router/index.js:359;(anonymous) node_modules/express/lib/router/index.js:280;handle node_modules/express/lib/router/layer.js:86;dispatch node_modules/express/lib/router/route.js:101;next node_modules/express/lib/router/route.js:121;handle node_modules/express/lib/router/layer.js:86;(anonymous) replica/index.js:280;propose replica/index.js:125;clientAppend replica/raft.js:1186;consoleCall ",
+      "ms": 40.3
+    },
+    {
+      "stack": "processTicksAndRejections node:internal/process/task_queues:72;onSocketNT node:_http_client:953;_flushOutput node:_http_outgoing:1154;Writable.uncork node:internal/streams/writable:518;clearBuffer node:internal/streams/writable:742;doWrite node:internal/streams/writable:585;Socket._writev node:net:972;Socket._writeGeneric node:net:935;writevGeneric node:internal/stream_base_commons:121;writev ",
+      "ms": 39.8
+    },
+    {
+      "stack": "processTicksAndRejections node:internal/process/task_queues:72;endReadableNT node:internal/streams/readable:1723;emit node:events:455;onEnd node_modules/raw-body/index.js:272;done node_modules/raw-body/index.js:213;invokeCallback node_modules/raw-body/index.js:230;runInAsyncScope node:async_hooks:221;(anonymous) node_modules/body-parser/lib/read.js:79;next node_modules/express/lib/router/index.js:177;process_params node_modules/express/lib/router/index.js:338;param node_modules/express/lib/router/index.js:359;param node_modules/express/lib/router/index.js:359;(anonymous) node_modules/express/lib/router/index.js:280;handle node_modules/express/lib/router/layer.js:86;dispatch node_modules/express/lib/router/route.js:101;next node_modules/express/lib/router/route.js:121;handle node_modules/express/lib/router/layer.js:86;(anonymous) replica/index.js:280;propose replica/index.js:125;clientAppend replica/raft.js:1186;consoleCall ",
+      "ms": 38.9
+    },
+    {
+      "stack": "processTicksAndRejections node:internal/process/task_queues:72;runMicrotasks ;onAdapterResolution node_modules/axios/dist/node/axios.cjs:5368;transformData node_modules/axios/dist/node/axios.cjs:2169;forEach node_modules/axios/dist/node/axios.cjs:373;transform node_modules/axios/dist/node/axios.cjs:2174;transformResponse node_modules/axios/dist/node/axios.cjs:2110",
+      "ms": 36.5
+    },
+    {
+      "stack": "onStreamRead node:internal/stream_base_commons:166;readableAddChunkPushByteMode node:internal/streams/readable:465;addChunk node:internal/streams/readable:552;emit node:events:455;socketOnData node:_http_client:608;execute ;parserOnHeadersComplete node:_http_common:77;parserOnIncomingClient node:_http_client:686;emit node:events:455;onceWrapper node:events:617;RedirectableRequest._onNativeResponse node_modules/follow-redirects/index.js:107;RedirectableRequest._processResponse node_modules/follow-redirects/index.js:400;get node:_http_incoming:109;_addHeaderLine node:_http_incoming:382",
+      "ms": 30.8
+    },
+    {
+      "stack": "processTicksAndRejections node:internal/process/task_queues:72;runMicrotasks ;propose replica/index.js:125;json node_modules/express/lib/response.js:250;send node_modules/express/lib/response.js:111;end node:_http_outgoing:1029;Writable.uncork node:internal/streams/writable:518;clearBuffer node:internal/streams/writable:742;doWrite node:internal/streams/writable:585;Socket._writev node:net:972;Socket._writeGeneric node:net:935;writevGeneric node:internal/stream_base_commons:121;writev ",
+      "ms": 29.5
+    },
+    {
+      "stack": "processTicksAndRejections node:internal/process/task_queues:72;endReadableNT node:internal/streams/readable:1723;emit node:events:455;onEnd node_modules/raw-body/index.js:272;done node_modules/raw-body/index.js:213;invokeCallback node_modules/raw-body/index.js:230;runInAsyncScope node:async_hooks:221;(anonymous) node_modules/body-parser/lib/read.js:79;next node_modules/express/lib/router/index.js:177;param node_modules/express/lib/router/index.js:359;param node_modules/express/lib/router/index.js:359;(anonymous) node_modules/express/lib/router/index.js:280;handle node_modules/express/lib/router/layer.js:86;dispatch node_modules/express/lib/router/route.js:101;next node_modules/express/lib/router/route.js:121;handle node_modules/express/lib/router/layer.js:86;(anonymous) replica/index.js:280;propose replica/index.js:125;clientAppend replica/raft.js:1186;_appendToLog replica/raft.js:432;append replica/log-store.js:154;writeSync node:fs:882;writeString ",
+      "ms": 26.4
+    },
+    {
+      "stack": "onStreamRead node:internal/stream_base_commons:166;readableAddChunkPushByteMode node:internal/streams/readable:465;addChunk node:internal/streams/readable:552;emit node:events:455;socketOnData node:_http_client:608;execute ;parserOnHeadersComplete node:_http_common:77;parserOnIncomingClient node:_http_client:686;emit node:events:455;onceWrapper node:events:617;RedirectableRequest._onNativeResponse node_modules/follow-redirects/index.js:107;RedirectableRequest._processResponse node_modules/follow-redirects/index.js:400;emit node:events:455;handleResponse node_modules/axios/dist/node/axios.cjs:3931",
+      "ms": 20.7
+    },
+    {
+      "stack": "processTicksAndRejections node:internal/process/task_queues:72;endReadableNT node:internal/streams/readable:1723;emit node:events:455;onEnd node_modules/raw-body/index.js:272;done node_modules/raw-body/index.js:213;invokeCallback node_modules/raw-body/index.js:230;runInAsyncScope node:async_hooks:221;(anonymous) node_modules/body-parser/lib/read.js:79;next node_modules/express/lib/router/index.js:177;param node_modules/express/lib/router/index.js:359;param node_modules/express/lib/router/index.js:359;(anonymous) node_modules/express/lib/router/index.js:280;handle node_modules/express/lib/router/layer.js:86;dispatch node_modules/express/lib/router/route.js:101;next node_modules/express/lib/router/route.js:121;handle node_modules/express/lib/router/layer.js:86;(anonymous) replica/index.js:280;propose replica/index.js:125;clientAppend replica/raft.js:1186;consoleCall ;log node:internal/console/constructor:412;value node:internal/console/constructor:285;_write node:internal/streams/writable:451;writeOrBuffer node:internal/streams/writable:546;SyncWriteStream._write node:internal/fs/sync_write_stream:25;writeSync node:fs:882;writeBuffer ",
+      "ms": 19.7
+    },
+    {
+      "stack": "processTicksAndRejections node:internal/process/task_queues:72;runMicrotasks ;_replicateToPeer replica/raft.js:1085;_advanceCommitIndex replica/raft.js:1025;consoleCall ;log node:internal/console/constructor:412;value node:internal/console/constructor:285;_write node:internal/streams/writable:451;writeOrBuffer node:internal/streams/writable:546;SyncWriteStream._write node:internal/fs/sync_write_stream:25;writeSync node:fs:882;writeBuffer ",
+      "ms": 19.5
+    },
+    {
+      "stack": "processTicksAndRejections node:internal/process/task_queues:72;endReadableNT node:internal/streams/readable:1723;emit node:events:455;onEnd node_modules/raw-body/index.js:272;done node_modules/raw-body/index.js:213;invokeCallback node_modules/raw-body/index.js:230;runInAsyncScope node:async_hooks:221;(anonymous) node_modules/body-parser/lib/read.js:79;next node_modules/express/lib/router/index.js:177;process_params node_modules/express/lib/router/index.js:338;param node_modules/express/lib/router/index.js:359;param node_modules/express/lib/router/index.js:359;(anonymous) node_modules/express/lib/router/index.js:280;handle node_modules/express/lib/router/layer.js:86;dispatch node_modules/express/lib/router/route.js:101;next node_modules/express/lib/router/route.js:121;handle node_modules/express/lib/router/layer.js:86;(anonymous) replica/index.js:280;propose replica/index.js:125;clientAppend replica/raft.js:1186;_appendToLog replica/raft.js:432;append replica/log-store.js:154;writeSync node:fs:882;writeString ",
+      "ms": 19.3
+    },
+    {
+      "stack": "processTicksAndRejections node:internal/process/task_queues:72",
+      "ms": 17.9
+    },
+    {
+      "stack": "processTicksAndRejections node:internal/process/task_queues:72;runMicrotasks ;_replicateToPeer replica/raft.js:1085;_advanceCommitIndex replica/raft.js:1025;_applyCommittedEntries replica/raft.js:995;apply replica/state-machine.js:234;_put replica/state-machine.js:355;_emit replica/state-machine.js:201",
+      "ms": 16.2
+    },
+    {
+      "stack": "processTicksAndRejections node:internal/process/task_queues:72;endReadableNT node:internal/streams/readable:1723;emit node:events:455;onEnd node_modules/raw-body/index.js:272;done node_modules/raw-body/index.js:213;invokeCallback node_modules/raw-body/index.js:230;runInAsyncScope node:async_hooks:221;(anonymous) node_modules/body-parser/lib/read.js:79;next node_modules/express/lib/router/index.js:177;param node_modules/express/lib/router/index.js:359;param node_modules/express/lib/router/index.js:359;(anonymous) node_modules/express/lib/router/index.js:280;handle node_modules/express/lib/router/layer.js:86;dispatch node_modules/express/lib/router/route.js:101;next node_modules/express/lib/router/route.js:121;handle node_modules/express/lib/router/layer.js:86;(anonymous) replica/index.js:280;propose replica/index.js:125;clientAppend replica/raft.js:1186;_replicateAll replica/raft.js:1160;(anonymous) replica/raft.js:1163;_replicateToPeer replica/raft.js:1085;wrap node_modules/axios/dist/node/axios.cjs:26;httpMethod node_modules/axios/dist/node/axios.cjs:5683;request node_modules/axios/dist/node/axios.cjs:5511;_request node_modules/axios/dist/node/axios.cjs:5546;dispatchRequest node_modules/axios/dist/node/axios.cjs:5358;(anonymous) node_modules/axios/dist/node/axios.cjs:3467;dispatchHttpRequest node_modules/axios/dist/node/axios.cjs:3541",
+      "ms": 16.1
+    },
+    {
+      "stack": "processTicksAndRejections node:internal/process/task_queues:72;endReadableNT node:internal/streams/readable:1723;emit node:events:455;onEnd node_modules/raw-body/index.js:272;done node_modules/raw-body/index.js:213;invokeCallback node_modules/raw-body/index.js:230;runInAsyncScope node:async_hooks:221;(anonymous) node_modules/body-parser/lib/read.js:79;next node_modules/express/lib/router/index.js:177;param node_modules/express/lib/router/index.js:359;param node_modules/express/lib/router/index.js:359;(anonymous) node_modules/express/lib/router/index.js:280;handle node_modules/express/lib/router/layer.js:86;dispatch node_modules/express/lib/router/route.js:101;next node_modules/express/lib/router/route.js:121;handle node_modules/express/lib/router/layer.js:86;(anonymous) replica/index.js:280;propose replica/index.js:125;clientAppend replica/raft.js:1186;_replicateAll replica/raft.js:1160;(anonymous) replica/raft.js:1163;_replicateToPeer replica/raft.js:1085;wrap node_modules/axios/dist/node/axios.cjs:26;httpMethod node_modules/axios/dist/node/axios.cjs:5683;request node_modules/axios/dist/node/axios.cjs:5511;_request node_modules/axios/dist/node/axios.cjs:5546;dispatchRequest node_modules/axios/dist/node/axios.cjs:5358;(anonymous) node_modules/axios/dist/node/axios.cjs:3467;dispatchHttpRequest node_modules/axios/dist/node/axios.cjs:3541;request node_modules/follow-redirects/index.js:528;RedirectableRequest node_modules/follow-redirects/index.js:88;RedirectableRequest._performRequest node_modules/follow-redirects/index.js:335;ClientRequest node:_http_client:191;addRequest node:_http_agent:292",
+      "ms": 15.2
+    },
+    {
+      "stack": "processTicksAndRejections node:internal/process/task_queues:72;emitFreeNT node:_http_client:877;emit node:events:455;onFree node:_http_agent:444;emit node:events:455;(anonymous) node:_http_agent:138",
+      "ms": 15.2
+    },
+    {
+      "stack": "processTicksAndRejections node:internal/process/task_queues:72;endReadableNT node:internal/streams/readable:1723;emit node:events:455;onEnd node_modules/raw-body/index.js:272;done node_modules/raw-body/index.js:213;invokeCallback node_modules/raw-body/index.js:230;runInAsyncScope node:async_hooks:221;(anonymous) node_modules/body-parser/lib/read.js:79;next node_modules/express/lib/router/index.js:177;process_params node_modules/express/lib/router/index.js:338;param node_modules/express/lib/router/index.js:359;param node_modules/express/lib/router/index.js:359;(anonymous) node_modules/express/lib/router/index.js:280;handle node_modules/express/lib/router/layer.js:86;dispatch node_modules/express/lib/router/route.js:101;next node_modules/express/lib/router/route.js:121;handle node_modules/express/lib/router/layer.js:86;(anonymous) replica/index.js:280;propose replica/index.js:125;clientAppend replica/raft.js:1186;_appendToLog replica/raft.js:432;append replica/log-store.js:154;encodeRecord replica/log-store.js:47",
+      "ms": 13.7
+    },
+    {
+      "stack": "processTicksAndRejections node:internal/process/task_queues:72;endReadableNT node:internal/streams/readable:1723;emit node:events:455;onEnd node_modules/raw-body/index.js:272;done node_modules/raw-body/index.js:213;invokeCallback node_modules/raw-body/index.js:230;runInAsyncScope node:async_hooks:221;(anonymous) node_modules/body-parser/lib/read.js:79;next node_modules/express/lib/router/index.js:177;process_params node_modules/express/lib/router/index.js:338;param node_modules/express/lib/router/index.js:359;param node_modules/express/lib/router/index.js:359;(anonymous) node_modules/express/lib/router/index.js:280;handle node_modules/express/lib/router/layer.js:86;dispatch node_modules/express/lib/router/route.js:101;next node_modules/express/lib/router/route.js:121;handle node_modules/express/lib/router/layer.js:86;(anonymous) replica/index.js:280;propose replica/index.js:125;clientAppend replica/raft.js:1186;_replicateAll replica/raft.js:1160;(anonymous) replica/raft.js:1163;_replicateToPeer replica/raft.js:1085;wrap node_modules/axios/dist/node/axios.cjs:26;httpMethod node_modules/axios/dist/node/axios.cjs:5683;request node_modules/axios/dist/node/axios.cjs:5511;_request node_modules/axios/dist/node/axios.cjs:5546;dispatchRequest node_modules/axios/dist/node/axios.cjs:5358;(anonymous) node_modules/axios/dist/node/axios.cjs:3467;dispatchHttpRequest node_modules/axios/dist/node/axios.cjs:3541;request node_modules/follow-redirects/index.js:528;RedirectableRequest node_modules/follow-redirects/index.js:88;RedirectableRequest._performRequest node_modules/follow-redirects/index.js:335;request node:http:107;ClientRequest node:_http_client:191;addRequest node:_http_agent:292",
+      "ms": 13.3
+    },
+    {
+      "stack": "processTicksAndRejections node:internal/process/task_queues:72;endReadableNT node:internal/streams/readable:1723;emit node:events:455;onEnd node_modules/raw-body/index.js:272;done node_modules/raw-body/index.js:213;invokeCallback node_modules/raw-body/index.js:230;runInAsyncScope node:async_hooks:221;(anonymous) node_modules/body-parser/lib/read.js:79;next node_modules/express/lib/router/index.js:177;process_params node_modules/express/lib/router/index.js:338;param node_modules/express/lib/router/index.js:359;param node_modules/express/lib/router/index.js:359;(anonymous) node_modules/express/lib/router/index.js:280;handle node_modules/express/lib/router/layer.js:86;dispatch node_modules/express/lib/router/route.js:101;next node_modules/express/lib/router/route.js:121;handle node_modules/express/lib/router/layer.js:86;(anonymous) replica/index.js:280;propose replica/index.js:125;clientAppend replica/raft.js:1186;_replicateAll replica/raft.js:1160;(anonymous) replica/raft.js:1163;_replicateToPeer replica/raft.js:1085;wrap node_modules/axios/dist/node/axios.cjs:26;httpMethod node_modules/axios/dist/node/axios.cjs:5683;request node_modules/axios/dist/node/axios.cjs:5511;_request node_modules/axios/dist/node/axios.cjs:5546;dispatchRequest node_modules/axios/dist/node/axios.cjs:5358;(anonymous) node_modules/axios/dist/node/axios.cjs:3467;dispatchHttpRequest node_modules/axios/dist/node/axios.cjs:3541;setProxy node_modules/axios/dist/node/axios.cjs:3321;getProxyForUrl node_modules/axios/dist/node/axios.cjs:2309",
+      "ms": 12.9
+    },
+    {
+      "stack": "onStreamRead node:internal/stream_base_commons:166;readableAddChunkPushByteMode node:internal/streams/readable:465;addChunk node:internal/streams/readable:552;emit node:events:455;socketOnData node:_http_client:608;execute ;parserOnHeadersComplete node:_http_common:77;parserOnIncomingClient node:_http_client:686;emit node:events:455;onceWrapper node:events:617;RedirectableRequest._onNativeResponse node_modules/follow-redirects/index.js:107;RedirectableRequest._processResponse node_modules/follow-redirects/index.js:400;emit node:events:455;handleResponse node_modules/axios/dist/node/axios.cjs:3931;set node_modules/axios/dist/node/axios.cjs:1113;setHeaders node_modules/axios/dist/node/axios.cjs:1125;forEach node_modules/axios/dist/node/axios.cjs:373;(anonymous) node_modules/axios/dist/node/axios.cjs:1125;setHeader node_modules/axios/dist/node/axios.cjs:1115;normalizeValue node_modules/axios/dist/node/axios.cjs:1059;sanitizeHeaderValue node_modules/axios/dist/node/axios.cjs:1045;sanitizeValue node_modules/axios/dist/node/axios.cjs:1039",
+      "ms": 11.7
+    }
+  ],
+  "raw": {
+    "cpuprofile": "D:/College_Projects/miniRAFT_project/.bench-data/profiles/baseline-1024B-A-sub-saturation.cpuprofile",
+    "cpuprofileSha256": "b656d8746d0de40bf82fd63d6382286c7b5d482d22e807b601bdee0103928744",
+    "folded": "D:/College_Projects/miniRAFT_project/.bench-data/profiles/baseline-1024B-A-sub-saturation.folded",
+    "foldedSha256": "868f8ebc348718b1f1affd0b5dd69a038de41a268f175cec78d15a54404d6c34",
+    "note": "raw profiles are kept out of git (size); the hashes identify them"
+  }
+}

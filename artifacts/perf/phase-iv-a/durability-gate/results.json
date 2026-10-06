@@ -1,0 +1,2276 @@
+{
+  "schema": "cloudproof.raft-durability-gate/v1",
+  "startedAt": "2026-10-03T12:42:48.312Z",
+  "finishedAt": "2026-10-03T12:46:18.162Z",
+  "git": {
+    "sha": "d58d6b99379175c44fa583bc2cafb291c71864c1",
+    "dirty": false,
+    "dirtyFiles": []
+  },
+  "gate": "missing acknowledged writes = 0 and duplicate logical writes = 0 in every window, every kill inside its window, identical committed prefixes",
+  "scope": "process death of the leader (no OS crash); power loss is covered by sim/perf-faults.js",
+  "options": {
+    "runs": 5,
+    "lanes": 24,
+    "payload": 1024,
+    "warmup-ms": 1500,
+    "post-kill-ms": 3000,
+    "attempt-timeout-ms": 2500,
+    "give-up-ms": 20000,
+    "windows": null,
+    "seed": 4207,
+    "port": 18001
+  },
+  "summary": {
+    "windows": [
+      {
+        "window": "before-group-flush",
+        "label": "before group flush",
+        "site": "leader.beforeFlush",
+        "profile": "group-commit",
+        "runs": 5,
+        "killsInWindow": 5,
+        "acknowledged": 28710,
+        "recoveredAcknowledged": 28710,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 60,
+        "unacknowledgedRecovered": 26,
+        "retriedWrites": 60,
+        "inDoubtRetriedAndAcknowledged": 60,
+        "gaveUp": 0,
+        "prefixesIdentical": true,
+        "errors": [],
+        "pass": true
+      },
+      {
+        "window": "after-flush-before-quorum",
+        "label": "after flush / before quorum",
+        "site": "leader.durableBeforeQuorum",
+        "profile": "group-commit",
+        "runs": 5,
+        "killsInWindow": 5,
+        "acknowledged": 21692,
+        "recoveredAcknowledged": 21692,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 60,
+        "unacknowledgedRecovered": 17,
+        "retriedWrites": 60,
+        "inDoubtRetriedAndAcknowledged": 60,
+        "gaveUp": 0,
+        "prefixesIdentical": true,
+        "errors": [],
+        "pass": true
+      },
+      {
+        "window": "after-commit-before-reply",
+        "label": "after commit / before client reply",
+        "site": "leader.committedBeforeReply",
+        "profile": "optimized-http",
+        "runs": 5,
+        "killsInWindow": 5,
+        "acknowledged": 13123,
+        "recoveredAcknowledged": 13123,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 60,
+        "unacknowledgedRecovered": 33,
+        "retriedWrites": 60,
+        "inDoubtRetriedAndAcknowledged": 60,
+        "gaveUp": 0,
+        "prefixesIdentical": true,
+        "errors": [],
+        "pass": true
+      },
+      {
+        "window": "pipelined-replication",
+        "label": "during pipelined replication",
+        "site": "leader.pipelinedInflight",
+        "profile": "group-pipeline",
+        "runs": 5,
+        "killsInWindow": 5,
+        "acknowledged": 9955,
+        "recoveredAcknowledged": 9955,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 60,
+        "unacknowledgedRecovered": 39,
+        "retriedWrites": 60,
+        "inDoubtRetriedAndAcknowledged": 60,
+        "gaveUp": 0,
+        "prefixesIdentical": true,
+        "errors": [],
+        "pass": true
+      },
+      {
+        "window": "batched-replication",
+        "label": "during batched replication",
+        "site": "leader.batchedReplication",
+        "profile": "group-batch",
+        "runs": 5,
+        "killsInWindow": 5,
+        "acknowledged": 15705,
+        "recoveredAcknowledged": 15705,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 59,
+        "unacknowledgedRecovered": 24,
+        "retriedWrites": 60,
+        "inDoubtRetriedAndAcknowledged": 60,
+        "gaveUp": 0,
+        "prefixesIdentical": true,
+        "errors": [],
+        "pass": true
+      },
+      {
+        "window": "binary-transport",
+        "label": "binary transport active",
+        "site": "transport.framedInflight",
+        "profile": "optimized-binary",
+        "runs": 5,
+        "killsInWindow": 5,
+        "acknowledged": 16472,
+        "recoveredAcknowledged": 16472,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 60,
+        "unacknowledgedRecovered": 33,
+        "retriedWrites": 60,
+        "inDoubtRetriedAndAcknowledged": 60,
+        "gaveUp": 0,
+        "prefixesIdentical": true,
+        "errors": [],
+        "pass": true
+      }
+    ],
+    "pass": true
+  },
+  "runs": [
+    {
+      "window": "before-group-flush",
+      "label": "before group flush",
+      "site": "leader.beforeFlush",
+      "profile": "group-commit",
+      "run": 0,
+      "victim": "replica3",
+      "skip": 39,
+      "ackedBeforeArm": 6006,
+      "killedAfterMs": 102,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "leader.beforeFlush",
+        "hits": 40,
+        "skip": 39,
+        "armedAt": "2026-10-03T12:42:50.759Z",
+        "firedAt": "2026-10-03T12:42:50.847Z",
+        "context": {
+          "replicaId": "replica3",
+          "state": "LEADER",
+          "term": 1,
+          "commitIndex": 6345,
+          "logLength": 6365,
+          "durableLength": 6359,
+          "pendingEntries": 6
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 6345,
+      "newLeader": "http://127.0.0.1:18001",
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 6979
+        },
+        {
+          "replica": "replica2",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 6979
+        },
+        {
+          "replica": "replica3",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 6979
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 6983,
+        "acknowledged": 6971,
+        "recoveredAcknowledged": 6971,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 7,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 6980
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "before-group-flush",
+      "label": "before group flush",
+      "site": "leader.beforeFlush",
+      "profile": "group-commit",
+      "run": 1,
+      "victim": "replica3",
+      "skip": 33,
+      "ackedBeforeArm": 4460,
+      "killedAfterMs": 111,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "leader.beforeFlush",
+        "hits": 34,
+        "skip": 33,
+        "armedAt": "2026-10-03T12:42:58.405Z",
+        "firedAt": "2026-10-03T12:42:58.472Z",
+        "context": {
+          "replicaId": "replica3",
+          "state": "LEADER",
+          "term": 1,
+          "commitIndex": 4689,
+          "logLength": 4698,
+          "durableLength": 4694,
+          "pendingEntries": 4
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 4687,
+      "newLeader": "http://127.0.0.1:18002",
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 5281
+        },
+        {
+          "replica": "replica2",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 5281
+        },
+        {
+          "replica": "replica3",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 5281
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 5288,
+        "acknowledged": 5276,
+        "recoveredAcknowledged": 5276,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 4,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 5282
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "before-group-flush",
+      "label": "before group flush",
+      "site": "leader.beforeFlush",
+      "profile": "group-commit",
+      "run": 2,
+      "victim": "replica3",
+      "skip": 28,
+      "ackedBeforeArm": 4510,
+      "killedAfterMs": 98,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "leader.beforeFlush",
+        "hits": 29,
+        "skip": 28,
+        "armedAt": "2026-10-03T12:43:05.804Z",
+        "firedAt": "2026-10-03T12:43:05.866Z",
+        "context": {
+          "replicaId": "replica3",
+          "state": "LEADER",
+          "term": 1,
+          "commitIndex": 4713,
+          "logLength": 4724,
+          "durableLength": 4717,
+          "pendingEntries": 7
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 4713,
+      "newLeader": "http://127.0.0.1:18002",
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 5346
+        },
+        {
+          "replica": "replica2",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 5346
+        },
+        {
+          "replica": "replica3",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 5346
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 5354,
+        "acknowledged": 5342,
+        "recoveredAcknowledged": 5342,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 3,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 5347
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "before-group-flush",
+      "label": "before group flush",
+      "site": "leader.beforeFlush",
+      "profile": "group-commit",
+      "run": 3,
+      "victim": "replica1",
+      "skip": 28,
+      "ackedBeforeArm": 4944,
+      "killedAfterMs": 98,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "leader.beforeFlush",
+        "hits": 29,
+        "skip": 28,
+        "armedAt": "2026-10-03T12:43:13.075Z",
+        "firedAt": "2026-10-03T12:43:13.142Z",
+        "context": {
+          "replicaId": "replica1",
+          "state": "LEADER",
+          "term": 1,
+          "commitIndex": 5133,
+          "logLength": 5146,
+          "durableLength": 5137,
+          "pendingEntries": 9
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 5133,
+      "newLeader": "http://127.0.0.1:18002",
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 5801
+        },
+        {
+          "replica": "replica2",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 5801
+        },
+        {
+          "replica": "replica3",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 5801
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 5806,
+        "acknowledged": 5794,
+        "recoveredAcknowledged": 5794,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 6,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 5802
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "before-group-flush",
+      "label": "before group flush",
+      "site": "leader.beforeFlush",
+      "profile": "group-commit",
+      "run": 4,
+      "victim": "replica3",
+      "skip": 11,
+      "ackedBeforeArm": 4649,
+      "killedAfterMs": 63,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "leader.beforeFlush",
+        "hits": 12,
+        "skip": 11,
+        "armedAt": "2026-10-03T12:43:20.291Z",
+        "firedAt": "2026-10-03T12:43:20.322Z",
+        "context": {
+          "replicaId": "replica3",
+          "state": "LEADER",
+          "term": 1,
+          "commitIndex": 4725,
+          "logLength": 4741,
+          "durableLength": 4737,
+          "pendingEntries": 4
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 4725,
+      "newLeader": "http://127.0.0.1:18001",
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 5334
+        },
+        {
+          "replica": "replica2",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 5334
+        },
+        {
+          "replica": "replica3",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 5334
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 5339,
+        "acknowledged": 5327,
+        "recoveredAcknowledged": 5327,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 6,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 5335
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "after-flush-before-quorum",
+      "label": "after flush / before quorum",
+      "site": "leader.durableBeforeQuorum",
+      "profile": "group-commit",
+      "run": 0,
+      "victim": "replica3",
+      "skip": 21,
+      "ackedBeforeArm": 4764,
+      "killedAfterMs": 101,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "leader.durableBeforeQuorum",
+        "hits": 22,
+        "skip": 21,
+        "armedAt": "2026-10-03T12:43:27.491Z",
+        "firedAt": "2026-10-03T12:43:27.554Z",
+        "context": {
+          "replicaId": "replica3",
+          "state": "LEADER",
+          "term": 1,
+          "commitIndex": 4934,
+          "logLength": 4948,
+          "durableLength": 4948,
+          "pendingEntries": 0
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 4934,
+      "newLeader": "http://127.0.0.1:18002",
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 5549
+        },
+        {
+          "replica": "replica2",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 5549
+        },
+        {
+          "replica": "replica3",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 5549
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 5555,
+        "acknowledged": 5543,
+        "recoveredAcknowledged": 5543,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 5,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 5550
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "after-flush-before-quorum",
+      "label": "after flush / before quorum",
+      "site": "leader.durableBeforeQuorum",
+      "profile": "group-commit",
+      "run": 1,
+      "victim": "replica1",
+      "skip": 37,
+      "ackedBeforeArm": 4396,
+      "killedAfterMs": 98,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "leader.durableBeforeQuorum",
+        "hits": 38,
+        "skip": 37,
+        "armedAt": "2026-10-03T12:43:34.942Z",
+        "firedAt": "2026-10-03T12:43:35.009Z",
+        "context": {
+          "replicaId": "replica1",
+          "state": "LEADER",
+          "term": 1,
+          "commitIndex": 4612,
+          "logLength": 4626,
+          "durableLength": 4626,
+          "pendingEntries": 0
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 4612,
+      "newLeader": "http://127.0.0.1:18002",
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 5204
+        },
+        {
+          "replica": "replica2",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 5204
+        },
+        {
+          "replica": "replica3",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 5204
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 5210,
+        "acknowledged": 5198,
+        "recoveredAcknowledged": 5198,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 5,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 5205
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "after-flush-before-quorum",
+      "label": "after flush / before quorum",
+      "site": "leader.durableBeforeQuorum",
+      "profile": "group-commit",
+      "run": 2,
+      "victim": "replica2",
+      "skip": 5,
+      "ackedBeforeArm": 4332,
+      "killedAfterMs": 51,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "leader.durableBeforeQuorum",
+        "hits": 6,
+        "skip": 5,
+        "armedAt": "2026-10-03T12:43:41.830Z",
+        "firedAt": "2026-10-03T12:43:41.845Z",
+        "context": {
+          "replicaId": "replica2",
+          "state": "LEADER",
+          "term": 1,
+          "commitIndex": 4365,
+          "logLength": 4381,
+          "durableLength": 4381,
+          "pendingEntries": 0
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 4365,
+      "newLeader": "http://127.0.0.1:18003",
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 4967
+        },
+        {
+          "replica": "replica2",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 4967
+        },
+        {
+          "replica": "replica3",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 4967
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 4971,
+        "acknowledged": 4959,
+        "recoveredAcknowledged": 4959,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 7,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 4968
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "after-flush-before-quorum",
+      "label": "after flush / before quorum",
+      "site": "leader.durableBeforeQuorum",
+      "profile": "group-commit",
+      "run": 3,
+      "victim": "replica2",
+      "skip": 11,
+      "ackedBeforeArm": 2858,
+      "killedAfterMs": 93,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "leader.durableBeforeQuorum",
+        "hits": 12,
+        "skip": 11,
+        "armedAt": "2026-10-03T12:43:49.008Z",
+        "firedAt": "2026-10-03T12:43:49.064Z",
+        "context": {
+          "replicaId": "replica2",
+          "state": "LEADER",
+          "term": 1,
+          "commitIndex": 2941,
+          "logLength": 2954,
+          "durableLength": 2954,
+          "pendingEntries": 0
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 2941,
+      "newLeader": "http://127.0.0.1:18001",
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 3526
+        },
+        {
+          "replica": "replica2",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 3526
+        },
+        {
+          "replica": "replica3",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 3526
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 3537,
+        "acknowledged": 3525,
+        "recoveredAcknowledged": 3525,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 0,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 3527
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "after-flush-before-quorum",
+      "label": "after flush / before quorum",
+      "site": "leader.durableBeforeQuorum",
+      "profile": "group-commit",
+      "run": 4,
+      "victim": "replica2",
+      "skip": 19,
+      "ackedBeforeArm": 1737,
+      "killedAfterMs": 127,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "leader.durableBeforeQuorum",
+        "hits": 20,
+        "skip": 19,
+        "armedAt": "2026-10-03T12:43:56.038Z",
+        "firedAt": "2026-10-03T12:43:56.129Z",
+        "context": {
+          "replicaId": "replica2",
+          "state": "LEADER",
+          "term": 1,
+          "commitIndex": 1862,
+          "logLength": 1874,
+          "durableLength": 1874,
+          "pendingEntries": 0
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 1862,
+      "newLeader": "http://127.0.0.1:18001",
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 2468
+        },
+        {
+          "replica": "replica2",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 2468
+        },
+        {
+          "replica": "replica3",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 2468
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 2479,
+        "acknowledged": 2467,
+        "recoveredAcknowledged": 2467,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 0,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 2469
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "after-commit-before-reply",
+      "label": "after commit / before client reply",
+      "site": "leader.committedBeforeReply",
+      "profile": "optimized-http",
+      "run": 0,
+      "victim": "replica3",
+      "skip": 9,
+      "ackedBeforeArm": 2073,
+      "killedAfterMs": 83,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "leader.committedBeforeReply",
+        "hits": 10,
+        "skip": 9,
+        "armedAt": "2026-10-03T12:44:02.960Z",
+        "firedAt": "2026-10-03T12:44:02.996Z",
+        "context": {
+          "replicaId": "replica3",
+          "state": "LEADER",
+          "term": 1,
+          "commitIndex": 2121,
+          "logLength": 2138,
+          "durableLength": 2134,
+          "pendingEntries": 4
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 2116,
+      "newLeader": "http://127.0.0.1:18001",
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 2690
+        },
+        {
+          "replica": "replica2",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 2690
+        },
+        {
+          "replica": "replica3",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 2690
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 2691,
+        "acknowledged": 2679,
+        "recoveredAcknowledged": 2679,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 10,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 2691
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "after-commit-before-reply",
+      "label": "after commit / before client reply",
+      "site": "leader.committedBeforeReply",
+      "profile": "optimized-http",
+      "run": 1,
+      "victim": "replica3",
+      "skip": 10,
+      "ackedBeforeArm": 1966,
+      "killedAfterMs": 68,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "leader.committedBeforeReply",
+        "hits": 11,
+        "skip": 10,
+        "armedAt": "2026-10-03T12:44:09.935Z",
+        "firedAt": "2026-10-03T12:44:09.963Z",
+        "context": {
+          "replicaId": "replica3",
+          "state": "LEADER",
+          "term": 1,
+          "commitIndex": 2017,
+          "logLength": 2032,
+          "durableLength": 2025,
+          "pendingEntries": 7
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 2014,
+      "newLeader": "http://127.0.0.1:18001",
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 2610
+        },
+        {
+          "replica": "replica2",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 2610
+        },
+        {
+          "replica": "replica3",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 2610
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 2613,
+        "acknowledged": 2601,
+        "recoveredAcknowledged": 2601,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 8,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 2611
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "after-commit-before-reply",
+      "label": "after commit / before client reply",
+      "site": "leader.committedBeforeReply",
+      "profile": "optimized-http",
+      "run": 2,
+      "victim": "replica2",
+      "skip": 16,
+      "ackedBeforeArm": 2011,
+      "killedAfterMs": 105,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "leader.committedBeforeReply",
+        "hits": 17,
+        "skip": 16,
+        "armedAt": "2026-10-03T12:44:16.633Z",
+        "firedAt": "2026-10-03T12:44:16.692Z",
+        "context": {
+          "replicaId": "replica2",
+          "state": "LEADER",
+          "term": 1,
+          "commitIndex": 2089,
+          "logLength": 2101,
+          "durableLength": 2101,
+          "pendingEntries": 0
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 2086,
+      "newLeader": "http://127.0.0.1:18001",
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 2709
+        },
+        {
+          "replica": "replica2",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 2709
+        },
+        {
+          "replica": "replica3",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 2709
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 2713,
+        "acknowledged": 2701,
+        "recoveredAcknowledged": 2701,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 7,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 2710
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "after-commit-before-reply",
+      "label": "after commit / before client reply",
+      "site": "leader.committedBeforeReply",
+      "profile": "optimized-http",
+      "run": 3,
+      "victim": "replica3",
+      "skip": 22,
+      "ackedBeforeArm": 2026,
+      "killedAfterMs": 151,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "leader.committedBeforeReply",
+        "hits": 23,
+        "skip": 22,
+        "armedAt": "2026-10-03T12:44:23.636Z",
+        "firedAt": "2026-10-03T12:44:23.749Z",
+        "context": {
+          "replicaId": "replica3",
+          "state": "LEADER",
+          "term": 1,
+          "commitIndex": 2146,
+          "logLength": 2162,
+          "durableLength": 2150,
+          "pendingEntries": 12
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 2140,
+      "newLeader": "http://127.0.0.1:18001",
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 2701
+        },
+        {
+          "replica": "replica2",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 2701
+        },
+        {
+          "replica": "replica3",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 2701
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 2706,
+        "acknowledged": 2694,
+        "recoveredAcknowledged": 2694,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 6,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 2702
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "after-commit-before-reply",
+      "label": "after commit / before client reply",
+      "site": "leader.committedBeforeReply",
+      "profile": "optimized-http",
+      "run": 4,
+      "victim": "replica3",
+      "skip": 24,
+      "ackedBeforeArm": 1846,
+      "killedAfterMs": 140,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "leader.committedBeforeReply",
+        "hits": 25,
+        "skip": 24,
+        "armedAt": "2026-10-03T12:44:30.461Z",
+        "firedAt": "2026-10-03T12:44:30.560Z",
+        "context": {
+          "replicaId": "replica3",
+          "state": "LEADER",
+          "term": 1,
+          "commitIndex": 1970,
+          "logLength": 1984,
+          "durableLength": 1974,
+          "pendingEntries": 10
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 1968,
+      "newLeader": "http://127.0.0.1:18001",
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "LEADER",
+          "term": 3,
+          "commitIndex": 2451
+        },
+        {
+          "replica": "replica2",
+          "state": "FOLLOWER",
+          "term": 3,
+          "commitIndex": 2451
+        },
+        {
+          "replica": "replica3",
+          "state": "FOLLOWER",
+          "term": 3,
+          "commitIndex": 2451
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 2460,
+        "acknowledged": 2448,
+        "recoveredAcknowledged": 2448,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 2,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 2452
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "pipelined-replication",
+      "label": "during pipelined replication",
+      "site": "leader.pipelinedInflight",
+      "profile": "group-pipeline",
+      "run": 0,
+      "victim": "replica2",
+      "skip": 29,
+      "ackedBeforeArm": 1556,
+      "killedAfterMs": 77,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "leader.pipelinedInflight",
+        "hits": 30,
+        "skip": 29,
+        "armedAt": "2026-10-03T12:44:36.969Z",
+        "firedAt": "2026-10-03T12:44:37.005Z",
+        "context": {
+          "replicaId": "replica2",
+          "state": "LEADER",
+          "term": 1,
+          "commitIndex": 1585,
+          "logLength": 1605,
+          "durableLength": 1588,
+          "pendingEntries": 17,
+          "peerUrl": "http://127.0.0.1:18001",
+          "stillInflight": 7
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 1585,
+      "newLeader": "http://127.0.0.1:18003",
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 2075
+        },
+        {
+          "replica": "replica2",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 2075
+        },
+        {
+          "replica": "replica3",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 2075
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 2078,
+        "acknowledged": 2066,
+        "recoveredAcknowledged": 2066,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 8,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 2076
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "pipelined-replication",
+      "label": "during pipelined replication",
+      "site": "leader.pipelinedInflight",
+      "profile": "group-pipeline",
+      "run": 1,
+      "victim": "replica2",
+      "skip": 40,
+      "ackedBeforeArm": 1540,
+      "killedAfterMs": 87,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "leader.pipelinedInflight",
+        "hits": 41,
+        "skip": 40,
+        "armedAt": "2026-10-03T12:44:43.722Z",
+        "firedAt": "2026-10-03T12:44:43.756Z",
+        "context": {
+          "replicaId": "replica2",
+          "state": "LEADER",
+          "term": 1,
+          "commitIndex": 1576,
+          "logLength": 1592,
+          "durableLength": 1587,
+          "pendingEntries": 5,
+          "peerUrl": "http://127.0.0.1:18003",
+          "stillInflight": 7
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 1576,
+      "newLeader": "http://127.0.0.1:18003",
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 2077
+        },
+        {
+          "replica": "replica2",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 2077
+        },
+        {
+          "replica": "replica3",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 2077
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 2081,
+        "acknowledged": 2069,
+        "recoveredAcknowledged": 2069,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 7,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 2078
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "pipelined-replication",
+      "label": "during pipelined replication",
+      "site": "leader.pipelinedInflight",
+      "profile": "group-pipeline",
+      "run": 2,
+      "victim": "replica1",
+      "skip": 16,
+      "ackedBeforeArm": 1543,
+      "killedAfterMs": 57,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "leader.pipelinedInflight",
+        "hits": 17,
+        "skip": 16,
+        "armedAt": "2026-10-03T12:44:50.626Z",
+        "firedAt": "2026-10-03T12:44:50.642Z",
+        "context": {
+          "replicaId": "replica1",
+          "state": "LEADER",
+          "term": 1,
+          "commitIndex": 1563,
+          "logLength": 1584,
+          "durableLength": 1583,
+          "pendingEntries": 1,
+          "peerUrl": "http://127.0.0.1:18002",
+          "stillInflight": 5
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 1563,
+      "newLeader": "http://127.0.0.1:18003",
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "FOLLOWER",
+          "term": 3,
+          "commitIndex": 1888
+        },
+        {
+          "replica": "replica2",
+          "state": "FOLLOWER",
+          "term": 3,
+          "commitIndex": 1888
+        },
+        {
+          "replica": "replica3",
+          "state": "LEADER",
+          "term": 3,
+          "commitIndex": 1888
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 1889,
+        "acknowledged": 1877,
+        "recoveredAcknowledged": 1877,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 10,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 1889
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "pipelined-replication",
+      "label": "during pipelined replication",
+      "site": "leader.pipelinedInflight",
+      "profile": "group-pipeline",
+      "run": 3,
+      "victim": "replica3",
+      "skip": 17,
+      "ackedBeforeArm": 1433,
+      "killedAfterMs": 69,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "leader.pipelinedInflight",
+        "hits": 18,
+        "skip": 17,
+        "armedAt": "2026-10-03T12:44:57.376Z",
+        "firedAt": "2026-10-03T12:44:57.400Z",
+        "context": {
+          "replicaId": "replica3",
+          "state": "LEADER",
+          "term": 1,
+          "commitIndex": 1452,
+          "logLength": 1471,
+          "durableLength": 1462,
+          "pendingEntries": 9,
+          "peerUrl": "http://127.0.0.1:18001",
+          "stillInflight": 6
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 1452,
+      "newLeader": "http://127.0.0.1:18001",
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 1950
+        },
+        {
+          "replica": "replica2",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 1950
+        },
+        {
+          "replica": "replica3",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 1950
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 1952,
+        "acknowledged": 1940,
+        "recoveredAcknowledged": 1940,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 9,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 1951
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "pipelined-replication",
+      "label": "during pipelined replication",
+      "site": "leader.pipelinedInflight",
+      "profile": "group-pipeline",
+      "run": 4,
+      "victim": "replica1",
+      "skip": 20,
+      "ackedBeforeArm": 1448,
+      "killedAfterMs": 57,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "leader.pipelinedInflight",
+        "hits": 21,
+        "skip": 20,
+        "armedAt": "2026-10-03T12:45:04.156Z",
+        "firedAt": "2026-10-03T12:45:04.176Z",
+        "context": {
+          "replicaId": "replica1",
+          "state": "LEADER",
+          "term": 1,
+          "commitIndex": 1466,
+          "logLength": 1477,
+          "durableLength": 1477,
+          "pendingEntries": 0,
+          "peerUrl": "http://127.0.0.1:18003",
+          "stillInflight": 6
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 1466,
+      "newLeader": "http://127.0.0.1:18002",
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 2009
+        },
+        {
+          "replica": "replica2",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 2009
+        },
+        {
+          "replica": "replica3",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 2009
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 2015,
+        "acknowledged": 2003,
+        "recoveredAcknowledged": 2003,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 5,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 2010
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "batched-replication",
+      "label": "during batched replication",
+      "site": "leader.batchedReplication",
+      "profile": "group-batch",
+      "run": 0,
+      "victim": "replica2",
+      "skip": 14,
+      "ackedBeforeArm": 2568,
+      "killedAfterMs": 96,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "leader.batchedReplication",
+        "hits": 15,
+        "skip": 14,
+        "armedAt": "2026-10-03T12:45:10.725Z",
+        "firedAt": "2026-10-03T12:45:10.779Z",
+        "context": {
+          "replicaId": "replica2",
+          "state": "LEADER",
+          "term": 1,
+          "commitIndex": 2654,
+          "logLength": 2679,
+          "durableLength": 2674,
+          "pendingEntries": 5,
+          "peerUrl": "http://127.0.0.1:18003",
+          "carried": 11
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 2654,
+      "newLeader": "http://127.0.0.1:18001",
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 3205
+        },
+        {
+          "replica": "replica2",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 3205
+        },
+        {
+          "replica": "replica3",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 3205
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 3211,
+        "acknowledged": 3199,
+        "recoveredAcknowledged": 3199,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 5,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 3206
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "batched-replication",
+      "label": "during batched replication",
+      "site": "leader.batchedReplication",
+      "profile": "group-batch",
+      "run": 1,
+      "victim": "replica2",
+      "skip": 30,
+      "ackedBeforeArm": 2517,
+      "killedAfterMs": 192,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "leader.batchedReplication",
+        "hits": 31,
+        "skip": 30,
+        "armedAt": "2026-10-03T12:45:17.717Z",
+        "firedAt": "2026-10-03T12:45:17.859Z",
+        "context": {
+          "replicaId": "replica2",
+          "state": "LEADER",
+          "term": 1,
+          "commitIndex": 2741,
+          "logLength": 2760,
+          "durableLength": 2760,
+          "pendingEntries": 0,
+          "peerUrl": "http://127.0.0.1:18003",
+          "carried": 12
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 2741,
+      "newLeader": "http://127.0.0.1:18001",
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 3234
+        },
+        {
+          "replica": "replica2",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 3234
+        },
+        {
+          "replica": "replica3",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 3234
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 3236,
+        "acknowledged": 3224,
+        "recoveredAcknowledged": 3224,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 9,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 3235
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "batched-replication",
+      "label": "during batched replication",
+      "site": "leader.batchedReplication",
+      "profile": "group-batch",
+      "run": 2,
+      "victim": "replica1",
+      "skip": 13,
+      "ackedBeforeArm": 2511,
+      "killedAfterMs": 115,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "leader.batchedReplication",
+        "hits": 14,
+        "skip": 13,
+        "armedAt": "2026-10-03T12:45:24.859Z",
+        "firedAt": "2026-10-03T12:45:24.927Z",
+        "context": {
+          "replicaId": "replica1",
+          "state": "LEADER",
+          "term": 1,
+          "commitIndex": 2597,
+          "logLength": 2609,
+          "durableLength": 2609,
+          "pendingEntries": 0,
+          "peerUrl": "http://127.0.0.1:18002",
+          "carried": 13
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 2594,
+      "newLeader": "http://127.0.0.1:18002",
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 3066
+        },
+        {
+          "replica": "replica2",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 3066
+        },
+        {
+          "replica": "replica3",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 3066
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 3075,
+        "acknowledged": 3064,
+        "recoveredAcknowledged": 3064,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 11,
+        "unacknowledgedRecovered": 1,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 3067
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "batched-replication",
+      "label": "during batched replication",
+      "site": "leader.batchedReplication",
+      "profile": "group-batch",
+      "run": 3,
+      "victim": "replica1",
+      "skip": 10,
+      "ackedBeforeArm": 2359,
+      "killedAfterMs": 92,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "leader.batchedReplication",
+        "hits": 11,
+        "skip": 10,
+        "armedAt": "2026-10-03T12:45:31.747Z",
+        "firedAt": "2026-10-03T12:45:31.800Z",
+        "context": {
+          "replicaId": "replica1",
+          "state": "LEADER",
+          "term": 1,
+          "commitIndex": 2427,
+          "logLength": 2448,
+          "durableLength": 2436,
+          "pendingEntries": 12,
+          "peerUrl": "http://127.0.0.1:18003",
+          "carried": 4
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 2427,
+      "newLeader": "http://127.0.0.1:18003",
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 2942
+        },
+        {
+          "replica": "replica2",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 2942
+        },
+        {
+          "replica": "replica3",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 2942
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 2951,
+        "acknowledged": 2939,
+        "recoveredAcknowledged": 2939,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 2,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 2943
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "batched-replication",
+      "label": "during batched replication",
+      "site": "leader.batchedReplication",
+      "profile": "group-batch",
+      "run": 4,
+      "victim": "replica2",
+      "skip": 27,
+      "ackedBeforeArm": 2590,
+      "killedAfterMs": 171,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "leader.batchedReplication",
+        "hits": 28,
+        "skip": 27,
+        "armedAt": "2026-10-03T12:45:38.588Z",
+        "firedAt": "2026-10-03T12:45:38.710Z",
+        "context": {
+          "replicaId": "replica2",
+          "state": "LEADER",
+          "term": 1,
+          "commitIndex": 2783,
+          "logLength": 2800,
+          "durableLength": 2797,
+          "pendingEntries": 3,
+          "peerUrl": "http://127.0.0.1:18003",
+          "carried": 15
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 2783,
+      "newLeader": "http://127.0.0.1:18001",
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 3287
+        },
+        {
+          "replica": "replica2",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 3287
+        },
+        {
+          "replica": "replica3",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 3287
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 3291,
+        "acknowledged": 3279,
+        "recoveredAcknowledged": 3279,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 7,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 3288
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "binary-transport",
+      "label": "binary transport active",
+      "site": "transport.framedInflight",
+      "profile": "optimized-binary",
+      "run": 0,
+      "victim": "replica3",
+      "skip": 22,
+      "ackedBeforeArm": 2664,
+      "killedAfterMs": 79,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "transport.framedInflight",
+        "hits": 23,
+        "skip": 22,
+        "armedAt": "2026-10-03T12:45:45.790Z",
+        "firedAt": "2026-10-03T12:45:45.824Z",
+        "context": {
+          "outstanding": 4,
+          "entries": 1
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 2715,
+      "newLeader": "http://127.0.0.1:18001",
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 3411
+        },
+        {
+          "replica": "replica2",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 3411
+        },
+        {
+          "replica": "replica3",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 3411
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 3411,
+        "acknowledged": 3399,
+        "recoveredAcknowledged": 3399,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 11,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 3412
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "binary-transport",
+      "label": "binary transport active",
+      "site": "transport.framedInflight",
+      "profile": "optimized-binary",
+      "run": 1,
+      "victim": "replica2",
+      "skip": 36,
+      "ackedBeforeArm": 2556,
+      "killedAfterMs": 104,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "transport.framedInflight",
+        "hits": 37,
+        "skip": 36,
+        "armedAt": "2026-10-03T12:45:52.814Z",
+        "firedAt": "2026-10-03T12:45:52.883Z",
+        "context": {
+          "outstanding": 5,
+          "entries": 7
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 2669,
+      "newLeader": "http://127.0.0.1:18003",
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 3255
+        },
+        {
+          "replica": "replica2",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 3255
+        },
+        {
+          "replica": "replica3",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 3255
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 3261,
+        "acknowledged": 3249,
+        "recoveredAcknowledged": 3249,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 5,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 3256
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "binary-transport",
+      "label": "binary transport active",
+      "site": "transport.framedInflight",
+      "profile": "optimized-binary",
+      "run": 2,
+      "victim": "replica2",
+      "skip": 20,
+      "ackedBeforeArm": 2697,
+      "killedAfterMs": 74,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "transport.framedInflight",
+        "hits": 21,
+        "skip": 20,
+        "armedAt": "2026-10-03T12:45:59.725Z",
+        "firedAt": "2026-10-03T12:45:59.767Z",
+        "context": {
+          "outstanding": 6,
+          "entries": 8
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 2766,
+      "newLeader": "http://127.0.0.1:18001",
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 3465
+        },
+        {
+          "replica": "replica2",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 3465
+        },
+        {
+          "replica": "replica3",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 3465
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 3472,
+        "acknowledged": 3460,
+        "recoveredAcknowledged": 3460,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 4,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 3466
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "binary-transport",
+      "label": "binary transport active",
+      "site": "transport.framedInflight",
+      "profile": "optimized-binary",
+      "run": 3,
+      "victim": "replica1",
+      "skip": 19,
+      "ackedBeforeArm": 2571,
+      "killedAfterMs": 74,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "transport.framedInflight",
+        "hits": 20,
+        "skip": 19,
+        "armedAt": "2026-10-03T12:46:06.669Z",
+        "firedAt": "2026-10-03T12:46:06.701Z",
+        "context": {
+          "outstanding": 4,
+          "entries": 11
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 2624,
+      "newLeader": "http://127.0.0.1:18002",
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 3237
+        },
+        {
+          "replica": "replica2",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 3237
+        },
+        {
+          "replica": "replica3",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 3237
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 3241,
+        "acknowledged": 3229,
+        "recoveredAcknowledged": 3229,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 7,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 3238
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "binary-transport",
+      "label": "binary transport active",
+      "site": "transport.framedInflight",
+      "profile": "optimized-binary",
+      "run": 4,
+      "victim": "replica2",
+      "skip": 33,
+      "ackedBeforeArm": 2387,
+      "killedAfterMs": 112,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "transport.framedInflight",
+        "hits": 34,
+        "skip": 33,
+        "armedAt": "2026-10-03T12:46:13.581Z",
+        "firedAt": "2026-10-03T12:46:13.650Z",
+        "context": {
+          "outstanding": 5,
+          "entries": 8
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 2513,
+      "newLeader": "http://127.0.0.1:18001",
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 3142
+        },
+        {
+          "replica": "replica2",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 3142
+        },
+        {
+          "replica": "replica3",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 3142
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 3147,
+        "acknowledged": 3135,
+        "recoveredAcknowledged": 3135,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 6,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 3143
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    }
+  ]
+}

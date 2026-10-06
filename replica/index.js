@@ -6,12 +6,28 @@
  * soft-failure controls used by the interactive lab.
  */
 
+const path = require('path');
 const express = require('express');
 const axios = require('axios');
 const { RaftNode } = require('./raft');
 const { decodeVector } = require('./state-machine');
+const { RaftPerf } = require('./raft-perf');
+const { createPerfService } = require('./perf-service');
+const { optionsFromEnv } = require('./raft-profiles');
+const { FramedTcpTransport, createFramedTcpServer, raftHandlers } = require('./raft-transport');
+const { Failpoints } = require('./failpoints');
+
+// Benchmark instrumentation (Phase IV-A). Off unless explicitly enabled; when
+// off, the Raft engine sees `perf: null` and every hook is a null check.
+const perf = process.env.RAFT_PERF === '1' ? new RaftPerf() : null;
 
 const app = express();
+let perfService = null;
+if (perf) {
+    // Registered before the body parser so arrival is stamped as soon as the
+    // request headers are parsed, not after the body has been read.
+    app.use((req, res, next) => (perfService ? perfService.arrivalMiddleware(req, res, next) : next()));
+}
 app.use(express.json({ limit: '2mb' }));
 
 const REPLICA_ID = process.env.REPLICA_ID || 'replica1';
@@ -20,10 +36,40 @@ const PEERS = (process.env.PEERS || '').split(',').filter(Boolean);
 const GATEWAY_URL = process.env.GATEWAY_URL || 'http://gateway:4000';
 const NODE_URL = process.env.NODE_URL || `http://${REPLICA_ID}:${PORT}`;
 
+// Test-only process-death failpoints for the Phase IV-A durability gate.
+// Absent unless RAFT_TEST_FAILPOINTS=1; armed at run time over HTTP.
+const failpoints = process.env.RAFT_TEST_FAILPOINTS === '1'
+    ? new Failpoints({
+        markerFile: path.join(process.env.DATA_DIR || '.', `failpoint-${REPLICA_ID}.json`),
+    })
+    : null;
+const failpoint = failpoints ? (name, context) => failpoints.hit(name, context) : null;
+
+// Phase IV-A optimizations (group commit, ...) are opt-in; see raft-profiles.js.
+const { wire: RAFT_WIRE = 'http', ...RAFT_OPTIONS } = optionsFromEnv(process.env);
+
+// Replica-to-replica transport. HTTP/1.1 + JSON through axios is the default
+// and the baseline; RAFT_TRANSPORT=tcp switches the three Raft RPCs to the
+// framed binary protocol in raft-codec.js on port PORT + RAFT_TCP_PORT_OFFSET.
+// Client-facing endpoints stay HTTP either way.
+const RAFT_TRANSPORT = RAFT_WIRE === 'framed-tcp' ? 'tcp' : 'http';
+const RAFT_TCP_PORT_OFFSET = Number.parseInt(process.env.RAFT_TCP_PORT_OFFSET || '1000', 10);
+const framedTransport = RAFT_TRANSPORT === 'tcp'
+    ? new FramedTcpTransport({
+        portOffset: RAFT_TCP_PORT_OFFSET,
+        onSocket: (socket) => { if (perfService) perfService.trackSocket(socket, 'outbound'); },
+        failpoint,
+    })
+    : null;
+
 const raft = new RaftNode({
     replicaId: REPLICA_ID,
     peers: PEERS,
     nodeUrl: NODE_URL,
+    perf,
+    failpoint,
+    ...RAFT_OPTIONS,
+    ...(framedTransport ? { transport: framedTransport } : {}),
 
     // Every node applies committed entries. Only the leader publishes the
     // client-visible event, preventing follower echo duplicates.
@@ -68,7 +114,14 @@ app.post('/pre-vote', (req, res) => {
 // Empty entries are heartbeats. The same consistency checks therefore repair a
 // lagging follower and propagate leaderCommit even when no client is drawing.
 app.post('/append-entries', (req, res) => {
-    res.json(raft.handleAppendEntries(req.body));
+    // Under group commit a successful response is a promise that resolves
+    // once the acknowledged entries are durable.
+    const response = raft.handleAppendEntries(req.body);
+    if (response && typeof response.then === 'function') {
+        response.then((ready) => res.json(ready), (error) => res.status(500).json({ error: error.message }));
+    } else {
+        res.json(response);
+    }
 });
 
 app.post('/stroke', async (req, res) => {
@@ -118,8 +171,19 @@ async function propose(res, command) {
         });
     }
 
+    const arrivalAt = perf && res.req ? res.req.perfArrivalAt : undefined;
+    const admittedAt = arrivalAt !== undefined ? perf.now() : 0;
+    if (arrivalAt !== undefined) {
+        perf.observeMs('http.arrivalToAdmit', admittedAt - arrivalAt);
+        res.once('finish', () => perf.observeMs('http.arrivalToFinish', perf.now() - arrivalAt));
+    }
+
     try {
         const outcome = await raft.clientAppend(command);
+        if (arrivalAt !== undefined) {
+            perf.observeMs('http.admitToResponse', perf.now() - admittedAt);
+            perf.count(outcome.committed ? 'http.writesCommitted' : 'http.writesUncommitted');
+        }
         if (!outcome.committed) {
             return res.status(503).json({
                 error: `Write persisted but not committed: quorum ${raft.quorumSize}/${raft.clusterSize} unavailable`,
@@ -461,6 +525,18 @@ app.get('/log', (_req, res) => {
     });
 });
 
+if (failpoints) {
+    app.get('/test/failpoint', (_req, res) => res.json(failpoints.status()));
+    app.post('/test/failpoint', (req, res) => {
+        try {
+            const { name, skip = 0 } = req.body || {};
+            res.json(name ? failpoints.arm(name, { skip }) : failpoints.disarm());
+        } catch (error) {
+            res.status(400).json({ error: error.message });
+        }
+    });
+}
+
 app.get('/health', (_req, res) => {
     res.json({ ok: true, replicaId: REPLICA_ID });
 });
@@ -536,14 +612,35 @@ app.post('/resume', (_req, res) => {
     res.json({ ok: true, paused: false });
 });
 
+if (perf) {
+    perfService = createPerfService({ raft, perf, replicaId: REPLICA_ID });
+    perfService.mount(app);
+}
+
 const server = app.listen(PORT, () => {
     console.log(`[${REPLICA_ID}] Listening on ${PORT}`);
     console.log(`[${REPLICA_ID}] Peers: ${PEERS.join(', ') || '(single node)'}`);
+    console.log(`[${REPLICA_ID}] Raft options: ${JSON.stringify(RAFT_OPTIONS)} transport=${RAFT_TRANSPORT}`);
 });
+if (perfService) perfService.attachServer(server);
+
+let raftServer = null;
+if (RAFT_TRANSPORT === 'tcp') {
+    raftServer = createFramedTcpServer({
+        handlers: raftHandlers(raft),
+        onSocket: (socket) => { if (perfService) perfService.trackSocket(socket, 'inbound'); },
+    });
+    raftServer.listen(PORT + RAFT_TCP_PORT_OFFSET, () => {
+        console.log(`[${REPLICA_ID}] Raft framed TCP on ${PORT + RAFT_TCP_PORT_OFFSET}`);
+    });
+}
 
 function shutdown(signal) {
     console.log(`[${REPLICA_ID}] ${signal} · flushing and stopping`);
+    raft.flushDurable();
     raft.stop();
+    if (raftServer) raftServer.close();
+    if (framedTransport) framedTransport.close();
     server.close(() => process.exit(0));
     setTimeout(() => process.exit(1), 5000).unref();
 }

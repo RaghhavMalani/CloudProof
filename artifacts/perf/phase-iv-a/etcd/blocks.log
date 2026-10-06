@@ -1,0 +1,15 @@
+2026-10-05T16:53:48.3179556Z orchestrator pid 53084, worktree D:\College_Projects\miniRAFT_project\.bench-data\etcd-sweep-wt, plan D:\College_Projects\miniRAFT_project\.bench-data\etcd-sweep-wt\artifacts\perf\phase-iv-a\etcd-plan.json, blocks of 60 min, cool-down 20 min
+2026-10-05T16:55:41.2804960Z first orchestrator (pid 53084) stopped: it piped start-detached-sweep.ps1, whose detached sweep inherited the pipe, so it blocked before starting telemetry; the sweep (pid 14124) was not touched. run-blocks.ps1 fixed to wait on child scripts without pipes and to adopt a running block.
+2026-10-05T16:55:41.6334930Z orchestrator pid 56936, worktree D:\College_Projects\miniRAFT_project\.bench-data\etcd-sweep-wt, plan D:\College_Projects\miniRAFT_project\.bench-data\etcd-sweep-wt\artifacts\perf\phase-iv-a\etcd-plan.json, blocks of 60 min, cool-down 20 min
+2026-10-05T16:55:41.6995649Z block 1 adopted (already running): sweep pid 14124 since 2026-10-05T16:53:48.5966030Z, 3 trials recorded
+2026-10-06T02:18:42.0012926Z block 1 was ended involuntarily: Windows entered sleep at 2026-10-05T17:29:29Z (Kernel-Power 42, Sleep Reason: Application API) after trial 71 was recorded (17:29:14Z); trial 72 was in progress and recorded nothing. The system resumed 2026-10-06T02:14:14Z; by then the sweep, orchestrator, keep-awake and telemetry processes were gone (they belonged to the Claude Code session, which ended). No completed trial is rerun.
+2026-10-06T02:18:42.0012926Z orchestrator relaunched inside the new session (its processes live as long as the session); the user asked for all remaining blocks to run uninterrupted.
+2026-10-06T02:18:42.4756457Z orchestrator pid 32648, worktree D:\College_Projects\miniRAFT_project\.bench-data\etcd-sweep-wt, plan D:\College_Projects\miniRAFT_project\.bench-data\etcd-sweep-wt\artifacts\perf\phase-iv-a\etcd-plan.json, blocks of 60 min, cool-down 20 min
+2026-10-06T02:18:42.5596514Z block 1 had ended without an orchestrator; its logs are kept under block 1
+2026-10-06T02:18:43.0748403Z block 2 started: sweep pid 10436 since 2026-10-06T02:18:42.9198860Z, 71 trials recorded
+2026-10-06T03:19:10.4911211Z block 2 ended: 120 trials this block, 191 recorded, stopped at a trial boundary
+2026-10-06T03:19:10.4921210Z cool-down 20 min
+2026-10-06T03:39:11.1245311Z block 3 started: sweep pid 34596 since 2026-10-06T03:39:10.9942296Z, 191 trials recorded
+2026-10-06T04:32:23.6953372Z block 3 ended: 104 trials this block, 295 recorded, sweep exited by itself
+2026-10-06T04:32:23.6994293Z sweep exited by itself; stderr bytes: 0. Orchestrator done.
+2026-10-06T04:32:23.7003497Z orchestrator exit

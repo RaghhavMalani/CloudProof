@@ -20,7 +20,7 @@ COPY --from=dependencies --chown=node:node /app/node_modules ./node_modules
 # not added, which produces a container that builds cleanly and then dies on
 # MODULE_NOT_FOUND the moment it starts.
 COPY --chown=node:node package.json docker-entrypoint.sh ./
-COPY --chown=node:node index.js raft.js log-store.js state-machine.js agent-state.js hnsw.js quantize.js sparse.js ./
+COPY --chown=node:node index.js raft.js log-store.js state-machine.js agent-state.js hnsw.js quantize.js sparse.js raft-perf.js perf-histogram.js perf-service.js entry-codec.js raft-profiles.js raft-codec.js raft-transport.js failpoints.js ./
 
 RUN mkdir -p /data \
     && chown node:node /data \

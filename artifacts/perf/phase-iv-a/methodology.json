@@ -1,0 +1,470 @@
+{
+  "schema": "cloudproof.raft-bench.methodology/v1",
+  "preregisteredAt": "2026-09-25",
+  "status": "frozen before the first recorded baseline trial; any change is recorded under amendments with a reason",
+  "questions": [
+    "Q1 Where does one CloudProof Raft group saturate?",
+    "Q2 What dominates latency before and after saturation?",
+    "Q3 Can group commit, replication pipelining and bounded batching raise throughput without breaking durability or linearizability?",
+    "Q4 What gap remains versus etcd under comparable conditions on the same machine?",
+    "Q5 Does every optimization survive the deterministic correctness and fault-testing suite?"
+  ],
+  "systemUnderTest": {
+    "topology": "3 voting replicas, one Raft group, native `node replica/index.js` processes on one machine, loopback TCP, fresh data directory per trial",
+    "clientPath": "HTTP/1.1 keep-alive to the leader; the generator is told the leader once the no-op has committed",
+    "durabilityContract": "A write is acknowledged only after it is committed: stored durably (fsync) on a majority of voters, including every copy that is counted. Unchanged by every optimization; group commit changes when fsync happens, never whether an acknowledged entry was fsynced.",
+    "instrumentation": "RAFT_PERF=1 for every trial (observational; see replica/raft-perf.js)",
+    "logging": "replica stdout/stderr redirected to a per-replica file, as a container would"
+  },
+  "workload": {
+    "operation": "PUT /kv/:key with body {\"value\": <payload>} -> Raft entry {op: set}; no clientId/seqNo",
+    "rationaleForNoClientId": "matches etcd Put semantics (last-writer-wins, no server-side deduplication) so the etcd comparison is like for like. The exactly-once path (clientId+seqNo) is measured separately and reported as its own result.",
+    "payloadBytes": [64, 1024, 16384],
+    "payloadDefinition": "length of the ASCII value string; the replicated entry and the HTTP body are larger (key, op, JSON framing)",
+    "keySpace": 1000,
+    "keyChoice": "round robin over k0..k999 by global arrival index"
+  },
+  "loadGeneration": {
+    "model": "open loop, constant inter-arrival time 1/rate, arrivals interleaved across generator processes",
+    "generatorProcesses": 4,
+    "connections": 128,
+    "latencyDefinition": "end-to-end latency = response completion - intended arrival time (coordinated-omission free); service latency = completion - socket write, reported separately",
+    "timeouts": "an arrival without a response 10 s after its intended time is abandoned and recorded in the all-requests distribution at exactly 10 s",
+    "histogram": "log-linear, exact below 2048 us, <= 0.1% relative error above (replica/perf-histogram.js); percentiles report the bucket upper bound",
+    "generatorHealth": "every trial records generator lag (dispatch - intended); p99 lag > 5 ms marks the trial generator-saturated"
+  },
+  "trial": {
+    "warmupMs": 5000,
+    "measurementWindowMs": 20000,
+    "warmupExcluded": "generators count only arrivals intended inside the window; every replica's /perf window is reset at the window start",
+    "drainMs": 12000,
+    "freshClusterPerTrial": true,
+    "repetitionsPerPoint": 3,
+    "pointAggregation": "latency percentiles from the merged histograms of all repetitions (pooled); throughput/CPU as mean with min/max across repetitions; no trial is ever selected or discarded"
+  },
+  "rateLadder": [100, 200, 300, 500, 750, 1000, 1500, 2000, 3000, 4000, 5000, 6000, 8000, 10000, 12000, 15000, 20000, 25000, 30000, 40000],
+  "stabilityRule": {
+    "version": 1,
+    "text": "A trial is stable iff (a) OK completions inside the window reach >= 98% of the offered rate, (b) errors + timeouts <= 0.5% of measured arrivals, (c) end-to-end p99 over all measured arrivals (timeouts at the timeout bound) < 1000 ms, and (d) the median OK latency of the last fifth of the window is <= 2x that of the first fifth, unless that last-fifth median is <= 20 ms. A point is stable when a majority of its repetitions are."
+  },
+  "stopRule": {
+    "version": 1,
+    "text": "A curve stops after two consecutive majority-unstable rates, or after any rate whose mean achieved/offered ratio is below 0.5. Every rate that is run uses the full repetition count."
+  },
+  "kneeDefinition": "the highest ladder rate that is majority-stable and whose every lower ladder rate is majority-stable; max stable throughput = mean achieved throughput at that rate",
+  "saturationFractions": {
+    "fractions": [0.5, 0.8],
+    "text": "after a curve's ladder is complete, 0.5x and 0.8x its knee (rounded) are run with the same repetitions; 'p99 at 50%/80% of saturation' is read from those points, never interpolated"
+  },
+  "configurations": {
+    "ablation": "cumulative: baseline -> +group commit -> +pipelined replication -> +bounded batches with coalesced replication trigger -> +framed TCP transport (= all optimizations)",
+    "extra": "baseline + framed TCP transport only, to isolate the transport's contribution when disk is the bottleneck",
+    "payloadCoverage": "baseline and all-optimizations: 64 B, 1 KiB, 16 KiB. Intermediate ablation steps and transport-only: 1 KiB only (time budget; 1 KiB is the canonical comparison payload)."
+  },
+  "profiles": {
+    "method": "V8 CPU profile of the leader through the inspector, exactly covering a 15 s measurement window, 250 us sampling",
+    "points": "A = 0.5 x knee (sub-saturation), B = knee (near saturation), C = the first unstable ladder rate (overloaded), 1 KiB payload, for the baseline and the all-optimizations configuration",
+    "storage": "processed summaries committed; raw .cpuprofile and folded stacks kept locally, identified by SHA-256"
+  },
+  "comparisonMetrics": [
+    "maximum stable throughput",
+    "p99 at 0.5x knee, 0.8x knee and at the knee",
+    "leader CPU percent of one core and CPU microseconds per op",
+    "cluster fsyncs per second and fsyncs (log + metadata) per committed op",
+    "AppendEntries RPCs per second and per committed op, entries per RPC",
+    "replication bytes per committed op (TCP payload bytes on follower sockets)"
+  ],
+  "etcd": {
+    "condition": "run only after this methodology is frozen and the CloudProof sweeps are complete",
+    "plan": "3-member etcd cluster on the same machine and drive, same open-loop generator speaking etcd's v3 HTTP/JSON gateway (POST /v3/kv/put), same payloads, rates, windows, repetitions and stability rule",
+    "mismatchesToDisclose": ["language/runtime", "transport (grpc-gateway translation vs direct HTTP handler)", "persistence (WAL + bbolt vs line log + JSON metadata)", "client semantics", "durability settings", "batching", "hardware sharing (all members on one machine)"]
+  },
+  "amendments": [
+    {
+      "id": 1,
+      "recordedAt": "2026-10-03",
+      "recordedBefore": "the first trial of the comparison sweep, and before the durability and transport-isolation gates",
+      "context": "After the baseline was committed (d5d7e00), the optimizations were developed and tried in exploratory, uncommitted runs that are not reported. Those runs showed that this machine's fsync latency moves between regimes on a timescale of tens of seconds, large enough to swamp some optimization effects, and that running one configuration's whole curve before the next lines disk drift up with configuration. This amendment fixes the comparison design and its analysis before any comparison data exists.",
+      "changes": {
+        "configurations": {
+          "replaces": "configurations.ablation, configurations.extra, configurations.payloadCoverage",
+          "text": "Nine configurations, each a named profile in replica/raft-profiles.js and selected only by RAFT_PROFILE (same build): baseline, group-commit, pipeline-only, batch-only, group-batch, group-batch-pipeline, optimized-http, optimized-binary, transport-only. Every optimization is an independent engine option, so single optimizations are isolated (pipeline-only, batch-only, transport-only) as well as stacked. optimized-http and optimized-binary also turn off the two per-write log lines (logHotPath=false) and differ only in the replica-to-replica transport.",
+          "reason": "A cumulative ablation cannot separate an optimization that helps alone from one that only helps on top of another, or show one that hurts."
+        },
+        "payloads": {
+          "replaces": "workload.payloadBytes coverage per configuration",
+          "primary": {
+            "payloadBytes": 1024,
+            "configurations": "all nine",
+            "repetitionsPerPoint": 5
+          },
+          "sensitivity": {
+            "payloadBytes": [
+              64,
+              16384
+            ],
+            "configurations": [
+              "baseline",
+              "optimized-http",
+              "optimized-binary"
+            ],
+            "repetitionsPerPoint": 3
+          },
+          "text": "1 KiB is the primary comparison and the only payload every configuration is compared at; 64 B and 16 KiB are payload sensitivity for the endpoints of the comparison."
+        },
+        "repetitions": {
+          "replaces": "trial.repetitionsPerPoint for the primary payload",
+          "text": "5 repetitions per point at 1 KiB (was 3), so each point has more trials to spread over disk regimes; 3 for the sensitivity payloads."
+        },
+        "trialOrder": {
+          "scheme": {
+            "name": "williams-latin",
+            "version": 1,
+            "text": "Within a rung, each round runs every active curve once, in the order of row (round mod k) of a Williams Latin square over the k active curves in plan order (rows k..2k-1 mirrored when k is odd). The round counter is global across rungs."
+          },
+          "text": "All curves are walked up the same rate ladder together, one rung at a time. Within a rung, round j runs every active curve that still owes a repetition once, in the order of a Williams Latin square row (packages/raft-bench/order.js). The stop rule (unchanged) then retires curves independently. After every ladder, 0.5x and 0.8x of each knee are run the same way. The order is a deterministic function of the plan and of which curves are still active; an interrupted sweep resumes in the same order."
+        },
+        "diskSentinel": {
+          "spec": {
+            "version": 1,
+            "durationMs": 1000,
+            "fsyncsPerSecond": 300,
+            "recordBytes": 1100,
+            "regimeEdgesMs": [
+              0.5,
+              1.5
+            ],
+            "regimes": [
+              "fast",
+              "intermediate",
+              "slow"
+            ]
+          },
+          "fieldsPerTrial": [
+            "medianFsyncMs",
+            "p95FsyncMs",
+            "p99FsyncMs",
+            "sampleCount",
+            "sampledImmediatelyBeforeTrial",
+            "sampledAt",
+            "msFromSampleToWindowOpen",
+            "regime",
+            "after",
+            "afterRegime",
+            "regimeChangedDuringTrial"
+          ],
+          "text": "Immediately before each trial, with nothing else of the benchmark running and before the cluster starts, the harness appends and fsyncs 1 100-byte records at 300/s for 1 s in its own file and records the distribution; the same probe runs again after the cluster stops. A trial's regime is the bin of the pre-trial median: fast < 0.5 ms <= intermediate < 1.5 ms <= slow. The bin edges sit in the gaps between every mode observed on this machine before any comparison trial (about 0.35 ms, 0.75-1.0 ms and 2-3.5 ms; artifacts/perf/phase-iv-a/fsync-probe-2026-10-03.json)."
+        },
+        "analysis": {
+          "noDiscarding": "No trial is discarded or re-run because of its disk regime. Slow-disk trials are part of every overall result.",
+          "primary": "The overall result per configuration uses the unchanged stability rule, stop rule, knee definition and pooled percentiles over all repetitions.",
+          "regimeSensitivity": "Additionally, per configuration and regime: a ladder rate is regime-stable when a majority of that regime's trials at that rate are stable (a tie is unstable); the regime knee is the highest regime-stable rate such that every lower rate that has trials in that regime is also regime-stable. Rates with no trial in the regime are reported as gaps, and the trial counts behind every regime figure are reported. Also per configuration and regime: mean achieved throughput and pooled p99 at the overall knee.",
+          "keyTable": [
+            "configuration",
+            "max stable throughput (1 KiB)",
+            "p99 at the knee",
+            "fsync + metadata saves per committed op",
+            "entries per AppendEntries",
+            "leader CPU % of one core at the knee"
+          ],
+          "continuousCovariate": "Every trial's pre-trial median fsync time is in summary.csv, so the regime bins can be checked against the raw covariate."
+        },
+        "plan": {
+          "file": "artifacts/perf/phase-iv-a/comparison-plan.json",
+          "sha256": "515f5ce2a5b4267b561397da062eedddee070598af69496bd31c8248d458a651",
+          "tool": "tools/raft-bench-interleaved.js",
+          "output": "artifacts/perf/phase-iv-a/comparison/"
+        },
+        "baseline": "The committed baseline (d5d7e00, baseline/ and baseline-report/) stays as the historical record and is never regenerated. The comparison sweep re-measures baseline interleaved with every other configuration, and only that interleaved baseline is used in configuration comparisons.",
+        "gatesBeforeTheSweep": [
+          "Live acknowledged-write durability with test-only failpoints that kill the leader inside six windows (before the group flush; after the flush, before quorum; after commit, before the client reply; during pipelined replication; during batched replication; with the framed transport active). Pass condition: missing acknowledged writes = 0 and duplicate logical writes = 0 in every window. The comparison sweep does not start unless both hold.",
+          "A transport-isolation benchmark (HTTP/JSON vs framed binary TCP, outside Raft and the disk) to separate the transport ceiling from the replication, storage and client-facing ceilings."
+        ],
+        "unchanged": [
+          "loadGeneration",
+          "trial windows, drain and fresh cluster per trial",
+          "rateLadder",
+          "stabilityRule",
+          "stopRule",
+          "kneeDefinition",
+          "saturationFractions",
+          "comparisonMetrics",
+          "etcd condition (only after the CloudProof comparison report)"
+        ]
+      }
+    },
+    {
+      "id": 2,
+      "recordedAt": "2026-10-03",
+      "recordedBefore": "the opt-out verification, the Windows-default control and the first comparison trial",
+      "subject": "Process power policy (Windows power throttling / Efficiency mode)",
+      "observation": [
+        "Windows 11 was observed to throttle busy background child processes about 3 s after they become busy, for the rest of the process's life: the clock drops and an unpinned process moves to efficiency cores.",
+        "An isolated CPU probe (pure SHA-256 loop, no I/O; artifacts/perf/phase-iv-a/power-throttling-probe.json) measured a 4.3x sustained drop under the default policy; pinning to a P-core left 3.1x, high priority 4.2x; the per-process opt-out removed it.",
+        "The behaviour affected the replicas and the load-generator child processes the harness starts, and the transport benchmark's processes (both sides of the transport, as measured in transport-isolation/os-default).",
+        "The committed baseline (d5d7e00) and the first durability gate (25b832f) were recorded under that default policy.",
+        "CPU-bound optimized profiles are affected far more strongly than the fsync-bound baseline, so a comparison that does not control the policy is biased against the optimizations that move the bottleneck to CPU."
+      ],
+      "decision": {
+        "primaryComparison": "Every process of every trial of the interleaved comparison (comparison-plan.json, unchanged) opts out of per-process power throttling: all three replicas, all four load generators and the sweep driver, for all nine configurations including baseline. The remeasured interleaved baseline is the comparator for every optimization effect size.",
+        "systemSettings": "No system-wide setting is modified: not the power plan, not the power mode, not any Windows or Defender setting. The opt-out is the per-process switch behind Task Manager's Efficiency mode, applied only to benchmark-owned processes.",
+        "historicalBaseline": "d5d7e00 is preserved exactly and is labelled HISTORICAL BASELINE — Windows default process power policy. It is not regenerated, its report is not amended and its artifacts are not replaced. It is reported separately as the original system under Windows' default process policy, and is never the denominator of an optimization speedup.",
+        "claimRule": "Speedups and effect sizes are computed only from the matched final experiment (unthrottled interleaved baseline vs unthrottled interleaved profile). The historical 300 writes/s knee remains historically true but was measured under a different OS scheduling policy.",
+        "noRetuning": "No Raft profile is retuned after seeing the control results.",
+        "diskHandling": "The disk sentinel, its bins and the regime analysis of amendment 1 are unchanged; slow-storage trials are kept."
+      },
+      "implementation": {
+        "commit": "f9ddfff11282e403817cdf516f0087b05edabfa8",
+        "mechanism": "SetProcessInformation(ProcessPowerThrottling, ControlMask=EXECUTION_SPEED, StateMask=0), read back with GetProcessInformation",
+        "files": {
+          "tools/windows/disable-power-throttling.ps1": "91fc490239ce4d2c2ec2ab3efa1143f1b44472be6817643c0e62cad68450ca4c",
+          "packages/raft-bench/power-throttling.js": "ca980c571c622c14edfb10f59ad9c5af2caa9d63be08caced39d5d38f40c05a9"
+        },
+        "hashing": "SHA-256 of the file with line endings normalized to LF (every trial records the same hashes)",
+        "perTrialRecord": "record.powerThrottling: requested, applied, platform, mechanism, script/module SHA-256, and per process (role, pid, ControlMask, StateMask, inRequestedState)",
+        "failureRule": "If the policy cannot be verified on any process, the run stops (PowerPolicyError); it is never recorded as an ordinary failed trial, so a mixed environment cannot enter the data.",
+        "inheritance": "Child processes do not inherit the policy (a child of an opted-out parent reports ControlMask 0), so each process is set and verified individually; the os-default arm is set explicitly (ControlMask 0) and verified the same way."
+      },
+      "verification": {
+        "probe": "node tools/raft-power-throttling-probe.js --conditions default,opted-out --repeat 3 --out artifacts/perf/phase-iv-a/power-throttling-verification.json",
+        "requirement": "Across at least 3 runs each, the opted-out process must not show the persistent cliff of the default process; reported as initial (0-2.5 s), after 3 s (3.5-4.0 s), steady (4 s to end) and steady/initial.",
+        "harness": "A smoke trial must show every harness-spawned process (replica1-3, loadgen1-4, driver) verified, and the transport benchmark records its client and server."
+      },
+      "control": {
+        "role": "Environment analysis only; not part of the primary optimization ranking.",
+        "plan": "artifacts/perf/phase-iv-a/windows-power-control/plan.json",
+        "planSha256": "5a2cb5ff0c4ce4a21fbe4e5d34a2c5d2c087f862cef04479fc018d717ca4ec68",
+        "design": "baseline and optimized-binary, 1 KiB, fixed rates 100, 300, 1000, 2500 writes/s (below, at and above the historical baseline knee, and CPU-relevant for the optimized engine), 3 repetitions, each under os-default and disabled, all four arms interleaved by the same Williams order, same windows, same disk sentinel. The comparison ladder is unchanged.",
+        "reported": [
+          "throughput",
+          "p50/p99",
+          "leader CPU and CPU per op",
+          "leader event-loop utilization and setImmediate lag p99",
+          "generator send lag p99 and client queue wait p99",
+          "stability (saturation)",
+          "disk regimes"
+        ],
+        "tool": "tools/raft-bench-interleaved.js --plan <control plan> --out artifacts/perf/phase-iv-a/windows-power-control; report: tools/raft-power-control-report.js"
+      },
+      "unchanged": [
+        "comparison-plan.json and its SHA-256 (amendment 1)",
+        "configurations, payload roles and repetitions",
+        "Williams Latin-square order",
+        "disk sentinel and regime bins",
+        "stability rule, stop rule, knee definition, saturation fractions",
+        "etcd condition"
+      ]
+    },
+    {
+      "id": 3,
+      "recordedAt": "2026-10-05",
+      "kind": "operational note; no change to the plan, the harness, the configurations or the analysis",
+      "subject": "Voluntary interruption for host thermal load, resumption in cool-down blocks, read-only host telemetry",
+      "interruption": {
+        "statement": "The comparison sweep was interrupted after 367 completed trials because sustained execution materially heated the benchmark host (a laptop). Completed trials were retained, the machine is allowed to return to a stable thermal state, and the remaining predetermined trial order is resumed without rerunning completed observations.",
+        "stoppedAt": "2026-10-05T07:25Z",
+        "how": "tools/windows/stop-sweep.ps1 semantics: the stop waited until the trial in progress was appended to trials.jsonl, then ended the sweep driver and its whole process tree. The next trial had only just started; nothing of it was recorded.",
+        "completedTrials": 367,
+        "firstTrialStartedAt": "2026-10-05T04:20:55.324Z",
+        "lastTrialStartedAt": "2026-10-05T07:25:15.271Z",
+        "trialsJsonlSha256AtInterruption": "f1ce15346405069680a88ec3f593d4579079b6e5cc1b8d9d80e20c283481b0a2",
+        "curvesRetiredByTheStopRule": [
+          "pipeline-only@1024B at 500/s",
+          "transport-only@1024B at 750/s",
+          "baseline@64B at 750/s",
+          "baseline@16384B at 750/s",
+          "baseline@1024B at 1000/s",
+          "batch-only@1024B at 1000/s"
+        ],
+        "rungInProgress": "rung 1500/s",
+        "diskRegimesSoFar": {
+          "fast": 205,
+          "slow": 162
+        },
+        "powerPolicyVerified": "367/367",
+        "blockFiles": "Logs of this first block are kept as sweep-block1.log/.err, launch-block1.json and keep-awake-block1.log; each later block gets its own."
+      },
+      "resumption": {
+        "rule": "Resume only after a long cool-down, with the same pinned worktree (0b2d2b9) and tools/windows/start-detached-sweep.ps1: recorded trials are skipped and the remaining order is unchanged. No completed trial is rerun, however slow or unstable it looks.",
+        "blocks": "The remainder may be run in blocks of bounded length, each ended at a trial boundary with tools/windows/stop-sweep.ps1 and followed by a cool-down. Block boundaries are recorded with the block logs.",
+        "attendance": "The benchmark is not left running unattended on the laptop to finish faster; reproducibility takes precedence over finishing in one session."
+      },
+      "hostTelemetry": {
+        "environmentalVariables": [
+          "disk fsync regime (recorded per trial, amendment 1)",
+          "Windows process power policy (controlled, amendment 2)",
+          "thermal state / CPU frequency (this amendment: observed, not controlled)"
+        ],
+        "available": "Read-only Windows performance counters, no elevation: % Processor Performance, Processor Frequency (MHz), % Performance Limit, % Processor Utility, % Processor Time.",
+        "unavailable": "CPU temperature and thermal-zone throttle reasons: this machine exposes no thermal-zone counter instance and the WMI thermal class needs elevation, so neither is recorded and no temperature is claimed.",
+        "sampler": "tools/windows/host-telemetry.ps1 runs as a separate process next to each resumed block (every 5 s) and writes host-telemetry-block<N>.jsonl beside the trials; trials are joined to it by timestamp. It does not touch the harness.",
+        "use": "Descriptive only: reported alongside results, never used to include, exclude or rerun a trial. The first block has no such log (disclosed asymmetry).",
+        "files": {
+          "tools/windows/host-telemetry.ps1": "9c8add3bb081aa2f03ce43977ede1116c96d6ab150c9aab051821ee84e0bfd14",
+          "tools/windows/stop-sweep.ps1": "31ff84d29d8b802f572a5412433b202f660ebe3fa83f0b7e8898865dc2bd3bd7"
+        }
+      },
+      "unchanged": [
+        "comparison-plan.json (SHA-256 515f5ce2...)",
+        "the pinned sweep worktree at 0b2d2b9 and every harness file in it",
+        "amendments 1 and 2 in full"
+      ]
+    },
+    {
+      "id": 4,
+      "recordedAt": "2026-10-05",
+      "recordedBefore": "the first trial of the etcd comparison",
+      "subject": "The matched same-machine etcd comparison (question 4)",
+      "condition": "methodology.etcd.condition is met: the CloudProof comparison report is 094f5a9 and the CloudProof side of the study closed at d519d9f.",
+      "whyCloudProofIsRemeasured": "After the 801-trial sweep (pinned worktree 0b2d2b9) the harness got two fixes for extreme overload: generator connect backoff and kept-alive harness connections (d100c2e), and a reused-pid guard in the sweep tools (f5456a9). etcd must not be compared against CloudProof numbers from the pre-fix harness, so baseline, optimized-http and optimized-binary are re-measured in this sweep, interleaved with etcd, on one harness. The 801-trial results stay as reported in section 11; differences between the two sweeps' CloudProof curves are reported, not reconciled.",
+      "etcd": {
+        "release": "v3.7.2 (latest stable release when recorded; published 2026-09-22 by etcd-io)",
+        "source": "https://github.com/etcd-io/etcd/releases/tag/v3.7.2",
+        "archive": {
+          "file": "etcd-v3.7.2-windows-amd64.zip",
+          "bytes": 24508798,
+          "sha256": "76989536a5f333642687fbd85603087c3deb4d316fd86fdfb63897b05f851cf4",
+          "verifiedAgainst": [
+            "the release SHA256SUMS (676 bytes, SHA-256 90a2123114ae15025b1b868723a79ac0514bcd406bc8ad164de676dd193ba62b)",
+            "the GitHub release asset digest"
+          ],
+          "verifiedBefore": "extraction"
+        },
+        "binary": {
+          "file": ".bench-data/etcd/etcd-v3.7.2-windows-amd64/etcd.exe (gitignored)",
+          "sha256": "fae2288f43e5d845e5f07c31a4817899804d4f66f09152b6c3fec0d726b9169a",
+          "reportedVersion": "etcd Version: 3.7.2, Git SHA: 68c065e, Go Version: go1.26.8, Go OS/Arch: windows/amd64",
+          "enforcement": "EtcdCluster refuses any binary with another SHA-256; every trial records the hash it ran."
+        },
+        "installedSystemWide": false,
+        "members": 3,
+        "topology": "loopback; client URLs 127.0.0.1:17001-17003 (the CloudProof replica ports), peer URLs 127.0.0.1:17101-17103; fresh data directories per trial under the same --data-dir as the CloudProof replicas, on the same drive",
+        "flagsSet": [
+          "--name",
+          "--data-dir",
+          "--listen-client-urls",
+          "--advertise-client-urls",
+          "--listen-peer-urls",
+          "--initial-advertise-peer-urls",
+          "--initial-cluster",
+          "--initial-cluster-state new",
+          "--initial-cluster-token <random per trial>"
+        ],
+        "defaultsKept": {
+          "text": "Every other flag is etcd's default, read from etcd --help of this binary. Nothing is tuned, before or after seeing results.",
+          "values": [
+            "--snapshot-count 10000",
+            "--heartbeat-interval 100 (ms), --election-timeout 1000 (ms)",
+            "--quota-backend-bytes 0 (the built-in 2 GiB)",
+            "--backend-batch-interval and --backend-batch-limit unset (etcd's built-in values; a functional smoke trial showed about 10 backend commits/s per member)",
+            "--auto-compaction-retention 0 (off)",
+            "--unsafe-no-fsync false: WAL and backend fsyncs on",
+            "--metrics basic, --log-level info, logs to a file per member",
+            "GOMAXPROCS: Go's default for the machine"
+          ]
+        }
+      },
+      "client": {
+        "generator": "unchanged: the open-loop generator, 4 processes, 128 connections, constant spacing, 1000 keys round-robin by global arrival index, the same 1 KiB ASCII value bytes, latency from the intended arrival, timeouts at 10 s",
+        "request": "POST /v3/kv/put on the leader's client URL, through etcd's built-in HTTP/JSON gateway; key and value base64 in JSON, as the gateway requires for protobuf bytes fields (request body about 1.4 KiB against about 1.04 KiB for CloudProof). A 2xx response is OK.",
+        "target": "the leader, found from /v3/maintenance/status, as for CloudProof (an etcd follower would forward the proposal)."
+      },
+      "telemetry": {
+        "method": "each member's /metrics, scraped when the measurement window opens and closes; window values are the differences (packages/raft-bench/etcd-cluster.js WINDOW_COUNTERS)",
+        "mapping": {
+          "cpu": "process_cpu_seconds_total (Windows GetProcessTimes, the same clock as Node's process.cpuUsage for the replicas)",
+          "logFsyncs": "etcd_disk_wal_fsync_duration_seconds_count (CloudProof: log fsyncs)",
+          "metaSaves": "etcd_disk_backend_commit_duration_seconds_count: bbolt commits, each ending in an fsync (CloudProof: metadata saves, each fsynced)",
+          "otherSyncs": "etcd_snap_fsync_duration_seconds_count + etcd_snap_db_fsync_duration_seconds_count (CloudProof: none)",
+          "entriesPerFsync": "etcd_server_proposals_committed_total / WAL fsyncs, per member",
+          "replicationBytes": "etcd_network_peer_sent_bytes_total + etcd_network_peer_received_bytes_total on the followers: raft message bytes, not socket bytes (CloudProof: TCP payload bytes on the followers' sockets)",
+          "clientBytes": "etcd_network_client_grpc_{sent,received}_bytes_total on the leader: the gateway's gRPC messages, not the HTTP bytes",
+          "leadership": "etcd_server_leader_changes_seen_total in the window, and the leader and term from /v3/maintenance/status at the start and the end"
+        },
+        "notAvailableForEtcd": [
+          "AppendEntries count and entries per AppendEntries",
+          "event-loop utilization and lag",
+          "per-stage latency histograms",
+          "leader CPU profiles"
+        ],
+        "recordedAsNull": "A field without an etcd equivalent is null in the trial record, never estimated."
+      },
+      "plan": {
+        "file": "artifacts/perf/phase-iv-a/etcd-plan.json",
+        "sha256": "2f01e8cc6e8a66599589c5328e738b7234e82c4c4398d0fca6f61ae32cc008f1",
+        "curves": [
+          "baseline@1024B x5",
+          "optimized-http@1024B x5",
+          "optimized-binary@1024B x5",
+          "etcd@1024B x5"
+        ],
+        "payloads": "1 KiB only, by the user's decision on 2026-10-05: question 4 is answered at the primary payload. etcd's payload sensitivity is not measured; that is disclosed, not inferred.",
+        "unchanged": [
+          "rate ladder",
+          "warmup 5 s, window 20 s, timeout 10 s, drain 12 s, fresh cluster per trial",
+          "stability rule v1",
+          "stop rule v1",
+          "knee definition",
+          "0.5x and 0.8x knee fraction points",
+          "Williams Latin-square order v1",
+          "disk sentinel v1, its bins and the regime analysis",
+          "power policy: disabled for every benchmark-owned process (the etcd members, the generators and the driver), verified per process"
+        ],
+        "tool": "tools/raft-bench-interleaved.js",
+        "output": "artifacts/perf/phase-iv-a/etcd/",
+        "report": "node tools/raft-bench-report.js --sweeps etcd --out artifacts/perf/phase-iv-a/etcd-report --profiles <none>"
+      },
+      "analysis": {
+        "gap": "The gap is the ratio of maximum stable throughput between etcd and each CloudProof configuration in this sweep, with p99 at 0.5x, 0.8x and the knee, leader and whole-cluster CPU per op, and durable syncs per op, all from this sweep's trials. No speedup is computed against any other sweep.",
+        "scope": "A statement about these two systems on this laptop, under this workload. It is not a claim about etcd in general or about Linux deployments."
+      },
+      "mismatchesToDisclose": [
+        "language/runtime: Go with goroutines across all cores against Node, one event loop per replica plus the libuv pool",
+        "transport: etcd clients go HTTP/JSON -> grpc-gateway -> gRPC inside the member, and replication uses etcd's rafthttp streams. CloudProof clients hit an express handler directly, and replication is HTTP/1.1 + JSON (optimized-http) or framed TCP (optimized-binary).",
+        "persistence: etcd writes a WAL (64 MB preallocated segments) and applies to a bbolt B+tree that keeps every MVCC revision, with no compaction during a trial. CloudProof writes an append-only line log plus JSON metadata, and its state machine is in memory and rebuilt from the log.",
+        "durability point: both fsync the log on a quorum before acknowledging. etcd commits bbolt in periodic batches after the acknowledgement and recovers from the WAL. CloudProof's baseline saves its metadata synchronously, and its group-commit profiles persist the commit index lazily.",
+        "client semantics: both are last-writer-wins puts without deduplication (methodology.workload). The etcd response carries a revision header.",
+        "batching: etcd batches proposals per raft Ready cycle by design. CloudProof batches only in the optimized profiles.",
+        "request size: base64 makes the etcd request body about a third larger for the same stored value",
+        "hardware sharing: all members and generators share one laptop, as for CloudProof",
+        "host load: other applications were left running by the user's decision (a Vite dev server for another project, a preview server, Codex runtime processes). They are recorded in environment.json and affect all four interleaved curves alike.",
+        "disk footprint: etcd preallocates WAL segments and its bbolt file (about 400 MB per trial at 300/s), unlike CloudProof"
+      ],
+      "operational": "Amendment 3 applies: blocks of about 60 minutes, each ended at a trial boundary with tools/windows/stop-sweep.ps1 and followed by a cool-down; the host-telemetry sampler runs next to every block; never left running unattended; recorded trials are never rerun.",
+      "implementation": {
+        "commit": "01946341f0173a48d9564fbd1e4195afa2c703ba",
+        "hashing": "SHA-256 of the file with line endings normalized to LF",
+        "files": {
+          "packages/raft-bench/etcd-cluster.js": "dc6802b13a76cd8655ef7ebca3ea7ab0777fe86ddcd82ff79079ad603367fd11",
+          "packages/raft-bench/loadgen-worker.js": "03487669381c1f7f498962a3985fedf8a4e82198090de024bd70fe2d6afd8d22",
+          "packages/raft-bench/run.js": "3e93327d9a2ac353c3fc158a613ff7bc8024f305ffdda160691f169235f60350",
+          "packages/raft-bench/configs.js": "08ce1643db709bd8b22d6b75ba993fd9ed0f9a110dfc75e5ff3eb7f91de44157",
+          "tools/raft-bench-interleaved.js": "3e26bdf7c6941cc4a50cbc23fb9701fe192fe641095dcacdc5dd1316154b56af",
+          "tools/raft-bench-report.js": "85625226643db2bdc25ca8a40a42d67d9e8b6164d22631bcae789ec779fe104a"
+        },
+        "tests": "packages/raft-bench/etcd.test.js (unit tests, plus a live three-member trial skipped without the pinned binary)"
+      },
+      "unchanged": [
+        "amendments 1-3 in full",
+        "comparison-plan.json and the 801-trial sweep in comparison/",
+        "the nine replica profiles"
+      ]
+    },
+    {
+      "id": 5,
+      "recordedAt": "2026-10-06",
+      "recordedAfter": "the etcd comparison sweep closed (295 trials); recorded before the etcd results were written up",
+      "kind": "correction of the analysis tool; no change to any trial, the plan, the harness or the stability, stop or knee rules",
+      "subject": "A null AppendEntries rate rendered as 0",
+      "observation": "In the generated headline table, AppendEntries per op was computed as appendEntriesPerSec / achieved without checking the rate, so etcd, which exports no AppendEntries count (amendment 4: null, never estimated), showed 0.000 instead of no value.",
+      "correction": "tools/raft-bench-report.js leaves rpcsPerOp null when the rate is not a finite number. No other value changes. The committed comparison-report/ regenerates byte-identically (line endings normalized), because every CloudProof trial has the rate.",
+      "implementation": {
+        "hashing": "SHA-256 of the file with line endings normalized to LF",
+        "files": {
+          "tools/raft-bench-report.js": "bbd6be8ed41c01220fe1356c8316a3636d65de3be7dcd62b29210450e1fd6cca"
+        },
+        "supersedes": "the amendment-4 pin of tools/raft-bench-report.js; the trial-running harness files pinned by amendment 4 are unchanged"
+      }
+    }
+  ]
+}

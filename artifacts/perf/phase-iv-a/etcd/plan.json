@@ -1,0 +1,68 @@
+{
+  "schema": "cloudproof.raft-bench.comparison-plan/v1",
+  "frozenAt": "2026-10-05",
+  "status": "frozen before the first etcd comparison trial (methodology.json amendment 4); a change requires a new amendment and a new output directory",
+  "primaryPayloadBytes": 1024,
+  "curves": [
+    {
+      "config": "baseline",
+      "payloadBytes": 1024,
+      "repetitions": 5,
+      "role": "CloudProof original engine, re-measured on the fixed harness"
+    },
+    {
+      "config": "optimized-http",
+      "payloadBytes": 1024,
+      "repetitions": 5,
+      "role": "CloudProof all optimizations, HTTP transport, re-measured on the fixed harness"
+    },
+    {
+      "config": "optimized-binary",
+      "payloadBytes": 1024,
+      "repetitions": 5,
+      "role": "CloudProof all optimizations, framed TCP transport, re-measured on the fixed harness"
+    },
+    {
+      "config": "etcd",
+      "payloadBytes": 1024,
+      "repetitions": 5,
+      "role": "stock etcd v3.7.2, three members, v3 HTTP/JSON gateway"
+    }
+  ],
+  "rates": [
+    100,
+    200,
+    300,
+    500,
+    750,
+    1000,
+    1500,
+    2000,
+    3000,
+    4000,
+    5000,
+    6000,
+    8000,
+    10000,
+    12000,
+    15000,
+    20000,
+    25000,
+    30000,
+    40000
+  ],
+  "fractions": [
+    0.5,
+    0.8
+  ],
+  "trial": {
+    "warmupMs": 5000,
+    "durationMs": 20000,
+    "timeoutMs": 10000,
+    "connections": 128,
+    "generators": 4,
+    "keySpace": 1000
+  },
+  "powerThrottling": "disabled",
+  "dryRunRungs": 3
+}

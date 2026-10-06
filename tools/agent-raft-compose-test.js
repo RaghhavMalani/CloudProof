@@ -18,7 +18,7 @@ const { searchAgentSchedules } = require('../sim/agent-search');
 const { getAgentWorkflow } = require('../sim/agent-workflows');
 const { searchMultiAgentSchedules } = require('../sim/multi-agent-search');
 const { INITIAL_RESOURCE, decideAgent } = require('../sim/multi-agent-scenario');
-const { RaftAgentClient, AgentCommandError, requestJson } = require('./agent-raft-client');
+const { RaftAgentClient, AgentCommandError, requestJson, retryStaleLease } = require('./agent-raft-client');
 
 const PROJECT = process.env.AGENT_RAFT_COMPOSE_PROJECT || 'cloudproof-agent-stage4-test';
 const REPLICA_URLS = ['http://127.0.0.1:15001', 'http://127.0.0.1:15002', 'http://127.0.0.1:15003'];
@@ -192,7 +192,8 @@ async function boundaryA(client) {
     compose(['stop', leader.replicaId]);
     compose(['start', ...followers]);
     await waitForCluster(client, 2);
-    const surviving = await client.execution(spec.executionId);
+    // The first read on a just-elected leader may be refused until its lease is valid.
+    const surviving = await retryStaleLease(() => client.execution(spec.executionId));
     assert.equal(surviving.effects.length, 0, 'uncommitted intent is absent from the new leader');
     await restoreReplica(client, leader.replicaId, spec.executionId);
 }
@@ -262,7 +263,7 @@ async function boundaryC(client) {
         availableSnapshot: SNAPSHOT_V5, changed: ['policy'], decision: 'require-approval',
     });
     failover = await stopLeader(client);
-    let execution = await client.execution(spec.executionId);
+    let execution = await retryStaleLease(() => client.execution(spec.executionId));
     assert.equal(execution.status, 'PAUSED_SEMANTIC_CONFLICT');
     assert.equal(execution.semanticConflict.availableSnapshot.id, SNAPSHOT_V5.id);
     await client.command({

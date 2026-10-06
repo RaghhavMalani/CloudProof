@@ -1,0 +1,3937 @@
+{
+  "schema": "cloudproof.raft-bench.sweep/v1",
+  "generatedAt": "2026-09-25T03:39:49.718Z",
+  "environment": "environment.json",
+  "parameters": {
+    "configs": [
+      "baseline"
+    ],
+    "rates": [
+      100,
+      200,
+      300,
+      500,
+      750,
+      1000,
+      1500,
+      2000,
+      3000,
+      4000,
+      5000,
+      6000,
+      8000,
+      10000,
+      12000,
+      15000,
+      20000,
+      25000,
+      30000,
+      40000
+    ],
+    "payloads": [
+      64,
+      1024,
+      16384
+    ],
+    "repetitions": 3,
+    "warmupMs": 5000,
+    "durationMs": 20000,
+    "timeoutMs": 10000,
+    "connections": 128,
+    "generators": 4,
+    "keySpace": 1000
+  },
+  "stabilityRule": {
+    "version": 1,
+    "minAchievedRatio": 0.98,
+    "maxErrorRate": 0.005,
+    "maxP99AllMs": 1000,
+    "maxLatencyGrowth": 2,
+    "latencyGrowthFloorMs": 20,
+    "text": "A trial is stable iff (a) OK completions inside the window reach >= 98% of the offered rate, (b) errors + timeouts <= 0.5% of measured arrivals, (c) end-to-end p99 over all measured arrivals (timeouts at the timeout bound) < 1000 ms, and (d) the median OK latency of the last fifth of the window is <= 2x that of the first fifth, unless that last-fifth median is <= 20 ms."
+  },
+  "stopRule": {
+    "version": 1,
+    "consecutiveUnstable": 2,
+    "severeAchievedRatio": 0.5,
+    "text": "A curve stops after two consecutive majority-unstable rates, or after any rate whose mean achieved/offered ratio is below 0.5. Every rate that is run uses the full repetition count."
+  },
+  "trialCount": 63,
+  "curves": [
+    {
+      "config": "baseline",
+      "payloadBytes": 64,
+      "knee": {
+        "kneeRate": 300,
+        "maxStableThroughputPerSec": 300.267,
+        "p99AtKneeMs": 95.615,
+        "firstUnstableRate": 500,
+        "peakAchievedPerSecAnyRate": 579.8
+      },
+      "points": [
+        {
+          "phase": "ladder",
+          "rate": 100,
+          "repetitions": 3,
+          "runIds": [
+            "98e579b3fcad",
+            "922973da3219",
+            "1fde578f175a"
+          ],
+          "stableVotes": 3,
+          "stable": true,
+          "instabilityReasons": [],
+          "generatorSaturated": false,
+          "leadershipChanged": false,
+          "achievedPerSec": {
+            "mean": 100,
+            "min": 100,
+            "max": 100
+          },
+          "achievedRatio": {
+            "mean": 1,
+            "min": 1,
+            "max": 1
+          },
+          "errorRate": {
+            "mean": 0,
+            "min": 0,
+            "max": 0
+          },
+          "latencyAllMs": {
+            "count": 6000,
+            "min": 2.678,
+            "mean": 4.993512166666666,
+            "p50": 4.087,
+            "p90": 8.035,
+            "p95": 13.519,
+            "p99": 13.863,
+            "p999": 14.591,
+            "max": 15.916
+          },
+          "latencyOkMs": {
+            "count": 6000,
+            "min": 2.678,
+            "mean": 4.993512166666666,
+            "p50": 4.087,
+            "p90": 8.035,
+            "p95": 13.519,
+            "p99": 13.863,
+            "p999": 14.591,
+            "max": 15.916
+          },
+          "p99AllMsPerRep": [
+            13.847,
+            13.863,
+            13.879
+          ],
+          "p50AllMsPerRep": [
+            4.039,
+            4.147,
+            4.083
+          ],
+          "serviceOkP99Ms": {
+            "mean": 13.735,
+            "min": 13.719,
+            "max": 13.751
+          },
+          "clientQueueDepthP99": {
+            "mean": 0,
+            "min": 0,
+            "max": 0
+          },
+          "leader": {
+            "cpuPercentOfOneCore": {
+              "mean": 21.5,
+              "min": 19.2,
+              "max": 23.6
+            },
+            "cpuMicrosPerOp": {
+              "mean": 2148.5,
+              "min": 1914,
+              "max": 2359.5
+            },
+            "eventLoopUtilization": {
+              "mean": 0.28,
+              "min": 0.279,
+              "max": 0.281
+            },
+            "immediateLagP99Ms": {
+              "mean": 0.501,
+              "min": 0.433,
+              "max": 0.545
+            },
+            "logFsyncsPerSec": {
+              "mean": 99.933,
+              "min": 99.9,
+              "max": 100
+            },
+            "metaSavesPerSec": {
+              "mean": 90,
+              "min": 89.3,
+              "max": 90.8
+            },
+            "appendEntriesPerSec": {
+              "mean": 178.9,
+              "min": 177.7,
+              "max": 180.4
+            },
+            "heartbeatsPerSec": {
+              "mean": 95.467,
+              "min": 94.9,
+              "max": 96.3
+            },
+            "entriesPerAppendMean": {
+              "mean": 1.117,
+              "min": 1.108,
+              "max": 1.124
+            },
+            "entriesPerFsyncMean": {
+              "mean": 1,
+              "min": 1,
+              "max": 1
+            },
+            "peakRssBytes": {
+              "mean": 191711914.667,
+              "min": 191594496,
+              "max": 191913984
+            },
+            "admitToCommitP99Ms": {
+              "mean": 12.018,
+              "min": 12.015,
+              "max": 12.023
+            },
+            "uncommittedEntriesP99": {
+              "mean": 0.002,
+              "min": 0.002,
+              "max": 0.002
+            }
+          },
+          "followers": {
+            "cpuPercentOfOneCore": {
+              "mean": 11.183,
+              "min": 8.7,
+              "max": 13.05
+            },
+            "logFsyncsPerSec": {
+              "mean": 89.45,
+              "min": 88.95,
+              "max": 90.2
+            },
+            "metaSavesPerSec": {
+              "mean": 90.033,
+              "min": 89.3,
+              "max": 90.8
+            }
+          },
+          "cluster": {
+            "logFsyncsPerSec": {
+              "mean": 278.833,
+              "min": 277.8,
+              "max": 280.3
+            },
+            "metaSavesPerSec": {
+              "mean": 270.067,
+              "min": 267.9,
+              "max": 272.4
+            },
+            "replicationBytesPerOp": {
+              "mean": 2165.1,
+              "min": 2155.7,
+              "max": 2171.5
+            },
+            "clientBytesPerOp": {
+              "mean": 517,
+              "min": 516.9,
+              "max": 517.1
+            }
+          }
+        },
+        {
+          "phase": "knee-fraction",
+          "rate": 150,
+          "repetitions": 3,
+          "runIds": [
+            "054ca4f46ffe",
+            "abe4e9a960a4",
+            "bec630f793c4"
+          ],
+          "stableVotes": 3,
+          "stable": true,
+          "instabilityReasons": [],
+          "generatorSaturated": false,
+          "leadershipChanged": false,
+          "achievedPerSec": {
+            "mean": 150.133,
+            "min": 150,
+            "max": 150.3
+          },
+          "achievedRatio": {
+            "mean": 1.001,
+            "min": 1,
+            "max": 1.002
+          },
+          "errorRate": {
+            "mean": 0,
+            "min": 0,
+            "max": 0
+          },
+          "latencyAllMs": {
+            "count": 9000,
+            "min": 5.612,
+            "mean": 35.22781366666667,
+            "p50": 21.487,
+            "p90": 67.519,
+            "p95": 72.191,
+            "p99": 82.367,
+            "p999": 96.063,
+            "max": 102.844
+          },
+          "latencyOkMs": {
+            "count": 9000,
+            "min": 5.612,
+            "mean": 35.22781366666667,
+            "p50": 21.487,
+            "p90": 67.519,
+            "p95": 72.191,
+            "p99": 82.367,
+            "p999": 96.063,
+            "max": 102.844
+          },
+          "p99AllMsPerRep": [
+            88.639,
+            78.719,
+            39.135
+          ],
+          "p50AllMsPerRep": [
+            62.271,
+            19.183,
+            16.543
+          ],
+          "serviceOkP99Ms": {
+            "mean": 67.946,
+            "min": 37.695,
+            "max": 87.679
+          },
+          "clientQueueDepthP99": {
+            "mean": 0,
+            "min": 0,
+            "max": 0
+          },
+          "leader": {
+            "cpuPercentOfOneCore": {
+              "mean": 58.2,
+              "min": 47.2,
+              "max": 66
+            },
+            "cpuMicrosPerOp": {
+              "mean": 3875.333,
+              "min": 3141,
+              "max": 4399.5
+            },
+            "eventLoopUtilization": {
+              "mean": 0.913,
+              "min": 0.843,
+              "max": 1
+            },
+            "immediateLagP99Ms": {
+              "mean": 22.199,
+              "min": 12.951,
+              "max": 29.023
+            },
+            "logFsyncsPerSec": {
+              "mean": 149.867,
+              "min": 149.8,
+              "max": 149.9
+            },
+            "metaSavesPerSec": {
+              "mean": 90.6,
+              "min": 53.6,
+              "max": 113.5
+            },
+            "appendEntriesPerSec": {
+              "mean": 123.467,
+              "min": 53.6,
+              "max": 170.2
+            },
+            "heartbeatsPerSec": {
+              "mean": 5.033,
+              "min": 0,
+              "max": 12.1
+            },
+            "entriesPerAppendMean": {
+              "mean": 3.133,
+              "min": 1.762,
+              "max": 5.59
+            },
+            "entriesPerFsyncMean": {
+              "mean": 1,
+              "min": 1,
+              "max": 1
+            },
+            "peakRssBytes": {
+              "mean": 154752341.333,
+              "min": 132198400,
+              "max": 190414848
+            },
+            "admitToCommitP99Ms": {
+              "mean": 42.506,
+              "min": 22.431,
+              "max": 55.999
+            },
+            "uncommittedEntriesP99": {
+              "mean": 0.007,
+              "min": 0.005,
+              "max": 0.008
+            }
+          },
+          "followers": {
+            "cpuPercentOfOneCore": {
+              "mean": 23.7,
+              "min": 12.85,
+              "max": 30.7
+            },
+            "logFsyncsPerSec": {
+              "mean": 61.767,
+              "min": 26.85,
+              "max": 85.1
+            },
+            "metaSavesPerSec": {
+              "mean": 61.467,
+              "min": 26.85,
+              "max": 84.45
+            }
+          },
+          "cluster": {
+            "logFsyncsPerSec": {
+              "mean": 273.4,
+              "min": 203.5,
+              "max": 320.1
+            },
+            "metaSavesPerSec": {
+              "mean": 213.533,
+              "min": 107.3,
+              "max": 282.4
+            },
+            "replicationBytesPerOp": {
+              "mean": 883.967,
+              "min": 545.1,
+              "max": 1127.6
+            },
+            "clientBytesPerOp": {
+              "mean": 517.3,
+              "min": 517,
+              "max": 517.5
+            }
+          }
+        },
+        {
+          "phase": "ladder",
+          "rate": 200,
+          "repetitions": 3,
+          "runIds": [
+            "41c0a31b2f0b",
+            "7de663dd0e6b",
+            "daa017089747"
+          ],
+          "stableVotes": 3,
+          "stable": true,
+          "instabilityReasons": [],
+          "generatorSaturated": false,
+          "leadershipChanged": false,
+          "achievedPerSec": {
+            "mean": 199.933,
+            "min": 199.8,
+            "max": 200
+          },
+          "achievedRatio": {
+            "mean": 1,
+            "min": 0.999,
+            "max": 1
+          },
+          "errorRate": {
+            "mean": 0,
+            "min": 0,
+            "max": 0
+          },
+          "latencyAllMs": {
+            "count": 12000,
+            "min": 2.715,
+            "mean": 18.980178916666667,
+            "p50": 21.631,
+            "p90": 33.375,
+            "p95": 36.671,
+            "p99": 43.007,
+            "p999": 49.247,
+            "max": 57.236
+          },
+          "latencyOkMs": {
+            "count": 12000,
+            "min": 2.715,
+            "mean": 18.980178916666667,
+            "p50": 21.631,
+            "p90": 33.375,
+            "p95": 36.671,
+            "p99": 43.007,
+            "p999": 49.247,
+            "max": 57.236
+          },
+          "p99AllMsPerRep": [
+            8.983,
+            40.799,
+            45.535
+          ],
+          "p50AllMsPerRep": [
+            4.475,
+            24.319,
+            27.823
+          ],
+          "serviceOkP99Ms": {
+            "mean": 31.679,
+            "min": 8.863,
+            "max": 45.471
+          },
+          "clientQueueDepthP99": {
+            "mean": 0,
+            "min": 0,
+            "max": 0
+          },
+          "leader": {
+            "cpuPercentOfOneCore": {
+              "mean": 20.933,
+              "min": 18.2,
+              "max": 26.2
+            },
+            "cpuMicrosPerOp": {
+              "mean": 1047.167,
+              "min": 910.3,
+              "max": 1308.8
+            },
+            "eventLoopUtilization": {
+              "mean": 0.776,
+              "min": 0.488,
+              "max": 0.942
+            },
+            "immediateLagP99Ms": {
+              "mean": 9.036,
+              "min": 1.215,
+              "max": 13.287
+            },
+            "logFsyncsPerSec": {
+              "mean": 199.9,
+              "min": 199.9,
+              "max": 199.9
+            },
+            "metaSavesPerSec": {
+              "mean": 124.633,
+              "min": 91.8,
+              "max": 180.4
+            },
+            "appendEntriesPerSec": {
+              "mean": 199.7,
+              "min": 114.4,
+              "max": 345.8
+            },
+            "heartbeatsPerSec": {
+              "mean": 22.033,
+              "min": 0,
+              "max": 61.1
+            },
+            "entriesPerAppendMean": {
+              "mean": 2.509,
+              "min": 1.156,
+              "max": 3.495
+            },
+            "entriesPerFsyncMean": {
+              "mean": 1,
+              "min": 1,
+              "max": 1
+            },
+            "peakRssBytes": {
+              "mean": 183566336,
+              "min": 136413184,
+              "max": 224890880
+            },
+            "admitToCommitP99Ms": {
+              "mean": 22.22,
+              "min": 6.967,
+              "max": 31.215
+            },
+            "uncommittedEntriesP99": {
+              "mean": 0.005,
+              "min": 0.002,
+              "max": 0.007
+            }
+          },
+          "followers": {
+            "cpuPercentOfOneCore": {
+              "mean": 12.783,
+              "min": 6.95,
+              "max": 22.45
+            },
+            "logFsyncsPerSec": {
+              "mean": 99.883,
+              "min": 57.2,
+              "max": 172.95
+            },
+            "metaSavesPerSec": {
+              "mean": 102.433,
+              "min": 57.2,
+              "max": 180.25
+            }
+          },
+          "cluster": {
+            "logFsyncsPerSec": {
+              "mean": 399.667,
+              "min": 314.3,
+              "max": 545.8
+            },
+            "metaSavesPerSec": {
+              "mean": 329.5,
+              "min": 206.2,
+              "max": 540.9
+            },
+            "replicationBytesPerOp": {
+              "mean": 1056,
+              "min": 690.7,
+              "max": 1685.7
+            },
+            "clientBytesPerOp": {
+              "mean": 517.8,
+              "min": 517.6,
+              "max": 518
+            }
+          }
+        },
+        {
+          "phase": "knee-fraction",
+          "rate": 240,
+          "repetitions": 3,
+          "runIds": [
+            "9842ea617da5",
+            "ea1807bead44",
+            "586ec48db11e"
+          ],
+          "stableVotes": 2,
+          "stable": true,
+          "instabilityReasons": [
+            [
+              "latency grew 2.54x across the window"
+            ]
+          ],
+          "generatorSaturated": false,
+          "leadershipChanged": false,
+          "achievedPerSec": {
+            "mean": 240.3,
+            "min": 239.7,
+            "max": 241.2
+          },
+          "achievedRatio": {
+            "mean": 1.001,
+            "min": 0.999,
+            "max": 1.005
+          },
+          "errorRate": {
+            "mean": 0,
+            "min": 0,
+            "max": 0
+          },
+          "latencyAllMs": {
+            "count": 14400,
+            "min": 3.085,
+            "mean": 21.502855,
+            "p50": 20.447,
+            "p90": 41.791,
+            "p95": 52.863,
+            "p99": 76.159,
+            "p999": 121.023,
+            "max": 143.263
+          },
+          "latencyOkMs": {
+            "count": 14400,
+            "min": 3.085,
+            "mean": 21.502855,
+            "p50": 20.447,
+            "p90": 41.791,
+            "p95": 52.863,
+            "p99": 76.159,
+            "p999": 121.023,
+            "max": 143.263
+          },
+          "p99AllMsPerRep": [
+            98.239,
+            78.143,
+            10.335
+          ],
+          "p50AllMsPerRep": [
+            23.295,
+            27.887,
+            5.843
+          ],
+          "serviceOkP99Ms": {
+            "mean": 60.711,
+            "min": 10.231,
+            "max": 95.231
+          },
+          "clientQueueDepthP99": {
+            "mean": 0,
+            "min": 0,
+            "max": 0
+          },
+          "leader": {
+            "cpuPercentOfOneCore": {
+              "mean": 60.5,
+              "min": 44.7,
+              "max": 71.2
+            },
+            "cpuMicrosPerOp": {
+              "mean": 2515.967,
+              "min": 1862.1,
+              "max": 2948.2
+            },
+            "eventLoopUtilization": {
+              "mean": 0.848,
+              "min": 0.604,
+              "max": 0.996
+            },
+            "immediateLagP99Ms": {
+              "mean": 20.213,
+              "min": 2.145,
+              "max": 29.503
+            },
+            "logFsyncsPerSec": {
+              "mean": 239.933,
+              "min": 239.8,
+              "max": 240.1
+            },
+            "metaSavesPerSec": {
+              "mean": 144.733,
+              "min": 113,
+              "max": 194
+            },
+            "appendEntriesPerSec": {
+              "mean": 211.033,
+              "min": 118.1,
+              "max": 359.1
+            },
+            "heartbeatsPerSec": {
+              "mean": 15.767,
+              "min": 0,
+              "max": 43
+            },
+            "entriesPerAppendMean": {
+              "mean": 2.825,
+              "min": 1.336,
+              "max": 4.062
+            },
+            "entriesPerFsyncMean": {
+              "mean": 1,
+              "min": 1,
+              "max": 1
+            },
+            "peakRssBytes": {
+              "mean": 193039018.667,
+              "min": 163729408,
+              "max": 219947008
+            },
+            "admitToCommitP99Ms": {
+              "mean": 34.003,
+              "min": 8.059,
+              "max": 48.575
+            },
+            "uncommittedEntriesP99": {
+              "mean": 0.008,
+              "min": 0.002,
+              "max": 0.012
+            }
+          },
+          "followers": {
+            "cpuPercentOfOneCore": {
+              "mean": 22,
+              "min": 21,
+              "max": 22.65
+            },
+            "logFsyncsPerSec": {
+              "mean": 105.533,
+              "min": 59.05,
+              "max": 179.55
+            },
+            "metaSavesPerSec": {
+              "mean": 105.883,
+              "min": 59.05,
+              "max": 180.8
+            }
+          },
+          "cluster": {
+            "logFsyncsPerSec": {
+              "mean": 451,
+              "min": 357.9,
+              "max": 599
+            },
+            "metaSavesPerSec": {
+              "mean": 356.5,
+              "min": 231.1,
+              "max": 555.6
+            },
+            "replicationBytesPerOp": {
+              "mean": 944.333,
+              "min": 634.4,
+              "max": 1441.5
+            },
+            "clientBytesPerOp": {
+              "mean": 517.333,
+              "min": 515.7,
+              "max": 518.5
+            }
+          }
+        },
+        {
+          "phase": "ladder",
+          "rate": 300,
+          "repetitions": 3,
+          "runIds": [
+            "f2416ab541d0",
+            "84cc9033f626",
+            "2f9211b5bf52"
+          ],
+          "stableVotes": 3,
+          "stable": true,
+          "instabilityReasons": [],
+          "generatorSaturated": false,
+          "leadershipChanged": false,
+          "achievedPerSec": {
+            "mean": 300.267,
+            "min": 299.9,
+            "max": 300.9
+          },
+          "achievedRatio": {
+            "mean": 1.001,
+            "min": 1,
+            "max": 1.003
+          },
+          "errorRate": {
+            "mean": 0,
+            "min": 0,
+            "max": 0
+          },
+          "latencyAllMs": {
+            "count": 18000,
+            "min": 2.603,
+            "mean": 37.445728499999994,
+            "p50": 43.999,
+            "p90": 76.351,
+            "p95": 83.583,
+            "p99": 95.615,
+            "p999": 103.487,
+            "max": 120.583
+          },
+          "latencyOkMs": {
+            "count": 18000,
+            "min": 2.603,
+            "mean": 37.445728499999994,
+            "p50": 43.999,
+            "p90": 76.351,
+            "p95": 83.583,
+            "p99": 95.615,
+            "p999": 103.487,
+            "max": 120.583
+          },
+          "p99AllMsPerRep": [
+            65.791,
+            10.247,
+            99.775
+          ],
+          "p50AllMsPerRep": [
+            46.079,
+            5.695,
+            65.663
+          ],
+          "serviceOkP99Ms": {
+            "mean": 58.53,
+            "min": 10.151,
+            "max": 99.711
+          },
+          "clientQueueDepthP99": {
+            "mean": 0,
+            "min": 0,
+            "max": 0
+          },
+          "leader": {
+            "cpuPercentOfOneCore": {
+              "mean": 27.667,
+              "min": 16.8,
+              "max": 43
+            },
+            "cpuMicrosPerOp": {
+              "mean": 921.267,
+              "min": 559.8,
+              "max": 1432.7
+            },
+            "eventLoopUtilization": {
+              "mean": 0.856,
+              "min": 0.63,
+              "max": 1
+            },
+            "immediateLagP99Ms": {
+              "mean": 18.815,
+              "min": 1.84,
+              "max": 33.983
+            },
+            "logFsyncsPerSec": {
+              "mean": 299.9,
+              "min": 299.9,
+              "max": 299.9
+            },
+            "metaSavesPerSec": {
+              "mean": 125.167,
+              "min": 58.9,
+              "max": 218.8
+            },
+            "appendEntriesPerSec": {
+              "mean": 194.5,
+              "min": 58.9,
+              "max": 397.6
+            },
+            "heartbeatsPerSec": {
+              "mean": 17.733,
+              "min": 0,
+              "max": 44.9
+            },
+            "entriesPerAppendMean": {
+              "mean": 5.474,
+              "min": 1.509,
+              "max": 10.189
+            },
+            "entriesPerFsyncMean": {
+              "mean": 1,
+              "min": 1,
+              "max": 1
+            },
+            "peakRssBytes": {
+              "mean": 176177152,
+              "min": 134848512,
+              "max": 232226816
+            },
+            "admitToCommitP99Ms": {
+              "mean": 38.331,
+              "min": 7.379,
+              "max": 63.775
+            },
+            "uncommittedEntriesP99": {
+              "mean": 0.012,
+              "min": 0.003,
+              "max": 0.019
+            }
+          },
+          "followers": {
+            "cpuPercentOfOneCore": {
+              "mean": 10.75,
+              "min": 4.3,
+              "max": 20.15
+            },
+            "logFsyncsPerSec": {
+              "mean": 97.25,
+              "min": 29.4,
+              "max": 198.8
+            },
+            "metaSavesPerSec": {
+              "mean": 95.45,
+              "min": 29.4,
+              "max": 194.4
+            }
+          },
+          "cluster": {
+            "logFsyncsPerSec": {
+              "mean": 494.4,
+              "min": 358.7,
+              "max": 697.5
+            },
+            "metaSavesPerSec": {
+              "mean": 316.067,
+              "min": 117.7,
+              "max": 607.6
+            },
+            "replicationBytesPerOp": {
+              "mean": 782.867,
+              "min": 435.6,
+              "max": 1305.2
+            },
+            "clientBytesPerOp": {
+              "mean": 517.5,
+              "min": 516.9,
+              "max": 517.8
+            }
+          }
+        },
+        {
+          "phase": "ladder",
+          "rate": 500,
+          "repetitions": 3,
+          "runIds": [
+            "ef5dffa852b2",
+            "08524a70bcd4",
+            "7785ddb6f1e8"
+          ],
+          "stableVotes": 1,
+          "stable": false,
+          "instabilityReasons": [
+            [
+              "p99 1246.207 ms"
+            ],
+            [
+              "achieved 93.6% of offered",
+              "p99 1721.343 ms",
+              "latency grew 5.99x across the window"
+            ]
+          ],
+          "generatorSaturated": false,
+          "leadershipChanged": false,
+          "achievedPerSec": {
+            "mean": 494.267,
+            "min": 467.8,
+            "max": 515.1
+          },
+          "achievedRatio": {
+            "mean": 0.989,
+            "min": 0.936,
+            "max": 1.03
+          },
+          "errorRate": {
+            "mean": 0,
+            "min": 0,
+            "max": 0
+          },
+          "latencyAllMs": {
+            "count": 30000,
+            "min": 4.018,
+            "mean": 506.569231,
+            "p50": 280.575,
+            "p90": 1189.887,
+            "p95": 1329.151,
+            "p99": 1628.159,
+            "p999": 1771.519,
+            "max": 1847.744
+          },
+          "latencyOkMs": {
+            "count": 30000,
+            "min": 4.018,
+            "mean": 506.569231,
+            "p50": 280.575,
+            "p90": 1189.887,
+            "p95": 1329.151,
+            "p99": 1628.159,
+            "p999": 1771.519,
+            "max": 1847.744
+          },
+          "p99AllMsPerRep": [
+            1246.207,
+            11.439,
+            1721.343
+          ],
+          "p50AllMsPerRep": [
+            935.935,
+            7.259,
+            617.471
+          ],
+          "serviceOkP99Ms": {
+            "mean": 212.167,
+            "min": 11.351,
+            "max": 340.479
+          },
+          "clientQueueDepthP99": {
+            "mean": 91,
+            "min": 0,
+            "max": 149
+          },
+          "leader": {
+            "cpuPercentOfOneCore": {
+              "mean": 27.2,
+              "min": 16,
+              "max": 49.4
+            },
+            "cpuMicrosPerOp": {
+              "mean": 548.033,
+              "min": 310.9,
+              "max": 987.5
+            },
+            "eventLoopUtilization": {
+              "mean": 0.949,
+              "min": 0.847,
+              "max": 1
+            },
+            "immediateLagP99Ms": {
+              "mean": 76.315,
+              "min": 3.347,
+              "max": 146.431
+            },
+            "logFsyncsPerSec": {
+              "mean": 493.8,
+              "min": 469.6,
+              "max": 511.9
+            },
+            "metaSavesPerSec": {
+              "mean": 101.1,
+              "min": 10.8,
+              "max": 275.4
+            },
+            "appendEntriesPerSec": {
+              "mean": 148.567,
+              "min": 17,
+              "max": 410.9
+            },
+            "heartbeatsPerSec": {
+              "mean": 0,
+              "min": 0,
+              "max": 0
+            },
+            "entriesPerAppendMean": {
+              "mean": 38.501,
+              "min": 2.433,
+              "max": 57.977
+            },
+            "entriesPerFsyncMean": {
+              "mean": 1,
+              "min": 1,
+              "max": 1
+            },
+            "peakRssBytes": {
+              "mean": 173117440,
+              "min": 143065088,
+              "max": 232099840
+            },
+            "admitToCommitP99Ms": {
+              "mean": 161.956,
+              "min": 8.303,
+              "max": 260.863
+            },
+            "uncommittedEntriesP99": {
+              "mean": 0.078,
+              "min": 0.005,
+              "max": 0.128
+            }
+          },
+          "followers": {
+            "cpuPercentOfOneCore": {
+              "mean": 9.533,
+              "min": 2.1,
+              "max": 24.15
+            },
+            "logFsyncsPerSec": {
+              "mean": 74.267,
+              "min": 8.55,
+              "max": 205.45
+            },
+            "metaSavesPerSec": {
+              "mean": 74.267,
+              "min": 8.55,
+              "max": 205.45
+            }
+          },
+          "cluster": {
+            "logFsyncsPerSec": {
+              "mean": 642.333,
+              "min": 486.7,
+              "max": 910.8
+            },
+            "metaSavesPerSec": {
+              "mean": 249.633,
+              "min": 28.4,
+              "max": 686.3
+            },
+            "replicationBytesPerOp": {
+              "mean": 504.833,
+              "min": 324.5,
+              "max": 862.2
+            },
+            "clientBytesPerOp": {
+              "mean": 518.033,
+              "min": 516,
+              "max": 519.7
+            }
+          }
+        },
+        {
+          "phase": "ladder",
+          "rate": 750,
+          "repetitions": 3,
+          "runIds": [
+            "4d049a2c3d70",
+            "6b3043564078",
+            "01aedee13940"
+          ],
+          "stableVotes": 0,
+          "stable": false,
+          "instabilityReasons": [
+            [
+              "achieved 73.8% of offered",
+              "p99 7598.079 ms"
+            ],
+            [
+              "achieved 91.6% of offered",
+              "p99 2469.887 ms",
+              "latency grew 150.6x across the window"
+            ],
+            [
+              "achieved 66.6% of offered",
+              "error rate 17.42%",
+              "p99 10002.431 ms",
+              "latency grew 2.39x across the window"
+            ]
+          ],
+          "generatorSaturated": false,
+          "leadershipChanged": false,
+          "achievedPerSec": {
+            "mean": 579.8,
+            "min": 499.2,
+            "max": 687
+          },
+          "achievedRatio": {
+            "mean": 0.773,
+            "min": 0.666,
+            "max": 0.916
+          },
+          "errorRate": {
+            "mean": 0.058,
+            "min": 0,
+            "max": 0.174
+          },
+          "latencyAllMs": {
+            "count": 45000,
+            "min": 4.743,
+            "mean": 4400.920404666667,
+            "p50": 4907.007,
+            "p90": 8749.055,
+            "p95": 9420.799,
+            "p99": 10002.431,
+            "p999": 10002.431,
+            "max": 10023.78
+          },
+          "latencyOkMs": {
+            "count": 42387,
+            "min": 4.743,
+            "mean": 4120.309529478378,
+            "p50": 4583.423,
+            "p90": 8269.823,
+            "p95": 9060.351,
+            "p99": 9863.167,
+            "p999": 10002.431,
+            "max": 10023.78
+          },
+          "p99AllMsPerRep": [
+            7598.079,
+            2469.887,
+            10002.431
+          ],
+          "p50AllMsPerRep": [
+            5599.231,
+            10.687,
+            7811.071
+          ],
+          "serviceOkP99Ms": {
+            "mean": 312.234,
+            "min": 272.639,
+            "max": 370.687
+          },
+          "clientQueueDepthP99": {
+            "mean": 1070.667,
+            "min": 272,
+            "max": 1549
+          },
+          "leader": {
+            "cpuPercentOfOneCore": {
+              "mean": 27.7,
+              "min": 17.8,
+              "max": 47.2
+            },
+            "cpuMicrosPerOp": {
+              "mean": 458.533,
+              "min": 319.2,
+              "max": 694.9
+            },
+            "eventLoopUtilization": {
+              "mean": 0.999,
+              "min": 0.998,
+              "max": 1
+            },
+            "immediateLagP99Ms": {
+              "mean": 48.986,
+              "min": 8.567,
+              "max": 128.511
+            },
+            "logFsyncsPerSec": {
+              "mean": 582.833,
+              "min": 499.2,
+              "max": 696.1
+            },
+            "metaSavesPerSec": {
+              "mean": 87.267,
+              "min": 7.8,
+              "max": 245.3
+            },
+            "appendEntriesPerSec": {
+              "mean": 94.333,
+              "min": 15.6,
+              "max": 250.1
+            },
+            "heartbeatsPerSec": {
+              "mean": 0,
+              "min": 0,
+              "max": 0
+            },
+            "entriesPerAppendMean": {
+              "mean": 44.529,
+              "min": 5.541,
+              "max": 64.046
+            },
+            "entriesPerFsyncMean": {
+              "mean": 1,
+              "min": 1,
+              "max": 1
+            },
+            "peakRssBytes": {
+              "mean": 173577557.333,
+              "min": 142860288,
+              "max": 233357312
+            },
+            "admitToCommitP99Ms": {
+              "mean": 246.1,
+              "min": 209.279,
+              "max": 273.407
+            },
+            "uncommittedEntriesP99": {
+              "mean": 0.125,
+              "min": 0.118,
+              "max": 0.128
+            }
+          },
+          "followers": {
+            "cpuPercentOfOneCore": {
+              "mean": 6.267,
+              "min": 2.5,
+              "max": 13.75
+            },
+            "logFsyncsPerSec": {
+              "mean": 47.167,
+              "min": 7.8,
+              "max": 125
+            },
+            "metaSavesPerSec": {
+              "mean": 47.167,
+              "min": 7.8,
+              "max": 125
+            }
+          },
+          "cluster": {
+            "logFsyncsPerSec": {
+              "mean": 677.167,
+              "min": 514.8,
+              "max": 946.1
+            },
+            "metaSavesPerSec": {
+              "mean": 181.6,
+              "min": 23.4,
+              "max": 495.3
+            },
+            "replicationBytesPerOp": {
+              "mean": 400.167,
+              "min": 323.7,
+              "max": 552.6
+            },
+            "clientBytesPerOp": {
+              "mean": 520.467,
+              "min": 518.3,
+              "max": 524.2
+            }
+          }
+        }
+      ]
+    },
+    {
+      "config": "baseline",
+      "payloadBytes": 1024,
+      "knee": {
+        "kneeRate": 300,
+        "maxStableThroughputPerSec": 299.8,
+        "p99AtKneeMs": 78.783,
+        "firstUnstableRate": 500,
+        "peakAchievedPerSecAnyRate": 657.967
+      },
+      "points": [
+        {
+          "phase": "ladder",
+          "rate": 100,
+          "repetitions": 3,
+          "runIds": [
+            "d88b9169433f",
+            "f32f5f11b1c2",
+            "e9755dfc12c0"
+          ],
+          "stableVotes": 3,
+          "stable": true,
+          "instabilityReasons": [],
+          "generatorSaturated": false,
+          "leadershipChanged": false,
+          "achievedPerSec": {
+            "mean": 100,
+            "min": 100,
+            "max": 100
+          },
+          "achievedRatio": {
+            "mean": 1,
+            "min": 1,
+            "max": 1
+          },
+          "errorRate": {
+            "mean": 0,
+            "min": 0,
+            "max": 0
+          },
+          "latencyAllMs": {
+            "count": 6000,
+            "min": 2.57,
+            "mean": 8.093970500000001,
+            "p50": 4.631,
+            "p90": 18.735,
+            "p95": 21.999,
+            "p99": 26.975,
+            "p999": 29.359,
+            "max": 35.681
+          },
+          "latencyOkMs": {
+            "count": 6000,
+            "min": 2.57,
+            "mean": 8.093970500000001,
+            "p50": 4.631,
+            "p90": 18.735,
+            "p95": 21.999,
+            "p99": 26.975,
+            "p999": 29.359,
+            "max": 35.681
+          },
+          "p99AllMsPerRep": [
+            28.015,
+            18.559,
+            14.039
+          ],
+          "p50AllMsPerRep": [
+            14.831,
+            4.159,
+            4.219
+          ],
+          "serviceOkP99Ms": {
+            "mean": 20.068,
+            "min": 13.903,
+            "max": 27.887
+          },
+          "clientQueueDepthP99": {
+            "mean": 0,
+            "min": 0,
+            "max": 0
+          },
+          "leader": {
+            "cpuPercentOfOneCore": {
+              "mean": 21.167,
+              "min": 18.5,
+              "max": 24.1
+            },
+            "cpuMicrosPerOp": {
+              "mean": 2116.533,
+              "min": 1850.6,
+              "max": 2406
+            },
+            "eventLoopUtilization": {
+              "mean": 0.358,
+              "min": 0.281,
+              "max": 0.505
+            },
+            "immediateLagP99Ms": {
+              "mean": 3.044,
+              "min": 0.466,
+              "max": 6.827
+            },
+            "logFsyncsPerSec": {
+              "mean": 99.967,
+              "min": 99.9,
+              "max": 100
+            },
+            "metaSavesPerSec": {
+              "mean": 86.933,
+              "min": 80.3,
+              "max": 90.5
+            },
+            "appendEntriesPerSec": {
+              "mean": 168.367,
+              "min": 146.9,
+              "max": 180.4
+            },
+            "heartbeatsPerSec": {
+              "mean": 71.8,
+              "min": 35.3,
+              "max": 92.2
+            },
+            "entriesPerAppendMean": {
+              "mean": 1.198,
+              "min": 1.108,
+              "max": 1.362
+            },
+            "entriesPerFsyncMean": {
+              "mean": 1,
+              "min": 1,
+              "max": 1
+            },
+            "peakRssBytes": {
+              "mean": 195999061.333,
+              "min": 191934464,
+              "max": 201175040
+            },
+            "admitToCommitP99Ms": {
+              "mean": 17.279,
+              "min": 12.191,
+              "max": 23.039
+            },
+            "uncommittedEntriesP99": {
+              "mean": 0.002,
+              "min": 0.002,
+              "max": 0.003
+            }
+          },
+          "followers": {
+            "cpuPercentOfOneCore": {
+              "mean": 11.5,
+              "min": 9.2,
+              "max": 13.35
+            },
+            "logFsyncsPerSec": {
+              "mean": 84.183,
+              "min": 73.45,
+              "max": 90.2
+            },
+            "metaSavesPerSec": {
+              "mean": 84.633,
+              "min": 73.4,
+              "max": 90.5
+            }
+          },
+          "cluster": {
+            "logFsyncsPerSec": {
+              "mean": 268.333,
+              "min": 246.9,
+              "max": 280.4
+            },
+            "metaSavesPerSec": {
+              "mean": 256.2,
+              "min": 227.1,
+              "max": 271.5
+            },
+            "replicationBytesPerOp": {
+              "mean": 3853.667,
+              "min": 3460.6,
+              "max": 4073.2
+            },
+            "clientBytesPerOp": {
+              "mean": 1478.5,
+              "min": 1478,
+              "max": 1479.4
+            }
+          }
+        },
+        {
+          "phase": "knee-fraction",
+          "rate": 150,
+          "repetitions": 3,
+          "runIds": [
+            "996ae3ba5fea",
+            "08fb4ce55645",
+            "d3f4f3207e38"
+          ],
+          "stableVotes": 2,
+          "stable": true,
+          "instabilityReasons": [
+            [
+              "latency grew 4.68x across the window"
+            ]
+          ],
+          "generatorSaturated": false,
+          "leadershipChanged": false,
+          "achievedPerSec": {
+            "mean": 150.033,
+            "min": 149.8,
+            "max": 150.2
+          },
+          "achievedRatio": {
+            "mean": 1,
+            "min": 0.999,
+            "max": 1.001
+          },
+          "errorRate": {
+            "mean": 0,
+            "min": 0,
+            "max": 0
+          },
+          "latencyAllMs": {
+            "count": 9000,
+            "min": 2.493,
+            "mean": 20.663117555555555,
+            "p50": 23.471,
+            "p90": 34.687,
+            "p95": 37.599,
+            "p99": 42.559,
+            "p999": 48.927,
+            "max": 54.896
+          },
+          "latencyOkMs": {
+            "count": 9000,
+            "min": 2.493,
+            "mean": 20.663117555555555,
+            "p50": 23.471,
+            "p90": 34.687,
+            "p95": 37.599,
+            "p99": 42.559,
+            "p999": 48.927,
+            "max": 54.896
+          },
+          "p99AllMsPerRep": [
+            42.111,
+            44.543,
+            34.655
+          ],
+          "p50AllMsPerRep": [
+            26.943,
+            27.903,
+            4.383
+          ],
+          "serviceOkP99Ms": {
+            "mean": 40.33,
+            "min": 34.559,
+            "max": 44.447
+          },
+          "clientQueueDepthP99": {
+            "mean": 0,
+            "min": 0,
+            "max": 0
+          },
+          "leader": {
+            "cpuPercentOfOneCore": {
+              "mean": 20.6,
+              "min": 16.9,
+              "max": 26.7
+            },
+            "cpuMicrosPerOp": {
+              "mean": 1373.233,
+              "min": 1124.6,
+              "max": 1779.9
+            },
+            "eventLoopUtilization": {
+              "mean": 0.689,
+              "min": 0.447,
+              "max": 0.823
+            },
+            "immediateLagP99Ms": {
+              "mean": 10.898,
+              "min": 8.375,
+              "max": 13.095
+            },
+            "logFsyncsPerSec": {
+              "mean": 150,
+              "min": 149.9,
+              "max": 150.1
+            },
+            "metaSavesPerSec": {
+              "mean": 94.067,
+              "min": 74.8,
+              "max": 124.5
+            },
+            "appendEntriesPerSec": {
+              "mean": 159.4,
+              "min": 108.3,
+              "max": 241.3
+            },
+            "heartbeatsPerSec": {
+              "mean": 26.333,
+              "min": 0,
+              "max": 68.3
+            },
+            "entriesPerAppendMean": {
+              "mean": 2.115,
+              "min": 1.242,
+              "max": 2.769
+            },
+            "entriesPerFsyncMean": {
+              "mean": 1,
+              "min": 1,
+              "max": 1
+            },
+            "peakRssBytes": {
+              "mean": 189310293.333,
+              "min": 166518784,
+              "max": 210268160
+            },
+            "admitToCommitP99Ms": {
+              "mean": 29.146,
+              "min": 25.711,
+              "max": 31.247
+            },
+            "uncommittedEntriesP99": {
+              "mean": 0.005,
+              "min": 0.004,
+              "max": 0.005
+            }
+          },
+          "followers": {
+            "cpuPercentOfOneCore": {
+              "mean": 9.783,
+              "min": 7.45,
+              "max": 14
+            },
+            "logFsyncsPerSec": {
+              "mean": 79.7,
+              "min": 54.2,
+              "max": 120.65
+            },
+            "metaSavesPerSec": {
+              "mean": 80.033,
+              "min": 54.2,
+              "max": 121.6
+            }
+          },
+          "cluster": {
+            "logFsyncsPerSec": {
+              "mean": 309.4,
+              "min": 258.4,
+              "max": 391.2
+            },
+            "metaSavesPerSec": {
+              "mean": 254.133,
+              "min": 183.2,
+              "max": 367.7
+            },
+            "replicationBytesPerOp": {
+              "mean": 3064.867,
+              "min": 2715.6,
+              "max": 3624.7
+            },
+            "clientBytesPerOp": {
+              "mean": 1479.4,
+              "min": 1477.5,
+              "max": 1481.5
+            }
+          }
+        },
+        {
+          "phase": "ladder",
+          "rate": 200,
+          "repetitions": 3,
+          "runIds": [
+            "1c0e8a3418c0",
+            "9df5da049020",
+            "bf0e37b41e94"
+          ],
+          "stableVotes": 2,
+          "stable": true,
+          "instabilityReasons": [
+            [
+              "latency grew 5.83x across the window"
+            ]
+          ],
+          "generatorSaturated": false,
+          "leadershipChanged": false,
+          "achievedPerSec": {
+            "mean": 199.967,
+            "min": 199.8,
+            "max": 200.1
+          },
+          "achievedRatio": {
+            "mean": 1,
+            "min": 0.999,
+            "max": 1
+          },
+          "errorRate": {
+            "mean": 0,
+            "min": 0,
+            "max": 0
+          },
+          "latencyAllMs": {
+            "count": 12000,
+            "min": 2.768,
+            "mean": 19.724687666666664,
+            "p50": 21.839,
+            "p90": 34.879,
+            "p95": 38.367,
+            "p99": 46.559,
+            "p999": 54.271,
+            "max": 57.273
+          },
+          "latencyOkMs": {
+            "count": 12000,
+            "min": 2.768,
+            "mean": 19.724687666666664,
+            "p50": 21.839,
+            "p90": 34.879,
+            "p95": 38.367,
+            "p99": 46.559,
+            "p999": 54.271,
+            "max": 57.273
+          },
+          "p99AllMsPerRep": [
+            14.479,
+            46.303,
+            48.991
+          ],
+          "p50AllMsPerRep": [
+            4.775,
+            25.967,
+            28.079
+          ],
+          "serviceOkP99Ms": {
+            "mean": 36.479,
+            "min": 14.367,
+            "max": 48.895
+          },
+          "clientQueueDepthP99": {
+            "mean": 0,
+            "min": 0,
+            "max": 0
+          },
+          "leader": {
+            "cpuPercentOfOneCore": {
+              "mean": 23.967,
+              "min": 18.9,
+              "max": 34.1
+            },
+            "cpuMicrosPerOp": {
+              "mean": 1198.067,
+              "min": 944.8,
+              "max": 1703
+            },
+            "eventLoopUtilization": {
+              "mean": 0.739,
+              "min": 0.431,
+              "max": 0.935
+            },
+            "immediateLagP99Ms": {
+              "mean": 10.028,
+              "min": 1.814,
+              "max": 14.647
+            },
+            "logFsyncsPerSec": {
+              "mean": 199.833,
+              "min": 199.8,
+              "max": 199.9
+            },
+            "metaSavesPerSec": {
+              "mean": 116.567,
+              "min": 89.2,
+              "max": 154.8
+            },
+            "appendEntriesPerSec": {
+              "mean": 189.267,
+              "min": 111.8,
+              "max": 297.9
+            },
+            "heartbeatsPerSec": {
+              "mean": 15.1,
+              "min": 0,
+              "max": 34.5
+            },
+            "entriesPerAppendMean": {
+              "mean": 2.482,
+              "min": 1.342,
+              "max": 3.576
+            },
+            "entriesPerFsyncMean": {
+              "mean": 1,
+              "min": 1,
+              "max": 1
+            },
+            "peakRssBytes": {
+              "mean": 205223253.333,
+              "min": 194863104,
+              "max": 222449664
+            },
+            "admitToCommitP99Ms": {
+              "mean": 25.89,
+              "min": 12.519,
+              "max": 33.471
+            },
+            "uncommittedEntriesP99": {
+              "mean": 0.006,
+              "min": 0.003,
+              "max": 0.007
+            }
+          },
+          "followers": {
+            "cpuPercentOfOneCore": {
+              "mean": 11.9,
+              "min": 7.5,
+              "max": 17
+            },
+            "logFsyncsPerSec": {
+              "mean": 94.65,
+              "min": 55.95,
+              "max": 148.95
+            },
+            "metaSavesPerSec": {
+              "mean": 96.167,
+              "min": 55.95,
+              "max": 152.15
+            }
+          },
+          "cluster": {
+            "logFsyncsPerSec": {
+              "mean": 389.133,
+              "min": 311.8,
+              "max": 497.7
+            },
+            "metaSavesPerSec": {
+              "mean": 308.9,
+              "min": 201.1,
+              "max": 459.1
+            },
+            "replicationBytesPerOp": {
+              "mean": 2917.3,
+              "min": 2601.2,
+              "max": 3352.6
+            },
+            "clientBytesPerOp": {
+              "mean": 1479.133,
+              "min": 1478.5,
+              "max": 1480.4
+            }
+          }
+        },
+        {
+          "phase": "knee-fraction",
+          "rate": 240,
+          "repetitions": 3,
+          "runIds": [
+            "5736b9535c09",
+            "b231f2497036",
+            "c6e77cac77b4"
+          ],
+          "stableVotes": 3,
+          "stable": true,
+          "instabilityReasons": [],
+          "generatorSaturated": false,
+          "leadershipChanged": false,
+          "achievedPerSec": {
+            "mean": 239.933,
+            "min": 239.6,
+            "max": 240.4
+          },
+          "achievedRatio": {
+            "mean": 1,
+            "min": 0.998,
+            "max": 1.002
+          },
+          "errorRate": {
+            "mean": 0,
+            "min": 0,
+            "max": 0
+          },
+          "latencyAllMs": {
+            "count": 14400,
+            "min": 2.81,
+            "mean": 23.606396250000003,
+            "p50": 6.891,
+            "p90": 57.439,
+            "p95": 61.503,
+            "p99": 70.143,
+            "p999": 75.903,
+            "max": 84.877
+          },
+          "latencyOkMs": {
+            "count": 14400,
+            "min": 2.81,
+            "mean": 23.606396250000003,
+            "p50": 6.891,
+            "p90": 57.439,
+            "p95": 61.503,
+            "p99": 70.143,
+            "p999": 75.903,
+            "max": 84.877
+          },
+          "p99AllMsPerRep": [
+            9.687,
+            73.599,
+            48.767
+          ],
+          "p50AllMsPerRep": [
+            5.195,
+            53.151,
+            5.427
+          ],
+          "serviceOkP99Ms": {
+            "mean": 43.938,
+            "min": 9.607,
+            "max": 73.535
+          },
+          "clientQueueDepthP99": {
+            "mean": 0,
+            "min": 0,
+            "max": 0
+          },
+          "leader": {
+            "cpuPercentOfOneCore": {
+              "mean": 30.367,
+              "min": 18.4,
+              "max": 37
+            },
+            "cpuMicrosPerOp": {
+              "mean": 1266.133,
+              "min": 769.6,
+              "max": 1540.2
+            },
+            "eventLoopUtilization": {
+              "mean": 0.736,
+              "min": 0.556,
+              "max": 1
+            },
+            "immediateLagP99Ms": {
+              "mean": 12.638,
+              "min": 2.043,
+              "max": 21.599
+            },
+            "logFsyncsPerSec": {
+              "mean": 240,
+              "min": 239.9,
+              "max": 240.1
+            },
+            "metaSavesPerSec": {
+              "mean": 151.9,
+              "min": 66.5,
+              "max": 205.3
+            },
+            "appendEntriesPerSec": {
+              "mean": 260.833,
+              "min": 66.7,
+              "max": 384
+            },
+            "heartbeatsPerSec": {
+              "mean": 26.667,
+              "min": 0,
+              "max": 45.1
+            },
+            "entriesPerAppendMean": {
+              "mean": 3.298,
+              "min": 1.25,
+              "max": 7.198
+            },
+            "entriesPerFsyncMean": {
+              "mean": 1,
+              "min": 1,
+              "max": 1
+            },
+            "peakRssBytes": {
+              "mean": 216438101.333,
+              "min": 197918720,
+              "max": 240947200
+            },
+            "admitToCommitP99Ms": {
+              "mean": 29.674,
+              "min": 7.903,
+              "max": 48.895
+            },
+            "uncommittedEntriesP99": {
+              "mean": 0.007,
+              "min": 0.002,
+              "max": 0.012
+            }
+          },
+          "followers": {
+            "cpuPercentOfOneCore": {
+              "mean": 16.283,
+              "min": 4.95,
+              "max": 23.85
+            },
+            "logFsyncsPerSec": {
+              "mean": 130.433,
+              "min": 33.35,
+              "max": 192
+            },
+            "metaSavesPerSec": {
+              "mean": 133.967,
+              "min": 33.35,
+              "max": 197
+            }
+          },
+          "cluster": {
+            "logFsyncsPerSec": {
+              "mean": 500.867,
+              "min": 306.6,
+              "max": 624
+            },
+            "metaSavesPerSec": {
+              "mean": 419.833,
+              "min": 133.2,
+              "max": 599.3
+            },
+            "replicationBytesPerOp": {
+              "mean": 3038.2,
+              "min": 2413,
+              "max": 3441.6
+            },
+            "clientBytesPerOp": {
+              "mean": 1480.033,
+              "min": 1477.7,
+              "max": 1481.7
+            }
+          }
+        },
+        {
+          "phase": "ladder",
+          "rate": 300,
+          "repetitions": 3,
+          "runIds": [
+            "5bb4200f8af8",
+            "f0a494f35664",
+            "ded7c4110adb"
+          ],
+          "stableVotes": 3,
+          "stable": true,
+          "instabilityReasons": [],
+          "generatorSaturated": false,
+          "leadershipChanged": false,
+          "achievedPerSec": {
+            "mean": 299.8,
+            "min": 299.5,
+            "max": 300
+          },
+          "achievedRatio": {
+            "mean": 0.999,
+            "min": 0.998,
+            "max": 1
+          },
+          "errorRate": {
+            "mean": 0,
+            "min": 0,
+            "max": 0
+          },
+          "latencyAllMs": {
+            "count": 18000,
+            "min": 2.74,
+            "mean": 37.41313022222222,
+            "p50": 47.551,
+            "p90": 64.575,
+            "p95": 69.695,
+            "p99": 78.783,
+            "p999": 86.783,
+            "max": 96.095
+          },
+          "latencyOkMs": {
+            "count": 18000,
+            "min": 2.74,
+            "mean": 37.41313022222222,
+            "p50": 47.551,
+            "p90": 64.575,
+            "p95": 69.695,
+            "p99": 78.783,
+            "p999": 86.783,
+            "max": 96.095
+          },
+          "p99AllMsPerRep": [
+            81.663,
+            10.463,
+            79.487
+          ],
+          "p50AllMsPerRep": [
+            53.343,
+            5.999,
+            53.567
+          ],
+          "serviceOkP99Ms": {
+            "mean": 57.09,
+            "min": 10.375,
+            "max": 81.535
+          },
+          "clientQueueDepthP99": {
+            "mean": 0,
+            "min": 0,
+            "max": 0
+          },
+          "leader": {
+            "cpuPercentOfOneCore": {
+              "mean": 29.133,
+              "min": 21.7,
+              "max": 43.3
+            },
+            "cpuMicrosPerOp": {
+              "mean": 971.033,
+              "min": 725.2,
+              "max": 1443.1
+            },
+            "eventLoopUtilization": {
+              "mean": 0.872,
+              "min": 0.643,
+              "max": 1
+            },
+            "immediateLagP99Ms": {
+              "mean": 19.446,
+              "min": 2.421,
+              "max": 27.967
+            },
+            "logFsyncsPerSec": {
+              "mean": 299.867,
+              "min": 299.8,
+              "max": 299.9
+            },
+            "metaSavesPerSec": {
+              "mean": 120.233,
+              "min": 67,
+              "max": 216.1
+            },
+            "appendEntriesPerSec": {
+              "mean": 181.6,
+              "min": 66.9,
+              "max": 386.4
+            },
+            "heartbeatsPerSec": {
+              "mean": 13.8,
+              "min": 0,
+              "max": 38
+            },
+            "entriesPerAppendMean": {
+              "mean": 5.69,
+              "min": 1.553,
+              "max": 8.965
+            },
+            "entriesPerFsyncMean": {
+              "mean": 1,
+              "min": 1,
+              "max": 1
+            },
+            "peakRssBytes": {
+              "mean": 212623360,
+              "min": 196902912,
+              "max": 239681536
+            },
+            "admitToCommitP99Ms": {
+              "mean": 37.376,
+              "min": 7.619,
+              "max": 52.703
+            },
+            "uncommittedEntriesP99": {
+              "mean": 0.012,
+              "min": 0.003,
+              "max": 0.016
+            }
+          },
+          "followers": {
+            "cpuPercentOfOneCore": {
+              "mean": 12.9,
+              "min": 5.35,
+              "max": 26.1
+            },
+            "logFsyncsPerSec": {
+              "mean": 90.833,
+              "min": 33.5,
+              "max": 193.25
+            },
+            "metaSavesPerSec": {
+              "mean": 89.867,
+              "min": 33.5,
+              "max": 190.6
+            }
+          },
+          "cluster": {
+            "logFsyncsPerSec": {
+              "mean": 481.533,
+              "min": 366.8,
+              "max": 686.4
+            },
+            "metaSavesPerSec": {
+              "mean": 299.967,
+              "min": 134,
+              "max": 597.3
+            },
+            "replicationBytesPerOp": {
+              "mean": 2666.233,
+              "min": 2375.1,
+              "max": 3187
+            },
+            "clientBytesPerOp": {
+              "mean": 1480.2,
+              "min": 1479.2,
+              "max": 1481.3
+            }
+          }
+        },
+        {
+          "phase": "ladder",
+          "rate": 500,
+          "repetitions": 3,
+          "runIds": [
+            "327b1d04daaf",
+            "aef75162c3f4",
+            "cac827bc2a67"
+          ],
+          "stableVotes": 1,
+          "stable": false,
+          "instabilityReasons": [
+            [
+              "achieved 92% of offered",
+              "p99 2566.143 ms",
+              "latency grew 4.94x across the window"
+            ],
+            [
+              "achieved 88.3% of offered",
+              "p99 3706.879 ms",
+              "latency grew 2.47x across the window"
+            ]
+          ],
+          "generatorSaturated": false,
+          "leadershipChanged": false,
+          "achievedPerSec": {
+            "mean": 467.2,
+            "min": 441.6,
+            "max": 500
+          },
+          "achievedRatio": {
+            "mean": 0.934,
+            "min": 0.883,
+            "max": 1
+          },
+          "errorRate": {
+            "mean": 0,
+            "min": 0,
+            "max": 0
+          },
+          "latencyAllMs": {
+            "count": 30000,
+            "min": 4.033,
+            "mean": 1152.3229770666667,
+            "p50": 730.111,
+            "p90": 3026.943,
+            "p95": 3497.983,
+            "p99": 3676.159,
+            "p999": 3727.359,
+            "max": 3740.955
+          },
+          "latencyOkMs": {
+            "count": 30000,
+            "min": 4.033,
+            "mean": 1152.3229770666667,
+            "p50": 730.111,
+            "p90": 3026.943,
+            "p95": 3497.983,
+            "p99": 3676.159,
+            "p999": 3727.359,
+            "max": 3740.955
+          },
+          "p99AllMsPerRep": [
+            15.447,
+            2566.143,
+            3706.879
+          ],
+          "p50AllMsPerRep": [
+            7.967,
+            730.111,
+            2381.823
+          ],
+          "serviceOkP99Ms": {
+            "mean": 233.122,
+            "min": 15.335,
+            "max": 367.871
+          },
+          "clientQueueDepthP99": {
+            "mean": 202.333,
+            "min": 0,
+            "max": 393
+          },
+          "leader": {
+            "cpuPercentOfOneCore": {
+              "mean": 33.133,
+              "min": 22.1,
+              "max": 53.5
+            },
+            "cpuMicrosPerOp": {
+              "mean": 696.367,
+              "min": 502.4,
+              "max": 1070.4
+            },
+            "eventLoopUtilization": {
+              "mean": 0.962,
+              "min": 0.885,
+              "max": 1
+            },
+            "immediateLagP99Ms": {
+              "mean": 59.894,
+              "min": 4.435,
+              "max": 163.455
+            },
+            "logFsyncsPerSec": {
+              "mean": 466.467,
+              "min": 441.6,
+              "max": 499.9
+            },
+            "metaSavesPerSec": {
+              "mean": 96.867,
+              "min": 6.9,
+              "max": 269.4
+            },
+            "appendEntriesPerSec": {
+              "mean": 135.967,
+              "min": 13.8,
+              "max": 379.8
+            },
+            "heartbeatsPerSec": {
+              "mean": 0,
+              "min": 0,
+              "max": 0
+            },
+            "entriesPerAppendMean": {
+              "mean": 43.658,
+              "min": 2.633,
+              "max": 64.34
+            },
+            "entriesPerFsyncMean": {
+              "mean": 1,
+              "min": 1,
+              "max": 1
+            },
+            "peakRssBytes": {
+              "mean": 226239829.333,
+              "min": 210325504,
+              "max": 255344640
+            },
+            "admitToCommitP99Ms": {
+              "mean": 181.199,
+              "min": 9.967,
+              "max": 290.303
+            },
+            "uncommittedEntriesP99": {
+              "mean": 0.08,
+              "min": 0.005,
+              "max": 0.128
+            }
+          },
+          "followers": {
+            "cpuPercentOfOneCore": {
+              "mean": 10,
+              "min": 2.25,
+              "max": 24.95
+            },
+            "logFsyncsPerSec": {
+              "mean": 68,
+              "min": 6.9,
+              "max": 189.9
+            },
+            "metaSavesPerSec": {
+              "mean": 68,
+              "min": 6.9,
+              "max": 189.9
+            }
+          },
+          "cluster": {
+            "logFsyncsPerSec": {
+              "mean": 602.467,
+              "min": 455.4,
+              "max": 879.7
+            },
+            "metaSavesPerSec": {
+              "mean": 232.867,
+              "min": 20.7,
+              "max": 649.2
+            },
+            "replicationBytesPerOp": {
+              "mean": 2408.933,
+              "min": 2243,
+              "max": 2740.4
+            },
+            "clientBytesPerOp": {
+              "mean": 1477.733,
+              "min": 1473.3,
+              "max": 1480
+            }
+          }
+        },
+        {
+          "phase": "ladder",
+          "rate": 750,
+          "repetitions": 3,
+          "runIds": [
+            "58e24578f73d",
+            "0ae31e298bfa",
+            "73759e68b54b"
+          ],
+          "stableVotes": 1,
+          "stable": false,
+          "instabilityReasons": [
+            [
+              "p99 5382.143 ms"
+            ],
+            [
+              "achieved 54.2% of offered",
+              "error rate 26.01%",
+              "p99 10002.431 ms",
+              "latency grew 15.06x across the window"
+            ]
+          ],
+          "generatorSaturated": true,
+          "leadershipChanged": true,
+          "achievedPerSec": {
+            "mean": 657.967,
+            "min": 406.6,
+            "max": 817
+          },
+          "achievedRatio": {
+            "mean": 0.877,
+            "min": 0.542,
+            "max": 1.089
+          },
+          "errorRate": {
+            "mean": 0.087,
+            "min": 0,
+            "max": 0.26
+          },
+          "latencyAllMs": {
+            "count": 45000,
+            "min": 0.273,
+            "mean": 2629.3287274000004,
+            "p50": 1560.575,
+            "p90": 8032.255,
+            "p95": 9207.807,
+            "p99": 10002.431,
+            "p999": 10002.431,
+            "max": 10027.624
+          },
+          "latencyOkMs": {
+            "count": 41099,
+            "min": 9.244,
+            "mean": 2406.4143982092023,
+            "p50": 1427.455,
+            "p90": 6508.543,
+            "p95": 8577.023,
+            "p99": 9658.367,
+            "p999": 9977.855,
+            "max": 10027.624
+          },
+          "p99AllMsPerRep": [
+            5382.143,
+            25.135,
+            10002.431
+          ],
+          "p50AllMsPerRep": [
+            3119.103,
+            16.479,
+            4911.103
+          ],
+          "serviceOkP99Ms": {
+            "mean": 214.692,
+            "min": 25.071,
+            "max": 345.599
+          },
+          "clientQueueDepthP99": {
+            "mean": 755.333,
+            "min": 0,
+            "max": 1292
+          },
+          "leader": {
+            "cpuPercentOfOneCore": {
+              "mean": 44.633,
+              "min": 25.6,
+              "max": 66.2
+            },
+            "cpuMicrosPerOp": {
+              "mean": 673.867,
+              "min": 513.5,
+              "max": 881.9
+            },
+            "eventLoopUtilization": {
+              "mean": 0.995,
+              "min": 0.985,
+              "max": 1
+            },
+            "immediateLagP99Ms": {
+              "mean": 70.647,
+              "min": 8.279,
+              "max": 190.847
+            },
+            "logFsyncsPerSec": {
+              "mean": 657.533,
+              "min": 412.1,
+              "max": 811
+            },
+            "metaSavesPerSec": {
+              "mean": 86.567,
+              "min": 12.9,
+              "max": 208.6
+            },
+            "appendEntriesPerSec": {
+              "mean": 90.333,
+              "min": 13.1,
+              "max": 208.5
+            },
+            "heartbeatsPerSec": {
+              "mean": 0,
+              "min": 0,
+              "max": 0
+            },
+            "entriesPerAppendMean": {
+              "mean": 34.592,
+              "min": 7.19,
+              "max": 63.634
+            },
+            "entriesPerFsyncMean": {
+              "mean": 1,
+              "min": 1,
+              "max": 1
+            },
+            "peakRssBytes": {
+              "mean": 228877653.333,
+              "min": 210149376,
+              "max": 240201728
+            },
+            "admitToCommitP99Ms": {
+              "mean": 169.578,
+              "min": 15.423,
+              "max": 248.319
+            },
+            "uncommittedEntriesP99": {
+              "mean": 0.09,
+              "min": 0.013,
+              "max": 0.128
+            }
+          },
+          "followers": {
+            "cpuPercentOfOneCore": {
+              "mean": 9.567,
+              "min": 3.25,
+              "max": 19.35
+            },
+            "logFsyncsPerSec": {
+              "mean": 45.133,
+              "min": 6.5,
+              "max": 104.3
+            },
+            "metaSavesPerSec": {
+              "mean": 45.133,
+              "min": 6.5,
+              "max": 104.3
+            }
+          },
+          "cluster": {
+            "logFsyncsPerSec": {
+              "mean": 747.8,
+              "min": 425.1,
+              "max": 958.1
+            },
+            "metaSavesPerSec": {
+              "mean": 176.833,
+              "min": 25.9,
+              "max": 417.2
+            },
+            "replicationBytesPerOp": {
+              "mean": 2322.1,
+              "min": 2255,
+              "max": 2411.5
+            },
+            "clientBytesPerOp": {
+              "mean": 1651.533,
+              "min": 1471.1,
+              "max": 2004.1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "config": "baseline",
+      "payloadBytes": 16384,
+      "knee": {
+        "kneeRate": 300,
+        "maxStableThroughputPerSec": 297.3,
+        "p99AtKneeMs": 748.543,
+        "firstUnstableRate": 500,
+        "peakAchievedPerSecAnyRate": 441.5
+      },
+      "points": [
+        {
+          "phase": "ladder",
+          "rate": 100,
+          "repetitions": 3,
+          "runIds": [
+            "71b3e6e60af6",
+            "54d8a7c9bfb9",
+            "1f16e0b0eaff"
+          ],
+          "stableVotes": 3,
+          "stable": true,
+          "instabilityReasons": [],
+          "generatorSaturated": false,
+          "leadershipChanged": false,
+          "achievedPerSec": {
+            "mean": 100.033,
+            "min": 100,
+            "max": 100.1
+          },
+          "achievedRatio": {
+            "mean": 1,
+            "min": 1,
+            "max": 1.001
+          },
+          "errorRate": {
+            "mean": 0,
+            "min": 0,
+            "max": 0
+          },
+          "latencyAllMs": {
+            "count": 6000,
+            "min": 3.333,
+            "mean": 21.167051,
+            "p50": 21.231,
+            "p90": 29.631,
+            "p95": 31.983,
+            "p99": 38.239,
+            "p999": 105.151,
+            "max": 169.692
+          },
+          "latencyOkMs": {
+            "count": 6000,
+            "min": 3.333,
+            "mean": 21.167051,
+            "p50": 21.231,
+            "p90": 29.631,
+            "p95": 31.983,
+            "p99": 38.239,
+            "p999": 105.151,
+            "max": 169.692
+          },
+          "p99AllMsPerRep": [
+            38.623,
+            36.127,
+            38.527
+          ],
+          "p50AllMsPerRep": [
+            23.071,
+            21.375,
+            19.119
+          ],
+          "serviceOkP99Ms": {
+            "mean": 36.479,
+            "min": 35.295,
+            "max": 38.271
+          },
+          "clientQueueDepthP99": {
+            "mean": 0,
+            "min": 0,
+            "max": 0
+          },
+          "leader": {
+            "cpuPercentOfOneCore": {
+              "mean": 25.5,
+              "min": 24.3,
+              "max": 27.2
+            },
+            "cpuMicrosPerOp": {
+              "mean": 2549.033,
+              "min": 2430,
+              "max": 2715.8
+            },
+            "eventLoopUtilization": {
+              "mean": 0.668,
+              "min": 0.611,
+              "max": 0.712
+            },
+            "immediateLagP99Ms": {
+              "mean": 9.959,
+              "min": 9.103,
+              "max": 10.575
+            },
+            "logFsyncsPerSec": {
+              "mean": 100,
+              "min": 100,
+              "max": 100
+            },
+            "metaSavesPerSec": {
+              "mean": 73.533,
+              "min": 71,
+              "max": 77.5
+            },
+            "appendEntriesPerSec": {
+              "mean": 123.133,
+              "min": 114.7,
+              "max": 135.9
+            },
+            "heartbeatsPerSec": {
+              "mean": 12.9,
+              "min": 3.2,
+              "max": 28.5
+            },
+            "entriesPerAppendMean": {
+              "mean": 1.633,
+              "min": 1.472,
+              "max": 1.744
+            },
+            "entriesPerFsyncMean": {
+              "mean": 1,
+              "min": 1,
+              "max": 1
+            },
+            "peakRssBytes": {
+              "mean": 217899008,
+              "min": 211664896,
+              "max": 229109760
+            },
+            "admitToCommitP99Ms": {
+              "mean": 28.074,
+              "min": 26.575,
+              "max": 29.359
+            },
+            "uncommittedEntriesP99": {
+              "mean": 0.003,
+              "min": 0.003,
+              "max": 0.004
+            }
+          },
+          "followers": {
+            "cpuPercentOfOneCore": {
+              "mean": 12.133,
+              "min": 10.5,
+              "max": 14.55
+            },
+            "logFsyncsPerSec": {
+              "mean": 61.583,
+              "min": 57.3,
+              "max": 68.05
+            },
+            "metaSavesPerSec": {
+              "mean": 61.383,
+              "min": 57.25,
+              "max": 68.1
+            }
+          },
+          "cluster": {
+            "logFsyncsPerSec": {
+              "mean": 223.167,
+              "min": 214.6,
+              "max": 236.1
+            },
+            "metaSavesPerSec": {
+              "mean": 196.3,
+              "min": 185.5,
+              "max": 213.7
+            },
+            "replicationBytesPerOp": {
+              "mean": 33862.633,
+              "min": 33761.3,
+              "max": 34052.6
+            },
+            "clientBytesPerOp": {
+              "mean": 16840.467,
+              "min": 16823.9,
+              "max": 16857.1
+            }
+          }
+        },
+        {
+          "phase": "knee-fraction",
+          "rate": 150,
+          "repetitions": 3,
+          "runIds": [
+            "e738ce6d1522",
+            "9bef79a66d77",
+            "b9e78a1a7966"
+          ],
+          "stableVotes": 3,
+          "stable": true,
+          "instabilityReasons": [],
+          "generatorSaturated": false,
+          "leadershipChanged": false,
+          "achievedPerSec": {
+            "mean": 149.967,
+            "min": 149.9,
+            "max": 150
+          },
+          "achievedRatio": {
+            "mean": 1,
+            "min": 0.999,
+            "max": 1
+          },
+          "errorRate": {
+            "mean": 0,
+            "min": 0,
+            "max": 0
+          },
+          "latencyAllMs": {
+            "count": 9000,
+            "min": 2.74,
+            "mean": 4.8306904444444445,
+            "p50": 4.431,
+            "p90": 5.971,
+            "p95": 10.351,
+            "p99": 10.911,
+            "p999": 11.951,
+            "max": 17.158
+          },
+          "latencyOkMs": {
+            "count": 9000,
+            "min": 2.74,
+            "mean": 4.8306904444444445,
+            "p50": 4.431,
+            "p90": 5.971,
+            "p95": 10.351,
+            "p99": 10.911,
+            "p999": 11.951,
+            "max": 17.158
+          },
+          "p99AllMsPerRep": [
+            11.119,
+            10.775,
+            10.759
+          ],
+          "p50AllMsPerRep": [
+            4.531,
+            4.387,
+            4.415
+          ],
+          "serviceOkP99Ms": {
+            "mean": 10.767,
+            "min": 10.639,
+            "max": 10.999
+          },
+          "clientQueueDepthP99": {
+            "mean": 0,
+            "min": 0,
+            "max": 0
+          },
+          "leader": {
+            "cpuPercentOfOneCore": {
+              "mean": 29.267,
+              "min": 28.5,
+              "max": 29.8
+            },
+            "cpuMicrosPerOp": {
+              "mean": 1951.9,
+              "min": 1901,
+              "max": 1985.7
+            },
+            "eventLoopUtilization": {
+              "mean": 0.393,
+              "min": 0.389,
+              "max": 0.402
+            },
+            "immediateLagP99Ms": {
+              "mean": 0.737,
+              "min": 0.35,
+              "max": 1.352
+            },
+            "logFsyncsPerSec": {
+              "mean": 149.933,
+              "min": 149.9,
+              "max": 150
+            },
+            "metaSavesPerSec": {
+              "mean": 136.267,
+              "min": 135.9,
+              "max": 136.7
+            },
+            "appendEntriesPerSec": {
+              "mean": 269.867,
+              "min": 268.7,
+              "max": 271
+            },
+            "heartbeatsPerSec": {
+              "mean": 85.833,
+              "min": 84.7,
+              "max": 87.3
+            },
+            "entriesPerAppendMean": {
+              "mean": 1.112,
+              "min": 1.107,
+              "max": 1.116
+            },
+            "entriesPerFsyncMean": {
+              "mean": 1,
+              "min": 1,
+              "max": 1
+            },
+            "peakRssBytes": {
+              "mean": 258987349.333,
+              "min": 258068480,
+              "max": 259649536
+            },
+            "admitToCommitP99Ms": {
+              "mean": 9.071,
+              "min": 9.007,
+              "max": 9.199
+            },
+            "uncommittedEntriesP99": {
+              "mean": 0.002,
+              "min": 0.002,
+              "max": 0.002
+            }
+          },
+          "followers": {
+            "cpuPercentOfOneCore": {
+              "mean": 16.483,
+              "min": 15.75,
+              "max": 17.35
+            },
+            "logFsyncsPerSec": {
+              "mean": 134.95,
+              "min": 134.4,
+              "max": 135.5
+            },
+            "metaSavesPerSec": {
+              "mean": 136.25,
+              "min": 135.85,
+              "max": 136.7
+            }
+          },
+          "cluster": {
+            "logFsyncsPerSec": {
+              "mean": 419.833,
+              "min": 418.8,
+              "max": 420.9
+            },
+            "metaSavesPerSec": {
+              "mean": 408.767,
+              "min": 407.6,
+              "max": 410.1
+            },
+            "replicationBytesPerOp": {
+              "mean": 34565.533,
+              "min": 34545.4,
+              "max": 34593.5
+            },
+            "clientBytesPerOp": {
+              "mean": 16840.733,
+              "min": 16835.1,
+              "max": 16851.9
+            }
+          }
+        },
+        {
+          "phase": "ladder",
+          "rate": 200,
+          "repetitions": 3,
+          "runIds": [
+            "aa8dd29d787c",
+            "5064b54aa4f2",
+            "5c462a9927f4"
+          ],
+          "stableVotes": 2,
+          "stable": true,
+          "instabilityReasons": [
+            [
+              "latency grew 5.27x across the window"
+            ]
+          ],
+          "generatorSaturated": true,
+          "leadershipChanged": false,
+          "achievedPerSec": {
+            "mean": 199.9,
+            "min": 199.7,
+            "max": 200.1
+          },
+          "achievedRatio": {
+            "mean": 1,
+            "min": 0.999,
+            "max": 1
+          },
+          "errorRate": {
+            "mean": 0,
+            "min": 0,
+            "max": 0
+          },
+          "latencyAllMs": {
+            "count": 12000,
+            "min": 3.82,
+            "mean": 29.59236675,
+            "p50": 35.679,
+            "p90": 51.231,
+            "p95": 55.071,
+            "p99": 63.103,
+            "p999": 205.695,
+            "max": 295.597
+          },
+          "latencyOkMs": {
+            "count": 12000,
+            "min": 3.82,
+            "mean": 29.59236675,
+            "p50": 35.679,
+            "p90": 51.231,
+            "p95": 55.071,
+            "p99": 63.103,
+            "p999": 205.695,
+            "max": 295.597
+          },
+          "p99AllMsPerRep": [
+            90.687,
+            62.431,
+            62.975
+          ],
+          "p50AllMsPerRep": [
+            8.023,
+            40.255,
+            42.975
+          ],
+          "serviceOkP99Ms": {
+            "mean": 58.09,
+            "min": 49.055,
+            "max": 62.879
+          },
+          "clientQueueDepthP99": {
+            "mean": 0,
+            "min": 0,
+            "max": 0
+          },
+          "leader": {
+            "cpuPercentOfOneCore": {
+              "mean": 35.133,
+              "min": 26.4,
+              "max": 48.3
+            },
+            "cpuMicrosPerOp": {
+              "mean": 1757.2,
+              "min": 1319.6,
+              "max": 2414.4
+            },
+            "eventLoopUtilization": {
+              "mean": 0.841,
+              "min": 0.62,
+              "max": 0.999
+            },
+            "immediateLagP99Ms": {
+              "mean": 12.931,
+              "min": 2.651,
+              "max": 18.303
+            },
+            "logFsyncsPerSec": {
+              "mean": 199.933,
+              "min": 199.8,
+              "max": 200.1
+            },
+            "metaSavesPerSec": {
+              "mean": 106.733,
+              "min": 76.1,
+              "max": 151.6
+            },
+            "appendEntriesPerSec": {
+              "mean": 159.867,
+              "min": 76.8,
+              "max": 278.5
+            },
+            "heartbeatsPerSec": {
+              "mean": 16.433,
+              "min": 0,
+              "max": 39.3
+            },
+            "entriesPerAppendMean": {
+              "mean": 3.285,
+              "min": 1.436,
+              "max": 5.202
+            },
+            "entriesPerFsyncMean": {
+              "mean": 1,
+              "min": 1,
+              "max": 1
+            },
+            "peakRssBytes": {
+              "mean": 286037333.333,
+              "min": 228904960,
+              "max": 352227328
+            },
+            "admitToCommitP99Ms": {
+              "mean": 33.503,
+              "min": 17.247,
+              "max": 41.983
+            },
+            "uncommittedEntriesP99": {
+              "mean": 0.007,
+              "min": 0.003,
+              "max": 0.009
+            }
+          },
+          "followers": {
+            "cpuPercentOfOneCore": {
+              "mean": 16.967,
+              "min": 9.6,
+              "max": 26.8
+            },
+            "logFsyncsPerSec": {
+              "mean": 79.933,
+              "min": 38.5,
+              "max": 139.25
+            },
+            "metaSavesPerSec": {
+              "mean": 79.017,
+              "min": 38.5,
+              "max": 136.7
+            }
+          },
+          "cluster": {
+            "logFsyncsPerSec": {
+              "mean": 359.8,
+              "min": 276.8,
+              "max": 478.4
+            },
+            "metaSavesPerSec": {
+              "mean": 264.767,
+              "min": 153.1,
+              "max": 425
+            },
+            "replicationBytesPerOp": {
+              "mean": 33541.967,
+              "min": 33199.9,
+              "max": 34017.5
+            },
+            "clientBytesPerOp": {
+              "mean": 16842.2,
+              "min": 16819.9,
+              "max": 16870.1
+            }
+          }
+        },
+        {
+          "phase": "knee-fraction",
+          "rate": 240,
+          "repetitions": 3,
+          "runIds": [
+            "fe0e241b8fed",
+            "b2e24267d38c",
+            "4723e0311ebb"
+          ],
+          "stableVotes": 3,
+          "stable": true,
+          "instabilityReasons": [],
+          "generatorSaturated": false,
+          "leadershipChanged": false,
+          "achievedPerSec": {
+            "mean": 240.133,
+            "min": 240,
+            "max": 240.3
+          },
+          "achievedRatio": {
+            "mean": 1,
+            "min": 1,
+            "max": 1.001
+          },
+          "errorRate": {
+            "mean": 0,
+            "min": 0,
+            "max": 0
+          },
+          "latencyAllMs": {
+            "count": 14400,
+            "min": 3.325,
+            "mean": 41.475719375,
+            "p50": 53.759,
+            "p90": 66.943,
+            "p95": 71.359,
+            "p99": 78.911,
+            "p999": 84.415,
+            "max": 91.696
+          },
+          "latencyOkMs": {
+            "count": 14400,
+            "min": 3.325,
+            "mean": 41.475719375,
+            "p50": 53.759,
+            "p90": 66.943,
+            "p95": 71.359,
+            "p99": 78.911,
+            "p999": 84.415,
+            "max": 91.696
+          },
+          "p99AllMsPerRep": [
+            10.111,
+            78.847,
+            80.831
+          ],
+          "p50AllMsPerRep": [
+            5.615,
+            58.431,
+            58.623
+          ],
+          "serviceOkP99Ms": {
+            "mean": 56.503,
+            "min": 10.023,
+            "max": 80.767
+          },
+          "clientQueueDepthP99": {
+            "mean": 0,
+            "min": 0,
+            "max": 0
+          },
+          "leader": {
+            "cpuPercentOfOneCore": {
+              "mean": 28.733,
+              "min": 22.1,
+              "max": 41.6
+            },
+            "cpuMicrosPerOp": {
+              "mean": 1196.3,
+              "min": 920.1,
+              "max": 1731.9
+            },
+            "eventLoopUtilization": {
+              "mean": 0.862,
+              "min": 0.585,
+              "max": 1
+            },
+            "immediateLagP99Ms": {
+              "mean": 17.235,
+              "min": 1.963,
+              "max": 25.183
+            },
+            "logFsyncsPerSec": {
+              "mean": 239.833,
+              "min": 239.8,
+              "max": 239.9
+            },
+            "metaSavesPerSec": {
+              "mean": 104.367,
+              "min": 59,
+              "max": 194.9
+            },
+            "appendEntriesPerSec": {
+              "mean": 160.8,
+              "min": 59,
+              "max": 364.3
+            },
+            "heartbeatsPerSec": {
+              "mean": 13.067,
+              "min": 0,
+              "max": 39.2
+            },
+            "entriesPerAppendMean": {
+              "mean": 5.854,
+              "min": 1.317,
+              "max": 8.136
+            },
+            "entriesPerFsyncMean": {
+              "mean": 1,
+              "min": 1,
+              "max": 1
+            },
+            "peakRssBytes": {
+              "mean": 307687424,
+              "min": 252207104,
+              "max": 350121984
+            },
+            "admitToCommitP99Ms": {
+              "mean": 38.17,
+              "min": 8.207,
+              "max": 53.695
+            },
+            "uncommittedEntriesP99": {
+              "mean": 0.009,
+              "min": 0.002,
+              "max": 0.013
+            }
+          },
+          "followers": {
+            "cpuPercentOfOneCore": {
+              "mean": 14.183,
+              "min": 8.5,
+              "max": 25.25
+            },
+            "logFsyncsPerSec": {
+              "mean": 80.433,
+              "min": 29.5,
+              "max": 182.2
+            },
+            "metaSavesPerSec": {
+              "mean": 80.9,
+              "min": 29.5,
+              "max": 183.6
+            }
+          },
+          "cluster": {
+            "logFsyncsPerSec": {
+              "mean": 400.7,
+              "min": 298.8,
+              "max": 604.2
+            },
+            "metaSavesPerSec": {
+              "mean": 266.167,
+              "min": 118,
+              "max": 562.1
+            },
+            "replicationBytesPerOp": {
+              "mean": 33422.433,
+              "min": 33100,
+              "max": 34064.4
+            },
+            "clientBytesPerOp": {
+              "mean": 16823.5,
+              "min": 16816.7,
+              "max": 16830.4
+            }
+          }
+        },
+        {
+          "phase": "ladder",
+          "rate": 300,
+          "repetitions": 3,
+          "runIds": [
+            "41e8fb18a7f4",
+            "4f60c8b2587b",
+            "dfbcf4011e58"
+          ],
+          "stableVotes": 2,
+          "stable": true,
+          "instabilityReasons": [
+            [
+              "achieved 96.9% of offered",
+              "latency grew 4.25x across the window"
+            ]
+          ],
+          "generatorSaturated": false,
+          "leadershipChanged": false,
+          "achievedPerSec": {
+            "mean": 297.3,
+            "min": 290.8,
+            "max": 301.1
+          },
+          "achievedRatio": {
+            "mean": 0.991,
+            "min": 0.969,
+            "max": 1.004
+          },
+          "errorRate": {
+            "mean": 0,
+            "min": 0,
+            "max": 0
+          },
+          "latencyAllMs": {
+            "count": 18000,
+            "min": 3.719,
+            "mean": 64.73193561111111,
+            "p50": 10.159,
+            "p90": 138.879,
+            "p95": 173.567,
+            "p99": 748.543,
+            "p999": 874.495,
+            "max": 938.709
+          },
+          "latencyOkMs": {
+            "count": 18000,
+            "min": 3.719,
+            "mean": 64.73193561111111,
+            "p50": 10.159,
+            "p90": 138.879,
+            "p95": 173.567,
+            "p99": 748.543,
+            "p999": 874.495,
+            "max": 938.709
+          },
+          "p99AllMsPerRep": [
+            28.559,
+            13.759,
+            813.055
+          ],
+          "p50AllMsPerRep": [
+            9.303,
+            7.939,
+            119.935
+          ],
+          "serviceOkP99Ms": {
+            "mean": 212.172,
+            "min": 13.671,
+            "max": 594.431
+          },
+          "clientQueueDepthP99": {
+            "mean": 8.333,
+            "min": 0,
+            "max": 25
+          },
+          "leader": {
+            "cpuPercentOfOneCore": {
+              "mean": 51.733,
+              "min": 37.8,
+              "max": 60.6
+            },
+            "cpuMicrosPerOp": {
+              "mean": 1739.4,
+              "min": 1316.4,
+              "max": 2008.6
+            },
+            "eventLoopUtilization": {
+              "mean": 0.868,
+              "min": 0.79,
+              "max": 0.991
+            },
+            "immediateLagP99Ms": {
+              "mean": 71.168,
+              "min": 3.541,
+              "max": 205.567
+            },
+            "logFsyncsPerSec": {
+              "mean": 299,
+              "min": 297.1,
+              "max": 300
+            },
+            "metaSavesPerSec": {
+              "mean": 148.433,
+              "min": 37.3,
+              "max": 209.8
+            },
+            "appendEntriesPerSec": {
+              "mean": 222.867,
+              "min": 43.1,
+              "max": 323.7
+            },
+            "heartbeatsPerSec": {
+              "mean": 1.133,
+              "min": 0.3,
+              "max": 2.1
+            },
+            "entriesPerAppendMean": {
+              "mean": 5.818,
+              "min": 1.853,
+              "max": 13.613
+            },
+            "entriesPerFsyncMean": {
+              "mean": 1,
+              "min": 1,
+              "max": 1
+            },
+            "peakRssBytes": {
+              "mean": 383421098.667,
+              "min": 320294912,
+              "max": 415866880
+            },
+            "admitToCommitP99Ms": {
+              "mean": 149.596,
+              "min": 10.567,
+              "max": 419.327
+            },
+            "uncommittedEntriesP99": {
+              "mean": 0.045,
+              "min": 0.004,
+              "max": 0.128
+            }
+          },
+          "followers": {
+            "cpuPercentOfOneCore": {
+              "mean": 24.6,
+              "min": 12.45,
+              "max": 30.8
+            },
+            "logFsyncsPerSec": {
+              "mean": 111.45,
+              "min": 21.55,
+              "max": 161.85
+            },
+            "metaSavesPerSec": {
+              "mean": 111.2,
+              "min": 21.5,
+              "max": 161.4
+            }
+          },
+          "cluster": {
+            "logFsyncsPerSec": {
+              "mean": 521.9,
+              "min": 340.2,
+              "max": 623.6
+            },
+            "metaSavesPerSec": {
+              "mean": 370.833,
+              "min": 80.3,
+              "max": 532.6
+            },
+            "replicationBytesPerOp": {
+              "mean": 33536.8,
+              "min": 33338.2,
+              "max": 33679.8
+            },
+            "clientBytesPerOp": {
+              "mean": 16941.767,
+              "min": 16782.7,
+              "max": 17204.6
+            }
+          }
+        },
+        {
+          "phase": "ladder",
+          "rate": 500,
+          "repetitions": 3,
+          "runIds": [
+            "93aeb14ae150",
+            "641626b1a62b",
+            "472c878af9ba"
+          ],
+          "stableVotes": 0,
+          "stable": false,
+          "instabilityReasons": [
+            [
+              "achieved 44% of offered",
+              "error rate 53.81%",
+              "p99 10002.431 ms"
+            ],
+            [
+              "achieved 61.9% of offered",
+              "error rate 17.89%",
+              "p99 10002.431 ms"
+            ],
+            [
+              "p99 1506.303 ms"
+            ]
+          ],
+          "generatorSaturated": true,
+          "leadershipChanged": false,
+          "achievedPerSec": {
+            "mean": 340.733,
+            "min": 219.8,
+            "max": 492.8
+          },
+          "achievedRatio": {
+            "mean": 0.681,
+            "min": 0.44,
+            "max": 0.986
+          },
+          "errorRate": {
+            "mean": 0.239,
+            "min": 0,
+            "max": 0.538
+          },
+          "latencyAllMs": {
+            "count": 30000,
+            "min": 353.911,
+            "mean": 5937.0917847,
+            "p50": 7512.063,
+            "p90": 9764.863,
+            "p95": 10002.431,
+            "p99": 10002.431,
+            "p999": 10002.431,
+            "max": 10025.848
+          },
+          "latencyOkMs": {
+            "count": 22830,
+            "min": 353.911,
+            "mean": 5132.6492782303985,
+            "p50": 6238.207,
+            "p90": 9617.407,
+            "p95": 9773.055,
+            "p99": 9928.703,
+            "p999": 10002.431,
+            "max": 10025.848
+          },
+          "p99AllMsPerRep": [
+            10002.431,
+            10002.431,
+            1506.303
+          ],
+          "p50AllMsPerRep": [
+            8060.927,
+            8527.871,
+            1169.407
+          ],
+          "serviceOkP99Ms": {
+            "mean": 887.892,
+            "min": 313.087,
+            "max": 1602.559
+          },
+          "clientQueueDepthP99": {
+            "mean": 862.667,
+            "min": 157,
+            "max": 1220
+          },
+          "leader": {
+            "cpuPercentOfOneCore": {
+              "mean": 62.533,
+              "min": 51.1,
+              "max": 79.8
+            },
+            "cpuMicrosPerOp": {
+              "mean": 1919.3,
+              "min": 1617.1,
+              "max": 2303.8
+            },
+            "eventLoopUtilization": {
+              "mean": 1,
+              "min": 1,
+              "max": 1
+            },
+            "immediateLagP99Ms": {
+              "mean": 217.791,
+              "min": 118.975,
+              "max": 274.687
+            },
+            "logFsyncsPerSec": {
+              "mean": 348.333,
+              "min": 241.3,
+              "max": 492.8
+            },
+            "metaSavesPerSec": {
+              "mean": 5.6,
+              "min": 4.2,
+              "max": 7.7
+            },
+            "appendEntriesPerSec": {
+              "mean": 11.1,
+              "min": 8.2,
+              "max": 15.4
+            },
+            "heartbeatsPerSec": {
+              "mean": 0,
+              "min": 0,
+              "max": 0
+            },
+            "entriesPerAppendMean": {
+              "mean": 62.325,
+              "min": 58.976,
+              "max": 64
+            },
+            "entriesPerFsyncMean": {
+              "mean": 1,
+              "min": 1,
+              "max": 1
+            },
+            "peakRssBytes": {
+              "mean": 461332480,
+              "min": 343801856,
+              "max": 583143424
+            },
+            "admitToCommitP99Ms": {
+              "mean": 411.903,
+              "min": 255.999,
+              "max": 507.647
+            },
+            "uncommittedEntriesP99": {
+              "mean": 0.128,
+              "min": 0.128,
+              "max": 0.128
+            }
+          },
+          "followers": {
+            "cpuPercentOfOneCore": {
+              "mean": 20.667,
+              "min": 15.75,
+              "max": 25.65
+            },
+            "logFsyncsPerSec": {
+              "mean": 5.567,
+              "min": 4.2,
+              "max": 7.7
+            },
+            "metaSavesPerSec": {
+              "mean": 5.567,
+              "min": 4.2,
+              "max": 7.7
+            }
+          },
+          "cluster": {
+            "logFsyncsPerSec": {
+              "mean": 359.467,
+              "min": 249.7,
+              "max": 508.2
+            },
+            "metaSavesPerSec": {
+              "mean": 16.733,
+              "min": 12.6,
+              "max": 23.1
+            },
+            "replicationBytesPerOp": {
+              "mean": 34183.8,
+              "min": 32909.8,
+              "max": 36677.9
+            },
+            "clientBytesPerOp": {
+              "mean": 17405.733,
+              "min": 16841.2,
+              "max": 18465.6
+            }
+          }
+        },
+        {
+          "phase": "ladder",
+          "rate": 750,
+          "repetitions": 3,
+          "runIds": [
+            "b6c18e6fc25c",
+            "503847ecfef8",
+            "e941e408eec9"
+          ],
+          "stableVotes": 0,
+          "stable": false,
+          "instabilityReasons": [
+            [
+              "achieved 75.5% of offered",
+              "error rate 7.18%",
+              "p99 10002.431 ms",
+              "latency grew 275.12x across the window"
+            ],
+            [
+              "achieved 70% of offered",
+              "error rate 37.35%",
+              "p99 10002.431 ms"
+            ],
+            [
+              "achieved 31.2% of offered",
+              "error rate 76.15%",
+              "p99 10002.431 ms"
+            ]
+          ],
+          "generatorSaturated": true,
+          "leadershipChanged": false,
+          "achievedPerSec": {
+            "mean": 441.5,
+            "min": 233.8,
+            "max": 565.9
+          },
+          "achievedRatio": {
+            "mean": 0.589,
+            "min": 0.312,
+            "max": 0.755
+          },
+          "errorRate": {
+            "mean": 0.402,
+            "min": 0.072,
+            "max": 0.761
+          },
+          "latencyAllMs": {
+            "count": 45000,
+            "min": 16.188,
+            "mean": 6332.5080158,
+            "p50": 7860.223,
+            "p90": 9723.903,
+            "p95": 10002.431,
+            "p99": 10002.431,
+            "p999": 10002.431,
+            "max": 10018.453
+          },
+          "latencyOkMs": {
+            "count": 26898,
+            "min": 16.188,
+            "mean": 5019.742904899993,
+            "p50": 7094.271,
+            "p90": 8781.823,
+            "p95": 9437.183,
+            "p99": 9928.703,
+            "p999": 10002.431,
+            "max": 10018.453
+          },
+          "p99AllMsPerRep": [
+            10002.431,
+            10002.431,
+            10002.431
+          ],
+          "p50AllMsPerRep": [
+            55.903,
+            8388.607,
+            8097.791
+          ],
+          "serviceOkP99Ms": {
+            "mean": 1014.442,
+            "min": 527.359,
+            "max": 1298.431
+          },
+          "clientQueueDepthP99": {
+            "mean": 1439,
+            "min": 872,
+            "max": 1846
+          },
+          "leader": {
+            "cpuPercentOfOneCore": {
+              "mean": 50.833,
+              "min": 49.9,
+              "max": 52.3
+            },
+            "cpuMicrosPerOp": {
+              "mean": 1344.233,
+              "min": 898.7,
+              "max": 2138.1
+            },
+            "eventLoopUtilization": {
+              "mean": 1,
+              "min": 1,
+              "max": 1
+            },
+            "immediateLagP99Ms": {
+              "mean": 225.791,
+              "min": 189.055,
+              "max": 249.343
+            },
+            "logFsyncsPerSec": {
+              "mean": 460.5,
+              "min": 283.3,
+              "max": 573.4
+            },
+            "metaSavesPerSec": {
+              "mean": 27.767,
+              "min": 5,
+              "max": 70.1
+            },
+            "appendEntriesPerSec": {
+              "mean": 32.267,
+              "min": 10.2,
+              "max": 70.2
+            },
+            "heartbeatsPerSec": {
+              "mean": 0,
+              "min": 0,
+              "max": 0
+            },
+            "entriesPerAppendMean": {
+              "mean": 45.293,
+              "min": 16.27,
+              "max": 64
+            },
+            "entriesPerFsyncMean": {
+              "mean": 1,
+              "min": 1,
+              "max": 1
+            },
+            "peakRssBytes": {
+              "mean": 524166485.333,
+              "min": 421003264,
+              "max": 590065664
+            },
+            "admitToCommitP99Ms": {
+              "mean": 399.018,
+              "min": 264.703,
+              "max": 468.479
+            },
+            "uncommittedEntriesP99": {
+              "mean": 0.121,
+              "min": 0.107,
+              "max": 0.128
+            }
+          },
+          "followers": {
+            "cpuPercentOfOneCore": {
+              "mean": 15.1,
+              "min": 14.5,
+              "max": 15.45
+            },
+            "logFsyncsPerSec": {
+              "mean": 16.083,
+              "min": 5,
+              "max": 35.05
+            },
+            "metaSavesPerSec": {
+              "mean": 16.083,
+              "min": 5,
+              "max": 35.05
+            }
+          },
+          "cluster": {
+            "logFsyncsPerSec": {
+              "mean": 492.667,
+              "min": 293.3,
+              "max": 643.5
+            },
+            "metaSavesPerSec": {
+              "mean": 59.933,
+              "min": 15,
+              "max": 140.2
+            },
+            "replicationBytesPerOp": {
+              "mean": 35210.7,
+              "min": 32963.7,
+              "max": 39528.8
+            },
+            "clientBytesPerOp": {
+              "mean": 18081.167,
+              "min": 16841.2,
+              "max": 20340.6
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

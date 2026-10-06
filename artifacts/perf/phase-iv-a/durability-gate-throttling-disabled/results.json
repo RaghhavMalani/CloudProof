@@ -1,0 +1,3987 @@
+{
+  "schema": "cloudproof.raft-durability-gate/v1",
+  "startedAt": "2026-10-03T18:16:08.695Z",
+  "finishedAt": "2026-10-03T18:19:38.172Z",
+  "git": {
+    "sha": "6f9d3654c310a2459186aa4c5455faed5f20dc38",
+    "dirty": false,
+    "dirtyFiles": []
+  },
+  "gate": "missing acknowledged writes = 0 and duplicate logical writes = 0 in every window, every kill inside its window, identical committed prefixes",
+  "scope": "process death of the leader (no OS crash); power loss is covered by sim/perf-faults.js",
+  "options": {
+    "runs": 5,
+    "lanes": 24,
+    "payload": 1024,
+    "warmup-ms": 1500,
+    "post-kill-ms": 3000,
+    "attempt-timeout-ms": 2500,
+    "give-up-ms": 20000,
+    "windows": null,
+    "seed": 4207,
+    "port": 18001,
+    "power-throttling": "disabled"
+  },
+  "summary": {
+    "windows": [
+      {
+        "window": "before-group-flush",
+        "label": "before group flush",
+        "site": "leader.beforeFlush",
+        "profile": "group-commit",
+        "runs": 5,
+        "killsInWindow": 5,
+        "acknowledged": 28985,
+        "recoveredAcknowledged": 28985,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 60,
+        "unacknowledgedRecovered": 27,
+        "retriedWrites": 60,
+        "inDoubtRetriedAndAcknowledged": 60,
+        "gaveUp": 0,
+        "prefixesIdentical": true,
+        "errors": [],
+        "pass": true
+      },
+      {
+        "window": "after-flush-before-quorum",
+        "label": "after flush / before quorum",
+        "site": "leader.durableBeforeQuorum",
+        "profile": "group-commit",
+        "runs": 5,
+        "killsInWindow": 5,
+        "acknowledged": 28439,
+        "recoveredAcknowledged": 28439,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 60,
+        "unacknowledgedRecovered": 21,
+        "retriedWrites": 60,
+        "inDoubtRetriedAndAcknowledged": 60,
+        "gaveUp": 0,
+        "prefixesIdentical": true,
+        "errors": [],
+        "pass": true
+      },
+      {
+        "window": "after-commit-before-reply",
+        "label": "after commit / before client reply",
+        "site": "leader.committedBeforeReply",
+        "profile": "optimized-http",
+        "runs": 5,
+        "killsInWindow": 5,
+        "acknowledged": 22663,
+        "recoveredAcknowledged": 22663,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 60,
+        "unacknowledgedRecovered": 31,
+        "retriedWrites": 60,
+        "inDoubtRetriedAndAcknowledged": 60,
+        "gaveUp": 0,
+        "prefixesIdentical": true,
+        "errors": [],
+        "pass": true
+      },
+      {
+        "window": "pipelined-replication",
+        "label": "during pipelined replication",
+        "site": "leader.pipelinedInflight",
+        "profile": "group-pipeline",
+        "runs": 5,
+        "killsInWindow": 5,
+        "acknowledged": 17251,
+        "recoveredAcknowledged": 17251,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 60,
+        "unacknowledgedRecovered": 30,
+        "retriedWrites": 60,
+        "inDoubtRetriedAndAcknowledged": 60,
+        "gaveUp": 0,
+        "prefixesIdentical": true,
+        "errors": [],
+        "pass": true
+      },
+      {
+        "window": "batched-replication",
+        "label": "during batched replication",
+        "site": "leader.batchedReplication",
+        "profile": "group-batch",
+        "runs": 5,
+        "killsInWindow": 5,
+        "acknowledged": 29630,
+        "recoveredAcknowledged": 29630,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 60,
+        "unacknowledgedRecovered": 15,
+        "retriedWrites": 60,
+        "inDoubtRetriedAndAcknowledged": 60,
+        "gaveUp": 0,
+        "prefixesIdentical": true,
+        "errors": [],
+        "pass": true
+      },
+      {
+        "window": "binary-transport",
+        "label": "binary transport active",
+        "site": "transport.framedInflight",
+        "profile": "optimized-binary",
+        "runs": 5,
+        "killsInWindow": 5,
+        "acknowledged": 30820,
+        "recoveredAcknowledged": 30820,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 60,
+        "unacknowledgedRecovered": 24,
+        "retriedWrites": 60,
+        "inDoubtRetriedAndAcknowledged": 60,
+        "gaveUp": 0,
+        "prefixesIdentical": true,
+        "errors": [],
+        "pass": true
+      }
+    ],
+    "pass": true
+  },
+  "runs": [
+    {
+      "window": "before-group-flush",
+      "label": "before group flush",
+      "site": "leader.beforeFlush",
+      "profile": "group-commit",
+      "run": 0,
+      "victim": "replica3",
+      "skip": 39,
+      "ackedBeforeArm": 5656,
+      "killedAfterMs": 129,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "leader.beforeFlush",
+        "hits": 40,
+        "skip": 39,
+        "armedAt": "2026-10-03T18:16:11.151Z",
+        "firedAt": "2026-10-03T18:16:11.262Z",
+        "context": {
+          "replicaId": "replica3",
+          "state": "LEADER",
+          "term": 1,
+          "commitIndex": 5987,
+          "logLength": 6003,
+          "durableLength": 5998,
+          "pendingEntries": 5
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 5987,
+      "newLeader": "http://127.0.0.1:18002",
+      "powerThrottling": {
+        "requested": "disabled",
+        "platform": "win32",
+        "mechanism": "SetProcessInformation(ProcessPowerThrottling, ControlMask=EXECUTION_SPEED, StateMask=0), verified with GetProcessInformation",
+        "script": "tools/windows/disable-power-throttling.ps1",
+        "scriptSha256": "91fc490239ce4d2c2ec2ab3efa1143f1b44472be6817643c0e62cad68450ca4c",
+        "module": "packages/raft-bench/power-throttling.js",
+        "moduleSha256": "ca980c571c622c14edfb10f59ad9c5af2caa9d63be08caced39d5d38f40c05a9",
+        "processes": [
+          {
+            "role": "replica1",
+            "pid": 35884,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica2",
+            "pid": 21552,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica3",
+            "pid": 23304,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica3",
+            "pid": 16372,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true,
+            "restarted": true
+          }
+        ],
+        "applied": true
+      },
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 6784
+        },
+        {
+          "replica": "replica2",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 6784
+        },
+        {
+          "replica": "replica3",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 6784
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 6789,
+        "acknowledged": 6777,
+        "recoveredAcknowledged": 6777,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 6,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 6785
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "before-group-flush",
+      "label": "before group flush",
+      "site": "leader.beforeFlush",
+      "profile": "group-commit",
+      "run": 1,
+      "victim": "replica3",
+      "skip": 33,
+      "ackedBeforeArm": 4401,
+      "killedAfterMs": 97,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "leader.beforeFlush",
+        "hits": 34,
+        "skip": 33,
+        "armedAt": "2026-10-03T18:16:18.508Z",
+        "firedAt": "2026-10-03T18:16:18.575Z",
+        "context": {
+          "replicaId": "replica3",
+          "state": "LEADER",
+          "term": 1,
+          "commitIndex": 4612,
+          "logLength": 4632,
+          "durableLength": 4622,
+          "pendingEntries": 10
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 4612,
+      "newLeader": "http://127.0.0.1:18001",
+      "powerThrottling": {
+        "requested": "disabled",
+        "platform": "win32",
+        "mechanism": "SetProcessInformation(ProcessPowerThrottling, ControlMask=EXECUTION_SPEED, StateMask=0), verified with GetProcessInformation",
+        "script": "tools/windows/disable-power-throttling.ps1",
+        "scriptSha256": "91fc490239ce4d2c2ec2ab3efa1143f1b44472be6817643c0e62cad68450ca4c",
+        "module": "packages/raft-bench/power-throttling.js",
+        "moduleSha256": "ca980c571c622c14edfb10f59ad9c5af2caa9d63be08caced39d5d38f40c05a9",
+        "processes": [
+          {
+            "role": "replica1",
+            "pid": 29888,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica2",
+            "pid": 5356,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica3",
+            "pid": 28288,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica3",
+            "pid": 22780,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true,
+            "restarted": true
+          }
+        ],
+        "applied": true
+      },
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 5362
+        },
+        {
+          "replica": "replica2",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 5362
+        },
+        {
+          "replica": "replica3",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 5362
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 5366,
+        "acknowledged": 5354,
+        "recoveredAcknowledged": 5354,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 7,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 5363
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "before-group-flush",
+      "label": "before group flush",
+      "site": "leader.beforeFlush",
+      "profile": "group-commit",
+      "run": 2,
+      "victim": "replica2",
+      "skip": 28,
+      "ackedBeforeArm": 4553,
+      "killedAfterMs": 97,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "leader.beforeFlush",
+        "hits": 29,
+        "skip": 28,
+        "armedAt": "2026-10-03T18:16:25.620Z",
+        "firedAt": "2026-10-03T18:16:25.686Z",
+        "context": {
+          "replicaId": "replica2",
+          "state": "LEADER",
+          "term": 1,
+          "commitIndex": 4754,
+          "logLength": 4773,
+          "durableLength": 4764,
+          "pendingEntries": 9
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 4754,
+      "newLeader": "http://127.0.0.1:18003",
+      "powerThrottling": {
+        "requested": "disabled",
+        "platform": "win32",
+        "mechanism": "SetProcessInformation(ProcessPowerThrottling, ControlMask=EXECUTION_SPEED, StateMask=0), verified with GetProcessInformation",
+        "script": "tools/windows/disable-power-throttling.ps1",
+        "scriptSha256": "91fc490239ce4d2c2ec2ab3efa1143f1b44472be6817643c0e62cad68450ca4c",
+        "module": "packages/raft-bench/power-throttling.js",
+        "moduleSha256": "ca980c571c622c14edfb10f59ad9c5af2caa9d63be08caced39d5d38f40c05a9",
+        "processes": [
+          {
+            "role": "replica1",
+            "pid": 43868,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica2",
+            "pid": 21632,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica3",
+            "pid": 28072,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica2",
+            "pid": 17168,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true,
+            "restarted": true
+          }
+        ],
+        "applied": true
+      },
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 5536
+        },
+        {
+          "replica": "replica2",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 5536
+        },
+        {
+          "replica": "replica3",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 5536
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 5541,
+        "acknowledged": 5529,
+        "recoveredAcknowledged": 5529,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 6,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 5537
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "before-group-flush",
+      "label": "before group flush",
+      "site": "leader.beforeFlush",
+      "profile": "group-commit",
+      "run": 3,
+      "victim": "replica2",
+      "skip": 28,
+      "ackedBeforeArm": 4762,
+      "killedAfterMs": 87,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "leader.beforeFlush",
+        "hits": 29,
+        "skip": 28,
+        "armedAt": "2026-10-03T18:16:32.650Z",
+        "firedAt": "2026-10-03T18:16:32.710Z",
+        "context": {
+          "replicaId": "replica2",
+          "state": "LEADER",
+          "term": 1,
+          "commitIndex": 4949,
+          "logLength": 4961,
+          "durableLength": 4956,
+          "pendingEntries": 5
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 4949,
+      "newLeader": "http://127.0.0.1:18003",
+      "powerThrottling": {
+        "requested": "disabled",
+        "platform": "win32",
+        "mechanism": "SetProcessInformation(ProcessPowerThrottling, ControlMask=EXECUTION_SPEED, StateMask=0), verified with GetProcessInformation",
+        "script": "tools/windows/disable-power-throttling.ps1",
+        "scriptSha256": "91fc490239ce4d2c2ec2ab3efa1143f1b44472be6817643c0e62cad68450ca4c",
+        "module": "packages/raft-bench/power-throttling.js",
+        "moduleSha256": "ca980c571c622c14edfb10f59ad9c5af2caa9d63be08caced39d5d38f40c05a9",
+        "processes": [
+          {
+            "role": "replica1",
+            "pid": 3180,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica2",
+            "pid": 10648,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica3",
+            "pid": 36680,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica2",
+            "pid": 29296,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true,
+            "restarted": true
+          }
+        ],
+        "applied": true
+      },
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 5672
+        },
+        {
+          "replica": "replica2",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 5672
+        },
+        {
+          "replica": "replica3",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 5672
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 5679,
+        "acknowledged": 5667,
+        "recoveredAcknowledged": 5667,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 4,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 5673
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "before-group-flush",
+      "label": "before group flush",
+      "site": "leader.beforeFlush",
+      "profile": "group-commit",
+      "run": 4,
+      "victim": "replica2",
+      "skip": 11,
+      "ackedBeforeArm": 4922,
+      "killedAfterMs": 63,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "leader.beforeFlush",
+        "hits": 12,
+        "skip": 11,
+        "armedAt": "2026-10-03T18:16:39.906Z",
+        "firedAt": "2026-10-03T18:16:39.928Z",
+        "context": {
+          "replicaId": "replica2",
+          "state": "LEADER",
+          "term": 1,
+          "commitIndex": 4983,
+          "logLength": 4996,
+          "durableLength": 4990,
+          "pendingEntries": 6
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 4980,
+      "newLeader": "http://127.0.0.1:18003",
+      "powerThrottling": {
+        "requested": "disabled",
+        "platform": "win32",
+        "mechanism": "SetProcessInformation(ProcessPowerThrottling, ControlMask=EXECUTION_SPEED, StateMask=0), verified with GetProcessInformation",
+        "script": "tools/windows/disable-power-throttling.ps1",
+        "scriptSha256": "91fc490239ce4d2c2ec2ab3efa1143f1b44472be6817643c0e62cad68450ca4c",
+        "module": "packages/raft-bench/power-throttling.js",
+        "moduleSha256": "ca980c571c622c14edfb10f59ad9c5af2caa9d63be08caced39d5d38f40c05a9",
+        "processes": [
+          {
+            "role": "replica1",
+            "pid": 41120,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica2",
+            "pid": 26952,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica3",
+            "pid": 564,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica2",
+            "pid": 41968,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true,
+            "restarted": true
+          }
+        ],
+        "applied": true
+      },
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 5663
+        },
+        {
+          "replica": "replica2",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 5663
+        },
+        {
+          "replica": "replica3",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 5663
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 5670,
+        "acknowledged": 5658,
+        "recoveredAcknowledged": 5658,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 4,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 5664
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "after-flush-before-quorum",
+      "label": "after flush / before quorum",
+      "site": "leader.durableBeforeQuorum",
+      "profile": "group-commit",
+      "run": 0,
+      "victim": "replica3",
+      "skip": 21,
+      "ackedBeforeArm": 4585,
+      "killedAfterMs": 68,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "leader.durableBeforeQuorum",
+        "hits": 22,
+        "skip": 21,
+        "armedAt": "2026-10-03T18:16:46.961Z",
+        "firedAt": "2026-10-03T18:16:46.999Z",
+        "context": {
+          "replicaId": "replica3",
+          "state": "LEADER",
+          "term": 1,
+          "commitIndex": 4686,
+          "logLength": 4699,
+          "durableLength": 4699,
+          "pendingEntries": 0
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 4686,
+      "newLeader": "http://127.0.0.1:18001",
+      "powerThrottling": {
+        "requested": "disabled",
+        "platform": "win32",
+        "mechanism": "SetProcessInformation(ProcessPowerThrottling, ControlMask=EXECUTION_SPEED, StateMask=0), verified with GetProcessInformation",
+        "script": "tools/windows/disable-power-throttling.ps1",
+        "scriptSha256": "91fc490239ce4d2c2ec2ab3efa1143f1b44472be6817643c0e62cad68450ca4c",
+        "module": "packages/raft-bench/power-throttling.js",
+        "moduleSha256": "ca980c571c622c14edfb10f59ad9c5af2caa9d63be08caced39d5d38f40c05a9",
+        "processes": [
+          {
+            "role": "replica1",
+            "pid": 25888,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica2",
+            "pid": 43224,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica3",
+            "pid": 35172,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica3",
+            "pid": 2824,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true,
+            "restarted": true
+          }
+        ],
+        "applied": true
+      },
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 5453
+        },
+        {
+          "replica": "replica2",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 5453
+        },
+        {
+          "replica": "replica3",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 5453
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 5460,
+        "acknowledged": 5448,
+        "recoveredAcknowledged": 5448,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 4,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 5454
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "after-flush-before-quorum",
+      "label": "after flush / before quorum",
+      "site": "leader.durableBeforeQuorum",
+      "profile": "group-commit",
+      "run": 1,
+      "victim": "replica1",
+      "skip": 37,
+      "ackedBeforeArm": 4684,
+      "killedAfterMs": 98,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "leader.durableBeforeQuorum",
+        "hits": 38,
+        "skip": 37,
+        "armedAt": "2026-10-03T18:16:54.031Z",
+        "firedAt": "2026-10-03T18:16:54.097Z",
+        "context": {
+          "replicaId": "replica1",
+          "state": "LEADER",
+          "term": 1,
+          "commitIndex": 4864,
+          "logLength": 4874,
+          "durableLength": 4874,
+          "pendingEntries": 0
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 4864,
+      "newLeader": "http://127.0.0.1:18002",
+      "powerThrottling": {
+        "requested": "disabled",
+        "platform": "win32",
+        "mechanism": "SetProcessInformation(ProcessPowerThrottling, ControlMask=EXECUTION_SPEED, StateMask=0), verified with GetProcessInformation",
+        "script": "tools/windows/disable-power-throttling.ps1",
+        "scriptSha256": "91fc490239ce4d2c2ec2ab3efa1143f1b44472be6817643c0e62cad68450ca4c",
+        "module": "packages/raft-bench/power-throttling.js",
+        "moduleSha256": "ca980c571c622c14edfb10f59ad9c5af2caa9d63be08caced39d5d38f40c05a9",
+        "processes": [
+          {
+            "role": "replica1",
+            "pid": 26676,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica2",
+            "pid": 36040,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica3",
+            "pid": 32992,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica1",
+            "pid": 2916,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true,
+            "restarted": true
+          }
+        ],
+        "applied": true
+      },
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 5714
+        },
+        {
+          "replica": "replica2",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 5714
+        },
+        {
+          "replica": "replica3",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 5714
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 5721,
+        "acknowledged": 5709,
+        "recoveredAcknowledged": 5709,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 4,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 5715
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "after-flush-before-quorum",
+      "label": "after flush / before quorum",
+      "site": "leader.durableBeforeQuorum",
+      "profile": "group-commit",
+      "run": 2,
+      "victim": "replica1",
+      "skip": 5,
+      "ackedBeforeArm": 4822,
+      "killedAfterMs": 42,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "leader.durableBeforeQuorum",
+        "hits": 6,
+        "skip": 5,
+        "armedAt": "2026-10-03T18:17:01.216Z",
+        "firedAt": "2026-10-03T18:17:01.230Z",
+        "context": {
+          "replicaId": "replica1",
+          "state": "LEADER",
+          "term": 1,
+          "commitIndex": 4854,
+          "logLength": 4868,
+          "durableLength": 4868,
+          "pendingEntries": 0
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 4854,
+      "newLeader": "http://127.0.0.1:18003",
+      "powerThrottling": {
+        "requested": "disabled",
+        "platform": "win32",
+        "mechanism": "SetProcessInformation(ProcessPowerThrottling, ControlMask=EXECUTION_SPEED, StateMask=0), verified with GetProcessInformation",
+        "script": "tools/windows/disable-power-throttling.ps1",
+        "scriptSha256": "91fc490239ce4d2c2ec2ab3efa1143f1b44472be6817643c0e62cad68450ca4c",
+        "module": "packages/raft-bench/power-throttling.js",
+        "moduleSha256": "ca980c571c622c14edfb10f59ad9c5af2caa9d63be08caced39d5d38f40c05a9",
+        "processes": [
+          {
+            "role": "replica1",
+            "pid": 22524,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica2",
+            "pid": 15700,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica3",
+            "pid": 22340,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica1",
+            "pid": 41656,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true,
+            "restarted": true
+          }
+        ],
+        "applied": true
+      },
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 5705
+        },
+        {
+          "replica": "replica2",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 5705
+        },
+        {
+          "replica": "replica3",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 5705
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 5710,
+        "acknowledged": 5698,
+        "recoveredAcknowledged": 5698,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 6,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 5706
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "after-flush-before-quorum",
+      "label": "after flush / before quorum",
+      "site": "leader.durableBeforeQuorum",
+      "profile": "group-commit",
+      "run": 3,
+      "victim": "replica3",
+      "skip": 11,
+      "ackedBeforeArm": 4731,
+      "killedAfterMs": 61,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "leader.durableBeforeQuorum",
+        "hits": 12,
+        "skip": 11,
+        "armedAt": "2026-10-03T18:17:08.131Z",
+        "firedAt": "2026-10-03T18:17:08.162Z",
+        "context": {
+          "replicaId": "replica3",
+          "state": "LEADER",
+          "term": 1,
+          "commitIndex": 4822,
+          "logLength": 4832,
+          "durableLength": 4832,
+          "pendingEntries": 0
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 4822,
+      "newLeader": "http://127.0.0.1:18001",
+      "powerThrottling": {
+        "requested": "disabled",
+        "platform": "win32",
+        "mechanism": "SetProcessInformation(ProcessPowerThrottling, ControlMask=EXECUTION_SPEED, StateMask=0), verified with GetProcessInformation",
+        "script": "tools/windows/disable-power-throttling.ps1",
+        "scriptSha256": "91fc490239ce4d2c2ec2ab3efa1143f1b44472be6817643c0e62cad68450ca4c",
+        "module": "packages/raft-bench/power-throttling.js",
+        "moduleSha256": "ca980c571c622c14edfb10f59ad9c5af2caa9d63be08caced39d5d38f40c05a9",
+        "processes": [
+          {
+            "role": "replica1",
+            "pid": 32644,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica2",
+            "pid": 32036,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica3",
+            "pid": 41468,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica3",
+            "pid": 14940,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true,
+            "restarted": true
+          }
+        ],
+        "applied": true
+      },
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 5557
+        },
+        {
+          "replica": "replica2",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 5557
+        },
+        {
+          "replica": "replica3",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 5557
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 5564,
+        "acknowledged": 5552,
+        "recoveredAcknowledged": 5552,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 4,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 5558
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "after-flush-before-quorum",
+      "label": "after flush / before quorum",
+      "site": "leader.durableBeforeQuorum",
+      "profile": "group-commit",
+      "run": 4,
+      "victim": "replica3",
+      "skip": 19,
+      "ackedBeforeArm": 5147,
+      "killedAfterMs": 72,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "leader.durableBeforeQuorum",
+        "hits": 20,
+        "skip": 19,
+        "armedAt": "2026-10-03T18:17:15.356Z",
+        "firedAt": "2026-10-03T18:17:15.394Z",
+        "context": {
+          "replicaId": "replica3",
+          "state": "LEADER",
+          "term": 1,
+          "commitIndex": 5268,
+          "logLength": 5278,
+          "durableLength": 5278,
+          "pendingEntries": 0
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 5268,
+      "newLeader": "http://127.0.0.1:18001",
+      "powerThrottling": {
+        "requested": "disabled",
+        "platform": "win32",
+        "mechanism": "SetProcessInformation(ProcessPowerThrottling, ControlMask=EXECUTION_SPEED, StateMask=0), verified with GetProcessInformation",
+        "script": "tools/windows/disable-power-throttling.ps1",
+        "scriptSha256": "91fc490239ce4d2c2ec2ab3efa1143f1b44472be6817643c0e62cad68450ca4c",
+        "module": "packages/raft-bench/power-throttling.js",
+        "moduleSha256": "ca980c571c622c14edfb10f59ad9c5af2caa9d63be08caced39d5d38f40c05a9",
+        "processes": [
+          {
+            "role": "replica1",
+            "pid": 8284,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica2",
+            "pid": 42160,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica3",
+            "pid": 40384,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica3",
+            "pid": 22332,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true,
+            "restarted": true
+          }
+        ],
+        "applied": true
+      },
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 6036
+        },
+        {
+          "replica": "replica2",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 6036
+        },
+        {
+          "replica": "replica3",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 6036
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 6044,
+        "acknowledged": 6032,
+        "recoveredAcknowledged": 6032,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 3,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 6037
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "after-commit-before-reply",
+      "label": "after commit / before client reply",
+      "site": "leader.committedBeforeReply",
+      "profile": "optimized-http",
+      "run": 0,
+      "victim": "replica2",
+      "skip": 9,
+      "ackedBeforeArm": 3685,
+      "killedAfterMs": 35,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "leader.committedBeforeReply",
+        "hits": 10,
+        "skip": 9,
+        "armedAt": "2026-10-03T18:17:22.378Z",
+        "firedAt": "2026-10-03T18:17:22.385Z",
+        "context": {
+          "replicaId": "replica2",
+          "state": "LEADER",
+          "term": 1,
+          "commitIndex": 3701,
+          "logLength": 3714,
+          "durableLength": 3708,
+          "pendingEntries": 6
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 3699,
+      "newLeader": "http://127.0.0.1:18001",
+      "powerThrottling": {
+        "requested": "disabled",
+        "platform": "win32",
+        "mechanism": "SetProcessInformation(ProcessPowerThrottling, ControlMask=EXECUTION_SPEED, StateMask=0), verified with GetProcessInformation",
+        "script": "tools/windows/disable-power-throttling.ps1",
+        "scriptSha256": "91fc490239ce4d2c2ec2ab3efa1143f1b44472be6817643c0e62cad68450ca4c",
+        "module": "packages/raft-bench/power-throttling.js",
+        "moduleSha256": "ca980c571c622c14edfb10f59ad9c5af2caa9d63be08caced39d5d38f40c05a9",
+        "processes": [
+          {
+            "role": "replica1",
+            "pid": 22552,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica2",
+            "pid": 21308,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica3",
+            "pid": 11924,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica2",
+            "pid": 29868,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true,
+            "restarted": true
+          }
+        ],
+        "applied": true
+      },
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 4492
+        },
+        {
+          "replica": "replica2",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 4492
+        },
+        {
+          "replica": "replica3",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 4492
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 4496,
+        "acknowledged": 4484,
+        "recoveredAcknowledged": 4484,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 7,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 4493
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "after-commit-before-reply",
+      "label": "after commit / before client reply",
+      "site": "leader.committedBeforeReply",
+      "profile": "optimized-http",
+      "run": 1,
+      "victim": "replica3",
+      "skip": 10,
+      "ackedBeforeArm": 3750,
+      "killedAfterMs": 40,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "leader.committedBeforeReply",
+        "hits": 11,
+        "skip": 10,
+        "armedAt": "2026-10-03T18:17:29.310Z",
+        "firedAt": "2026-10-03T18:17:29.321Z",
+        "context": {
+          "replicaId": "replica3",
+          "state": "LEADER",
+          "term": 1,
+          "commitIndex": 3772,
+          "logLength": 3781,
+          "durableLength": 3781,
+          "pendingEntries": 0
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 3768,
+      "newLeader": "http://127.0.0.1:18001",
+      "powerThrottling": {
+        "requested": "disabled",
+        "platform": "win32",
+        "mechanism": "SetProcessInformation(ProcessPowerThrottling, ControlMask=EXECUTION_SPEED, StateMask=0), verified with GetProcessInformation",
+        "script": "tools/windows/disable-power-throttling.ps1",
+        "scriptSha256": "91fc490239ce4d2c2ec2ab3efa1143f1b44472be6817643c0e62cad68450ca4c",
+        "module": "packages/raft-bench/power-throttling.js",
+        "moduleSha256": "ca980c571c622c14edfb10f59ad9c5af2caa9d63be08caced39d5d38f40c05a9",
+        "processes": [
+          {
+            "role": "replica1",
+            "pid": 11336,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica2",
+            "pid": 28444,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica3",
+            "pid": 30312,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica3",
+            "pid": 5100,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true,
+            "restarted": true
+          }
+        ],
+        "applied": true
+      },
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 4607
+        },
+        {
+          "replica": "replica2",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 4607
+        },
+        {
+          "replica": "replica3",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 4607
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 4612,
+        "acknowledged": 4600,
+        "recoveredAcknowledged": 4600,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 6,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 4608
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "after-commit-before-reply",
+      "label": "after commit / before client reply",
+      "site": "leader.committedBeforeReply",
+      "profile": "optimized-http",
+      "run": 2,
+      "victim": "replica3",
+      "skip": 16,
+      "ackedBeforeArm": 3594,
+      "killedAfterMs": 42,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "leader.committedBeforeReply",
+        "hits": 17,
+        "skip": 16,
+        "armedAt": "2026-10-03T18:17:36.078Z",
+        "firedAt": "2026-10-03T18:17:36.100Z",
+        "context": {
+          "replicaId": "replica3",
+          "state": "LEADER",
+          "term": 1,
+          "commitIndex": 3638,
+          "logLength": 3649,
+          "durableLength": 3642,
+          "pendingEntries": 7
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 3637,
+      "newLeader": "http://127.0.0.1:18002",
+      "powerThrottling": {
+        "requested": "disabled",
+        "platform": "win32",
+        "mechanism": "SetProcessInformation(ProcessPowerThrottling, ControlMask=EXECUTION_SPEED, StateMask=0), verified with GetProcessInformation",
+        "script": "tools/windows/disable-power-throttling.ps1",
+        "scriptSha256": "91fc490239ce4d2c2ec2ab3efa1143f1b44472be6817643c0e62cad68450ca4c",
+        "module": "packages/raft-bench/power-throttling.js",
+        "moduleSha256": "ca980c571c622c14edfb10f59ad9c5af2caa9d63be08caced39d5d38f40c05a9",
+        "processes": [
+          {
+            "role": "replica1",
+            "pid": 30584,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica2",
+            "pid": 19984,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica3",
+            "pid": 19868,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica3",
+            "pid": 17888,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true,
+            "restarted": true
+          }
+        ],
+        "applied": true
+      },
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 4430
+        },
+        {
+          "replica": "replica2",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 4430
+        },
+        {
+          "replica": "replica3",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 4430
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 4436,
+        "acknowledged": 4424,
+        "recoveredAcknowledged": 4424,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 5,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 4431
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "after-commit-before-reply",
+      "label": "after commit / before client reply",
+      "site": "leader.committedBeforeReply",
+      "profile": "optimized-http",
+      "run": 3,
+      "victim": "replica1",
+      "skip": 22,
+      "ackedBeforeArm": 3736,
+      "killedAfterMs": 56,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "leader.committedBeforeReply",
+        "hits": 23,
+        "skip": 22,
+        "armedAt": "2026-10-03T18:17:42.963Z",
+        "firedAt": "2026-10-03T18:17:42.986Z",
+        "context": {
+          "replicaId": "replica1",
+          "state": "LEADER",
+          "term": 1,
+          "commitIndex": 3788,
+          "logLength": 3801,
+          "durableLength": 3795,
+          "pendingEntries": 6
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 3786,
+      "newLeader": "http://127.0.0.1:18002",
+      "powerThrottling": {
+        "requested": "disabled",
+        "platform": "win32",
+        "mechanism": "SetProcessInformation(ProcessPowerThrottling, ControlMask=EXECUTION_SPEED, StateMask=0), verified with GetProcessInformation",
+        "script": "tools/windows/disable-power-throttling.ps1",
+        "scriptSha256": "91fc490239ce4d2c2ec2ab3efa1143f1b44472be6817643c0e62cad68450ca4c",
+        "module": "packages/raft-bench/power-throttling.js",
+        "moduleSha256": "ca980c571c622c14edfb10f59ad9c5af2caa9d63be08caced39d5d38f40c05a9",
+        "processes": [
+          {
+            "role": "replica1",
+            "pid": 39236,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica2",
+            "pid": 9336,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica3",
+            "pid": 14996,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica1",
+            "pid": 7220,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true,
+            "restarted": true
+          }
+        ],
+        "applied": true
+      },
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 4616
+        },
+        {
+          "replica": "replica2",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 4616
+        },
+        {
+          "replica": "replica3",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 4616
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 4621,
+        "acknowledged": 4609,
+        "recoveredAcknowledged": 4609,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 6,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 4617
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "after-commit-before-reply",
+      "label": "after commit / before client reply",
+      "site": "leader.committedBeforeReply",
+      "profile": "optimized-http",
+      "run": 4,
+      "victim": "replica1",
+      "skip": 24,
+      "ackedBeforeArm": 3746,
+      "killedAfterMs": 39,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "leader.committedBeforeReply",
+        "hits": 25,
+        "skip": 24,
+        "armedAt": "2026-10-03T18:17:49.826Z",
+        "firedAt": "2026-10-03T18:17:49.845Z",
+        "context": {
+          "replicaId": "replica1",
+          "state": "LEADER",
+          "term": 1,
+          "commitIndex": 3785,
+          "logLength": 3801,
+          "durableLength": 3790,
+          "pendingEntries": 11
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 3784,
+      "newLeader": "http://127.0.0.1:18002",
+      "powerThrottling": {
+        "requested": "disabled",
+        "platform": "win32",
+        "mechanism": "SetProcessInformation(ProcessPowerThrottling, ControlMask=EXECUTION_SPEED, StateMask=0), verified with GetProcessInformation",
+        "script": "tools/windows/disable-power-throttling.ps1",
+        "scriptSha256": "91fc490239ce4d2c2ec2ab3efa1143f1b44472be6817643c0e62cad68450ca4c",
+        "module": "packages/raft-bench/power-throttling.js",
+        "moduleSha256": "ca980c571c622c14edfb10f59ad9c5af2caa9d63be08caced39d5d38f40c05a9",
+        "processes": [
+          {
+            "role": "replica1",
+            "pid": 45252,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica2",
+            "pid": 43860,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica3",
+            "pid": 28072,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica1",
+            "pid": 18132,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true,
+            "restarted": true
+          }
+        ],
+        "applied": true
+      },
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 4554
+        },
+        {
+          "replica": "replica2",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 4554
+        },
+        {
+          "replica": "replica3",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 4554
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 4558,
+        "acknowledged": 4546,
+        "recoveredAcknowledged": 4546,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 7,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 4555
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "pipelined-replication",
+      "label": "during pipelined replication",
+      "site": "leader.pipelinedInflight",
+      "profile": "group-pipeline",
+      "run": 0,
+      "victim": "replica2",
+      "skip": 29,
+      "ackedBeforeArm": 2655,
+      "killedAfterMs": 46,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "leader.pipelinedInflight",
+        "hits": 30,
+        "skip": 29,
+        "armedAt": "2026-10-03T18:17:56.872Z",
+        "firedAt": "2026-10-03T18:17:56.886Z",
+        "context": {
+          "replicaId": "replica2",
+          "state": "LEADER",
+          "term": 1,
+          "commitIndex": 2678,
+          "logLength": 2687,
+          "durableLength": 2686,
+          "pendingEntries": 1,
+          "peerUrl": "http://127.0.0.1:18001",
+          "stillInflight": 7
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 2678,
+      "newLeader": "http://127.0.0.1:18001",
+      "powerThrottling": {
+        "requested": "disabled",
+        "platform": "win32",
+        "mechanism": "SetProcessInformation(ProcessPowerThrottling, ControlMask=EXECUTION_SPEED, StateMask=0), verified with GetProcessInformation",
+        "script": "tools/windows/disable-power-throttling.ps1",
+        "scriptSha256": "91fc490239ce4d2c2ec2ab3efa1143f1b44472be6817643c0e62cad68450ca4c",
+        "module": "packages/raft-bench/power-throttling.js",
+        "moduleSha256": "ca980c571c622c14edfb10f59ad9c5af2caa9d63be08caced39d5d38f40c05a9",
+        "processes": [
+          {
+            "role": "replica1",
+            "pid": 9712,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica2",
+            "pid": 23592,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica3",
+            "pid": 33896,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica2",
+            "pid": 36692,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true,
+            "restarted": true
+          }
+        ],
+        "applied": true
+      },
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 3495
+        },
+        {
+          "replica": "replica2",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 3495
+        },
+        {
+          "replica": "replica3",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 3495
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 3502,
+        "acknowledged": 3490,
+        "recoveredAcknowledged": 3490,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 4,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 3496
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "pipelined-replication",
+      "label": "during pipelined replication",
+      "site": "leader.pipelinedInflight",
+      "profile": "group-pipeline",
+      "run": 1,
+      "victim": "replica1",
+      "skip": 40,
+      "ackedBeforeArm": 2718,
+      "killedAfterMs": 44,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "leader.pipelinedInflight",
+        "hits": 41,
+        "skip": 40,
+        "armedAt": "2026-10-03T18:18:03.533Z",
+        "firedAt": "2026-10-03T18:18:03.552Z",
+        "context": {
+          "replicaId": "replica1",
+          "state": "LEADER",
+          "term": 1,
+          "commitIndex": 2748,
+          "logLength": 2764,
+          "durableLength": 2752,
+          "pendingEntries": 12,
+          "peerUrl": "http://127.0.0.1:18002",
+          "stillInflight": 7
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 2748,
+      "newLeader": "http://127.0.0.1:18003",
+      "powerThrottling": {
+        "requested": "disabled",
+        "platform": "win32",
+        "mechanism": "SetProcessInformation(ProcessPowerThrottling, ControlMask=EXECUTION_SPEED, StateMask=0), verified with GetProcessInformation",
+        "script": "tools/windows/disable-power-throttling.ps1",
+        "scriptSha256": "91fc490239ce4d2c2ec2ab3efa1143f1b44472be6817643c0e62cad68450ca4c",
+        "module": "packages/raft-bench/power-throttling.js",
+        "moduleSha256": "ca980c571c622c14edfb10f59ad9c5af2caa9d63be08caced39d5d38f40c05a9",
+        "processes": [
+          {
+            "role": "replica1",
+            "pid": 15076,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica2",
+            "pid": 29584,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica3",
+            "pid": 2812,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica1",
+            "pid": 38484,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true,
+            "restarted": true
+          }
+        ],
+        "applied": true
+      },
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 3543
+        },
+        {
+          "replica": "replica2",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 3543
+        },
+        {
+          "replica": "replica3",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 3543
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 3547,
+        "acknowledged": 3535,
+        "recoveredAcknowledged": 3535,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 7,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 3544
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "pipelined-replication",
+      "label": "during pipelined replication",
+      "site": "leader.pipelinedInflight",
+      "profile": "group-pipeline",
+      "run": 2,
+      "victim": "replica3",
+      "skip": 16,
+      "ackedBeforeArm": 2522,
+      "killedAfterMs": 38,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "leader.pipelinedInflight",
+        "hits": 17,
+        "skip": 16,
+        "armedAt": "2026-10-03T18:18:10.207Z",
+        "firedAt": "2026-10-03T18:18:10.215Z",
+        "context": {
+          "replicaId": "replica3",
+          "state": "LEADER",
+          "term": 1,
+          "commitIndex": 2537,
+          "logLength": 2549,
+          "durableLength": 2547,
+          "pendingEntries": 2,
+          "peerUrl": "http://127.0.0.1:18002",
+          "stillInflight": 7
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 2537,
+      "newLeader": "http://127.0.0.1:18001",
+      "powerThrottling": {
+        "requested": "disabled",
+        "platform": "win32",
+        "mechanism": "SetProcessInformation(ProcessPowerThrottling, ControlMask=EXECUTION_SPEED, StateMask=0), verified with GetProcessInformation",
+        "script": "tools/windows/disable-power-throttling.ps1",
+        "scriptSha256": "91fc490239ce4d2c2ec2ab3efa1143f1b44472be6817643c0e62cad68450ca4c",
+        "module": "packages/raft-bench/power-throttling.js",
+        "moduleSha256": "ca980c571c622c14edfb10f59ad9c5af2caa9d63be08caced39d5d38f40c05a9",
+        "processes": [
+          {
+            "role": "replica1",
+            "pid": 19656,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica2",
+            "pid": 4724,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica3",
+            "pid": 6556,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica3",
+            "pid": 33100,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true,
+            "restarted": true
+          }
+        ],
+        "applied": true
+      },
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 3329
+        },
+        {
+          "replica": "replica2",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 3329
+        },
+        {
+          "replica": "replica3",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 3329
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 3335,
+        "acknowledged": 3323,
+        "recoveredAcknowledged": 3323,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 5,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 3330
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "pipelined-replication",
+      "label": "during pipelined replication",
+      "site": "leader.pipelinedInflight",
+      "profile": "group-pipeline",
+      "run": 3,
+      "victim": "replica1",
+      "skip": 17,
+      "ackedBeforeArm": 2544,
+      "killedAfterMs": 35,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "leader.pipelinedInflight",
+        "hits": 18,
+        "skip": 17,
+        "armedAt": "2026-10-03T18:18:16.804Z",
+        "firedAt": "2026-10-03T18:18:16.811Z",
+        "context": {
+          "replicaId": "replica1",
+          "state": "LEADER",
+          "term": 1,
+          "commitIndex": 2558,
+          "logLength": 2571,
+          "durableLength": 2569,
+          "pendingEntries": 2,
+          "peerUrl": "http://127.0.0.1:18003",
+          "stillInflight": 7
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 2558,
+      "newLeader": "http://127.0.0.1:18002",
+      "powerThrottling": {
+        "requested": "disabled",
+        "platform": "win32",
+        "mechanism": "SetProcessInformation(ProcessPowerThrottling, ControlMask=EXECUTION_SPEED, StateMask=0), verified with GetProcessInformation",
+        "script": "tools/windows/disable-power-throttling.ps1",
+        "scriptSha256": "91fc490239ce4d2c2ec2ab3efa1143f1b44472be6817643c0e62cad68450ca4c",
+        "module": "packages/raft-bench/power-throttling.js",
+        "moduleSha256": "ca980c571c622c14edfb10f59ad9c5af2caa9d63be08caced39d5d38f40c05a9",
+        "processes": [
+          {
+            "role": "replica1",
+            "pid": 22520,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica2",
+            "pid": 22568,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica3",
+            "pid": 39516,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica1",
+            "pid": 42656,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true,
+            "restarted": true
+          }
+        ],
+        "applied": true
+      },
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 3343
+        },
+        {
+          "replica": "replica2",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 3343
+        },
+        {
+          "replica": "replica3",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 3343
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 3348,
+        "acknowledged": 3336,
+        "recoveredAcknowledged": 3336,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 6,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 3344
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "pipelined-replication",
+      "label": "during pipelined replication",
+      "site": "leader.pipelinedInflight",
+      "profile": "group-pipeline",
+      "run": 4,
+      "victim": "replica2",
+      "skip": 20,
+      "ackedBeforeArm": 2719,
+      "killedAfterMs": 45,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "leader.pipelinedInflight",
+        "hits": 21,
+        "skip": 20,
+        "armedAt": "2026-10-03T18:18:23.516Z",
+        "firedAt": "2026-10-03T18:18:23.524Z",
+        "context": {
+          "replicaId": "replica2",
+          "state": "LEADER",
+          "term": 1,
+          "commitIndex": 2731,
+          "logLength": 2747,
+          "durableLength": 2744,
+          "pendingEntries": 3,
+          "peerUrl": "http://127.0.0.1:18001",
+          "stillInflight": 7
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 2731,
+      "newLeader": "http://127.0.0.1:18003",
+      "powerThrottling": {
+        "requested": "disabled",
+        "platform": "win32",
+        "mechanism": "SetProcessInformation(ProcessPowerThrottling, ControlMask=EXECUTION_SPEED, StateMask=0), verified with GetProcessInformation",
+        "script": "tools/windows/disable-power-throttling.ps1",
+        "scriptSha256": "91fc490239ce4d2c2ec2ab3efa1143f1b44472be6817643c0e62cad68450ca4c",
+        "module": "packages/raft-bench/power-throttling.js",
+        "moduleSha256": "ca980c571c622c14edfb10f59ad9c5af2caa9d63be08caced39d5d38f40c05a9",
+        "processes": [
+          {
+            "role": "replica1",
+            "pid": 30952,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica2",
+            "pid": 7088,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica3",
+            "pid": 18928,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica2",
+            "pid": 31036,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true,
+            "restarted": true
+          }
+        ],
+        "applied": true
+      },
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 3576
+        },
+        {
+          "replica": "replica2",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 3576
+        },
+        {
+          "replica": "replica3",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 3576
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 3579,
+        "acknowledged": 3567,
+        "recoveredAcknowledged": 3567,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 8,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 3577
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "batched-replication",
+      "label": "during batched replication",
+      "site": "leader.batchedReplication",
+      "profile": "group-batch",
+      "run": 0,
+      "victim": "replica1",
+      "skip": 14,
+      "ackedBeforeArm": 4993,
+      "killedAfterMs": 60,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "leader.batchedReplication",
+        "hits": 15,
+        "skip": 14,
+        "armedAt": "2026-10-03T18:18:30.206Z",
+        "firedAt": "2026-10-03T18:18:30.236Z",
+        "context": {
+          "replicaId": "replica1",
+          "state": "LEADER",
+          "term": 1,
+          "commitIndex": 5081,
+          "logLength": 5097,
+          "durableLength": 5094,
+          "pendingEntries": 3,
+          "peerUrl": "http://127.0.0.1:18002",
+          "carried": 12
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 5081,
+      "newLeader": "http://127.0.0.1:18003",
+      "powerThrottling": {
+        "requested": "disabled",
+        "platform": "win32",
+        "mechanism": "SetProcessInformation(ProcessPowerThrottling, ControlMask=EXECUTION_SPEED, StateMask=0), verified with GetProcessInformation",
+        "script": "tools/windows/disable-power-throttling.ps1",
+        "scriptSha256": "91fc490239ce4d2c2ec2ab3efa1143f1b44472be6817643c0e62cad68450ca4c",
+        "module": "packages/raft-bench/power-throttling.js",
+        "moduleSha256": "ca980c571c622c14edfb10f59ad9c5af2caa9d63be08caced39d5d38f40c05a9",
+        "processes": [
+          {
+            "role": "replica1",
+            "pid": 31976,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica2",
+            "pid": 32452,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica3",
+            "pid": 34472,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica1",
+            "pid": 6360,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true,
+            "restarted": true
+          }
+        ],
+        "applied": true
+      },
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 5847
+        },
+        {
+          "replica": "replica2",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 5847
+        },
+        {
+          "replica": "replica3",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 5847
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 5852,
+        "acknowledged": 5840,
+        "recoveredAcknowledged": 5840,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 6,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 5848
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "batched-replication",
+      "label": "during batched replication",
+      "site": "leader.batchedReplication",
+      "profile": "group-batch",
+      "run": 1,
+      "victim": "replica3",
+      "skip": 30,
+      "ackedBeforeArm": 5066,
+      "killedAfterMs": 92,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "leader.batchedReplication",
+        "hits": 31,
+        "skip": 30,
+        "armedAt": "2026-10-03T18:18:37.186Z",
+        "firedAt": "2026-10-03T18:18:37.251Z",
+        "context": {
+          "replicaId": "replica3",
+          "state": "LEADER",
+          "term": 1,
+          "commitIndex": 5261,
+          "logLength": 5271,
+          "durableLength": 5269,
+          "pendingEntries": 2,
+          "peerUrl": "http://127.0.0.1:18002",
+          "carried": 12
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 5260,
+      "newLeader": "http://127.0.0.1:18002",
+      "powerThrottling": {
+        "requested": "disabled",
+        "platform": "win32",
+        "mechanism": "SetProcessInformation(ProcessPowerThrottling, ControlMask=EXECUTION_SPEED, StateMask=0), verified with GetProcessInformation",
+        "script": "tools/windows/disable-power-throttling.ps1",
+        "scriptSha256": "91fc490239ce4d2c2ec2ab3efa1143f1b44472be6817643c0e62cad68450ca4c",
+        "module": "packages/raft-bench/power-throttling.js",
+        "moduleSha256": "ca980c571c622c14edfb10f59ad9c5af2caa9d63be08caced39d5d38f40c05a9",
+        "processes": [
+          {
+            "role": "replica1",
+            "pid": 42568,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica2",
+            "pid": 14552,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica3",
+            "pid": 38788,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica3",
+            "pid": 30784,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true,
+            "restarted": true
+          }
+        ],
+        "applied": true
+      },
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 6057
+        },
+        {
+          "replica": "replica2",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 6057
+        },
+        {
+          "replica": "replica3",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 6057
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 6068,
+        "acknowledged": 6056,
+        "recoveredAcknowledged": 6056,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 0,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 6058
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "batched-replication",
+      "label": "during batched replication",
+      "site": "leader.batchedReplication",
+      "profile": "group-batch",
+      "run": 2,
+      "victim": "replica1",
+      "skip": 13,
+      "ackedBeforeArm": 4999,
+      "killedAfterMs": 54,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "leader.batchedReplication",
+        "hits": 14,
+        "skip": 13,
+        "armedAt": "2026-10-03T18:18:44.262Z",
+        "firedAt": "2026-10-03T18:18:44.285Z",
+        "context": {
+          "replicaId": "replica1",
+          "state": "LEADER",
+          "term": 1,
+          "commitIndex": 5072,
+          "logLength": 5081,
+          "durableLength": 5080,
+          "pendingEntries": 1,
+          "peerUrl": "http://127.0.0.1:18003",
+          "carried": 6
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 5070,
+      "newLeader": "http://127.0.0.1:18003",
+      "powerThrottling": {
+        "requested": "disabled",
+        "platform": "win32",
+        "mechanism": "SetProcessInformation(ProcessPowerThrottling, ControlMask=EXECUTION_SPEED, StateMask=0), verified with GetProcessInformation",
+        "script": "tools/windows/disable-power-throttling.ps1",
+        "scriptSha256": "91fc490239ce4d2c2ec2ab3efa1143f1b44472be6817643c0e62cad68450ca4c",
+        "module": "packages/raft-bench/power-throttling.js",
+        "moduleSha256": "ca980c571c622c14edfb10f59ad9c5af2caa9d63be08caced39d5d38f40c05a9",
+        "processes": [
+          {
+            "role": "replica1",
+            "pid": 34748,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica2",
+            "pid": 35884,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica3",
+            "pid": 28808,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica1",
+            "pid": 43920,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true,
+            "restarted": true
+          }
+        ],
+        "applied": true
+      },
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 5874
+        },
+        {
+          "replica": "replica2",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 5874
+        },
+        {
+          "replica": "replica3",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 5874
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 5884,
+        "acknowledged": 5872,
+        "recoveredAcknowledged": 5872,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 1,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 5875
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "batched-replication",
+      "label": "during batched replication",
+      "site": "leader.batchedReplication",
+      "profile": "group-batch",
+      "run": 3,
+      "victim": "replica2",
+      "skip": 10,
+      "ackedBeforeArm": 5039,
+      "killedAfterMs": 46,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "leader.batchedReplication",
+        "hits": 11,
+        "skip": 10,
+        "armedAt": "2026-10-03T18:18:51.239Z",
+        "firedAt": "2026-10-03T18:18:51.258Z",
+        "context": {
+          "replicaId": "replica2",
+          "state": "LEADER",
+          "term": 1,
+          "commitIndex": 5095,
+          "logLength": 5110,
+          "durableLength": 5109,
+          "pendingEntries": 1,
+          "peerUrl": "http://127.0.0.1:18003",
+          "carried": 11
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 5095,
+      "newLeader": "http://127.0.0.1:18001",
+      "powerThrottling": {
+        "requested": "disabled",
+        "platform": "win32",
+        "mechanism": "SetProcessInformation(ProcessPowerThrottling, ControlMask=EXECUTION_SPEED, StateMask=0), verified with GetProcessInformation",
+        "script": "tools/windows/disable-power-throttling.ps1",
+        "scriptSha256": "91fc490239ce4d2c2ec2ab3efa1143f1b44472be6817643c0e62cad68450ca4c",
+        "module": "packages/raft-bench/power-throttling.js",
+        "moduleSha256": "ca980c571c622c14edfb10f59ad9c5af2caa9d63be08caced39d5d38f40c05a9",
+        "processes": [
+          {
+            "role": "replica1",
+            "pid": 20780,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica2",
+            "pid": 30580,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica3",
+            "pid": 16588,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica2",
+            "pid": 8988,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true,
+            "restarted": true
+          }
+        ],
+        "applied": true
+      },
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 5860
+        },
+        {
+          "replica": "replica2",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 5860
+        },
+        {
+          "replica": "replica3",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 5860
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 5864,
+        "acknowledged": 5852,
+        "recoveredAcknowledged": 5852,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 7,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 5861
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "batched-replication",
+      "label": "during batched replication",
+      "site": "leader.batchedReplication",
+      "profile": "group-batch",
+      "run": 4,
+      "victim": "replica3",
+      "skip": 27,
+      "ackedBeforeArm": 5052,
+      "killedAfterMs": 80,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "leader.batchedReplication",
+        "hits": 28,
+        "skip": 27,
+        "armedAt": "2026-10-03T18:18:58.253Z",
+        "firedAt": "2026-10-03T18:18:58.305Z",
+        "context": {
+          "replicaId": "replica3",
+          "state": "LEADER",
+          "term": 1,
+          "commitIndex": 5211,
+          "logLength": 5218,
+          "durableLength": 5217,
+          "pendingEntries": 1,
+          "peerUrl": "http://127.0.0.1:18002",
+          "carried": 9
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 5208,
+      "newLeader": "http://127.0.0.1:18001",
+      "powerThrottling": {
+        "requested": "disabled",
+        "platform": "win32",
+        "mechanism": "SetProcessInformation(ProcessPowerThrottling, ControlMask=EXECUTION_SPEED, StateMask=0), verified with GetProcessInformation",
+        "script": "tools/windows/disable-power-throttling.ps1",
+        "scriptSha256": "91fc490239ce4d2c2ec2ab3efa1143f1b44472be6817643c0e62cad68450ca4c",
+        "module": "packages/raft-bench/power-throttling.js",
+        "moduleSha256": "ca980c571c622c14edfb10f59ad9c5af2caa9d63be08caced39d5d38f40c05a9",
+        "processes": [
+          {
+            "role": "replica1",
+            "pid": 36808,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica2",
+            "pid": 39788,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica3",
+            "pid": 2264,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica3",
+            "pid": 9336,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true,
+            "restarted": true
+          }
+        ],
+        "applied": true
+      },
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 6012
+        },
+        {
+          "replica": "replica2",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 6012
+        },
+        {
+          "replica": "replica3",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 6012
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 6022,
+        "acknowledged": 6010,
+        "recoveredAcknowledged": 6010,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 1,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 6013
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "binary-transport",
+      "label": "binary transport active",
+      "site": "transport.framedInflight",
+      "profile": "optimized-binary",
+      "run": 0,
+      "victim": "replica2",
+      "skip": 22,
+      "ackedBeforeArm": 5223,
+      "killedAfterMs": 46,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "transport.framedInflight",
+        "hits": 23,
+        "skip": 22,
+        "armedAt": "2026-10-03T18:19:05.325Z",
+        "firedAt": "2026-10-03T18:19:05.336Z",
+        "context": {
+          "outstanding": 4,
+          "entries": 1
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 5254,
+      "newLeader": "http://127.0.0.1:18001",
+      "powerThrottling": {
+        "requested": "disabled",
+        "platform": "win32",
+        "mechanism": "SetProcessInformation(ProcessPowerThrottling, ControlMask=EXECUTION_SPEED, StateMask=0), verified with GetProcessInformation",
+        "script": "tools/windows/disable-power-throttling.ps1",
+        "scriptSha256": "91fc490239ce4d2c2ec2ab3efa1143f1b44472be6817643c0e62cad68450ca4c",
+        "module": "packages/raft-bench/power-throttling.js",
+        "moduleSha256": "ca980c571c622c14edfb10f59ad9c5af2caa9d63be08caced39d5d38f40c05a9",
+        "processes": [
+          {
+            "role": "replica1",
+            "pid": 25584,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica2",
+            "pid": 20520,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica3",
+            "pid": 25604,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica2",
+            "pid": 44288,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true,
+            "restarted": true
+          }
+        ],
+        "applied": true
+      },
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 6048
+        },
+        {
+          "replica": "replica2",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 6048
+        },
+        {
+          "replica": "replica3",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 6048
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 6053,
+        "acknowledged": 6041,
+        "recoveredAcknowledged": 6041,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 6,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 6049
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "binary-transport",
+      "label": "binary transport active",
+      "site": "transport.framedInflight",
+      "profile": "optimized-binary",
+      "run": 1,
+      "victim": "replica2",
+      "skip": 36,
+      "ackedBeforeArm": 5282,
+      "killedAfterMs": 39,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "transport.framedInflight",
+        "hits": 37,
+        "skip": 36,
+        "armedAt": "2026-10-03T18:19:12.455Z",
+        "firedAt": "2026-10-03T18:19:12.470Z",
+        "context": {
+          "outstanding": 3,
+          "entries": 4
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 5322,
+      "newLeader": "http://127.0.0.1:18001",
+      "powerThrottling": {
+        "requested": "disabled",
+        "platform": "win32",
+        "mechanism": "SetProcessInformation(ProcessPowerThrottling, ControlMask=EXECUTION_SPEED, StateMask=0), verified with GetProcessInformation",
+        "script": "tools/windows/disable-power-throttling.ps1",
+        "scriptSha256": "91fc490239ce4d2c2ec2ab3efa1143f1b44472be6817643c0e62cad68450ca4c",
+        "module": "packages/raft-bench/power-throttling.js",
+        "moduleSha256": "ca980c571c622c14edfb10f59ad9c5af2caa9d63be08caced39d5d38f40c05a9",
+        "processes": [
+          {
+            "role": "replica1",
+            "pid": 6360,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica2",
+            "pid": 33216,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica3",
+            "pid": 11448,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica2",
+            "pid": 21528,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true,
+            "restarted": true
+          }
+        ],
+        "applied": true
+      },
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 6171
+        },
+        {
+          "replica": "replica2",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 6171
+        },
+        {
+          "replica": "replica3",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 6171
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 6177,
+        "acknowledged": 6165,
+        "recoveredAcknowledged": 6165,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 5,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 6172
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "binary-transport",
+      "label": "binary transport active",
+      "site": "transport.framedInflight",
+      "profile": "optimized-binary",
+      "run": 2,
+      "victim": "replica1",
+      "skip": 20,
+      "ackedBeforeArm": 5449,
+      "killedAfterMs": 35,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "transport.framedInflight",
+        "hits": 21,
+        "skip": 20,
+        "armedAt": "2026-10-03T18:19:19.444Z",
+        "firedAt": "2026-10-03T18:19:19.455Z",
+        "context": {
+          "outstanding": 2,
+          "entries": 8
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 5488,
+      "newLeader": "http://127.0.0.1:18002",
+      "powerThrottling": {
+        "requested": "disabled",
+        "platform": "win32",
+        "mechanism": "SetProcessInformation(ProcessPowerThrottling, ControlMask=EXECUTION_SPEED, StateMask=0), verified with GetProcessInformation",
+        "script": "tools/windows/disable-power-throttling.ps1",
+        "scriptSha256": "91fc490239ce4d2c2ec2ab3efa1143f1b44472be6817643c0e62cad68450ca4c",
+        "module": "packages/raft-bench/power-throttling.js",
+        "moduleSha256": "ca980c571c622c14edfb10f59ad9c5af2caa9d63be08caced39d5d38f40c05a9",
+        "processes": [
+          {
+            "role": "replica1",
+            "pid": 3140,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica2",
+            "pid": 40276,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica3",
+            "pid": 44648,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica1",
+            "pid": 43636,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true,
+            "restarted": true
+          }
+        ],
+        "applied": true
+      },
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 6337
+        },
+        {
+          "replica": "replica2",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 6337
+        },
+        {
+          "replica": "replica3",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 6337
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 6344,
+        "acknowledged": 6332,
+        "recoveredAcknowledged": 6332,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 4,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 6338
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "binary-transport",
+      "label": "binary transport active",
+      "site": "transport.framedInflight",
+      "profile": "optimized-binary",
+      "run": 3,
+      "victim": "replica2",
+      "skip": 19,
+      "ackedBeforeArm": 5123,
+      "killedAfterMs": 39,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "transport.framedInflight",
+        "hits": 20,
+        "skip": 19,
+        "armedAt": "2026-10-03T18:19:26.493Z",
+        "firedAt": "2026-10-03T18:19:26.502Z",
+        "context": {
+          "outstanding": 2,
+          "entries": 3
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 5154,
+      "newLeader": "http://127.0.0.1:18003",
+      "powerThrottling": {
+        "requested": "disabled",
+        "platform": "win32",
+        "mechanism": "SetProcessInformation(ProcessPowerThrottling, ControlMask=EXECUTION_SPEED, StateMask=0), verified with GetProcessInformation",
+        "script": "tools/windows/disable-power-throttling.ps1",
+        "scriptSha256": "91fc490239ce4d2c2ec2ab3efa1143f1b44472be6817643c0e62cad68450ca4c",
+        "module": "packages/raft-bench/power-throttling.js",
+        "moduleSha256": "ca980c571c622c14edfb10f59ad9c5af2caa9d63be08caced39d5d38f40c05a9",
+        "processes": [
+          {
+            "role": "replica1",
+            "pid": 44104,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica2",
+            "pid": 30600,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica3",
+            "pid": 13392,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica2",
+            "pid": 5064,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true,
+            "restarted": true
+          }
+        ],
+        "applied": true
+      },
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 6032
+        },
+        {
+          "replica": "replica2",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 6032
+        },
+        {
+          "replica": "replica3",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 6032
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 6038,
+        "acknowledged": 6026,
+        "recoveredAcknowledged": 6026,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 5,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 6033
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    },
+    {
+      "window": "binary-transport",
+      "label": "binary transport active",
+      "site": "transport.framedInflight",
+      "profile": "optimized-binary",
+      "run": 4,
+      "victim": "replica2",
+      "skip": 33,
+      "ackedBeforeArm": 5381,
+      "killedAfterMs": 43,
+      "exit": {
+        "code": 1,
+        "signal": null
+      },
+      "marker": {
+        "name": "transport.framedInflight",
+        "hits": 34,
+        "skip": 33,
+        "armedAt": "2026-10-03T18:19:33.490Z",
+        "firedAt": "2026-10-03T18:19:33.508Z",
+        "context": {
+          "outstanding": 2,
+          "entries": 7
+        }
+      },
+      "inWindow": true,
+      "ackedAtKill": 5442,
+      "newLeader": "http://127.0.0.1:18001",
+      "powerThrottling": {
+        "requested": "disabled",
+        "platform": "win32",
+        "mechanism": "SetProcessInformation(ProcessPowerThrottling, ControlMask=EXECUTION_SPEED, StateMask=0), verified with GetProcessInformation",
+        "script": "tools/windows/disable-power-throttling.ps1",
+        "scriptSha256": "91fc490239ce4d2c2ec2ab3efa1143f1b44472be6817643c0e62cad68450ca4c",
+        "module": "packages/raft-bench/power-throttling.js",
+        "moduleSha256": "ca980c571c622c14edfb10f59ad9c5af2caa9d63be08caced39d5d38f40c05a9",
+        "processes": [
+          {
+            "role": "replica1",
+            "pid": 27720,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica2",
+            "pid": 32680,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica3",
+            "pid": 18480,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true
+          },
+          {
+            "role": "replica2",
+            "pid": 44716,
+            "set": true,
+            "read": true,
+            "controlMask": 1,
+            "stateMask": 0,
+            "error": 0,
+            "applied": true,
+            "inRequestedState": true,
+            "restarted": true
+          }
+        ],
+        "applied": true
+      },
+      "final": [
+        {
+          "replica": "replica1",
+          "state": "LEADER",
+          "term": 2,
+          "commitIndex": 6261
+        },
+        {
+          "replica": "replica2",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 6261
+        },
+        {
+          "replica": "replica3",
+          "state": "FOLLOWER",
+          "term": 2,
+          "commitIndex": 6261
+        }
+      ],
+      "committedPrefixesIdentical": true,
+      "counts": {
+        "attempted": 6268,
+        "acknowledged": 6256,
+        "recoveredAcknowledged": 6256,
+        "missingAcknowledged": 0,
+        "duplicateLogicalWrites": 0,
+        "unacknowledged": 12,
+        "unacknowledgedRecovered": 4,
+        "inDoubtRetriedAndAcknowledged": 12,
+        "retriedWrites": 12,
+        "gaveUp": 0,
+        "committedEntries": 6262
+      },
+      "missingIds": [],
+      "duplicateIds": [],
+      "pass": true
+    }
+  ]
+}

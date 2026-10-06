@@ -3,6 +3,8 @@
 const { SimCluster } = require('./cluster');
 const { DecisionStreams } = require('./decision-tape');
 const { LinearizabilityChecker, HistoryRecorder, registerModel } = require('./linearizability');
+const { profileOptions } = require('../replica/raft-profiles');
+const { wireFor } = require('./wire-codec');
 
 const SCHEDULE_SCHEMA_VERSION = 1;
 const DEFAULTS = Object.freeze({
@@ -194,6 +196,10 @@ async function runSchedule(input, options = {}) {
         maxLatency: config.maxLatency || 20,
         recording: options.recording !== false,
         decisionTrace: runtimeTape || null,
+        // Phase IV-A: a schedule may name an optimization profile. Absent on
+        // every schedule recorded before it, which therefore replays exactly.
+        raftOptions: config.raftProfile ? profileOptions(config.raftProfile) : null,
+        wrapTransport: config.raftProfile ? wireFor(profileOptions(config.raftProfile)) : null,
     });
     for (let index = config.nodes; index < config.nodes + config.spares; index += 1) {
         cluster.crash(index);

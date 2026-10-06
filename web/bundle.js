@@ -2823,6 +2823,49 @@ class StateMachine {
 module.exports = { StateMachine, encodeVector, decodeVector };
 
 };
+__registry["replica/entry-codec.js"] = function (module, exports, require) {
+'use strict';
+
+/**
+ * entry-codec.js — each log entry is JSON-encoded at most once per process.
+ *
+ * The same entry object is encoded for the durable log record and, on a
+ * leader, for every follower it is replicated to; at 16 KiB payloads the
+ * repeated JSON.stringify is a measurable share of the leader's CPU. The
+ * encoding is cached per entry *object* in a WeakMap, so it disappears with
+ * the entry and never outlives a truncation.
+ *
+ * This relies on an invariant the engine already keeps: a log entry is never
+ * mutated after it is appended (the state machine reads `entry.data`, it does
+ * not write it). A receiver that decodes an entry from a wire format that
+ * carried its JSON can prime the cache with that exact text, so a follower does
+ * not re-encode what it was just sent.
+ */
+
+const cache = new WeakMap();
+
+function entryJson(entry) {
+    let json = cache.get(entry);
+    if (json === undefined) {
+        json = JSON.stringify(entry);
+        cache.set(entry, json);
+    }
+    return json;
+}
+
+/** Records `json` as the encoding of `entry`. Must equal JSON.stringify(entry). */
+function primeEntryJson(entry, json) {
+    cache.set(entry, json);
+}
+
+/** Encoded size in UTF-16 code units (equal to bytes for ASCII payloads). */
+function entryLength(entry) {
+    return entryJson(entry).length;
+}
+
+module.exports = { entryJson, primeEntryJson, entryLength };
+
+};
 __registry["replica/log-store.js"] = function (module, exports, require) {
 /**
  * log-store.js — an append-only, crash-safe Raft log.
@@ -2848,6 +2891,7 @@ __registry["replica/log-store.js"] = function (module, exports, require) {
 
 const fs = require('fs');
 const path = require('path');
+const { entryJson } = require('./entry-codec');
 
 const CRC_TABLE = (() => {
     const table = new Int32Array(256);
@@ -2871,7 +2915,9 @@ function crc32(text) {
 }
 
 function encodeRecord(entry) {
-    const json = JSON.stringify(entry);
+    // Cached per entry object: the same text is reused if this entry is later
+    // replicated by a transport that can carry raw entry JSON.
+    const json = entryJson(entry);
     return `${crc32(json).toString(16).padStart(8, '0')} ${json}\n`;
 }
 
@@ -2898,6 +2944,22 @@ class LogStore {
         this._descriptor = null;
         this.truncatedTailBytes = 0;
         this.appendCount = 0;
+        this.fsyncCount = 0;
+        // Optional observational recorder (raft-perf.js); never affects I/O.
+        this.perf = null;
+        // Group commit: encoded records appended but not yet written+fsynced.
+        this._pending = [];
+        this._pendingEntries = 0;
+        this._pendingSince = 0;
+    }
+
+    /** Entries appended with appendBuffered() and not yet flushed. */
+    get pendingCount() {
+        return this._pendingEntries;
+    }
+
+    setPerf(perf) {
+        this.perf = perf;
     }
 
     /**
@@ -2973,18 +3035,84 @@ class LogStore {
     append(entries) {
         if (entries.length === 0) return;
         const descriptor = this._open();
+        const perf = this.perf;
+        const encodeStartedAt = perf ? perf.now() : 0;
         const payload = entries.map(encodeRecord).join('');
+        const writeStartedAt = perf ? perf.now() : 0;
         fs.writeSync(descriptor, payload);
+        const fsyncStartedAt = perf ? perf.now() : 0;
         fs.fsyncSync(descriptor);
         this.appendCount += entries.length;
+        this.fsyncCount += 1;
+        if (perf) {
+            const doneAt = perf.now();
+            perf.observeMs('log.encode', writeStartedAt - encodeStartedAt);
+            perf.observeMs('log.write', fsyncStartedAt - writeStartedAt);
+            perf.observeMs('log.fsync', doneAt - fsyncStartedAt);
+            perf.observeValue('log.entriesPerFsync', entries.length);
+            perf.count('log.fsyncs');
+            perf.count('log.entriesWritten', entries.length);
+            perf.count('log.bytesWritten', Buffer.byteLength(payload, 'utf8'));
+        }
+    }
+
+    /**
+     * Group commit, first half: encode now, write later. Nothing appended this
+     * way is durable, and the caller must not act as if it were, until
+     * flush() returns.
+     */
+    appendBuffered(entries) {
+        if (entries.length === 0) return;
+        const perf = this.perf;
+        const encodeStartedAt = perf ? perf.now() : 0;
+        for (const entry of entries) this._pending.push(encodeRecord(entry));
+        if (this._pendingEntries === 0 && perf) this._pendingSince = encodeStartedAt;
+        this._pendingEntries += entries.length;
+        if (perf) perf.observeMs('log.encode', perf.now() - encodeStartedAt);
+    }
+
+    /**
+     * Group commit, second half: one write and one fsync for every buffered
+     * record, in append order. Returns the number of entries made durable.
+     */
+    flush() {
+        if (this._pendingEntries === 0) return 0;
+        const descriptor = this._open();
+        const perf = this.perf;
+        const payload = this._pending.join('');
+        const count = this._pendingEntries;
+        const writeStartedAt = perf ? perf.now() : 0;
+        fs.writeSync(descriptor, payload);
+        const fsyncStartedAt = perf ? perf.now() : 0;
+        fs.fsyncSync(descriptor);
+        this._pending = [];
+        this._pendingEntries = 0;
+        this.appendCount += count;
+        this.fsyncCount += 1;
+        if (perf) {
+            const doneAt = perf.now();
+            perf.observeMs('groupCommit.oldestWait', writeStartedAt - this._pendingSince);
+            perf.observeMs('log.write', fsyncStartedAt - writeStartedAt);
+            perf.observeMs('log.fsync', doneAt - fsyncStartedAt);
+            perf.observeValue('log.entriesPerFsync', count);
+            perf.count('log.fsyncs');
+            perf.count('log.entriesWritten', count);
+            perf.count('log.bytesWritten', Buffer.byteLength(payload, 'utf8'));
+        }
+        return count;
     }
 
     /**
      * Replaces the log wholesale. Used when a follower truncates a conflicting
      * suffix, which is rare enough that paying for a full rewrite is fine and
      * much simpler than punching a hole in an append-only file.
+     *
+     * `entries` is the complete in-memory log, which includes anything still
+     * buffered, so the buffer is discarded: the rewrite makes it durable.
      */
     rewrite(entries) {
+        this._pending = [];
+        this._pendingEntries = 0;
         fs.mkdirSync(this.directory, { recursive: true });
         if (this._descriptor !== null) {
             fs.closeSync(this._descriptor);
@@ -2996,6 +3124,8 @@ class LogStore {
         try {
             fs.writeSync(descriptor, entries.map(encodeRecord).join(''));
             fs.fsyncSync(descriptor);
+            this.fsyncCount += 1;
+            if (this.perf) this.perf.count('log.rewrites');
         } finally {
             fs.closeSync(descriptor);
         }
@@ -3054,6 +3184,7 @@ const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 const { LogStore } = require('./log-store');
+const { entryLength } = require('./entry-codec');
 const { StateMachine } = require('./state-machine');
 
 const STATES = {
@@ -3069,6 +3200,12 @@ const REAL_CLOCK = {
     clearTimeout: (handle) => clearTimeout(handle),
     setInterval: (fn, ms) => setInterval(fn, ms),
     clearInterval: (handle) => clearInterval(handle),
+    // End of the current event-loop turn: everything already read from the
+    // sockets in this turn is processed first, which is what lets group
+    // commit and coalesced replication batch it. Clocks without these (the
+    // simulator's VirtualClock) fall back to setTimeout(fn, 0).
+    setImmediate: (fn) => setImmediate(fn),
+    clearImmediate: (handle) => clearImmediate(handle),
 };
 
 /**
@@ -3078,6 +3215,12 @@ const REAL_CLOCK = {
 class StableStateStore {
     constructor(filePath) {
         this.filePath = filePath;
+        this.saveCount = 0;
+        this.perf = null;
+    }
+
+    setPerf(perf) {
+        this.perf = perf;
     }
 
     load() {
@@ -3093,6 +3236,16 @@ class StableStateStore {
     }
 
     save(state) {
+        const startedAt = this.perf ? this.perf.now() : 0;
+        this._save(state);
+        this.saveCount += 1;
+        if (this.perf) {
+            this.perf.observeMs('meta.persist', this.perf.now() - startedAt);
+            this.perf.count('meta.saves');
+        }
+    }
+
+    _save(state) {
         const directory = path.dirname(this.filePath);
         fs.mkdirSync(directory, { recursive: true });
 
@@ -3179,8 +3332,84 @@ class RaftNode {
         heartbeatInterval = 150,
         leaseTickInterval = 250,
         commitTimeoutMs = 2000,
+        /**
+         * Optional observational recorder (raft-perf.js). It reads a host
+         * timer, never `clock`, so it cannot influence protocol timing; the
+         * simulator never passes one.
+         */
+        perf = null,
+        /**
+         * Test-only failpoint hook, `(name, context) => void` (Phase IV-A
+         * durability gate). Null in production and in the simulator, where
+         * every site below is a single null check. A test arms one named site
+         * on one process (replica/failpoints.js); when it fires the process
+         * dies on the spot, inside the window the site names.
+         */
+        failpoint = null,
+        /**
+         * Durable group commit (Phase IV-A). Off by default, which keeps the
+         * original contract exactly: every append is fsynced before the call
+         * returns. When enabled, appends are buffered and flushed together —
+         * one write and one fsync for everything appended in the same event-
+         * loop turn (maxDelayMs 0), a bounded delay, or as soon as maxEntries
+         * are waiting — and nothing that depends on durability happens before
+         * the flush: a follower does not acknowledge, and a leader does not
+         * count its own copy toward a majority. The commit index, which Raft
+         * does not require to be durable at all, is persisted lazily, at most
+         * once per metaIntervalMs. See CLOUDPROOF-PHASE-IV-A.md §5.
+         */
+        groupCommit = null,
+        /**
+         * Pipelined replication (Phase IV-A). Off by default: the original
+         * engine keeps exactly one AppendEntries outstanding per follower and
+         * sends the next only after the previous returns. When enabled, a
+         * follower that has matched once is sent up to maxInflight batches
+         * without waiting (nextIndex advances optimistically); a rejection or
+         * error drops it back to one-at-a-time probing. See
+         * CLOUDPROOF-PHASE-IV-A.md §6 for the safety argument.
+         */
+        pipeline = null,
+        /**
+         * Bounded AppendEntries batches and a coalesced replication trigger
+         * (Phase IV-A). Off by default: the original engine sends every entry
+         * from nextIndex to the end of the log in one request, however large,
+         * and starts a replication round from every client write. When set,
+         * one request carries at most maxEntries entries and roughly maxBytes
+         * of encoded entries (always at least one), and client writes arriving
+         * in the same event-loop turn share one replication round.
+         */
+        replicationBatch = null,
+        /**
+         * Two log lines per client write ("Entry persisted", "Commit
+         * advanced") are synchronous stdout writes on the leader's hot path;
+         * profiled at ~8% of a saturated leader's CPU. On by default (the
+         * original behaviour); elections, step-downs and membership changes
+         * are always logged.
+         */
+        logHotPath = true,
     }) {
         this._clock = clock;
+        this._perf = perf;
+        this._failpoint = failpoint;
+        this._pipeline = pipeline && pipeline.enabled !== false
+            ? { maxInflight: Math.max(1, pipeline.maxInflight ?? 8) }
+            : null;
+        this._batch = replicationBatch && replicationBatch.enabled !== false
+            ? {
+                maxEntries: Math.max(1, replicationBatch.maxEntries ?? 512),
+                maxBytes: Math.max(1, replicationBatch.maxBytes ?? 1024 * 1024),
+                coalesce: replicationBatch.coalesce !== false,
+            }
+            : null;
+        this._replicationRequested = false;
+        this._logHotPath = logHotPath;
+        this._groupCommit = groupCommit && groupCommit.enabled !== false
+            ? {
+                maxEntries: Math.max(1, groupCommit.maxEntries ?? 1024),
+                maxDelayMs: Math.max(0, groupCommit.maxDelayMs ?? 0),
+                metaIntervalMs: Math.max(0, groupCommit.metaIntervalMs ?? 100),
+            }
+            : null;
         this._random = random;
         this._randomElectionTimeout = randomElectionTimeout;
         this.replicaId = replicaId;
@@ -3258,6 +3487,16 @@ class RaftNode {
             : logPath || this.storagePath.replace(/\.json$/, '') + '.log';
         this._logStore = logStore
             ?? (this.logPath === false ? null : new LogStore(this.logPath));
+        // Group commit needs a store that can separate "appended" from
+        // "durable". Without one (no storage at all) every append is as
+        // durable as it will ever be, so the synchronous path is exact.
+        if (this._groupCommit && !(this._logStore && typeof this._logStore.appendBuffered === 'function')) {
+            this._groupCommit = null;
+        }
+        if (perf) {
+            if (this._store && typeof this._store.setPerf === 'function') this._store.setPerf(perf);
+            if (this._logStore && typeof this._logStore.setPerf === 'function') this._logStore.setPerf(perf);
+        }
 
         const stable = this._store ? this._store.load() : {};
 
@@ -3284,6 +3523,27 @@ class RaftNode {
         const storedCommit = Number.isInteger(stable.commitIndex) ? stable.commitIndex : -1;
         this.commitIndex = Math.min(storedCommit, this.log.length - 1);
         this.lastApplied = -1;
+
+        // Group-commit bookkeeping. Entries [0, _durableLength) are on stable
+        // storage; the store's pending buffer holds exactly the rest. With
+        // group commit off this always equals log.length.
+        this._durableLength = this.log.length;
+        this._flushHandle = null;
+        this._durableWaiters = [];
+        this._metaDirty = false;
+        this._metaTimer = null;
+        // Bumped on every truncation, so an acknowledgement prepared before a
+        // truncation is never sent after it.
+        this._logEpoch = 0;
+
+        // Pipelined replication. Per-follower progress, and a leadership
+        // epoch that every outstanding request carries: bumped whenever this
+        // node gains or loses leadership, so a response to a request sent
+        // under an earlier leadership can never move this one's progress.
+        this._progress = {};
+        this._leaderEpoch = 0;
+        this._peerContactAt = {};
+        this._replicationWaiters = {};
 
         // Leader volatile state, keyed by peer URL.
         this.nextIndex = {};
@@ -3422,7 +3682,156 @@ class RaftNode {
 
     /** Durably records term / vote / commitIndex. Cheap: the file is ~100 bytes. */
     _persistState() {
+        this._metaDirty = false;
         if (this._store) this._store.save(this._persistentSnapshot());
+    }
+
+    /**
+     * Records that commitIndex advanced.
+     *
+     * Raft keeps commitIndex in volatile state; it is persisted here only so a
+     * restarted node can replay its committed prefix without waiting for a
+     * leader. A persisted value that lags the true one is therefore always
+     * safe — restart replays a shorter prefix and the leader supplies the
+     * rest — while a synchronous rewrite of the metadata file on every advance
+     * costs an fsync and a rename on the critical path of every write. Under
+     * group commit it is coalesced to at most one write per metaIntervalMs.
+     * Term and vote changes still persist synchronously (and carry the latest
+     * commitIndex with them), because those are the values safety depends on.
+     */
+    _persistCommitIndex() {
+        if (!this._groupCommit) {
+            this._persistState();
+            return;
+        }
+        this._metaDirty = true;
+        if (this._metaTimer !== null) return;
+        this._metaTimer = this._clock.setTimeout(() => {
+            this._metaTimer = null;
+            if (this._metaDirty) this._persistState();
+        }, this._groupCommit.metaIntervalMs);
+        if (this._metaTimer && this._metaTimer.unref) this._metaTimer.unref();
+    }
+
+    /** Runs `fn` at the end of the current event-loop turn (virtual: next tick of the clock). */
+    _defer(fn) {
+        if (typeof this._clock.setImmediate === 'function') {
+            return { immediate: this._clock.setImmediate(fn) };
+        }
+        return { timeout: this._clock.setTimeout(fn, 0) };
+    }
+
+    _cancelDeferred(handle) {
+        if (!handle) return;
+        if (handle.immediate !== undefined) this._clock.clearImmediate(handle.immediate);
+        else this._clock.clearTimeout(handle.timeout);
+    }
+
+    _scheduleFlush() {
+        if (this._logStore.pendingCount >= this._groupCommit.maxEntries) {
+            this._flushLog();
+            return;
+        }
+        if (this._flushHandle !== null) return;
+        this._flushHandle = this._groupCommit.maxDelayMs > 0
+            ? { timeout: this._clock.setTimeout(() => this._flushLog(), this._groupCommit.maxDelayMs) }
+            : this._defer(() => this._flushLog());
+    }
+
+    /**
+     * One durable write for everything appended since the last flush, then
+     * everything that was waiting on it: follower acknowledgements, the
+     * leader's own vote toward a majority, and the lazy commit index.
+     */
+    _flushLog() {
+        this._cancelDeferred(this._flushHandle);
+        this._flushHandle = null;
+        if (!this._groupCommit) return;
+        const before = this._durableLength;
+        if (this._failpoint && this.state === STATES.LEADER && this._logStore.pendingCount > 0) {
+            this._hitFailpoint('leader.beforeFlush');
+        }
+        if (this._logStore.pendingCount > 0) this._logStore.flush();
+        this._durableLength = this.log.length;
+        if (this._failpoint && this.state === STATES.LEADER && this._durableLength - 1 > this.commitIndex) {
+            this._hitFailpoint('leader.durableBeforeQuorum');
+        }
+        if (this._perf && this._durableLength > before) {
+            this._perf.observeValue('groupCommit.entriesPerFlush', this._durableLength - before);
+            this._perf.entriesDurable(before, this._durableLength);
+        }
+        this._releaseDurableWaiters();
+        if (this.state === STATES.LEADER) this._advanceCommitIndex();
+    }
+
+    /** Calls the test-only failpoint hook with the state that defines the window. */
+    _hitFailpoint(name, extra = {}) {
+        this._failpoint(name, {
+            replicaId: this.replicaId,
+            state: this.state,
+            term: this.currentTerm,
+            commitIndex: this.commitIndex,
+            logLength: this.log.length,
+            durableLength: this._durableLength,
+            pendingEntries: this._logStore && this._logStore.pendingCount !== undefined ? this._logStore.pendingCount : 0,
+            ...extra,
+        });
+    }
+
+    /** Public: make everything appended so far durable now (graceful shutdown). */
+    flushDurable() {
+        if (this._groupCommit) this._flushLog();
+        if (this._metaDirty) this._persistState();
+    }
+
+    _releaseDurableWaiters() {
+        if (this._durableWaiters.length === 0) return;
+        const ready = [];
+        const waiting = [];
+        for (const waiter of this._durableWaiters) {
+            // A waiter whose term or log epoch has moved on is released at
+            // once: it will be revoked, and the stale leader should hear so now
+            // rather than whenever the log next reaches the old length.
+            const obsolete = waiter.term !== this.currentTerm || waiter.epoch !== this._logEpoch;
+            (obsolete || waiter.need <= this._durableLength ? ready : waiting).push(waiter);
+        }
+        this._durableWaiters = waiting;
+        for (const waiter of ready) waiter.release();
+    }
+
+    /**
+     * A follower's successful AppendEntries response under group commit.
+     *
+     * The response is prepared when the RPC is processed but not sent until
+     * the entries it acknowledges are durable. It is then re-validated: if the
+     * term moved on or the log was truncated in the meantime, the prepared
+     * "success" describes a log this node no longer has, and sending it could
+     * let a deposed leader count an entry that has since been overwritten. It
+     * is replaced by a plain rejection carrying the current term instead.
+     */
+    _acknowledgeWhenDurable(response) {
+        const term = response.term;
+        const epoch = this._logEpoch;
+        return new Promise((resolve) => {
+            this._durableWaiters.push({
+                need: response.matchIndex + 1,
+                term,
+                epoch,
+                release: () => {
+                    if (this.currentTerm === term && this._logEpoch === epoch && !this.paused) {
+                        resolve(response);
+                    } else {
+                        if (this._perf) this._perf.count('groupCommit.revokedAcks');
+                        resolve({
+                            term: this.currentTerm,
+                            success: false,
+                            conflictIndex: this.log.length,
+                            logLength: this.log.length,
+                        });
+                    }
+                },
+            });
+        });
     }
 
     /**
@@ -3431,8 +3840,16 @@ class RaftNode {
      */
     _appendToLog(entries) {
         if (entries.length === 0) return;
+        const firstIndex = this.log.length;
         this.log.push(...entries);
-        if (this._logStore) this._logStore.append(entries);
+        if (this._groupCommit) {
+            this._logStore.appendBuffered(entries);
+            this._scheduleFlush();
+        } else {
+            if (this._logStore) this._logStore.append(entries);
+            this._durableLength = this.log.length;
+            if (this._perf) this._perf.entriesDurable(firstIndex, this.log.length);
+        }
         // Config entries are live the instant they land. See _refreshConfiguration.
         if (entries.some((e) => e.data && e.data.op === 'config')) this._refreshConfiguration();
     }
@@ -3454,7 +3871,13 @@ class RaftNode {
         if (index >= this.log.length) return;
         const hadConfig = this.log.slice(index).some((e) => e.data && e.data.op === 'config');
         this.log = this.log.slice(0, index);
+        // rewrite() replaces the file with the whole in-memory log and drops
+        // any buffered appends, so afterwards everything retained is durable.
         if (this._logStore) this._logStore.rewrite(this.log);
+        this._durableLength = this.log.length;
+        this._logEpoch += 1;
+        if (this._perf) this._perf.forgetFrom(index);
+        this._releaseDurableWaiters();
         // Rolling back a config entry must roll back the configuration with it,
         // or a node keeps enforcing a membership the cluster has discarded.
         if (hadConfig) this._refreshConfiguration();
@@ -3501,6 +3924,13 @@ class RaftNode {
         this._stopHeartbeat();
         if (this._leaseTickTimer) this._clock.clearInterval(this._leaseTickTimer);
         this._leaseTickTimer = null;
+        // A stop is a crash as far as durability is concerned: buffered
+        // appends and a lazy commit index are *not* flushed here. Graceful
+        // shutdown calls flushDurable() first.
+        this._cancelDeferred(this._flushHandle);
+        this._flushHandle = null;
+        if (this._metaTimer !== null) this._clock.clearTimeout(this._metaTimer);
+        this._metaTimer = null;
         if (this._logStore) this._logStore.close();
     }
 
@@ -3509,6 +3939,7 @@ class RaftNode {
         this.paused = true;
         this.stop();
         if (this.state === STATES.LEADER) {
+            this._endLeadership();
             this.state = STATES.FOLLOWER;
             this.leaderId = null;
             this.leaderUrl = null;
@@ -3525,6 +3956,10 @@ class RaftNode {
         // votedFor is deliberately retained: clearing it in the same term could
         // let this node vote twice after a pause or restart.
         this._resetElectionTimer();
+        // A pause cancels pending flushes; the buffered entries are still in
+        // memory, so resume the durability work that was interrupted.
+        if (this._groupCommit && this._logStore.pendingCount > 0) this._scheduleFlush();
+        if (this._metaDirty) this._persistCommitIndex();
         console.log(`[${this.replicaId}] *** RESUMED · stable state restored ***`);
     }
 
@@ -3688,6 +4123,11 @@ class RaftNode {
             this.nextIndex[peerUrl] = this.log.length;
             this.matchIndex[peerUrl] = -1;
         }
+        // A new leadership: every follower is probed afresh, and nothing sent
+        // under any earlier leadership can touch this one's progress.
+        this._leaderEpoch += 1;
+        this._progress = {};
+        this._peerContactAt = {};
 
         /**
          * The no-op entry Raft §8 requires at the start of every term.
@@ -3732,11 +4172,14 @@ class RaftNode {
         this._preVoteRound += 1;
         const wasLeader = this.state === STATES.LEADER;
         const termAdvanced = term > this.currentTerm;
+        if (wasLeader) this._endLeadership();
 
         if (termAdvanced) {
             this.currentTerm = term;
             this.votedFor = null;
             this._persistState();
+            // Acknowledgements prepared for the previous term are now revoked.
+            this._releaseDurableWaiters();
         }
 
         this.state = STATES.FOLLOWER;
@@ -3752,6 +4195,7 @@ class RaftNode {
         this._failCommitWaiters();
 
         if (wasLeader) {
+            if (this._perf) this._perf.forgetAll();
             console.log(`[${this.replicaId}] Stepped down · term=${this.currentTerm}`);
         }
         this._resetElectionTimer();
@@ -3847,6 +4291,43 @@ class RaftNode {
         entries = [],
         leaderCommit = -1,
     }) {
+        if (!this._perf && !this._groupCommit) {
+            return this._handleAppendEntries({
+                term, leaderId, leaderUrl, prevLogIndex, prevLogTerm, entries, leaderCommit,
+            });
+        }
+        const receivedAt = this._perf ? this._perf.now() : 0;
+        const prepared = this._handleAppendEntries({
+            term, leaderId, leaderUrl, prevLogIndex, prevLogTerm, entries, leaderCommit,
+        });
+        // Under group commit a success is only sent once everything it
+        // acknowledges is durable. That includes heartbeats, whose
+        // prevLogIndex can name an entry this node has appended but not yet
+        // flushed.
+        const response = this._groupCommit && prepared.success && prepared.matchIndex >= this._durableLength
+            ? this._acknowledgeWhenDurable(prepared)
+            : prepared;
+        if (this._perf) {
+            this._perf.count(entries.length > 0 ? 'follower.appendEntries' : 'follower.heartbeats');
+            if (entries.length > 0) {
+                this._perf.observeValue('follower.entriesPerAppend', entries.length);
+                const record = () => this._perf.observeMs('follower.append', this._perf.now() - receivedAt);
+                if (response === prepared) record();
+                else response.then(record);
+            }
+        }
+        return response;
+    }
+
+    _handleAppendEntries({
+        term,
+        leaderId,
+        leaderUrl,
+        prevLogIndex,
+        prevLogTerm,
+        entries,
+        leaderCommit,
+    }) {
         if (this.paused || term < this.currentTerm) {
             return {
                 term: this.currentTerm,
@@ -3938,8 +4419,9 @@ class RaftNode {
             const lastVerifiedIndex = prevLogIndex + entries.length;
             const next = Math.min(leaderCommit, lastVerifiedIndex);
             if (next > this.commitIndex) {
+                if (this._perf) this._perf.entriesCommitted(this.commitIndex, next);
                 this.commitIndex = next;
-                this._persistState();
+                this._persistCommitIndex();
                 this._applyCommittedEntries();
             }
         }
@@ -3967,7 +4449,9 @@ class RaftNode {
             const entry = this.log[this.lastApplied];
             if (!entry) continue;
 
+            const applyStartedAt = this._perf ? this._perf.now() : 0;
             const result = this.stateMachine.apply(entry);
+            if (this._perf) this._perf.entryApplied(this.lastApplied, applyStartedAt);
 
             if (this.onCommit) {
                 // Side effects are fire-and-forget by design, but they run
@@ -4000,22 +4484,30 @@ class RaftNode {
             // Only voters count. A learner acknowledging an entry must never
             // contribute to a majority — that is the entire point of it being a
             // learner — and a leader that has removed itself no longer counts
-            // its own copy either.
-            let replicated = this.isVoter ? 1 : 0;
+            // its own copy either. Under group commit the leader's copy counts
+            // only once it is durable (Raft thesis §10.2.1): the leader may
+            // replicate before its own fsync, but never counts an entry it
+            // could still lose.
+            const selfDurable = !this._groupCommit || this._durableLength > index;
+            let replicated = this.isVoter && selfDurable ? 1 : 0;
             for (const peerUrl of this.voterPeers) {
                 if ((this.matchIndex[peerUrl] ?? -1) >= index) replicated += 1;
             }
 
             if (replicated >= this.quorumSize) {
+                if (this._perf) this._perf.entriesCommitted(this.commitIndex, index);
                 this.commitIndex = index;
-                this._persistState();
+                this._persistCommitIndex();
                 this._applyCommittedEntries();
+                if (this._failpoint) this._hitFailpoint('leader.committedBeforeReply');
                 this._releaseCommitWaiters();
                 this._scheduleCommitBroadcast();
-                console.log(
-                    `[${this.replicaId}] Commit advanced · index=${index} ` +
-                    `replicas=${replicated}/${this.clusterSize}`,
-                );
+                if (this._logHotPath) {
+                    console.log(
+                        `[${this.replicaId}] Commit advanced · index=${index} ` +
+                        `replicas=${replicated}/${this.clusterSize}`,
+                    );
+                }
                 break;
             }
         }
@@ -4048,7 +4540,248 @@ class RaftNode {
         }, 0);
     }
 
+    // ── pipelined replication ────────────────────────────────────────────────
+
+    _progressFor(peerUrl) {
+        let progress = this._progress[peerUrl];
+        if (!progress) {
+            // Every follower starts in probe mode: one request at a time until
+            // a success proves where its log matches ours.
+            progress = { mode: 'probe', inflight: new Set() };
+            this._progress[peerUrl] = progress;
+        }
+        return progress;
+    }
+
+    /**
+     * Sends as much as the window allows to one follower.
+     *
+     * Probe mode: at most one outstanding request. Replicate mode: up to
+     * maxInflight, each carrying the next unsent entries, with nextIndex
+     * advanced optimistically as they go. A `heartbeat` pump sends an empty
+     * AppendEntries only when nothing is outstanding — outstanding requests
+     * already reset the follower's election timer when they arrive.
+     */
+    _pumpPeer(peerUrl, { heartbeat = false } = {}) {
+        const progress = this._progressFor(peerUrl);
+        let sendHeartbeat = heartbeat;
+        for (;;) {
+            if (this.state !== STATES.LEADER || this.paused) return;
+            let active = 0;
+            for (const request of progress.inflight) if (!request.superseded) active += 1;
+            const limit = progress.mode === 'probe' ? 1 : this._pipeline.maxInflight;
+            if (active >= limit) return;
+            const next = Math.max(0, Math.min(this.nextIndex[peerUrl] ?? this.log.length, this.log.length));
+            const count = this._batchCount(next);
+            if (count === 0 && !(sendHeartbeat && active === 0)) return;
+            this._sendAppend(peerUrl, progress, next, count);
+            sendHeartbeat = false;
+            if (progress.mode === 'probe' || count === 0) return;
+        }
+    }
+
+    _sendAppend(peerUrl, progress, next, count) {
+        const epoch = this._leaderEpoch;
+        const term = this.currentTerm;
+        const prevLogIndex = next - 1;
+        const entries = this.log.slice(next, next + count);
+        const request = {
+            prevLogIndex,
+            lastIndex: prevLogIndex + entries.length,
+            superseded: false,
+            sentAt: this._clock.now(),
+        };
+        progress.inflight.add(request);
+        if (progress.mode === 'replicate' && entries.length > 0) this.nextIndex[peerUrl] = next + entries.length;
+        this._onPipelineSend(peerUrl);
+        const perfSentAt = this._perf ? this._perf.recordAppendSent(next, entries.length) : 0;
+        this.transport.post(`${peerUrl}/append-entries`, {
+            term,
+            leaderId: this.replicaId,
+            leaderUrl: this.nodeUrl,
+            prevLogIndex,
+            prevLogTerm: prevLogIndex >= 0 ? this.log[prevLogIndex].term : 0,
+            entries,
+            leaderCommit: this.commitIndex,
+        }, { timeout: 450 }).then(
+            (response) => {
+                if (this._perf) this._perf.recordAppendResponse(perfSentAt, response.data.success);
+                this._onAppendResponse(peerUrl, request, epoch, term, response.data);
+            },
+            () => {
+                if (this._perf) this._perf.count('rpc.appendEntriesErrors');
+                this._onAppendError(peerUrl, request, epoch);
+            },
+        );
+    }
+
+    _onAppendResponse(peerUrl, request, epoch, term, data) {
+        const progress = this._progressFor(peerUrl);
+        progress.inflight.delete(request);
+        if (this._failpoint && this.state === STATES.LEADER) {
+            let stillInflight = 0;
+            for (const other of progress.inflight) if (!other.superseded) stillInflight += 1;
+            if (stillInflight > 0) this._hitFailpoint('leader.pipelinedInflight', { peerUrl, stillInflight });
+            const carried = request.lastIndex - request.prevLogIndex;
+            if (this._batch && carried > 1) this._hitFailpoint('leader.batchedReplication', { peerUrl, carried });
+        }
+        if (data.term > this.currentTerm) {
+            this._becomeFollower(data.term);
+            this._settleReplicationWaiters(peerUrl, false);
+            return;
+        }
+        // Fence: a response to a request sent under an earlier leadership (or
+        // an earlier term) says nothing about this leadership's logs.
+        if (epoch !== this._leaderEpoch || term !== this.currentTerm || this.state !== STATES.LEADER) {
+            this._onPipelineStale();
+            this._settleReplicationWaiters(peerUrl, false);
+            return;
+        }
+        // Any same-term answer shows the follower accepted this leader at the
+        // time the request was sent (send time, not arrival: conservative).
+        this._recordPeerContact(peerUrl, request.sentAt);
+
+        if (data.success) {
+            const acknowledged = Number.isInteger(data.matchIndex) ? data.matchIndex : request.lastIndex;
+            // Monotonic: a late or reordered success can only confirm more.
+            if (acknowledged > (this.matchIndex[peerUrl] ?? -1)) this.matchIndex[peerUrl] = acknowledged;
+            if ((this.nextIndex[peerUrl] ?? 0) < this.matchIndex[peerUrl] + 1) {
+                this.nextIndex[peerUrl] = this.matchIndex[peerUrl] + 1;
+            }
+            if (progress.mode === 'probe') progress.mode = 'replicate';
+            this._advanceCommitIndex();
+            this._settleReplicationWaiters(peerUrl, true);
+        } else {
+            this._onPipelineReject(peerUrl, request, data);
+            this._settleReplicationWaiters(peerUrl, false);
+        }
+        this._pumpPeer(peerUrl);
+    }
+
+    /**
+     * A consistency-check failure. Ignored when the follower has since
+     * matched at or beyond the rejected point (a reordered or retried request
+     * that lost a race it no longer matters for); otherwise nextIndex backs
+     * off using the follower's conflict hint — never below matchIndex + 1,
+     * which is known to match — and the follower drops back to probing.
+     */
+    _onPipelineReject(peerUrl, request, data) {
+        const matched = this.matchIndex[peerUrl] ?? -1;
+        if (request.prevLogIndex <= matched) return;
+        const next = request.prevLogIndex + 1;
+        const hinted = Number.isInteger(data.conflictIndex)
+            ? data.conflictIndex
+            : Number.isInteger(data.logLength) ? data.logLength : next - 1;
+        this.nextIndex[peerUrl] = Math.max(matched + 1, 0, hinted >= next ? next - 1 : hinted);
+        this._enterProbe(peerUrl);
+    }
+
+    /**
+     * Timeout or transport error: resend from the failed request on, one
+     * probe at a time. Not from matchIndex + 1: for a follower this
+     * leadership has never matched that is the start of the log, and the
+     * probe would carry the whole log. Anything before the failed request is
+     * either acknowledged on its own, or rejected and repaired through the
+     * follower's conflict hint, exactly as in the stop-and-wait path.
+     */
+    _onAppendError(peerUrl, request, epoch) {
+        const progress = this._progressFor(peerUrl);
+        progress.inflight.delete(request);
+        this._settleReplicationWaiters(peerUrl, false);
+        if (epoch !== this._leaderEpoch || this.state !== STATES.LEADER || request.superseded) return;
+        const resendFrom = Math.min(this.nextIndex[peerUrl] ?? this.log.length, request.prevLogIndex + 1);
+        this.nextIndex[peerUrl] = Math.max((this.matchIndex[peerUrl] ?? -1) + 1, resendFrom);
+        this._enterProbe(peerUrl);
+        // Deliberately no immediate resend: an unreachable follower is retried
+        // on the heartbeat, as in the stop-and-wait path, instead of spinning.
+    }
+
+    _enterProbe(peerUrl) {
+        const progress = this._progressFor(peerUrl);
+        progress.mode = 'probe';
+        // Requests already sent keep their responses (which are still handled,
+        // monotonically) but no longer occupy the window.
+        for (const request of progress.inflight) request.superseded = true;
+    }
+
+    _recordPeerContact(peerUrl, sentAt) {
+        if (!(this._peerContactAt[peerUrl] >= sentAt)) this._peerContactAt[peerUrl] = sentAt;
+        // The newest time T such that a quorum (counting this node) has
+        // answered requests sent at or after T.
+        const needed = this.quorumSize - 1;
+        if (needed <= 0) {
+            this.lastQuorumContactAt = this._clock.now();
+            return;
+        }
+        const times = this.voterPeers
+            .map((url) => this._peerContactAt[url])
+            .filter((t) => t !== undefined)
+            .sort((a, b) => b - a);
+        if (times.length >= needed && times[needed - 1] > this.lastQuorumContactAt) {
+            this.lastQuorumContactAt = times[needed - 1];
+        }
+    }
+
+    _settleReplicationWaiters(peerUrl, value) {
+        const waiters = this._replicationWaiters[peerUrl];
+        if (!waiters || waiters.length === 0) return;
+        this._replicationWaiters[peerUrl] = [];
+        for (const resolve of waiters) resolve(value);
+    }
+
+    /** Fences everything outstanding from the leadership that is ending. */
+    _endLeadership() {
+        this._leaderEpoch += 1;
+        for (const peerUrl of Object.keys(this._replicationWaiters)) this._settleReplicationWaiters(peerUrl, false);
+    }
+
+    /** Observation hooks (the coverage tool wraps these); no behaviour. */
+    _onPipelineSend() {}
+
+    _onPipelineStale() {
+        if (this._perf) this._perf.count('pipeline.staleResponses');
+    }
+
+    /** How many entries starting at `next` one AppendEntries may carry. */
+    _batchCount(next) {
+        const available = Math.max(0, this.log.length - next);
+        if (!this._batch || available === 0) return available;
+        const limit = Math.min(available, this._batch.maxEntries);
+        let bytes = 0;
+        for (let i = 0; i < limit; i += 1) {
+            bytes += entryLength(this.log[next + i]);
+            // Always at least one entry, so an oversized entry still moves.
+            if (bytes > this._batch.maxBytes && i > 0) return i;
+        }
+        return limit;
+    }
+
+    /**
+     * One replication round for everything appended in this event-loop turn,
+     * instead of one per client write. Scheduled at the end of the turn, and
+     * before the group-commit flush when both are pending, so followers
+     * receive a batch while the leader's own fsync runs.
+     */
+    _requestReplication() {
+        if (this._replicationRequested) return;
+        this._replicationRequested = true;
+        this._defer(() => {
+            this._replicationRequested = false;
+            if (this.state === STATES.LEADER && !this.paused) void this._replicateAll({ heartbeat: false });
+        });
+    }
+
     async _replicateToPeer(peerUrl) {
+        if (this._pipeline) {
+            // Used by membership catch-up: push what the window allows and
+            // report whether the next answer from this follower was a success.
+            if (this.state !== STATES.LEADER || this.paused) return false;
+            const answered = new Promise((resolve) => {
+                (this._replicationWaiters[peerUrl] ||= []).push(resolve);
+            });
+            this._pumpPeer(peerUrl, { heartbeat: true });
+            return answered;
+        }
         if (this.state !== STATES.LEADER || this.paused || this._replicating.has(peerUrl)) {
             return false;
         }
@@ -4066,7 +4799,8 @@ class RaftNode {
                 const prevLogIndex = next - 1;
                 const prevLogTerm =
                     prevLogIndex >= 0 ? this.log[prevLogIndex].term : 0;
-                const entries = this.log.slice(next);
+                const entries = this.log.slice(next, next + this._batchCount(next));
+                const sentAt = this._perf ? this._perf.recordAppendSent(next, entries.length) : 0;
 
                 try {
                     const response = await this.transport.post(
@@ -4082,6 +4816,10 @@ class RaftNode {
                         },
                         { timeout: 450 },
                     );
+                    if (this._perf) this._perf.recordAppendResponse(sentAt, response.data.success);
+                    if (this._failpoint && this._batch && entries.length > 1 && this.state === STATES.LEADER) {
+                        this._hitFailpoint('leader.batchedReplication', { peerUrl, carried: entries.length });
+                    }
 
                     if (response.data.term > this.currentTerm) {
                         this._becomeFollower(response.data.term);
@@ -4111,6 +4849,7 @@ class RaftNode {
                         hinted >= next ? next - 1 : hinted,
                     );
                 } catch (_) {
+                    if (this._perf) this._perf.count('rpc.appendEntriesErrors');
                     return false;
                 }
             }
@@ -4120,8 +4859,13 @@ class RaftNode {
         }
     }
 
-    async _replicateAll() {
+    async _replicateAll({ heartbeat = true } = {}) {
         if (this.state !== STATES.LEADER || this.paused) return;
+        if (this._pipeline) {
+            for (const peerUrl of this.peers) this._pumpPeer(peerUrl, { heartbeat });
+            this._advanceCommitIndex();
+            return;
+        }
         const results = await Promise.allSettled(
             this.peers.map((peerUrl) => this._replicateToPeer(peerUrl)),
         );
@@ -4175,10 +4919,15 @@ class RaftNode {
             ts: this._clock.now(),
             data,
         };
+        if (this._perf) this._perf.entryAdmitted(entry.index);
+        const coalesce = Boolean(this._batch && this._batch.coalesce);
+        if (coalesce) this._requestReplication();
         this._appendToLog([entry]);
 
-        console.log(`[${this.replicaId}] Entry persisted · index=${entry.index}`);
-        void this._replicateAll();
+        if (this._logHotPath) {
+            console.log(`[${this.replicaId}] ${this._groupCommit ? 'Entry appended' : 'Entry persisted'} · index=${entry.index}`);
+        }
+        if (!coalesce) void this._replicateAll();
 
         const committed = await this._awaitCommit(entry.index);
         if (committed) this._recordCommitLatency(this._clock.now() - appendStartedAt);
@@ -4323,7 +5072,7 @@ class RaftNode {
         }
         // Stop tracking a server that is gone, so its stale matchIndex cannot
         // linger and be counted after a later re-add.
-        if (result.ok) { delete this.nextIndex[url]; delete this.matchIndex[url]; }
+        if (result.ok) { delete this.nextIndex[url]; delete this.matchIndex[url]; delete this._progress[url]; }
         return result;
     }
 
@@ -8360,25 +9109,43 @@ class SimNetwork {
 
                 let data;
                 try { data = handler(body); } catch (error) { return reject(error); }
-
-                // The reply takes its own trip back, and can be lost on the way.
-                // A response dropped after the request was applied is the case
-                // that produces "the write succeeded but the client saw a
-                // timeout" — precisely the ambiguity the linearizability checker
-                // has to reason about.
-                if (this.responseDropRng.chance(this.dropRate, 'response-drop', decision)) {
-                    this.stats.dropped += 1;
-                    return fail('ETIMEDOUT');
+                // A handler may answer later (a group-commit follower replies
+                // once its append is durable). Synchronous answers take the
+                // original path unchanged, so existing schedules replay
+                // exactly; a deferred one departs when it is ready, and is
+                // lost if the node crashed in the meantime.
+                if (data && typeof data.then === 'function') {
+                    data.then((ready) => {
+                        if (this.crashed.has(target) || this.handlers.get(target) !== node) {
+                            return fail('ECONNRESET');
+                        }
+                        return this._reply({ resolve, fail, data: ready, target, from, kind, route, rpcId, decision });
+                    }, reject);
+                    return undefined;
                 }
-                const back = this.responseLatencyRng.range(this.minLatency, this.maxLatency, 'response-latency', decision);
-                this._emit({ type: 'reply', rpcId, from: target, to: from, kind, route, latency: back, response: data, at: this.clock.now() });
-                this.clock.setTimeout(() => {
-                    this.stats.delivered += 1;
-                    this._emit({ type: 'delivered', rpcId, from: target, to: from, kind, route, response: data, at: this.clock.now() });
-                    resolve({ data });
-                }, back);
+                return this._reply({ resolve, fail, data, target, from, kind, route, rpcId, decision });
             }, latency);
         });
+    }
+
+    _reply({ resolve, fail, data, target, from, kind, route, rpcId, decision }) {
+        // The reply takes its own trip back, and can be lost on the way.
+        // A response dropped after the request was applied is the case
+        // that produces "the write succeeded but the client saw a
+        // timeout" — precisely the ambiguity the linearizability checker
+        // has to reason about.
+        if (this.responseDropRng.chance(this.dropRate, 'response-drop', decision)) {
+            this.stats.dropped += 1;
+            return fail('ETIMEDOUT');
+        }
+        const back = this.responseLatencyRng.range(this.minLatency, this.maxLatency, 'response-latency', decision);
+        this._emit({ type: 'reply', rpcId, from: target, to: from, kind, route, latency: back, response: data, at: this.clock.now() });
+        this.clock.setTimeout(() => {
+            this.stats.delivered += 1;
+            this._emit({ type: 'delivered', rpcId, from: target, to: from, kind, route, response: data, at: this.clock.now() });
+            resolve({ data });
+        }, back);
+        return undefined;
     }
 }
 
@@ -8827,17 +9594,46 @@ class MemoryStableStore {
 }
 
 class MemoryLogStore {
-    constructor() { this.entries = []; this.appends = 0; this.rewrites = 0; }
+    constructor() {
+        this.entries = []; this.appends = 0; this.rewrites = 0;
+        // Group commit: appended but not yet durable. A simulated crash drops
+        // these (SimCluster.crash), exactly as a real crash loses a write that
+        // was never fsynced — which is what the group-commit tests depend on.
+        this.pending = [];
+        this.flushes = 0;
+    }
+    get pendingCount() { return this.pending.length; }
     load() { return this.entries.map((e) => JSON.parse(JSON.stringify(e))); }
     append(entries) {
         this.entries.push(...entries.map((e) => JSON.parse(JSON.stringify(e))));
         this.appends += entries.length;
     }
+    appendBuffered(entries) {
+        this.pending.push(...entries.map((e) => JSON.parse(JSON.stringify(e))));
+    }
+    flush() {
+        const count = this.pending.length;
+        if (count === 0) return 0;
+        this.entries.push(...this.pending);
+        this.pending = [];
+        this.appends += count;
+        this.flushes += 1;
+        return count;
+    }
+    dropPending() { this.pending = []; }
     rewrite(entries) {
         this.entries = entries.map((e) => JSON.parse(JSON.stringify(e)));
+        this.pending = [];
         this.rewrites += 1;
     }
     close() {}
+}
+
+/** A profile's `wire` selects the transport, not an engine option. */
+function engineOptions(options) {
+    if (!options || options.wire === undefined) return options;
+    const { wire, ...rest } = options;
+    return rest;
 }
 
 class SimCluster {
@@ -8859,7 +9655,16 @@ class SimCluster {
         recorderOptions = {},
         decisionTrace = null,
         decisionStreams = null,
+        // Extra RaftNode options (the Phase IV-A optimizations). Empty by
+        // default, so the default cluster is the exact engine every existing
+        // schedule and artifact was recorded on.
+        raftOptions = null,
+        // Optional wrapper around each node's transport (sim/wire-codec.js
+        // routes every RPC through the framed binary codec).
+        wrapTransport = null,
     } = {}) {
+        this.raftOptions = raftOptions || {};
+        this.wrapTransport = wrapTransport;
         this.clock = new VirtualClock();
         this.decisionStreams = decisionStreams || new DecisionStreams({
             seed, decisions: decisionTrace, clock: this.clock,
@@ -8907,7 +9712,7 @@ class SimCluster {
             members: this.urls.slice(0, this.voters),
             // Bound to this node's URL so the network can tell who is sending
             // and apply partitions to vote requests as well as replication.
-            transport: this.network.forNode(url),
+            transport: this.wrapTransport ? this.wrapTransport(this.network.forNode(url)) : this.network.forNode(url),
             clock: this.clock,
             // Election jitter comes from the seeded PRNG, not Math.random.
             // Without this the schedule differs on every run and the whole
@@ -8923,6 +9728,8 @@ class SimCluster {
             commitTimeoutMs: 1500,
             ...this.config,
             electionTimeoutMin: this.config.electionTimeoutMin + timeoutOffset,
+            // May be per node, e.g. to give each node its own disk latency.
+            ...engineOptions(typeof this.raftOptions === 'function' ? this.raftOptions(index) : this.raftOptions),
         });
 
         this.network.register(url, {
@@ -9072,6 +9879,8 @@ class SimCluster {
         const url = this.urls[index];
         const node = this.nodes.get(url);
         if (node) node.stop();
+        // Anything appended but not yet flushed never reached the disk.
+        this.stores[index].log.dropPending();
         this.network.crash(url);
         this.nodes.delete(url);
         this.recorder?.record(EVENT_TYPES.FAULT_APPLIED, {

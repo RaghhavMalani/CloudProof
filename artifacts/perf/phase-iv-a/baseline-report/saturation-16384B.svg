@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 420" width="760" height="420" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12">
+<rect width="760" height="420" fill="#ffffff"/>
+<text x="70" y="22" font-size="14" font-weight="600" fill="#111827">p99 end-to-end latency vs offered load — 16384 B writes, 3-replica CloudProof Raft (log-log)</text>
+<line x1="70" x2="560" y1="294.6" y2="294.6" stroke="#e5e7eb"/>
+<text x="62" y="298.6" text-anchor="end" fill="#4b5563">100 ms</text>
+<line x1="70" x2="560" y1="177.6" y2="177.6" stroke="#e5e7eb"/>
+<text x="62" y="181.6" text-anchor="end" fill="#4b5563">1000 ms</text>
+<line x1="70" x2="560" y1="60.6" y2="60.6" stroke="#e5e7eb"/>
+<text x="62" y="64.6" text-anchor="end" fill="#4b5563">10000 ms</text>
+<line x1="70.0" x2="70.0" y1="40" y2="364" stroke="#f3f4f6"/>
+<text x="70.0" y="382" text-anchor="middle" fill="#4b5563">100</text>
+<line x1="238.6" x2="238.6" y1="40" y2="364" stroke="#f3f4f6"/>
+<text x="238.6" y="382" text-anchor="middle" fill="#4b5563">200</text>
+<line x1="337.2" x2="337.2" y1="40" y2="364" stroke="#f3f4f6"/>
+<text x="337.2" y="382" text-anchor="middle" fill="#4b5563">300</text>
+<line x1="461.4" x2="461.4" y1="40" y2="364" stroke="#f3f4f6"/>
+<text x="461.4" y="382" text-anchor="middle" fill="#4b5563">500</text>
+<line x1="560.0" x2="560.0" y1="40" y2="364" stroke="#f3f4f6"/>
+<text x="560.0" y="382" text-anchor="middle" fill="#4b5563">750</text>
+<rect x="70" y="40" width="490" height="324" fill="none" stroke="#9ca3af"/>
+<text x="315" y="408" text-anchor="middle" fill="#111827">offered load (writes/s, open loop)</text>
+<path d="M70.0,343.4 L238.6,318.0 L337.2,192.3 L461.4,60.6 L560.0,60.6" fill="none" stroke="#1f6feb" stroke-width="2"/>
+<circle cx="70.0" cy="343.4" r="3.5" fill="#1f6feb"/>
+<circle cx="238.6" cy="318.0" r="3.5" fill="#1f6feb"/>
+<circle cx="337.2" cy="192.3" r="3.5" fill="#1f6feb"/>
+<circle cx="461.4" cy="60.6" r="3.5" fill="#ffffff" stroke="#1f6feb" stroke-width="1.5"/>
+<circle cx="560.0" cy="60.6" r="3.5" fill="#ffffff" stroke="#1f6feb" stroke-width="1.5"/>
+<circle cx="337.2" cy="192.3" r="7" fill="none" stroke="#1f6feb" stroke-width="1.5"/>
+<line x1="576" x2="596" y1="50" y2="50" stroke="#1f6feb" stroke-width="2"/>
+<text x="602" y="54" fill="#111827">Baseline</text>
+<text x="576" y="84" fill="#4b5563">filled = stable, hollow =</text>
+<text x="576" y="99" fill="#4b5563">unstable, ring = knee</text>
+<text x="576" y="114" fill="#4b5563">p99 over all arrivals,</text>
+<text x="576" y="129" fill="#4b5563">from intended send time</text>
+</svg>
