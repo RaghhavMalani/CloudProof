@@ -1,0 +1,163 @@
+{
+  "schema": "cloudproof.raft-bench.environment/v1",
+  "capturedAt": "2026-10-05T16:53:58.347Z",
+  "git": {
+    "sha": "91d925dd95158d1ca51ec7f0a88c11cdd6dd021b",
+    "branch": "HEAD",
+    "dirty": false,
+    "dirtyFiles": []
+  },
+  "node": {
+    "version": "v24.14.1",
+    "v8": "13.6.233.17-node.44",
+    "uv": "1.51.0",
+    "execPath": "C:\\Program Files\\nodejs\\node.exe"
+  },
+  "os": {
+    "platform": "win32",
+    "arch": "x64",
+    "type": "Windows_NT",
+    "release": "10.0.26300",
+    "version": "Windows 11 Home Single Language"
+  },
+  "cpu": {
+    "model": "Intel(R) Core(TM) i7-14650HX",
+    "logicalCores": 24,
+    "nominalMHz": 2419
+  },
+  "memory": {
+    "totalBytes": 34070192128,
+    "freeBytesAtCapture": 6007189504
+  },
+  "docker": {
+    "client": null,
+    "server": null,
+    "note": "Docker daemon not reachable (failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine; check if the path is correct and if the daemon is running: open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified.); benchmarks ran as native processes"
+  },
+  "dataDir": "D:\\College_Projects\\miniRAFT_project\\.bench-data\\etcd-sweep-wt\\.bench-data\\etcd-comparison",
+  "platformDetails": {
+    "cpu": {
+      "model": "Intel(R) Core(TM) i7-14650HX",
+      "physicalCores": 16,
+      "logicalProcessors": 24,
+      "maxClockMHz": 2200
+    },
+    "machine": {
+      "manufacturer": "LENOVO",
+      "model": "83DF"
+    },
+    "os": {
+      "caption": "Microsoft Windows 11 Home Single Language",
+      "version": "10.0.26300",
+      "build": "26300"
+    },
+    "dataVolume": {
+      "drive": "D",
+      "fileSystem": "NTFS",
+      "sizeBytes": 92273635328,
+      "freeBytes": 5111705600
+    },
+    "dataDisk": {
+      "name": "SKHynix_HFS001TEJ9X115N",
+      "bus": "NVMe",
+      "model": "SKHynix_HFS001TEJ9X115N"
+    },
+    "physicalDisks": [
+      {
+        "FriendlyName": "SKHynix_HFS001TEJ9X115N",
+        "MediaType": "SSD",
+        "BusType": "NVMe",
+        "Size": 1024209543168
+      }
+    ],
+    "power": {
+      "onAcPower": true,
+      "batteryPercent": 75,
+      "activePowerPlan": "381b4222-f694-41f0-9685-ff5bb260df2e  (Balanced)"
+    },
+    "backgroundProcessesByMemory": [
+      {
+        "Name": "fm",
+        "workingSetMB": 3534,
+        "cpuSeconds": 3430.1
+      },
+      {
+        "Name": "Memory Compression",
+        "workingSetMB": 2244,
+        "cpuSeconds": 0
+      },
+      {
+        "Name": "node",
+        "workingSetMB": 1289,
+        "cpuSeconds": 75.4
+      },
+      {
+        "Name": "opera",
+        "workingSetMB": 902,
+        "cpuSeconds": 349
+      },
+      {
+        "Name": "claude",
+        "workingSetMB": 873,
+        "cpuSeconds": 1684.6
+      },
+      {
+        "Name": "opera",
+        "workingSetMB": 667,
+        "cpuSeconds": 825.3
+      },
+      {
+        "Name": "opera",
+        "workingSetMB": 618,
+        "cpuSeconds": 1109.8
+      },
+      {
+        "Name": "opera",
+        "workingSetMB": 615,
+        "cpuSeconds": 1605.6
+      },
+      {
+        "Name": "MsMpEng",
+        "workingSetMB": 524,
+        "cpuSeconds": 0
+      },
+      {
+        "Name": "opera",
+        "workingSetMB": 520,
+        "cpuSeconds": 1712.6
+      },
+      {
+        "Name": "ChatGPT",
+        "workingSetMB": 515,
+        "cpuSeconds": 1855.2
+      },
+      {
+        "Name": "msedgewebview2",
+        "workingSetMB": 445,
+        "cpuSeconds": 316.2
+      }
+    ],
+    "notes": [
+      "Microsoft Defender real-time protection was active; it can add latency to file writes. Changing security settings is out of scope, so it was left enabled and disclosed.",
+      "The machine is a laptop used interactively; other applications were running (see backgroundProcessesByMemory). Per-trial system-wide CPU load is recorded in every trial."
+    ]
+  },
+  "etcd": {
+    "name": "etcd",
+    "version": "3.7.2",
+    "binarySha256": "fae2288f43e5d845e5f07c31a4817899804d4f66f09152b6c3fec0d726b9169a",
+    "binarySha256Pinned": "fae2288f43e5d845e5f07c31a4817899804d4f66f09152b6c3fec0d726b9169a",
+    "flagsBeyondDefaults": [
+      "--name",
+      "--data-dir",
+      "--listen-client-urls",
+      "--advertise-client-urls",
+      "--listen-peer-urls",
+      "--initial-advertise-peer-urls",
+      "--initial-cluster",
+      "--initial-cluster-state",
+      "--initial-cluster-token"
+    ],
+    "clientApi": "v3 HTTP/JSON gateway, POST /v3/kv/put"
+  }
+}

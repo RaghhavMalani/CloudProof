@@ -107,8 +107,15 @@ test('amendment 4 pins the etcd plan, the harness files and the etcd binary that
     assert.deepEqual(plan.fractions, comparison.fractions);
     assert.deepEqual(plan.trial, comparison.trial);
     assert.equal(plan.powerThrottling, 'disabled');
+    // A later amendment may re-pin a file it corrects (amendment 5: the
+    // report tool); the tree must match the latest pin of every file, and
+    // only analysis files may be re-pinned after the sweep.
     const lf = (file) => crypto.createHash('sha256').update(fs.readFileSync(path.join(ROOT, file), 'utf8').replace(/\r\n/g, '\n')).digest('hex');
-    for (const [file, sha] of Object.entries(amendment.implementation.files)) assert.equal(lf(file), sha, file);
+    const latest = {};
+    for (const a of methodology.amendments.filter((x) => x.id >= 4)) Object.assign(latest, a.implementation.files);
+    for (const file of Object.keys(amendment.implementation.files)) assert.equal(lf(file), latest[file], file);
+    const repinned = methodology.amendments.filter((x) => x.id > 4).flatMap((a) => Object.keys(a.implementation.files));
+    assert.deepEqual(repinned, ['tools/raft-bench-report.js']);
     assert.equal(ETCD_BINARY_SHA256, amendment.etcd.binary.sha256);
 });
 

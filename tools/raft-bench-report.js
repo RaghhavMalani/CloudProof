@@ -130,7 +130,9 @@ function comparisonRows(curves) {
                 fsyncsPerOp: pick.achievedPerSec.mean
                     ? (pick.cluster.logFsyncsPerSec.mean + pick.cluster.metaSavesPerSec.mean) / pick.achievedPerSec.mean
                     : null,
-                rpcsPerOp: pick.achievedPerSec.mean
+                // A system that does not export AppendEntries (etcd) has a
+                // null rate, which must stay null rather than divide to 0.
+                rpcsPerOp: pick.achievedPerSec.mean && Number.isFinite(pick.leader.appendEntriesPerSec.mean)
                     ? pick.leader.appendEntriesPerSec.mean / pick.achievedPerSec.mean
                     : null,
                 source: pick.source,

@@ -449,6 +449,22 @@
         "comparison-plan.json and the 801-trial sweep in comparison/",
         "the nine replica profiles"
       ]
+    },
+    {
+      "id": 5,
+      "recordedAt": "2026-10-06",
+      "recordedAfter": "the etcd comparison sweep closed (295 trials); recorded before the etcd results were written up",
+      "kind": "correction of the analysis tool; no change to any trial, the plan, the harness or the stability, stop or knee rules",
+      "subject": "A null AppendEntries rate rendered as 0",
+      "observation": "In the generated headline table, AppendEntries per op was computed as appendEntriesPerSec / achieved without checking the rate, so etcd, which exports no AppendEntries count (amendment 4: null, never estimated), showed 0.000 instead of no value.",
+      "correction": "tools/raft-bench-report.js leaves rpcsPerOp null when the rate is not a finite number. No other value changes. The committed comparison-report/ regenerates byte-identically (line endings normalized), because every CloudProof trial has the rate.",
+      "implementation": {
+        "hashing": "SHA-256 of the file with line endings normalized to LF",
+        "files": {
+          "tools/raft-bench-report.js": "bbd6be8ed41c01220fe1356c8316a3636d65de3be7dcd62b29210450e1fd6cca"
+        },
+        "supersedes": "the amendment-4 pin of tools/raft-bench-report.js; the trial-running harness files pinned by amendment 4 are unchanged"
+      }
     }
   ]
 }

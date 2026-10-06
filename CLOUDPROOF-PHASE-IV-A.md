@@ -17,9 +17,9 @@ Every number in the result tables below is generated from the raw trial records 
 ## Status
 
 <!-- BEGIN GENERATED:status -->
-_Phase IV-A (CloudProof side) complete: historical baseline (`d5d7e00`), optimizations, durability gates, the
-Windows-default control, the interleaved comparison (801 trials, §11), leader profiles and a green final regression
-(§12). Not yet run: etcd._
+_Phase IV-A complete: historical baseline (`d5d7e00`), optimizations, durability gates, the
+Windows-default control, the interleaved comparison (801 trials, §11), leader profiles, the matched etcd comparison
+(295 trials, §12) and the final regression (§13)._
 <!-- END GENERATED:status -->
 
 ## 1. Environment (Step 0)
@@ -722,7 +722,151 @@ store and framed transport together are under 10%. With the engine optimized, th
 requests and to the remaining synchronous flush, not to consensus logic. Both knee profiles came out unstable in their
 single trial (baseline 88%, optimized-binary 71% achieved), consistent with their 3/5 knees.
 
-## 12. Final correctness regression (step 9)
+## 12. Matched etcd comparison (question 4)
+
+Amendment 4 froze this sweep before any etcd data existed. It has 295 trials in three blocks, run from the pinned
+worktree `91d925d`. All 295 trials verified the power-policy opt-out on all eight processes, and every etcd trial ran the pinned
+`etcd.exe`. No trial failed, no leader changed during a window, and the harness needed no control retries. Generated
+report: [`etcd-report/REPORT.md`](artifacts/perf/phase-iv-a/etcd-report/REPORT.md) and
+[`saturation-1024B.svg`](artifacts/perf/phase-iv-a/etcd-report/saturation-1024B.svg), from
+[`etcd/trials.jsonl`](artifacts/perf/phase-iv-a/etcd/trials.jsonl) only. Every number in this section comes from those
+trials. Nothing is compared with the 801-trial sweep except in the table that says so.
+
+### Headline — 1 KiB, every system at its own knee
+
+| system | stable throughput (ops/s) | vs etcd | knee (offered/s, stable reps) | p99 @ 0.5x ms | p99 @ 0.8x ms | p99 @ knee ms | leader CPU % | leader CPU µs/op | cluster CPU µs/op | durable syncs / op | log·WAL fsyncs / op | meta·bbolt syncs / op | entries / leader fsync | repl bytes / op |
+|---|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Baseline | 503 | 0.06x | 500 (3/5) | 83.71 | 244.61 | 522.24 | 35 | 698 | 1215 | 2.019 | 1.374 | 0.638 | 1.0 | 2,478 |
+| Optimized HTTP | 6,001 | 0.75x | 6,000 (5/5) | 25.68 | 23.74 | 25.95 | 74 | 124 | 210 | 0.169 | 0.164 | 0.005 | 44.9 | 2,350 |
+| Optimized binary | 10,026 | 1.25x | 10,000 (4/5) | 16.93 | 20.13 | 135.81 | 72 | 72 | 123 | 0.111 | 0.108 | 0.003 | 43.0 | 2,245 |
+| etcd | 8,000 | 1.00x | 8,000 (5/5) | 19.20 | 18.14 | 23.18 | 322 | 403 | 486 | 0.146 | 0.142 | 0.004 | 18.6 | 4,307 |
+
+"Stable throughput" is the mean achieved rate at the knee, with the knee defined as in §11 (pre-registered). "vs etcd"
+is the ratio of those throughputs. The knee columns pool every repetition at that rate, which is why optimized binary's
+marginal knee (4/5) shows a 136 ms pooled p99. The 0.5x and 0.8x columns are measured points at the end of the sweep.
+
+| configuration | payload | knee (offered/s) | max stable (achieved/s) | first unstable/s | peak achieved at any rate/s | p50 @knee ms | p99 @knee ms | p99.9 @knee ms |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Baseline | 1024 B | 500 | 503 | 750 | 776 | 165.25 | 522.24 | 598.53 |
+| Optimized HTTP | 1024 B | 6,000 | 6,001 | 8,000 | 8,626 | 17.02 | 25.95 | 32.13 |
+| Optimized binary | 1024 B | 10,000 | 10,026 | 12,000 | 13,427 | 14.34 | 135.81 | 161.41 |
+| etcd | 1024 B | 8,000 | 8,000 | 10,000 | 10,223 | 9.78 | 23.18 | 31.95 |
+
+### What the numbers say
+
+1. **Stock etcd sustains 8,000 writes/s at 1 KiB, stable in 5/5 repetitions,** with p99 of 23 ms at the knee, 18 ms at
+   0.8x and 19 ms at 0.5x. It is unstable at 10,000/s (1/5 stable), so on this ladder its limit lies between 8,000 and
+   10,000/s.
+2. **The optimized CloudProof profiles bracket etcd.**
+   - Framed TCP (optimized binary) reaches 10,000/s (1.25x etcd), but that knee is marginal: 4/5 stable, and the
+     pooled p99 there is 136 ms. At 0.8x its knee (8,000/s, etcd's knee) all 5 repetitions are stable, with p99 20 ms.
+   - Over HTTP (optimized http) CloudProof stops at 6,000/s, 0.75x etcd.
+   - The original engine (baseline) is at 500/s, 0.06x.
+
+   The knees are one ladder rung apart, so the ratios are only as fine as the ladder. The defensible statement is
+   that, on this laptop, the framed-transport profile matches etcd's stable throughput with a worse tail at its own
+   knee, and the HTTP profile is about a quarter below it.
+3. **CloudProof does 2–4x less CPU work per write, but on one core.** Across all three servers, etcd spends 486 µs of
+   CPU per committed write at its knee; optimized binary spends 123 µs and optimized HTTP 210 µs. etcd's leader runs
+   at 322% of one core, spread over goroutines, with the whole 24-thread machine about 40% busy. CloudProof's
+   optimized leaders run at 72–75% of one core with event-loop utilization at about 1.0 at their knees. Their ceiling
+   is the single leader event loop, which includes the synchronous group-commit fsync (§11, step 8). It is not machine
+   CPU. etcd's limit is not machine CPU either; what bounds it was not profiled and is not claimed.
+4. **Durable syncs per write are of the same order.** etcd: 0.146 (WAL fsyncs 0.142, bbolt commits 0.004), with 18.6
+   entries per leader WAL fsync, a mean WAL fsync of 2.2 ms and a mean bbolt commit of 7.7 ms at its knee.
+   CloudProof: 0.111 (binary) and 0.169 (HTTP), with 43–45 entries per leader log fsync. Both systems amortize fsync
+   by group commit, which is what lifts both an order of magnitude above the synchronous baseline (2.0 per write).
+5. **Replication bytes are not comparable in absolute terms.** etcd counts raft message bytes in both directions on the
+   followers' peer links (4,307 per write), while CloudProof counts TCP payload bytes on the followers' sockets
+   (2,245–2,350). They are reported, not ranked.
+6. **etcd is less sensitive to the disk regime.** Its regime knee is 8,000/s in both the fast and the slow fsync
+   regime. Optimized binary again splits into 12,000/s (fast) and 10,000/s (slow), as in §11, and optimized HTTP is at
+   6,000/s in both. In this sweep 167 of 295 trials ran in the slow regime.
+
+### The re-measured CloudProof curves against the 801-trial sweep
+
+| profile | this sweep (fixed harness): knee, stable reps, achieved | 801-trial sweep (§11): knee, stable reps, achieved |
+|---|---|---|
+| Baseline | 500/s, 3/5, 503/s | 500/s, 3/5, 502/s |
+| Optimized HTTP | 6,000/s, 5/5, 6,001/s | 6,000/s, 5/5, 6,001/s |
+| Optimized binary | 10,000/s, 4/5, 10,026/s (12,000/s: 2/5) | 12,000/s, 3/5, 10,600/s (10,000/s: 5/5) |
+
+Baseline and optimized HTTP reproduce exactly. Optimized binary sits on the same marginal 10,000–12,000/s boundary
+from the other side: this sweep is stable at 10,000/s in 4/5 and at 12,000/s in only 2/5, with more slow-regime trials
+(167/295) than §11. The robust statement from §11, about 10,000/s, holds in both. The two sweeps are reported side by
+side, not reconciled.
+
+### Disk-regime sensitivity — 1 KiB
+
+| configuration | disk regime | trials | sentinel median fsync ms | regime knee (offered/s) | achieved @ regime knee | gaps below knee | achieved @ overall knee (n) | p99 @ overall knee ms |
+|---|---|---:|---:|---:|---:|---|---:|---:|
+| Baseline | fast | 18 | 0.36 | 300 | 300 (4) | — | 492 (1) | 349.44 |
+| Baseline | intermediate | 1 | 0.60 | 200 | 200 (1) | 100 | — (0) | — |
+| Baseline | slow | 11 | 1.76 | 500 | 505 (4) | 100, 200 | 505 (4) | 532.48 |
+| Optimized HTTP | fast | 26 | 0.36 | 6,000 | 6,000 (1) | 2000, 3000 | 6,000 (1) | 25.79 |
+| Optimized HTTP | intermediate | 2 | 0.52 | 1,500 | 1,500 (1) | 100, 200, 300, 500, 750 | — (0) | — |
+| Optimized HTTP | slow | 42 | 1.75 | 6,000 | 6,001 (4) | 100, 300 | 6,001 (4) | 25.98 |
+| Optimized binary | fast | 32 | 0.36 | 12,000 | 11,998 (2) | 4000, 5000, 6000 | 9,992 (3) | 32.93 |
+| Optimized binary | intermediate | 3 | 0.51 | 2,000 | 2,000 (1) | 100, 300, 500, 750, 1000 | — (0) | — |
+| Optimized binary | slow | 45 | 1.76 | 10,000 | 10,078 (2) | 100 | 10,078 (2) | 151.94 |
+| etcd | fast | 31 | 0.36 | 8,000 | 7,998 (2) | 5000 | 7,998 (2) | 25.90 |
+| etcd | intermediate | 4 | 0.53 | 2,000 | 2,000 (1) | 100, 200, 300, 500 | — (0) | — |
+| etcd | slow | 40 | 1.78 | 8,000 | 8,001 (3) | 100, 500 | 8,001 (3) | 21.15 |
+
+### Measurement notes
+
+- **Blocks.** Block 1 (trials 1–71) ended involuntarily. Windows entered sleep at 17:29:29Z on 2026-10-05 (Kernel-Power
+  42, reason "Application API") while trial 72 was running. That trial recorded nothing, and the sweep's processes did not
+  survive the end of the session that owned them. Block 2 (trials 72–191) resumed the same order at 02:18Z the next
+  day. It was stopped at a trial boundary after 60 minutes, followed by a 20-minute cool-down. Block 3 (192–295)
+  completed the sweep. No trial was rerun, and `etcd/blocks.log` records every boundary. The blocks were run
+  back-to-back by `etcd/run-blocks.ps1` on the user's instruction, using only the pinned worktree's own sweep tools.
+- **Telemetry.** The host-telemetry sampler covers every block except the first two minutes of block 1, when the first
+  orchestrator hung before starting it. That gap is logged in `blocks.log`.
+- **Generator.** Three trials exceeded the 5 ms generator-lag flag, all at 200/s (one optimized HTTP, two etcd). All
+  three are stable, none is near a knee, and they are kept.
+- **Host load.** Other applications stayed running by the user's decision and are recorded in `etcd/environment.json`.
+  The four curves are interleaved, so this load falls on all of them alike.
+- **Report correction (amendment 5).** The generated headline table first printed etcd's AppendEntries per write as
+  0.000. etcd exports no such counter, so the value is null. The report tool was corrected and re-pinned; no other
+  value changed.
+
+### Disclosed mismatches
+
+Everything in the trial was matched except the system under test:
+
+- the generator, ladder, windows, rules and knee fractions;
+- the Williams order and the disk sentinel;
+- the drive, the loopback topology and the power policy;
+- the stored key and value bytes.
+
+What differs, as recorded in amendment 4:
+
+- **runtime:** Go across all cores, against one Node event loop per replica;
+- **client path:** HTTP/JSON through etcd's grpc-gateway into gRPC, against a direct express handler, with base64 making
+  etcd's request body about a third larger;
+- **replication transport:** rafthttp streams, against HTTP/1.1 or framed TCP;
+- **storage:** a WAL plus a bbolt MVCC store that keeps every revision, against a line log plus an in-memory state
+  machine;
+- **when state reaches disk:** etcd commits bbolt in batches after the acknowledgement, while CloudProof's
+  group-commit profiles persist the commit index lazily;
+- **batching:** etcd batches proposals by design, CloudProof only in its optimized profiles;
+- **defaults:** etcd keeps all its defaults, CloudProof runs its own profiles.
+
+This is a statement about these two systems on this laptop, under this workload. It is not a claim that CloudProof is
+faster than etcd in general.
+
+### The Phase IV-A story in one paragraph
+
+The original engine saturates at 500 writes/s on synchronous durability. Group commit lifts it to about 6,000/s (12x)
+without weakening durability. The publication gate of §7 lost 0 of its acknowledged writes across 30 forced leader
+deaths, and so did its re-run under the comparison's power policy (`1b55e36`, 157,788 acknowledged writes). Bounded batching and pipelining only pay off on top of it. The bottleneck then moves from the disk
+to the leader's single event loop, where the HTTP transport caps it at 6,000/s and the framed transport at about
+10,000/s (20x). Matched on the same machine and workload, stock etcd sustains 8,000/s. CloudProof's framed profile
+reaches its throughput at 2–4x less CPU per write but with a worse tail at its knee, and CloudProof over HTTP is about
+a quarter below it.
+
+## 13. Final correctness regression (step 9)
 
 Run at `dd0ab9d` on a clean tree, after the sweep and the profiles
 ([`final-regression.txt`](artifacts/perf/phase-iv-a/final-regression.txt)). Every step passed:
@@ -740,7 +884,7 @@ Run at `dd0ab9d` on a clean tree, after the sweep and the profiles
 - Live durability gate under the comparison's power policy (`1b55e36`): 30 forced leader deaths, 157,788 acknowledged
   writes, 0 missing, 0 duplicates.
 
-## 13. Known limitations and follow-ups
+## 14. Known limitations and follow-ups
 
 - **Harness under extreme overload.** At 15,000–20,000/s the load generators' reconnect storm and the harness's
   per-request connections can exhaust local ports. Eight trials failed this way, all above their curves' first
@@ -756,4 +900,8 @@ Run at `dd0ab9d` on a clean tree, after the sweep and the profiles
   laptop. The production target (Linux, ext4/xfs) differs, and nothing here is a claim about it.
 - **Pre-existing, untouched.** `_scheduleCommitBroadcast` in `replica/raft.js` clears `_noopIndex` inside its timer.
   This predates Phase IV-A and was left alone.
-- **etcd** has not been run. Per the methodology, it comes only after this report.
+- **The etcd comparison is one payload and one machine.** 1 KiB only, so etcd's payload sensitivity is not measured
+  (amendment 4). Its knee is known to one ladder rung (8,000–10,000/s), its bottleneck was not profiled, and every
+  etcd default was kept: no etcd tuning was tried, as pre-registered.
+- **etcd is measured through its HTTP/JSON gateway,** the only client path the shared generator speaks. A native gRPC
+  client would skip the gateway's translation and could raise etcd's figures; that is not measured.
