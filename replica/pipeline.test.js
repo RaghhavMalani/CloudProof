@@ -46,13 +46,29 @@ async function cluster(term = 1, extra = {}) {
 
 const deliverAll = (net, target) => net.deliverAll(target);
 
+/**
+ * Delivers what is queued for `targets`, then lets the commit broadcast those
+ * acknowledgements may have armed fire, and delivers what it sent.
+ *
+ * Committing an entry (here the leader's no-op) arms a one-shot broadcast on a
+ * real 0 ms timer. Whether it had fired by the time a test inspected the queue
+ * depended on how long the awaits took, so on a slow runner one extra
+ * heartbeat could sit among the requests a test counts. Node runs timers in
+ * expiry order, so the 20 ms wait always runs after it.
+ */
+async function matchFollowers(net, ...targets) {
+    for (const target of targets) await deliverAll(net, target);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    for (const target of targets) await deliverAll(net, target);
+}
+
 test('replicate mode keeps up to maxInflight batches outstanding and advances nextIndex optimistically', async () => {
     const restore = silent();
     try {
         const { net, leader } = await cluster();
         // Probe: exactly one request per follower until it matches.
         assert.equal(net.to('http://a').length, 1);
-        await deliverAll(net, 'http://a');
+        await matchFollowers(net, 'http://a');
         assert.equal(leader._progress['http://a'].mode, 'replicate');
         for (let i = 0; i < 6; i += 1) {
             void leader.clientAppend({ op: 'set', key: `k${i}`, value: i });
@@ -70,8 +86,7 @@ test('reordered acknowledgements never move matchIndex backwards and commit corr
     const restore = silent();
     try {
         const { net, leader } = await cluster();
-        await deliverAll(net, 'http://a');
-        await deliverAll(net, 'http://b');
+        await matchFollowers(net, 'http://a', 'http://b');
         const writes = [0, 1, 2].map((i) => leader.clientAppend({ op: 'set', key: `k${i}`, value: i }));
         const toA = net.to('http://a');
         assert.equal(toA.length, 3);
@@ -96,7 +111,7 @@ test('a request that overtakes its predecessor is rejected, probed, and repaired
     const restore = silent();
     try {
         const { net, leader, a } = await cluster();
-        await deliverAll(net, 'http://a');
+        await matchFollowers(net, 'http://a');
         for (let i = 0; i < 3; i += 1) void leader.clientAppend({ op: 'set', key: `k${i}`, value: i });
         const [first, second, third] = net.to('http://a');
         // The third arrives first: its prevLogIndex is beyond a's log.
@@ -164,7 +179,7 @@ test('a leadership change fences replies to requests sent under the old leadersh
     const restore = silent();
     try {
         const { net, leader } = await cluster(1);
-        await deliverAll(net, 'http://a');
+        await matchFollowers(net, 'http://a');
         void leader.clientAppend({ op: 'set', key: 'k', value: 1 });
         const old = net.to('http://a')[0];
         const oldReply = await net.nodes.get('http://a').handleAppendEntries(old.body);
@@ -187,7 +202,7 @@ test('a retransmitted batch is idempotent at the follower', async () => {
     const restore = silent();
     try {
         const { net, leader, a } = await cluster();
-        await deliverAll(net, 'http://a');
+        await matchFollowers(net, 'http://a');
         void leader.clientAppend({ op: 'set', key: 'k', value: 1 });
         const message = net.to('http://a')[0];
         const store = a._logStore;
@@ -231,12 +246,9 @@ test('an RPC error drops the follower to probing from matchIndex + 1 without spi
     const restore = silent();
     try {
         const { net, leader } = await cluster();
-        await deliverAll(net, 'http://a');
-        // Committing the no-op schedules the one-shot commit broadcast (a real
-        // 0 ms timer). Let it fire and drain first, or it can land after the
-        // error below and legitimately send one probe of its own.
-        await new Promise((resolve) => setTimeout(resolve, 20));
-        await deliverAll(net, 'http://a');
+        // Without matchFollowers' wait, the commit broadcast could land after
+        // the error below and legitimately send one probe of its own.
+        await matchFollowers(net, 'http://a');
         for (let i = 0; i < 3; i += 1) void leader.clientAppend({ op: 'set', key: `k${i}`, value: i });
         const [first] = net.to('http://a');
         net.fail(first);
