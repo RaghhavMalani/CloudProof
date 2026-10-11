@@ -43,6 +43,14 @@ jobs:
         run: node sim/multi-agent-search.js --runs 1000 --seed 1337 --mutant correct --no-shrink --no-artifacts
       - name: multi-agent race mutant kill benchmark
         run: node sim/multi-agent-search.js --benchmark --runs 100 --seed 1337 --no-artifacts
+      # Phase IV-B.0: three static ranges on three nodes. The simulator gate
+      # checks per-key linearizability and exactly-once from the application
+      # ledgers on every engine profile; the live gate runs three real
+      # processes over HTTP with fsynced storage (CLOUDPROOF-PHASE-IV-B.md §13).
+      - name: static Multi-Raft simulator gate
+        run: node sim/multi-raft-search.js --runs 20
+      - name: static Multi-Raft live gate
+        run: node tools/multi-raft-live-test.js
       - name: CloudProof executable twin acceptance gate
         run: node sim/cloud-search.js --benchmark --runs 10 --seed 1337 --no-artifacts
       - name: CloudProof Phase II-A dataset and evaluation smoke gate
