@@ -1,0 +1,36 @@
+HEAD d8edaa0 dirty=0
+PASS replica npm test (63s) :: ✔ votes, pre-votes and errors travel as JSON frames (0.2467ms) ℹ tests 118 ℹ pass 118 ℹ fail 0 
+PASS node suites (sim packages refund-provider tools) (119s) :: ✔ an isolated follower cannot inflate its term through failed PreVotes (6.0907ms) ℹ tests 257 ℹ pass 256 ℹ fail 0 
+PASS default fingerprint 60 seeds (1s) :: profile=default seeds=60 failures=0 combined=1f73f666c1f94708266349542d9f3a25adc69cd5693072a3ab2491a39cbd86b5 
+PASS linearizability search default 100 (3s) :: searched 100 schedules in 2.7s; violations: 0 
+PASS linearizability search group-commit 200 (5s) :: searched 200 schedules in 4.4s; violations: 0 
+PASS linearizability search pipeline-only 200 (4s) :: searched 200 schedules in 3.6s; violations: 0 
+PASS linearizability search batch-only 200 (5s) :: searched 200 schedules in 4.2s; violations: 0 
+PASS linearizability search group-batch 200 (5s) :: searched 200 schedules in 4.4s; violations: 0 
+PASS linearizability search group-batch-pipeline 200 (4s) :: searched 200 schedules in 3.8s; violations: 0 
+PASS linearizability search optimized-http 200 (4s) :: searched 200 schedules in 3.8s; violations: 0 
+PASS linearizability search optimized-binary 200 (5s) :: searched 200 schedules in 4.4s; violations: 0 
+PASS linearizability search transport-only 200 (5s) :: searched 200 schedules in 4.8s; violations: 0 
+PASS linearizability search group-pipeline 200 (4s) :: searched 200 schedules in 3.5s; violations: 0 
+PASS linearizability search group-commit-delay 200 (4s) :: searched 200 schedules in 3.7s; violations: 0 
+PASS linearizability search pipeline-delay 200 (4s) :: searched 200 schedules in 4.0s; violations: 0 
+PASS linearizability search batched-delay 200 (3s) :: searched 200 schedules in 3.6s; violations: 0 
+PASS linearizability search optimized-delay 200 (4s) :: searched 200 schedules in 4.0s; violations: 0 
+PASS perf-faults baseline 20/scenario (11s) :: cluster-power-loss           runs=20 failures=0 acked=109 hit: unflushed=0 heldAcks=0 outstandingRpcs=0 power-loss-on-ack            runs=20 failures=0 acked=83 hit: unflushed=0 heldAcks=0 outstandingRpcs=0 power-loss-lone-write        runs=20 failures=0 acked
+PASS perf-faults group-commit-delay 20/scenario (13s) :: cluster-power-loss           runs=20 failures=0 acked=130 hit: unflushed=14 heldAcks=12 outstandingRpcs=0 power-loss-on-ack            runs=20 failures=0 acked=137 hit: unflushed=16 heldAcks=8 outstandingRpcs=0 power-loss-lone-write        runs=20 failures=0 a
+PASS perf-faults pipeline-delay 20/scenario (12s) :: cluster-power-loss           runs=20 failures=0 acked=130 hit: unflushed=14 heldAcks=12 outstandingRpcs=0 power-loss-on-ack            runs=20 failures=0 acked=137 hit: unflushed=16 heldAcks=8 outstandingRpcs=0 power-loss-lone-write        runs=20 failures=0 a
+PASS perf-faults batched-delay 20/scenario (15s) :: cluster-power-loss           runs=20 failures=0 acked=98 hit: unflushed=15 heldAcks=13 outstandingRpcs=0 power-loss-on-ack            runs=20 failures=0 acked=95 hit: unflushed=17 heldAcks=9 outstandingRpcs=0 power-loss-lone-write        runs=20 failures=0 ack
+PASS perf-faults optimized-delay 20/scenario (15s) :: cluster-power-loss           runs=20 failures=0 acked=98 hit: unflushed=15 heldAcks=13 outstandingRpcs=0 power-loss-on-ack            runs=20 failures=0 acked=95 hit: unflushed=17 heldAcks=9 outstandingRpcs=0 power-loss-lone-write        runs=20 failures=0 ack
+PASS perf mutants (14s) :: ✔ mutant "pipeline-optimistic-match" is killed (1.2293ms) ℹ tests 6 ℹ pass 6 ℹ fail 0 
+PASS agent runtime search 1000 (0s) :: 
+PASS agent mutant kill benchmark (1s) ::     "killed": 5,     "violations": 0, 
+PASS multi-agent search 1000 (0s) :: 
+PASS multi-agent mutant kill benchmark (1s) ::       "killed": true,       "killed": true,       "killed": true,     "violations": 0, 
+PASS Phase I acceptance gate (cloud-search benchmark) (25s) ::     "violations": 0,         "expectedCalibrationError": 0.22545330945748798         "expectedCalibrationError": 0.01064335583213556         "expectedCalibrationError": 0.4893092543832325 
+PASS Phase I replay failure-1337 (0s) :: 
+PASS Phase II-A dataset smoke gate (1s) ::     "passed": true 
+PASS Phase II-A.2 causal corpus smoke gate (11s) ::     "passed": true, 
+PASS syntax check every module (17s) :: 
+PASS web bundle current (0s) :: 
+PASS python ml/cloudproof tests (9s) :: 60 passed in 6.98s 
+DONE

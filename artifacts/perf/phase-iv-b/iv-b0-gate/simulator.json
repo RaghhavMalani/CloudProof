@@ -1,0 +1,5882 @@
+{
+  "schema": "cloudproof.multi-raft.iv-b0-sim/v1",
+  "git": {
+    "sha": "d8edaa053e6f42d052b175d91609cf502dcf9f36",
+    "dirty": false
+  },
+  "node": "v24.14.1",
+  "runs": 50,
+  "firstSeed": 1,
+  "profiles": {
+    "baseline": {
+      "scenarios": [
+        {
+          "ok": true,
+          "linearizability": {
+            "ok": true,
+            "keys": 12,
+            "operations": 476,
+            "violations": [],
+            "inconclusive": []
+          },
+          "exactlyOnce": {
+            "ok": true,
+            "counts": {
+              "requests": 464,
+              "acknowledged": 464,
+              "retried": 5,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 464,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 0,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "appliedMoreThanOnce": [],
+            "missingAcknowledged": []
+          },
+          "ranges": {
+            "ok": true,
+            "problems": []
+          },
+          "converged": true,
+          "history": {
+            "invoke": 476,
+            "ok": 476,
+            "fail": 0,
+            "info": 0
+          },
+          "scenario": "S1-independent-leaders",
+          "seed": 1,
+          "profile": "baseline",
+          "independent": true,
+          "windows": [
+            {
+              "kind": "range-leader-crash",
+              "rangeId": "r1",
+              "crashedNode": "n1",
+              "newLeaderNode": "n3",
+              "elected": true,
+              "leaderlessMs": 384,
+              "committedByOtherRanges": {
+                "r2": 13,
+                "r3": 12
+              }
+            },
+            {
+              "kind": "range-leader-crash",
+              "rangeId": "r2",
+              "crashedNode": "n1",
+              "newLeaderNode": "n2",
+              "elected": true,
+              "leaderlessMs": 624,
+              "committedByOtherRanges": {
+                "r1": 27,
+                "r3": 26
+              }
+            },
+            {
+              "kind": "range-leader-crash",
+              "rangeId": "r3",
+              "crashedNode": "n1",
+              "newLeaderNode": "n2",
+              "elected": true,
+              "leaderlessMs": 262,
+              "committedByOtherRanges": {
+                "r1": 10,
+                "r2": 11
+              }
+            },
+            {
+              "kind": "node-crash",
+              "crashedNode": "n2",
+              "rangesLedByCrashedNode": [
+                "r2",
+                "r3"
+              ],
+              "elected": true,
+              "leaderlessMs": 334,
+              "vacuous": false,
+              "committedByRangesLedElsewhere": {
+                "r1": 12
+              }
+            }
+          ]
+        },
+        {
+          "ok": true,
+          "linearizability": {
+            "ok": true,
+            "keys": 12,
+            "operations": 60,
+            "violations": [],
+            "inconclusive": []
+          },
+          "exactlyOnce": {
+            "ok": true,
+            "counts": {
+              "requests": 36,
+              "acknowledged": 36,
+              "retried": 0,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 36,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 0,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "appliedMoreThanOnce": [],
+            "missingAcknowledged": []
+          },
+          "ranges": {
+            "ok": true,
+            "problems": []
+          },
+          "converged": true,
+          "history": {
+            "invoke": 60,
+            "ok": 60,
+            "fail": 0,
+            "info": 0
+          },
+          "scenario": "S2-durability-across-restart",
+          "seed": 2,
+          "profile": "baseline",
+          "acknowledgedWrites": 12,
+          "survived": true,
+          "stateSurvived": true
+        },
+        {
+          "ok": true,
+          "linearizability": {
+            "ok": true,
+            "keys": 12,
+            "operations": 24,
+            "violations": [],
+            "inconclusive": []
+          },
+          "exactlyOnce": {
+            "ok": true,
+            "counts": {
+              "requests": 12,
+              "acknowledged": 12,
+              "retried": 0,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 12,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 48,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "appliedMoreThanOnce": [],
+            "missingAcknowledged": []
+          },
+          "ranges": {
+            "ok": true,
+            "problems": []
+          },
+          "converged": true,
+          "history": {
+            "invoke": 24,
+            "ok": 24,
+            "fail": 0,
+            "info": 0
+          },
+          "scenario": "S3-fencing",
+          "seed": 3,
+          "profile": "baseline",
+          "probes": 48,
+          "admissionProbes": 36,
+          "applyProbes": 12,
+          "allRefused": true,
+          "rejectedOnEveryReplica": true,
+          "stateUnchanged": true
+        },
+        {
+          "ok": true,
+          "linearizability": {
+            "ok": true,
+            "keys": 12,
+            "operations": 36,
+            "violations": [],
+            "inconclusive": []
+          },
+          "exactlyOnce": {
+            "ok": true,
+            "counts": {
+              "requests": 24,
+              "acknowledged": 24,
+              "retried": 24,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 24,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 0,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "appliedMoreThanOnce": [],
+            "missingAcknowledged": []
+          },
+          "ranges": {
+            "ok": true,
+            "problems": []
+          },
+          "converged": true,
+          "history": {
+            "invoke": 36,
+            "ok": 36,
+            "fail": 0,
+            "info": 0
+          },
+          "scenario": "S4-retry-after-unknown",
+          "seed": 4,
+          "profile": "baseline",
+          "writes": 24,
+          "retried": 24,
+          "answeredByDedup": 24
+        }
+      ],
+      "campaign": {
+        "summary": {
+          "runs": 50,
+          "passed": 50,
+          "failed": [],
+          "linearizabilityKeysChecked": 600,
+          "operationsChecked": 11580,
+          "linearizabilityViolations": 0,
+          "linearizabilityInconclusive": 0,
+          "logicalRequests": 7626,
+          "acknowledged": 7537,
+          "retried": 665,
+          "appliedMoreThanOnce": 0,
+          "duplicateLogicalWrites": 0,
+          "missingAcknowledged": 0,
+          "unacknowledgedApplied": 21,
+          "staleEpochWritesAccepted": 0,
+          "probes": 140,
+          "unrequestedApplications": 0,
+          "ledgerDisagreements": 0,
+          "rangeSafetyProblems": 0,
+          "notConverged": 0
+        },
+        "seeds": [
+          {
+            "seed": 1,
+            "ok": true,
+            "faults": {
+              "crash-range-leader": 4,
+              "restart-range": 1,
+              "probe": 4,
+              "heal": 2,
+              "crash-node": 1,
+              "loss": 2,
+              "isolate": 1
+            },
+            "counts": {
+              "requests": 243,
+              "acknowledged": 239,
+              "retried": 10,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 239,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 4,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 370,
+              "ok": 364,
+              "fail": 2,
+              "info": 4
+            },
+            "fingerprint": "f7b1bf907c8b82e497d3871cc77cf67237e91dbeaf767261c1aa0d3e8834f96f"
+          },
+          {
+            "seed": 2,
+            "ok": true,
+            "faults": {
+              "crash-node": 2,
+              "probe": 4,
+              "crash-range-leader": 1,
+              "restart-range": 1,
+              "heal": 2,
+              "isolate": 2,
+              "restart-node": 1,
+              "loss": 2
+            },
+            "counts": {
+              "requests": 172,
+              "acknowledged": 172,
+              "retried": 6,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 172,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 4,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 253,
+              "ok": 253,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "58510b612a8c585a4a6a0f024922777fa5038a1899d0e82bf236bdc2c4631828"
+          },
+          {
+            "seed": 3,
+            "ok": true,
+            "faults": {
+              "isolate": 2,
+              "probe": 4,
+              "heal": 2,
+              "crash-range-leader": 3,
+              "restart-range": 2,
+              "loss": 1,
+              "crash-node": 1
+            },
+            "counts": {
+              "requests": 227,
+              "acknowledged": 227,
+              "retried": 11,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 227,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 4,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 343,
+              "ok": 343,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "18b2c210b58e941ac922136636c74cc85cedc52f617badf299f0dccf5faf8168"
+          },
+          {
+            "seed": 4,
+            "ok": true,
+            "faults": {
+              "probe": 2,
+              "loss": 1,
+              "heal": 6,
+              "crash-node": 1,
+              "crash-range-leader": 3,
+              "restart-range": 3,
+              "restart-node": 1
+            },
+            "counts": {
+              "requests": 118,
+              "acknowledged": 118,
+              "retried": 12,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 118,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 2,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 179,
+              "ok": 179,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "4fbaa8ddf615c1e4bfb120acf9afa31ad373c25d8fb55c001a86ccbdd9c1d577"
+          },
+          {
+            "seed": 5,
+            "ok": true,
+            "faults": {
+              "crash-node": 2,
+              "loss": 1,
+              "crash-range-leader": 4,
+              "heal": 4,
+              "isolate": 1,
+              "restart-node": 1,
+              "restart-range": 4,
+              "probe": 1
+            },
+            "counts": {
+              "requests": 134,
+              "acknowledged": 134,
+              "retried": 13,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 134,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 1,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 213,
+              "ok": 213,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "4f314991d3faf054d2e2bef2c1cd42672cc388679a0aa01d82e1fa29ebe6a45b"
+          },
+          {
+            "seed": 6,
+            "ok": true,
+            "faults": {
+              "crash-node": 2,
+              "probe": 1,
+              "heal": 2,
+              "loss": 1,
+              "restart-node": 1,
+              "crash-range-leader": 3,
+              "isolate": 3
+            },
+            "counts": {
+              "requests": 113,
+              "acknowledged": 109,
+              "retried": 13,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 109,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 1,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 177,
+              "ok": 171,
+              "fail": 6,
+              "info": 0
+            },
+            "fingerprint": "a2e240d8c665623365a7bc627f18a62b42fd968e0e5b4d2eddbeaf582236582e"
+          },
+          {
+            "seed": 7,
+            "ok": true,
+            "faults": {
+              "heal": 3,
+              "crash-range-leader": 2,
+              "crash-node": 1,
+              "loss": 2,
+              "restart-range": 1,
+              "isolate": 2,
+              "probe": 1
+            },
+            "counts": {
+              "requests": 160,
+              "acknowledged": 160,
+              "retried": 9,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 160,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 1,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 232,
+              "ok": 232,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "c28dc1d810ff8a75e475e187f91c832d3dcbffe635ec2760373497533e593297"
+          },
+          {
+            "seed": 8,
+            "ok": true,
+            "faults": {
+              "crash-range-leader": 5,
+              "crash-node": 2,
+              "heal": 5,
+              "restart-node": 1,
+              "probe": 1,
+              "restart-range": 2,
+              "loss": 2
+            },
+            "counts": {
+              "requests": 138,
+              "acknowledged": 135,
+              "retried": 11,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 135,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 1,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 199,
+              "ok": 196,
+              "fail": 3,
+              "info": 0
+            },
+            "fingerprint": "4d64bbe20c9d68afb89ff2e2a7867048809da5a57d3ea0a8039ef1f8c0bd8760"
+          },
+          {
+            "seed": 9,
+            "ok": true,
+            "faults": {
+              "probe": 2,
+              "isolate": 1,
+              "crash-range-leader": 2,
+              "restart-range": 2,
+              "crash-node": 3,
+              "restart-node": 3,
+              "heal": 1
+            },
+            "counts": {
+              "requests": 133,
+              "acknowledged": 133,
+              "retried": 8,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 133,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 2,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 208,
+              "ok": 208,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "a27ddb6dcc83616c36bc8fdc20f67bd5f646b3c25e5bdf81ecb3574e5a8a2134"
+          },
+          {
+            "seed": 10,
+            "ok": true,
+            "faults": {
+              "isolate": 3,
+              "crash-range-leader": 4,
+              "probe": 3,
+              "crash-node": 1,
+              "restart-range": 3,
+              "loss": 2,
+              "heal": 1
+            },
+            "counts": {
+              "requests": 71,
+              "acknowledged": 70,
+              "retried": 12,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 70,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 3,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 116,
+              "ok": 115,
+              "fail": 1,
+              "info": 0
+            },
+            "fingerprint": "800162a6906bf30b25edaf688cfe421ccb839fc1d1468e6dfd2804977913e02d"
+          },
+          {
+            "seed": 11,
+            "ok": true,
+            "faults": {
+              "probe": 2,
+              "loss": 5,
+              "crash-range-leader": 3,
+              "heal": 2,
+              "restart-range": 2,
+              "isolate": 2
+            },
+            "counts": {
+              "requests": 166,
+              "acknowledged": 166,
+              "retried": 22,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 166,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 2,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 260,
+              "ok": 260,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "65c784e43ba2c5fb309a364dd88871579e8e9e4c507e9fd2d84920d3a0b5eced"
+          },
+          {
+            "seed": 12,
+            "ok": true,
+            "faults": {
+              "isolate": 3,
+              "loss": 2,
+              "crash-range-leader": 4,
+              "probe": 1,
+              "heal": 1,
+              "restart-range": 3,
+              "crash-node": 1
+            },
+            "counts": {
+              "requests": 96,
+              "acknowledged": 92,
+              "retried": 15,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 92,
+              "unacknowledgedApplied": 4,
+              "staleEpochWritesAccepted": 0,
+              "probes": 1,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 145,
+              "ok": 139,
+              "fail": 2,
+              "info": 4
+            },
+            "fingerprint": "57ddc794d478afaad65fa2f179cd4cbccee1566a8b06d49b125f1060e732b9b2"
+          },
+          {
+            "seed": 13,
+            "ok": true,
+            "faults": {
+              "crash-range-leader": 8,
+              "restart-range": 5,
+              "probe": 1,
+              "crash-node": 1,
+              "heal": 1
+            },
+            "counts": {
+              "requests": 101,
+              "acknowledged": 97,
+              "retried": 27,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 97,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 1,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 167,
+              "ok": 161,
+              "fail": 6,
+              "info": 0
+            },
+            "fingerprint": "181780ca9ca0840cf056641a53ec0a7fe1484707bd4fcab475357dd173ae306c"
+          },
+          {
+            "seed": 14,
+            "ok": true,
+            "faults": {
+              "loss": 2,
+              "crash-range-leader": 3,
+              "restart-range": 2,
+              "probe": 2,
+              "heal": 4,
+              "crash-node": 1,
+              "isolate": 2,
+              "restart-node": 1
+            },
+            "counts": {
+              "requests": 142,
+              "acknowledged": 142,
+              "retried": 13,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 142,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 2,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 219,
+              "ok": 219,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "778d4e8d8c170987ac5e36ab83e2cb0439a0acf79bcfe476964564361fefb881"
+          },
+          {
+            "seed": 15,
+            "ok": true,
+            "faults": {
+              "isolate": 1,
+              "crash-range-leader": 5,
+              "probe": 3,
+              "heal": 1,
+              "restart-range": 2,
+              "loss": 2,
+              "crash-node": 1,
+              "restart-node": 1
+            },
+            "counts": {
+              "requests": 156,
+              "acknowledged": 152,
+              "retried": 21,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 152,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 3,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 237,
+              "ok": 232,
+              "fail": 2,
+              "info": 3
+            },
+            "fingerprint": "1f8df96a7c1d832f0db2e191c6104aae987654ffeb4bdb15efa1012aeb859378"
+          },
+          {
+            "seed": 16,
+            "ok": true,
+            "faults": {
+              "crash-range-leader": 6,
+              "heal": 1,
+              "restart-range": 4,
+              "probe": 2,
+              "crash-node": 1,
+              "restart-node": 1
+            },
+            "counts": {
+              "requests": 213,
+              "acknowledged": 213,
+              "retried": 14,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 213,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 2,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 330,
+              "ok": 330,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "d713c9251cc2a888bdef1ba7e3fc134f1fac5d3348bf71c8b561adcef127d9f3"
+          },
+          {
+            "seed": 17,
+            "ok": true,
+            "faults": {
+              "probe": 7,
+              "isolate": 2,
+              "crash-range-leader": 1,
+              "crash-node": 1,
+              "restart-range": 1,
+              "restart-node": 1
+            },
+            "counts": {
+              "requests": 142,
+              "acknowledged": 142,
+              "retried": 6,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 142,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 7,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 208,
+              "ok": 208,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "05d7c863e72cc648f43a30d24bc3c2d5b34a057d175053de4b4b96e9bf850c2e"
+          },
+          {
+            "seed": 18,
+            "ok": true,
+            "faults": {
+              "crash-node": 1,
+              "probe": 4,
+              "loss": 1,
+              "crash-range-leader": 4,
+              "heal": 2,
+              "restart-node": 1,
+              "restart-range": 3,
+              "isolate": 1
+            },
+            "counts": {
+              "requests": 98,
+              "acknowledged": 93,
+              "retried": 13,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 93,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 4,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 157,
+              "ok": 152,
+              "fail": 1,
+              "info": 4
+            },
+            "fingerprint": "2a9bb4a2139dbd65ad457a68a0eac0d78718ae6793c06bc070fdc5c3ff6f2d4b"
+          },
+          {
+            "seed": 19,
+            "ok": true,
+            "faults": {
+              "probe": 5,
+              "crash-range-leader": 4,
+              "crash-node": 2,
+              "restart-range": 4,
+              "heal": 1,
+              "restart-node": 1,
+              "loss": 2
+            },
+            "counts": {
+              "requests": 167,
+              "acknowledged": 167,
+              "retried": 16,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 167,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 5,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 244,
+              "ok": 244,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "c548895a4bae123cd254602432c7ae59a9f9e58f9fdf1ddd5a78d2e585a3c4d8"
+          },
+          {
+            "seed": 20,
+            "ok": true,
+            "faults": {
+              "probe": 3,
+              "crash-range-leader": 4,
+              "restart-range": 4,
+              "crash-node": 1,
+              "isolate": 3,
+              "loss": 1
+            },
+            "counts": {
+              "requests": 92,
+              "acknowledged": 87,
+              "retried": 22,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 87,
+              "unacknowledgedApplied": 5,
+              "staleEpochWritesAccepted": 0,
+              "probes": 3,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 149,
+              "ok": 143,
+              "fail": 1,
+              "info": 5
+            },
+            "fingerprint": "6785d6453eba72ad8e846e2527a14c313a2a4be7259ae72e41bebd84d1ba66cf"
+          },
+          {
+            "seed": 21,
+            "ok": true,
+            "faults": {
+              "probe": 3,
+              "isolate": 2,
+              "crash-range-leader": 4,
+              "loss": 2,
+              "restart-range": 3,
+              "crash-node": 2,
+              "restart-node": 1,
+              "heal": 2
+            },
+            "counts": {
+              "requests": 54,
+              "acknowledged": 49,
+              "retried": 10,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 49,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 3,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 93,
+              "ok": 88,
+              "fail": 0,
+              "info": 5
+            },
+            "fingerprint": "bdd8b43b6fa816df3c742dcda51609adb3481960beae8779e97e00eefed3dc8c"
+          },
+          {
+            "seed": 22,
+            "ok": true,
+            "faults": {
+              "probe": 4,
+              "isolate": 4,
+              "crash-range-leader": 2,
+              "restart-range": 1,
+              "heal": 3,
+              "crash-node": 1
+            },
+            "counts": {
+              "requests": 129,
+              "acknowledged": 129,
+              "retried": 13,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 129,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 4,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 204,
+              "ok": 204,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "e3d8990cf42d2f7f9df895b77ffc0c1b1e31b96f6ebbd67a30dadde9cbf1e054"
+          },
+          {
+            "seed": 23,
+            "ok": true,
+            "faults": {
+              "crash-node": 2,
+              "isolate": 3,
+              "heal": 2,
+              "probe": 5,
+              "restart-node": 1,
+              "crash-range-leader": 2,
+              "restart-range": 2,
+              "loss": 2
+            },
+            "counts": {
+              "requests": 199,
+              "acknowledged": 199,
+              "retried": 9,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 199,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 5,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 290,
+              "ok": 290,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "776764db0e37d8b36d4e87dfb7c152db3f95dc30cdae0152bc36ebff02429ab2"
+          },
+          {
+            "seed": 24,
+            "ok": true,
+            "faults": {
+              "crash-node": 3,
+              "probe": 2,
+              "crash-range-leader": 3,
+              "restart-node": 2,
+              "loss": 1,
+              "restart-range": 2,
+              "isolate": 1
+            },
+            "counts": {
+              "requests": 151,
+              "acknowledged": 148,
+              "retried": 13,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 148,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 2,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 234,
+              "ok": 230,
+              "fail": 4,
+              "info": 0
+            },
+            "fingerprint": "0a36d51beeb2085050e1334dc91305f197b1c4a9fed8a61806585f3e52b74d3f"
+          },
+          {
+            "seed": 25,
+            "ok": true,
+            "faults": {
+              "crash-range-leader": 4,
+              "heal": 3,
+              "crash-node": 2,
+              "isolate": 1,
+              "probe": 2,
+              "restart-node": 2,
+              "restart-range": 3,
+              "loss": 1
+            },
+            "counts": {
+              "requests": 123,
+              "acknowledged": 123,
+              "retried": 17,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 123,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 2,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 188,
+              "ok": 188,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "7f844634b4f19f9224241abc2fadfa00bcb6efc38e10f13e315a01b3e2ecac97"
+          },
+          {
+            "seed": 26,
+            "ok": true,
+            "faults": {
+              "probe": 8,
+              "isolate": 3,
+              "crash-node": 1,
+              "heal": 1,
+              "crash-range-leader": 3,
+              "restart-range": 1,
+              "loss": 1
+            },
+            "counts": {
+              "requests": 100,
+              "acknowledged": 95,
+              "retried": 11,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 95,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 8,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 160,
+              "ok": 154,
+              "fail": 6,
+              "info": 0
+            },
+            "fingerprint": "c5da9244d235696b17b6f75e5e8671d0c236225e19d28d0b02aaadef9a6039c2"
+          },
+          {
+            "seed": 27,
+            "ok": true,
+            "faults": {
+              "probe": 5,
+              "loss": 1,
+              "crash-range-leader": 6,
+              "restart-range": 3,
+              "isolate": 1,
+              "heal": 1
+            },
+            "counts": {
+              "requests": 140,
+              "acknowledged": 137,
+              "retried": 12,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 137,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 5,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 201,
+              "ok": 197,
+              "fail": 1,
+              "info": 3
+            },
+            "fingerprint": "05d726a3b70937af73290685d67151bd2976b7e5a874cb9d749d1b5a3e48cb90"
+          },
+          {
+            "seed": 28,
+            "ok": true,
+            "faults": {
+              "probe": 4,
+              "heal": 4,
+              "crash-range-leader": 4,
+              "loss": 1,
+              "restart-range": 4,
+              "crash-node": 1,
+              "isolate": 1,
+              "restart-node": 1
+            },
+            "counts": {
+              "requests": 175,
+              "acknowledged": 175,
+              "retried": 14,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 175,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 4,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 262,
+              "ok": 262,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "63f953ea6efeae518ea62816c4a1797fa5cfd6b2ef57442b778c2a1291c2fd74"
+          },
+          {
+            "seed": 29,
+            "ok": true,
+            "faults": {
+              "probe": 1,
+              "crash-range-leader": 6,
+              "restart-range": 4,
+              "isolate": 3,
+              "crash-node": 3,
+              "restart-node": 2
+            },
+            "counts": {
+              "requests": 99,
+              "acknowledged": 97,
+              "retried": 18,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 97,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 1,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 151,
+              "ok": 145,
+              "fail": 6,
+              "info": 0
+            },
+            "fingerprint": "3ad005be19b7d1b08ba10b900c18f28ad02437d0a7b395e641e1353640f86ee0"
+          },
+          {
+            "seed": 30,
+            "ok": true,
+            "faults": {
+              "crash-node": 2,
+              "crash-range-leader": 4,
+              "heal": 3,
+              "loss": 1,
+              "restart-range": 2,
+              "probe": 1,
+              "isolate": 1,
+              "restart-node": 1
+            },
+            "counts": {
+              "requests": 58,
+              "acknowledged": 57,
+              "retried": 7,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 57,
+              "unacknowledgedApplied": 1,
+              "staleEpochWritesAccepted": 0,
+              "probes": 1,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 89,
+              "ok": 86,
+              "fail": 2,
+              "info": 1
+            },
+            "fingerprint": "9e75bde0b9661dfe30f164b9e4be5b289a5edb1dcb67722f9c63746bd83ad64c"
+          },
+          {
+            "seed": 31,
+            "ok": true,
+            "faults": {
+              "crash-range-leader": 2,
+              "probe": 3,
+              "restart-range": 2,
+              "crash-node": 1,
+              "loss": 2,
+              "restart-node": 1,
+              "isolate": 6,
+              "heal": 1
+            },
+            "counts": {
+              "requests": 142,
+              "acknowledged": 142,
+              "retried": 22,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 142,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 3,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 211,
+              "ok": 211,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "324302530465f83f7b3bdeb2317672489fbaad91ca719ffa965cc01b4212a67d"
+          },
+          {
+            "seed": 32,
+            "ok": true,
+            "faults": {
+              "crash-range-leader": 5,
+              "restart-range": 2,
+              "heal": 2,
+              "probe": 2,
+              "isolate": 1,
+              "loss": 1
+            },
+            "counts": {
+              "requests": 236,
+              "acknowledged": 232,
+              "retried": 12,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 232,
+              "unacknowledgedApplied": 3,
+              "staleEpochWritesAccepted": 0,
+              "probes": 2,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 355,
+              "ok": 349,
+              "fail": 3,
+              "info": 3
+            },
+            "fingerprint": "16c18c20c14aa7f4c6823ca3aad9ce3bcd6134b9b872c358eb3059ed3af48c60"
+          },
+          {
+            "seed": 33,
+            "ok": true,
+            "faults": {
+              "isolate": 2,
+              "crash-range-leader": 5,
+              "restart-range": 2,
+              "heal": 4,
+              "probe": 3
+            },
+            "counts": {
+              "requests": 134,
+              "acknowledged": 130,
+              "retried": 15,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 130,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 3,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 192,
+              "ok": 187,
+              "fail": 2,
+              "info": 3
+            },
+            "fingerprint": "835280cad24c1c5e0286099894fffbc5ad6f0e38aca13f35f60ba34fbe3486ac"
+          },
+          {
+            "seed": 34,
+            "ok": true,
+            "faults": {
+              "crash-range-leader": 5,
+              "loss": 1,
+              "crash-node": 1,
+              "restart-range": 3,
+              "probe": 3,
+              "restart-node": 1,
+              "heal": 1
+            },
+            "counts": {
+              "requests": 172,
+              "acknowledged": 172,
+              "retried": 23,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 172,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 3,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 253,
+              "ok": 253,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "259904bfc85ee4d59f1838281c243f061d13baecde30d809e40a443f049d632a"
+          },
+          {
+            "seed": 35,
+            "ok": true,
+            "faults": {
+              "probe": 2,
+              "heal": 3,
+              "isolate": 3,
+              "crash-range-leader": 4,
+              "restart-range": 1,
+              "crash-node": 3,
+              "restart-node": 3,
+              "loss": 1
+            },
+            "counts": {
+              "requests": 155,
+              "acknowledged": 154,
+              "retried": 7,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 154,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 2,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 244,
+              "ok": 243,
+              "fail": 1,
+              "info": 0
+            },
+            "fingerprint": "2fb45971b9c088a0d9aae5fee60b845b2085ac22212b2ea135b2c3999114e79b"
+          },
+          {
+            "seed": 36,
+            "ok": true,
+            "faults": {
+              "loss": 2,
+              "crash-range-leader": 3,
+              "isolate": 4,
+              "probe": 3,
+              "heal": 2,
+              "restart-range": 1,
+              "crash-node": 1
+            },
+            "counts": {
+              "requests": 132,
+              "acknowledged": 129,
+              "retried": 9,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 129,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 3,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 184,
+              "ok": 178,
+              "fail": 4,
+              "info": 2
+            },
+            "fingerprint": "fa4a8d9f1446b6d6b38071758f16da6b342d475558825148ada8425f72579dd1"
+          },
+          {
+            "seed": 37,
+            "ok": true,
+            "faults": {
+              "crash-node": 2,
+              "crash-range-leader": 4,
+              "probe": 1,
+              "isolate": 2,
+              "restart-node": 1,
+              "loss": 1,
+              "restart-range": 1
+            },
+            "counts": {
+              "requests": 95,
+              "acknowledged": 91,
+              "retried": 10,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 91,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 1,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 146,
+              "ok": 140,
+              "fail": 4,
+              "info": 2
+            },
+            "fingerprint": "f0e0bae978325fabe01f0fb7199122ed602517736f107261586a1834da5e2d07"
+          },
+          {
+            "seed": 38,
+            "ok": true,
+            "faults": {
+              "probe": 3,
+              "crash-range-leader": 4,
+              "restart-range": 1,
+              "heal": 1,
+              "crash-node": 1,
+              "restart-node": 1
+            },
+            "counts": {
+              "requests": 301,
+              "acknowledged": 301,
+              "retried": 10,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 301,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 3,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 453,
+              "ok": 453,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "53450f5eba590f1baa18a832e51b658a5c2ee31eb783721ff1b379f4c8b59620"
+          },
+          {
+            "seed": 39,
+            "ok": true,
+            "faults": {
+              "probe": 4,
+              "crash-range-leader": 5,
+              "restart-range": 3,
+              "heal": 1,
+              "isolate": 2,
+              "loss": 1
+            },
+            "counts": {
+              "requests": 180,
+              "acknowledged": 176,
+              "retried": 12,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 176,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 4,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 272,
+              "ok": 268,
+              "fail": 4,
+              "info": 0
+            },
+            "fingerprint": "b8773d12d4796ebe08ae487b0df112b1ee0c7f430b9410bd6a331e9b89fc744d"
+          },
+          {
+            "seed": 40,
+            "ok": true,
+            "faults": {
+              "crash-node": 1,
+              "isolate": 3,
+              "crash-range-leader": 3,
+              "restart-range": 3,
+              "heal": 1,
+              "loss": 2,
+              "probe": 1,
+              "restart-node": 1
+            },
+            "counts": {
+              "requests": 72,
+              "acknowledged": 72,
+              "retried": 9,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 72,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 1,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 128,
+              "ok": 128,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "150c19d54858e8fa4234af3d681082f9fb8d153763cbd8c169aebe4aa958c77a"
+          },
+          {
+            "seed": 41,
+            "ok": true,
+            "faults": {
+              "crash-range-leader": 2,
+              "probe": 2,
+              "isolate": 2,
+              "crash-node": 2,
+              "heal": 2,
+              "restart-node": 2,
+              "loss": 1
+            },
+            "counts": {
+              "requests": 148,
+              "acknowledged": 148,
+              "retried": 11,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 148,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 2,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 232,
+              "ok": 232,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "58918804a26ba981d1a592632a170e72b934717fec772c855a1c06cef58dcce2"
+          },
+          {
+            "seed": 42,
+            "ok": true,
+            "faults": {
+              "crash-range-leader": 1,
+              "restart-range": 1,
+              "heal": 2,
+              "probe": 3,
+              "loss": 3,
+              "isolate": 1
+            },
+            "counts": {
+              "requests": 334,
+              "acknowledged": 334,
+              "retried": 7,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 334,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 3,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 492,
+              "ok": 492,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "5efd26ffb25c7a363ccdca75e4110a49b2a75e5cecb380f77816928230f7493c"
+          },
+          {
+            "seed": 43,
+            "ok": true,
+            "faults": {
+              "probe": 3,
+              "crash-range-leader": 5,
+              "restart-range": 3,
+              "isolate": 2,
+              "crash-node": 2,
+              "restart-node": 1,
+              "heal": 2,
+              "loss": 2
+            },
+            "counts": {
+              "requests": 118,
+              "acknowledged": 115,
+              "retried": 14,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 115,
+              "unacknowledgedApplied": 3,
+              "staleEpochWritesAccepted": 0,
+              "probes": 3,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 182,
+              "ok": 176,
+              "fail": 3,
+              "info": 3
+            },
+            "fingerprint": "ef17a6aff9b8c78d607a3b83d3a344b5fc67e5642b3d6d78a7737e51fe5a9435"
+          },
+          {
+            "seed": 44,
+            "ok": true,
+            "faults": {
+              "crash-range-leader": 5,
+              "crash-node": 1,
+              "probe": 3,
+              "isolate": 2,
+              "heal": 2,
+              "loss": 2,
+              "restart-node": 1,
+              "restart-range": 3
+            },
+            "counts": {
+              "requests": 83,
+              "acknowledged": 79,
+              "retried": 20,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 79,
+              "unacknowledgedApplied": 4,
+              "staleEpochWritesAccepted": 0,
+              "probes": 3,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 135,
+              "ok": 130,
+              "fail": 1,
+              "info": 4
+            },
+            "fingerprint": "54a38804f11df6872982a8ae68a8f2401cd0f6db7789b024676f6b03f52a1f2b"
+          },
+          {
+            "seed": 45,
+            "ok": true,
+            "faults": {
+              "crash-range-leader": 2,
+              "restart-range": 2,
+              "probe": 3,
+              "loss": 1,
+              "crash-node": 1,
+              "heal": 2,
+              "isolate": 2,
+              "restart-node": 1
+            },
+            "counts": {
+              "requests": 242,
+              "acknowledged": 242,
+              "retried": 15,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 242,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 3,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 346,
+              "ok": 346,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "5d38899289c0704d2730fd39d86924dc644dce7adf51e7c045c1aa1cc1cc6ad6"
+          },
+          {
+            "seed": 46,
+            "ok": true,
+            "faults": {
+              "probe": 3,
+              "crash-range-leader": 4,
+              "isolate": 3,
+              "restart-range": 2,
+              "loss": 1,
+              "crash-node": 2,
+              "restart-node": 2
+            },
+            "counts": {
+              "requests": 113,
+              "acknowledged": 111,
+              "retried": 8,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 111,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 3,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 173,
+              "ok": 171,
+              "fail": 0,
+              "info": 2
+            },
+            "fingerprint": "f2ff3241529ac95439a0024bf33651c742483e43ae80351bdc9e6ccdf2767c35"
+          },
+          {
+            "seed": 47,
+            "ok": true,
+            "faults": {
+              "isolate": 1,
+              "crash-range-leader": 5,
+              "heal": 4,
+              "probe": 1,
+              "restart-range": 2,
+              "crash-node": 1
+            },
+            "counts": {
+              "requests": 190,
+              "acknowledged": 187,
+              "retried": 7,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 187,
+              "unacknowledgedApplied": 1,
+              "staleEpochWritesAccepted": 0,
+              "probes": 1,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 305,
+              "ok": 299,
+              "fail": 5,
+              "info": 1
+            },
+            "fingerprint": "041729584b3b8045a070f9c72aa3371f9e51bd578a233501c1934bf733fcf796"
+          },
+          {
+            "seed": 48,
+            "ok": true,
+            "faults": {
+              "heal": 3,
+              "crash-range-leader": 5,
+              "restart-range": 2,
+              "crash-node": 2,
+              "restart-node": 2,
+              "probe": 4,
+              "loss": 2,
+              "isolate": 1
+            },
+            "counts": {
+              "requests": 176,
+              "acknowledged": 172,
+              "retried": 26,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 172,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 4,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 254,
+              "ok": 250,
+              "fail": 0,
+              "info": 4
+            },
+            "fingerprint": "95b669e3988238a91f0bd6454dab4216414505e6c4e993fed82b0f86de2124bb"
+          },
+          {
+            "seed": 49,
+            "ok": true,
+            "faults": {
+              "probe": 5,
+              "heal": 2,
+              "crash-node": 1,
+              "restart-node": 1,
+              "loss": 1,
+              "crash-range-leader": 1
+            },
+            "counts": {
+              "requests": 274,
+              "acknowledged": 274,
+              "retried": 19,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 274,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 5,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 416,
+              "ok": 416,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "360edceda666d32a31119c56f51e4b29947913107b0341f1833253ca2b0a3e82"
+          },
+          {
+            "seed": 50,
+            "ok": true,
+            "faults": {
+              "heal": 3,
+              "crash-range-leader": 3,
+              "restart-range": 3,
+              "isolate": 4,
+              "crash-node": 1
+            },
+            "counts": {
+              "requests": 219,
+              "acknowledged": 219,
+              "retried": 11,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 219,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 0,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 329,
+              "ok": 329,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "5ac5f189468618d776fdd9bb8f4d6ce57eab8675c3056e4c4d3fdc69f892ef85"
+          }
+        ]
+      },
+      "ok": true
+    },
+    "optimized-http": {
+      "scenarios": [
+        {
+          "ok": true,
+          "linearizability": {
+            "ok": true,
+            "keys": 12,
+            "operations": 524,
+            "violations": [],
+            "inconclusive": []
+          },
+          "exactlyOnce": {
+            "ok": true,
+            "counts": {
+              "requests": 512,
+              "acknowledged": 512,
+              "retried": 4,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 512,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 0,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "appliedMoreThanOnce": [],
+            "missingAcknowledged": []
+          },
+          "ranges": {
+            "ok": true,
+            "problems": []
+          },
+          "converged": true,
+          "history": {
+            "invoke": 524,
+            "ok": 524,
+            "fail": 0,
+            "info": 0
+          },
+          "scenario": "S1-independent-leaders",
+          "seed": 1,
+          "profile": "optimized-http",
+          "independent": true,
+          "windows": [
+            {
+              "kind": "range-leader-crash",
+              "rangeId": "r1",
+              "crashedNode": "n1",
+              "newLeaderNode": "n2",
+              "elected": true,
+              "leaderlessMs": 232,
+              "committedByOtherRanges": {
+                "r2": 9,
+                "r3": 10
+              }
+            },
+            {
+              "kind": "range-leader-crash",
+              "rangeId": "r2",
+              "crashedNode": "n1",
+              "newLeaderNode": "n3",
+              "elected": true,
+              "leaderlessMs": 270,
+              "committedByOtherRanges": {
+                "r1": 13,
+                "r3": 13
+              }
+            },
+            {
+              "kind": "range-leader-crash",
+              "rangeId": "r3",
+              "crashedNode": "n1",
+              "newLeaderNode": "n3",
+              "elected": true,
+              "leaderlessMs": 366,
+              "committedByOtherRanges": {
+                "r1": 20,
+                "r2": 17
+              }
+            },
+            {
+              "kind": "node-crash",
+              "crashedNode": "n2",
+              "rangesLedByCrashedNode": [
+                "r1"
+              ],
+              "elected": true,
+              "leaderlessMs": 266,
+              "vacuous": false,
+              "committedByRangesLedElsewhere": {
+                "r2": 10,
+                "r3": 7
+              }
+            }
+          ]
+        },
+        {
+          "ok": true,
+          "linearizability": {
+            "ok": true,
+            "keys": 12,
+            "operations": 60,
+            "violations": [],
+            "inconclusive": []
+          },
+          "exactlyOnce": {
+            "ok": true,
+            "counts": {
+              "requests": 36,
+              "acknowledged": 36,
+              "retried": 0,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 36,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 0,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "appliedMoreThanOnce": [],
+            "missingAcknowledged": []
+          },
+          "ranges": {
+            "ok": true,
+            "problems": []
+          },
+          "converged": true,
+          "history": {
+            "invoke": 60,
+            "ok": 60,
+            "fail": 0,
+            "info": 0
+          },
+          "scenario": "S2-durability-across-restart",
+          "seed": 2,
+          "profile": "optimized-http",
+          "acknowledgedWrites": 12,
+          "survived": true,
+          "stateSurvived": true
+        },
+        {
+          "ok": true,
+          "linearizability": {
+            "ok": true,
+            "keys": 12,
+            "operations": 24,
+            "violations": [],
+            "inconclusive": []
+          },
+          "exactlyOnce": {
+            "ok": true,
+            "counts": {
+              "requests": 12,
+              "acknowledged": 12,
+              "retried": 0,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 12,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 48,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "appliedMoreThanOnce": [],
+            "missingAcknowledged": []
+          },
+          "ranges": {
+            "ok": true,
+            "problems": []
+          },
+          "converged": true,
+          "history": {
+            "invoke": 24,
+            "ok": 24,
+            "fail": 0,
+            "info": 0
+          },
+          "scenario": "S3-fencing",
+          "seed": 3,
+          "profile": "optimized-http",
+          "probes": 48,
+          "admissionProbes": 36,
+          "applyProbes": 12,
+          "allRefused": true,
+          "rejectedOnEveryReplica": true,
+          "stateUnchanged": true
+        },
+        {
+          "ok": true,
+          "linearizability": {
+            "ok": true,
+            "keys": 12,
+            "operations": 36,
+            "violations": [],
+            "inconclusive": []
+          },
+          "exactlyOnce": {
+            "ok": true,
+            "counts": {
+              "requests": 24,
+              "acknowledged": 24,
+              "retried": 24,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 24,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 0,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "appliedMoreThanOnce": [],
+            "missingAcknowledged": []
+          },
+          "ranges": {
+            "ok": true,
+            "problems": []
+          },
+          "converged": true,
+          "history": {
+            "invoke": 36,
+            "ok": 36,
+            "fail": 0,
+            "info": 0
+          },
+          "scenario": "S4-retry-after-unknown",
+          "seed": 4,
+          "profile": "optimized-http",
+          "writes": 24,
+          "retried": 24,
+          "answeredByDedup": 24
+        }
+      ],
+      "campaign": {
+        "summary": {
+          "runs": 50,
+          "passed": 50,
+          "failed": [],
+          "linearizabilityKeysChecked": 600,
+          "operationsChecked": 12933,
+          "linearizabilityViolations": 0,
+          "linearizabilityInconclusive": 0,
+          "logicalRequests": 8690,
+          "acknowledged": 8577,
+          "retried": 652,
+          "appliedMoreThanOnce": 0,
+          "duplicateLogicalWrites": 0,
+          "missingAcknowledged": 0,
+          "unacknowledgedApplied": 21,
+          "staleEpochWritesAccepted": 0,
+          "probes": 122,
+          "unrequestedApplications": 0,
+          "ledgerDisagreements": 0,
+          "rangeSafetyProblems": 0,
+          "notConverged": 0
+        },
+        "seeds": [
+          {
+            "seed": 1,
+            "ok": true,
+            "faults": {
+              "heal": 4,
+              "crash-node": 1,
+              "probe": 5,
+              "isolate": 2,
+              "loss": 1,
+              "crash-range-leader": 2,
+              "restart-range": 1,
+              "restart-node": 1
+            },
+            "counts": {
+              "requests": 135,
+              "acknowledged": 132,
+              "retried": 6,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 132,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 5,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 201,
+              "ok": 195,
+              "fail": 6,
+              "info": 0
+            },
+            "fingerprint": "1dc15679f2118997efcf08614a13c18d5322e954686ba4974f69ec3879b8bd14"
+          },
+          {
+            "seed": 2,
+            "ok": true,
+            "faults": {
+              "crash-range-leader": 3,
+              "probe": 5,
+              "crash-node": 1,
+              "loss": 1,
+              "isolate": 3,
+              "restart-range": 1,
+              "heal": 2
+            },
+            "counts": {
+              "requests": 57,
+              "acknowledged": 54,
+              "retried": 9,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 54,
+              "unacknowledgedApplied": 3,
+              "staleEpochWritesAccepted": 0,
+              "probes": 5,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 107,
+              "ok": 97,
+              "fail": 7,
+              "info": 3
+            },
+            "fingerprint": "0a1b8d3c218b78b495284bba077b200a7900ac0fcf556dd03988f8f1afb511d2"
+          },
+          {
+            "seed": 3,
+            "ok": true,
+            "faults": {
+              "probe": 5,
+              "crash-range-leader": 3,
+              "crash-node": 1,
+              "restart-range": 1,
+              "loss": 1
+            },
+            "counts": {
+              "requests": 336,
+              "acknowledged": 335,
+              "retried": 9,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 335,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 5,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 480,
+              "ok": 478,
+              "fail": 2,
+              "info": 0
+            },
+            "fingerprint": "f9a58fed0e215775eec93db426d0728bd624c71b8f3948410fecf0aed9152576"
+          },
+          {
+            "seed": 4,
+            "ok": true,
+            "faults": {
+              "probe": 3,
+              "isolate": 1,
+              "heal": 3,
+              "crash-range-leader": 4,
+              "loss": 1,
+              "crash-node": 3,
+              "restart-node": 2,
+              "restart-range": 4
+            },
+            "counts": {
+              "requests": 153,
+              "acknowledged": 153,
+              "retried": 10,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 153,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 3,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 229,
+              "ok": 229,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "905557505e2940833d3cddbe9d205d66dd75daf6c10cd0a78b70d8b2855411d1"
+          },
+          {
+            "seed": 5,
+            "ok": true,
+            "faults": {
+              "loss": 1,
+              "probe": 5,
+              "heal": 1,
+              "crash-range-leader": 4,
+              "restart-range": 1,
+              "crash-node": 1,
+              "isolate": 1,
+              "restart-node": 1
+            },
+            "counts": {
+              "requests": 242,
+              "acknowledged": 239,
+              "retried": 8,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 239,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 5,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 350,
+              "ok": 346,
+              "fail": 2,
+              "info": 2
+            },
+            "fingerprint": "775dacc86f723839fa9367357626b2b40a30f306842d0aa1e0b49b8bb9388868"
+          },
+          {
+            "seed": 6,
+            "ok": true,
+            "faults": {
+              "crash-node": 1,
+              "crash-range-leader": 4,
+              "restart-range": 4,
+              "heal": 6,
+              "loss": 1
+            },
+            "counts": {
+              "requests": 59,
+              "acknowledged": 59,
+              "retried": 16,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 59,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 0,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 109,
+              "ok": 109,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "20973f9a32f0e0c5fe7a477b1bfeb3662ea1a805539a3aea164f4e28c8db62bc"
+          },
+          {
+            "seed": 7,
+            "ok": true,
+            "faults": {
+              "crash-range-leader": 5,
+              "isolate": 5,
+              "restart-range": 2,
+              "probe": 4,
+              "loss": 1,
+              "heal": 3
+            },
+            "counts": {
+              "requests": 108,
+              "acknowledged": 108,
+              "retried": 10,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 108,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 4,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 158,
+              "ok": 158,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "8a7d9b597fb70ca4af2272a1f9cb6a3ed371fc3c9a0ea39280114d3a1a8c2b05"
+          },
+          {
+            "seed": 8,
+            "ok": true,
+            "faults": {
+              "loss": 1,
+              "crash-range-leader": 3,
+              "heal": 4,
+              "probe": 2,
+              "restart-range": 2,
+              "crash-node": 1,
+              "isolate": 4
+            },
+            "counts": {
+              "requests": 233,
+              "acknowledged": 232,
+              "retried": 13,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 232,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 2,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 341,
+              "ok": 340,
+              "fail": 1,
+              "info": 0
+            },
+            "fingerprint": "c250c5ce0f2f7897258edf82b2efbecbc25a5e713bbd43e1c0e16c84e94dff33"
+          },
+          {
+            "seed": 9,
+            "ok": true,
+            "faults": {
+              "probe": 2,
+              "loss": 2,
+              "crash-range-leader": 2,
+              "crash-node": 1,
+              "isolate": 3,
+              "restart-range": 2,
+              "heal": 1,
+              "restart-node": 1
+            },
+            "counts": {
+              "requests": 132,
+              "acknowledged": 132,
+              "retried": 6,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 132,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 2,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 212,
+              "ok": 212,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "3824f929dc310dbe1338fc6001c344d32d23ee91942770c3ce04ff0166f4f0a1"
+          },
+          {
+            "seed": 10,
+            "ok": true,
+            "faults": {
+              "loss": 1,
+              "isolate": 2,
+              "crash-range-leader": 5,
+              "restart-range": 3,
+              "crash-node": 2,
+              "restart-node": 1,
+              "probe": 3
+            },
+            "counts": {
+              "requests": 129,
+              "acknowledged": 124,
+              "retried": 12,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 124,
+              "unacknowledgedApplied": 1,
+              "staleEpochWritesAccepted": 0,
+              "probes": 3,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 192,
+              "ok": 186,
+              "fail": 5,
+              "info": 1
+            },
+            "fingerprint": "9be4ae0910a0262f03fe15893f07bf26ad2edc96900b77787c764828a3c6ea07"
+          },
+          {
+            "seed": 11,
+            "ok": true,
+            "faults": {
+              "crash-range-leader": 5,
+              "probe": 4,
+              "crash-node": 2,
+              "restart-node": 1,
+              "restart-range": 2,
+              "isolate": 1
+            },
+            "counts": {
+              "requests": 192,
+              "acknowledged": 188,
+              "retried": 17,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 188,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 4,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 288,
+              "ok": 282,
+              "fail": 6,
+              "info": 0
+            },
+            "fingerprint": "71bcab0f370b1b3a83d53717179c3da20fdb7eecc6bb74a7e7478d47950bbb40"
+          },
+          {
+            "seed": 12,
+            "ok": true,
+            "faults": {
+              "probe": 3,
+              "crash-range-leader": 3,
+              "heal": 3,
+              "restart-range": 1,
+              "crash-node": 1,
+              "restart-node": 1
+            },
+            "counts": {
+              "requests": 291,
+              "acknowledged": 291,
+              "retried": 12,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 291,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 3,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 437,
+              "ok": 437,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "387aa0484940ab7bf9463d5878c68524a3e22d019414624a4ab25e4e4fe9d736"
+          },
+          {
+            "seed": 13,
+            "ok": true,
+            "faults": {
+              "crash-range-leader": 6,
+              "crash-node": 1,
+              "restart-range": 3,
+              "heal": 1,
+              "restart-node": 1,
+              "isolate": 1
+            },
+            "counts": {
+              "requests": 188,
+              "acknowledged": 184,
+              "retried": 13,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 184,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 0,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 288,
+              "ok": 282,
+              "fail": 3,
+              "info": 3
+            },
+            "fingerprint": "cf65e65efa8715d2aca98c2183711de14a1642ab502e8e122750622fbde304c6"
+          },
+          {
+            "seed": 14,
+            "ok": true,
+            "faults": {
+              "crash-range-leader": 3,
+              "probe": 4,
+              "restart-range": 3,
+              "loss": 1,
+              "heal": 1,
+              "isolate": 1
+            },
+            "counts": {
+              "requests": 341,
+              "acknowledged": 341,
+              "retried": 8,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 341,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 4,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 510,
+              "ok": 510,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "5d91fcd65385ca3507afcd36241653652de1345105d83c0f42a6963c159295cd"
+          },
+          {
+            "seed": 15,
+            "ok": true,
+            "faults": {
+              "isolate": 3,
+              "probe": 3,
+              "crash-node": 1,
+              "heal": 1,
+              "crash-range-leader": 3,
+              "loss": 1,
+              "restart-range": 2
+            },
+            "counts": {
+              "requests": 50,
+              "acknowledged": 46,
+              "retried": 7,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 46,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 3,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 94,
+              "ok": 88,
+              "fail": 6,
+              "info": 0
+            },
+            "fingerprint": "e00d3ff33efce6158b2cd0b3900d941e74cec3cc15dfe91cf4198b54bb9522e0"
+          },
+          {
+            "seed": 16,
+            "ok": true,
+            "faults": {
+              "crash-range-leader": 5,
+              "restart-range": 5,
+              "probe": 1,
+              "heal": 2,
+              "loss": 2
+            },
+            "counts": {
+              "requests": 307,
+              "acknowledged": 307,
+              "retried": 16,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 307,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 1,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 429,
+              "ok": 429,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "931a910c0dee5ce1c94fc1710639517ed00dabcb1f23626c29ea5a627b3ef538"
+          },
+          {
+            "seed": 17,
+            "ok": true,
+            "faults": {
+              "crash-range-leader": 4,
+              "crash-node": 1,
+              "probe": 2,
+              "restart-range": 2,
+              "loss": 1
+            },
+            "counts": {
+              "requests": 110,
+              "acknowledged": 107,
+              "retried": 15,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 107,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 2,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 163,
+              "ok": 158,
+              "fail": 5,
+              "info": 0
+            },
+            "fingerprint": "2b445a95a6d21ca4ee2191e4f64542de8ab2ccb4ed132961cd65bf82e72447cf"
+          },
+          {
+            "seed": 18,
+            "ok": true,
+            "faults": {
+              "probe": 3,
+              "heal": 2,
+              "crash-node": 2,
+              "crash-range-leader": 5,
+              "restart-node": 1
+            },
+            "counts": {
+              "requests": 119,
+              "acknowledged": 115,
+              "retried": 10,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 115,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 3,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 188,
+              "ok": 182,
+              "fail": 6,
+              "info": 0
+            },
+            "fingerprint": "5e96babd476eebaa041d7b41d6cec839a60353761ef06b7c727ebb101e71c604"
+          },
+          {
+            "seed": 19,
+            "ok": true,
+            "faults": {
+              "crash-node": 1,
+              "restart-node": 1,
+              "isolate": 2,
+              "heal": 2,
+              "loss": 1,
+              "crash-range-leader": 4,
+              "restart-range": 2,
+              "probe": 1
+            },
+            "counts": {
+              "requests": 242,
+              "acknowledged": 242,
+              "retried": 18,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 242,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 1,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 332,
+              "ok": 330,
+              "fail": 2,
+              "info": 0
+            },
+            "fingerprint": "61f7d0c0b6ba8493bae9ce5e45d18779292976f3f8ef4472fad3b90a910d9ecf"
+          },
+          {
+            "seed": 20,
+            "ok": true,
+            "faults": {
+              "crash-range-leader": 2,
+              "restart-range": 2,
+              "probe": 3,
+              "heal": 2,
+              "loss": 1,
+              "crash-node": 1,
+              "isolate": 1
+            },
+            "counts": {
+              "requests": 265,
+              "acknowledged": 262,
+              "retried": 14,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 262,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 3,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 385,
+              "ok": 379,
+              "fail": 3,
+              "info": 3
+            },
+            "fingerprint": "b157b2333864416ffd012de192a57e09a221c5fefcfb4255e48a883ccd1b5714"
+          },
+          {
+            "seed": 21,
+            "ok": true,
+            "faults": {
+              "isolate": 2,
+              "heal": 3,
+              "loss": 2,
+              "crash-range-leader": 3,
+              "restart-range": 1,
+              "probe": 1
+            },
+            "counts": {
+              "requests": 295,
+              "acknowledged": 292,
+              "retried": 14,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 292,
+              "unacknowledgedApplied": 3,
+              "staleEpochWritesAccepted": 0,
+              "probes": 1,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 433,
+              "ok": 428,
+              "fail": 2,
+              "info": 3
+            },
+            "fingerprint": "04215ef8e3f3afdd90e0e44f9ee74f411a83d3077cfc0ccd6f0162156faf0bea"
+          },
+          {
+            "seed": 22,
+            "ok": true,
+            "faults": {
+              "crash-range-leader": 5,
+              "probe": 3,
+              "restart-range": 4,
+              "crash-node": 1
+            },
+            "counts": {
+              "requests": 247,
+              "acknowledged": 247,
+              "retried": 22,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 247,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 3,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 359,
+              "ok": 359,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "7ffa4a4f5bdab4d64dce6dbdf4e3338c1251b30f87457b900a33a7dd21bac7ef"
+          },
+          {
+            "seed": 23,
+            "ok": true,
+            "faults": {
+              "heal": 3,
+              "crash-range-leader": 4,
+              "crash-node": 2,
+              "probe": 4,
+              "restart-node": 1,
+              "loss": 1,
+              "isolate": 3,
+              "restart-range": 1
+            },
+            "counts": {
+              "requests": 168,
+              "acknowledged": 163,
+              "retried": 15,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 163,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 4,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 248,
+              "ok": 242,
+              "fail": 1,
+              "info": 5
+            },
+            "fingerprint": "60650855f6168bfd0b384f1e953e48e68924b9c08dd19dac4593d43d5ce100cd"
+          },
+          {
+            "seed": 24,
+            "ok": true,
+            "faults": {
+              "crash-node": 1,
+              "probe": 5,
+              "loss": 1,
+              "isolate": 1,
+              "crash-range-leader": 4,
+              "restart-range": 2,
+              "heal": 1
+            },
+            "counts": {
+              "requests": 126,
+              "acknowledged": 123,
+              "retried": 11,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 123,
+              "unacknowledgedApplied": 1,
+              "staleEpochWritesAccepted": 0,
+              "probes": 5,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 196,
+              "ok": 192,
+              "fail": 3,
+              "info": 1
+            },
+            "fingerprint": "bec6ef2d0dcf4aca5fc92be5d5d42918f203c67531659ebaf6cb54a9b90c148f"
+          },
+          {
+            "seed": 25,
+            "ok": true,
+            "faults": {
+              "crash-range-leader": 7,
+              "heal": 2,
+              "crash-node": 2,
+              "restart-range": 1,
+              "loss": 1,
+              "restart-node": 1
+            },
+            "counts": {
+              "requests": 96,
+              "acknowledged": 89,
+              "retried": 22,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 89,
+              "unacknowledgedApplied": 5,
+              "staleEpochWritesAccepted": 0,
+              "probes": 0,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 159,
+              "ok": 150,
+              "fail": 4,
+              "info": 5
+            },
+            "fingerprint": "fd1cd8303c01aa98af42e3c3cc167a3e5fbd8b6a4dc60b1fab81720cc2a09782"
+          },
+          {
+            "seed": 26,
+            "ok": true,
+            "faults": {
+              "probe": 2,
+              "heal": 4,
+              "loss": 1,
+              "crash-node": 1,
+              "crash-range-leader": 2,
+              "restart-node": 1,
+              "isolate": 1
+            },
+            "counts": {
+              "requests": 250,
+              "acknowledged": 250,
+              "retried": 9,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 250,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 2,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 369,
+              "ok": 369,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "9b1975e4e0cd7a1708bffd7937dc06be5724fb364e5c7e85a9379ede4904b5d0"
+          },
+          {
+            "seed": 27,
+            "ok": true,
+            "faults": {
+              "probe": 3,
+              "crash-range-leader": 1,
+              "restart-range": 1,
+              "heal": 2,
+              "crash-node": 2,
+              "isolate": 2,
+              "restart-node": 1,
+              "loss": 1
+            },
+            "counts": {
+              "requests": 215,
+              "acknowledged": 215,
+              "retried": 8,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 215,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 3,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 308,
+              "ok": 308,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "e614494eaea2052d57f0e81daae6e4f16b673b9cb95ff96207d7d89d1b7a6712"
+          },
+          {
+            "seed": 28,
+            "ok": true,
+            "faults": {
+              "probe": 3,
+              "isolate": 2,
+              "crash-range-leader": 5,
+              "heal": 1,
+              "crash-node": 1,
+              "restart-range": 4,
+              "restart-node": 1,
+              "loss": 1
+            },
+            "counts": {
+              "requests": 135,
+              "acknowledged": 133,
+              "retried": 16,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 133,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 3,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 203,
+              "ok": 201,
+              "fail": 0,
+              "info": 2
+            },
+            "fingerprint": "8af8b99b7f44060f3e814ef70f00086bc69d30d79b7e6269500e7216e8f28935"
+          },
+          {
+            "seed": 29,
+            "ok": true,
+            "faults": {
+              "crash-range-leader": 4,
+              "probe": 2,
+              "isolate": 3,
+              "loss": 1,
+              "restart-range": 2,
+              "heal": 1
+            },
+            "counts": {
+              "requests": 198,
+              "acknowledged": 196,
+              "retried": 9,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 196,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 2,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 296,
+              "ok": 294,
+              "fail": 2,
+              "info": 0
+            },
+            "fingerprint": "e0f46bddd4cb25df6c88baeb12a7a03967a13afa2905006b1f5249e79487dbed"
+          },
+          {
+            "seed": 30,
+            "ok": true,
+            "faults": {
+              "crash-node": 1,
+              "probe": 1,
+              "restart-node": 1,
+              "crash-range-leader": 5,
+              "restart-range": 1
+            },
+            "counts": {
+              "requests": 217,
+              "acknowledged": 212,
+              "retried": 20,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 212,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 1,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 312,
+              "ok": 306,
+              "fail": 6,
+              "info": 0
+            },
+            "fingerprint": "96e78ff23127372543f2cf0fd3b137d2cb762dba768d7cdf4e81cb7951065ab7"
+          },
+          {
+            "seed": 31,
+            "ok": true,
+            "faults": {
+              "crash-range-leader": 5,
+              "heal": 1,
+              "probe": 4,
+              "restart-range": 3,
+              "isolate": 4
+            },
+            "counts": {
+              "requests": 146,
+              "acknowledged": 143,
+              "retried": 10,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 143,
+              "unacknowledgedApplied": 1,
+              "staleEpochWritesAccepted": 0,
+              "probes": 4,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 215,
+              "ok": 208,
+              "fail": 6,
+              "info": 1
+            },
+            "fingerprint": "ebd4701835c5e9bc09cfc42583b3dafc94c266cf34a47e715a7d2690d41fcd95"
+          },
+          {
+            "seed": 32,
+            "ok": true,
+            "faults": {
+              "heal": 2,
+              "crash-range-leader": 5,
+              "probe": 4,
+              "isolate": 3,
+              "crash-node": 2,
+              "restart-node": 1,
+              "restart-range": 1
+            },
+            "counts": {
+              "requests": 92,
+              "acknowledged": 86,
+              "retried": 11,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 86,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 4,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 133,
+              "ok": 127,
+              "fail": 2,
+              "info": 4
+            },
+            "fingerprint": "491d52f6c83c531cce53246c861909e8d23027b51aefaf377f9f620768e9439e"
+          },
+          {
+            "seed": 33,
+            "ok": true,
+            "faults": {
+              "isolate": 1,
+              "heal": 2,
+              "crash-range-leader": 5,
+              "probe": 2,
+              "restart-range": 3,
+              "crash-node": 1,
+              "restart-node": 1
+            },
+            "counts": {
+              "requests": 268,
+              "acknowledged": 268,
+              "retried": 20,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 268,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 2,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 400,
+              "ok": 400,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "89fff9cf83bca1bda8f2540ddb4627e5a775c59aecb950ab5c252b30c9b5a5c5"
+          },
+          {
+            "seed": 34,
+            "ok": true,
+            "faults": {
+              "isolate": 1,
+              "probe": 2,
+              "loss": 1,
+              "crash-range-leader": 5,
+              "restart-range": 2,
+              "heal": 4,
+              "crash-node": 1,
+              "restart-node": 1
+            },
+            "counts": {
+              "requests": 106,
+              "acknowledged": 106,
+              "retried": 19,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 106,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 2,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 149,
+              "ok": 149,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "337888701195a65922d1aa999ca477ef1242f772a57aa64001e7ece568843eb6"
+          },
+          {
+            "seed": 35,
+            "ok": true,
+            "faults": {
+              "probe": 4,
+              "loss": 2,
+              "isolate": 1,
+              "crash-node": 1,
+              "crash-range-leader": 3,
+              "heal": 2,
+              "restart-range": 2,
+              "restart-node": 1
+            },
+            "counts": {
+              "requests": 204,
+              "acknowledged": 204,
+              "retried": 10,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 204,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 4,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 299,
+              "ok": 299,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "40fbd474e231957ca716884b6f7b1c3c8308a4f47596ffd2095e9149abe1cb59"
+          },
+          {
+            "seed": 36,
+            "ok": true,
+            "faults": {
+              "crash-node": 1,
+              "heal": 1,
+              "crash-range-leader": 3,
+              "isolate": 4,
+              "restart-range": 1,
+              "loss": 1,
+              "restart-node": 1
+            },
+            "counts": {
+              "requests": 130,
+              "acknowledged": 129,
+              "retried": 3,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 129,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 0,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 191,
+              "ok": 190,
+              "fail": 1,
+              "info": 0
+            },
+            "fingerprint": "f12d2828207d9b01202f0ca7494dc3338b084b8a8c6d07dae1e6e8f26816d47f"
+          },
+          {
+            "seed": 37,
+            "ok": true,
+            "faults": {
+              "crash-range-leader": 3,
+              "heal": 1,
+              "probe": 2,
+              "crash-node": 1,
+              "isolate": 2,
+              "restart-range": 2,
+              "loss": 2
+            },
+            "counts": {
+              "requests": 100,
+              "acknowledged": 90,
+              "retried": 20,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 90,
+              "unacknowledgedApplied": 3,
+              "staleEpochWritesAccepted": 0,
+              "probes": 2,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 155,
+              "ok": 143,
+              "fail": 8,
+              "info": 4
+            },
+            "fingerprint": "5b68c5f8dcf8d1ec711723ce47a83704466b915436fee475aa97c63868b7f0e3"
+          },
+          {
+            "seed": 38,
+            "ok": true,
+            "faults": {
+              "isolate": 4,
+              "crash-node": 1,
+              "restart-node": 1,
+              "heal": 2,
+              "crash-range-leader": 4,
+              "loss": 2,
+              "restart-range": 3,
+              "probe": 1
+            },
+            "counts": {
+              "requests": 134,
+              "acknowledged": 134,
+              "retried": 16,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 134,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 1,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 219,
+              "ok": 219,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "adf87a33f6e4c171c62e50b75a88a553b84299046784c9682e10c98a635a161f"
+          },
+          {
+            "seed": 39,
+            "ok": true,
+            "faults": {
+              "loss": 1,
+              "crash-node": 2,
+              "restart-node": 2,
+              "probe": 3,
+              "crash-range-leader": 5,
+              "restart-range": 2,
+              "isolate": 1
+            },
+            "counts": {
+              "requests": 170,
+              "acknowledged": 166,
+              "retried": 15,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 166,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 3,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 257,
+              "ok": 251,
+              "fail": 3,
+              "info": 3
+            },
+            "fingerprint": "27c2837a83862e002697677056309bf51bb8ce5d5711b9c66342fcce958ffde5"
+          },
+          {
+            "seed": 40,
+            "ok": true,
+            "faults": {
+              "crash-range-leader": 4,
+              "restart-range": 4,
+              "crash-node": 1,
+              "probe": 3,
+              "loss": 2,
+              "restart-node": 1
+            },
+            "counts": {
+              "requests": 256,
+              "acknowledged": 256,
+              "retried": 13,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 256,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 3,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 381,
+              "ok": 381,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "ac465b69adb4d9a76da08c7dcb776550630087d7b77acddc0c3d2656c673395a"
+          },
+          {
+            "seed": 41,
+            "ok": true,
+            "faults": {
+              "crash-node": 3,
+              "probe": 1,
+              "crash-range-leader": 4,
+              "restart-range": 4,
+              "loss": 2,
+              "heal": 3,
+              "restart-node": 2
+            },
+            "counts": {
+              "requests": 182,
+              "acknowledged": 182,
+              "retried": 17,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 182,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 1,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 272,
+              "ok": 272,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "270e99cf27587bb9de07acf95275e7eb88bb01da4bb227ca58ec1553b5150a00"
+          },
+          {
+            "seed": 42,
+            "ok": true,
+            "faults": {
+              "heal": 2,
+              "crash-node": 2,
+              "crash-range-leader": 4,
+              "restart-range": 1,
+              "isolate": 4,
+              "restart-node": 1
+            },
+            "counts": {
+              "requests": 79,
+              "acknowledged": 76,
+              "retried": 14,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 76,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 0,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 135,
+              "ok": 131,
+              "fail": 4,
+              "info": 0
+            },
+            "fingerprint": "b6e87948dfbdeca3b71572e968d80d476157b679811bb5c49759f9d04be51f91"
+          },
+          {
+            "seed": 43,
+            "ok": true,
+            "faults": {
+              "crash-range-leader": 3,
+              "heal": 2,
+              "crash-node": 1,
+              "loss": 2,
+              "probe": 5,
+              "restart-range": 1,
+              "isolate": 1
+            },
+            "counts": {
+              "requests": 79,
+              "acknowledged": 72,
+              "retried": 12,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 72,
+              "unacknowledgedApplied": 4,
+              "staleEpochWritesAccepted": 0,
+              "probes": 5,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 118,
+              "ok": 106,
+              "fail": 7,
+              "info": 5
+            },
+            "fingerprint": "e74583173b09c886550b74cf178c42f2ba3ee7f310d8ef861bbaab607e6592f4"
+          },
+          {
+            "seed": 44,
+            "ok": true,
+            "faults": {
+              "loss": 1,
+              "crash-node": 3,
+              "restart-node": 3,
+              "crash-range-leader": 4,
+              "restart-range": 4
+            },
+            "counts": {
+              "requests": 170,
+              "acknowledged": 170,
+              "retried": 16,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 170,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 0,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 229,
+              "ok": 229,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "282022dd37b9d24f31e7208f5a5dffd0a4ffe8fc770f74f1e449ed8a8926e3d0"
+          },
+          {
+            "seed": 45,
+            "ok": true,
+            "faults": {
+              "isolate": 3,
+              "crash-range-leader": 3,
+              "heal": 4,
+              "probe": 2,
+              "loss": 1,
+              "restart-range": 1
+            },
+            "counts": {
+              "requests": 181,
+              "acknowledged": 181,
+              "retried": 10,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 181,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 2,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 261,
+              "ok": 261,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "fe941f631736963e3c08feca5020da5eb5921e893a3544071133c72dda358152"
+          },
+          {
+            "seed": 46,
+            "ok": true,
+            "faults": {
+              "isolate": 2,
+              "crash-node": 2,
+              "restart-node": 2,
+              "crash-range-leader": 3,
+              "loss": 2,
+              "restart-range": 1,
+              "probe": 1
+            },
+            "counts": {
+              "requests": 69,
+              "acknowledged": 69,
+              "retried": 12,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 69,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 1,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 109,
+              "ok": 109,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "6bc22adbee9efa000571afe9445b0677445df8113936726a5a67dc4a26ccf96c"
+          },
+          {
+            "seed": 47,
+            "ok": true,
+            "faults": {
+              "probe": 3,
+              "crash-range-leader": 6,
+              "crash-node": 1,
+              "restart-range": 4,
+              "isolate": 1
+            },
+            "counts": {
+              "requests": 94,
+              "acknowledged": 89,
+              "retried": 15,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 89,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 3,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 164,
+              "ok": 155,
+              "fail": 9,
+              "info": 0
+            },
+            "fingerprint": "907572b2692fb85b469ba9f9031f3cac03de616d6255fd2d1802e4ead0e299a6"
+          },
+          {
+            "seed": 48,
+            "ok": true,
+            "faults": {
+              "loss": 3,
+              "heal": 4,
+              "crash-node": 2,
+              "crash-range-leader": 2,
+              "restart-node": 1,
+              "isolate": 1
+            },
+            "counts": {
+              "requests": 169,
+              "acknowledged": 164,
+              "retried": 8,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 164,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 0,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 241,
+              "ok": 235,
+              "fail": 6,
+              "info": 0
+            },
+            "fingerprint": "3beb3ca38ddba15c6687b8ada39faf97f2da59d55f3aa399d0cdfbf6117836f0"
+          },
+          {
+            "seed": 49,
+            "ok": true,
+            "faults": {
+              "probe": 1,
+              "heal": 2,
+              "crash-range-leader": 5,
+              "restart-range": 4,
+              "crash-node": 2,
+              "restart-node": 1,
+              "isolate": 2
+            },
+            "counts": {
+              "requests": 243,
+              "acknowledged": 239,
+              "retried": 21,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 239,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 1,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 355,
+              "ok": 349,
+              "fail": 6,
+              "info": 0
+            },
+            "fingerprint": "0b3ed992c809c805a1d09258e5d0fc864791384f9aac075e6ea2fd12478a6bdf"
+          },
+          {
+            "seed": 50,
+            "ok": true,
+            "faults": {
+              "crash-range-leader": 5,
+              "isolate": 2,
+              "probe": 2,
+              "restart-range": 2,
+              "heal": 3,
+              "crash-node": 1,
+              "restart-node": 1
+            },
+            "counts": {
+              "requests": 182,
+              "acknowledged": 182,
+              "retried": 15,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 182,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 2,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 274,
+              "ok": 274,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "3bed2569985150dc06bbe782cbaf0236f5b6be6b71964d3c3846d11ea134af3f"
+          }
+        ]
+      },
+      "ok": true
+    },
+    "batched-delay": {
+      "scenarios": [
+        {
+          "ok": true,
+          "linearizability": {
+            "ok": true,
+            "keys": 12,
+            "operations": 378,
+            "violations": [],
+            "inconclusive": []
+          },
+          "exactlyOnce": {
+            "ok": true,
+            "counts": {
+              "requests": 366,
+              "acknowledged": 366,
+              "retried": 6,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 366,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 0,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "appliedMoreThanOnce": [],
+            "missingAcknowledged": []
+          },
+          "ranges": {
+            "ok": true,
+            "problems": []
+          },
+          "converged": true,
+          "history": {
+            "invoke": 378,
+            "ok": 378,
+            "fail": 0,
+            "info": 0
+          },
+          "scenario": "S1-independent-leaders",
+          "seed": 1,
+          "profile": "batched-delay",
+          "independent": true,
+          "windows": [
+            {
+              "kind": "range-leader-crash",
+              "rangeId": "r1",
+              "crashedNode": "n1",
+              "newLeaderNode": "n2",
+              "elected": true,
+              "leaderlessMs": 312,
+              "committedByOtherRanges": {
+                "r2": 11,
+                "r3": 9
+              }
+            },
+            {
+              "kind": "range-leader-crash",
+              "rangeId": "r2",
+              "crashedNode": "n1",
+              "newLeaderNode": "n2",
+              "elected": true,
+              "leaderlessMs": 288,
+              "committedByOtherRanges": {
+                "r1": 10,
+                "r3": 10
+              }
+            },
+            {
+              "kind": "range-leader-crash",
+              "rangeId": "r3",
+              "crashedNode": "n1",
+              "newLeaderNode": "n2",
+              "elected": true,
+              "leaderlessMs": 404,
+              "committedByOtherRanges": {
+                "r1": 14,
+                "r2": 13
+              }
+            },
+            {
+              "kind": "node-crash",
+              "crashedNode": "n2",
+              "rangesLedByCrashedNode": [
+                "r1",
+                "r2",
+                "r3"
+              ],
+              "elected": true,
+              "leaderlessMs": 306,
+              "vacuous": true,
+              "committedByRangesLedElsewhere": {}
+            }
+          ]
+        },
+        {
+          "ok": true,
+          "linearizability": {
+            "ok": true,
+            "keys": 12,
+            "operations": 60,
+            "violations": [],
+            "inconclusive": []
+          },
+          "exactlyOnce": {
+            "ok": true,
+            "counts": {
+              "requests": 36,
+              "acknowledged": 36,
+              "retried": 0,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 36,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 0,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "appliedMoreThanOnce": [],
+            "missingAcknowledged": []
+          },
+          "ranges": {
+            "ok": true,
+            "problems": []
+          },
+          "converged": true,
+          "history": {
+            "invoke": 60,
+            "ok": 60,
+            "fail": 0,
+            "info": 0
+          },
+          "scenario": "S2-durability-across-restart",
+          "seed": 2,
+          "profile": "batched-delay",
+          "acknowledgedWrites": 12,
+          "survived": true,
+          "stateSurvived": true
+        },
+        {
+          "ok": true,
+          "linearizability": {
+            "ok": true,
+            "keys": 12,
+            "operations": 24,
+            "violations": [],
+            "inconclusive": []
+          },
+          "exactlyOnce": {
+            "ok": true,
+            "counts": {
+              "requests": 12,
+              "acknowledged": 12,
+              "retried": 0,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 12,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 48,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "appliedMoreThanOnce": [],
+            "missingAcknowledged": []
+          },
+          "ranges": {
+            "ok": true,
+            "problems": []
+          },
+          "converged": true,
+          "history": {
+            "invoke": 24,
+            "ok": 24,
+            "fail": 0,
+            "info": 0
+          },
+          "scenario": "S3-fencing",
+          "seed": 3,
+          "profile": "batched-delay",
+          "probes": 48,
+          "admissionProbes": 36,
+          "applyProbes": 12,
+          "allRefused": true,
+          "rejectedOnEveryReplica": true,
+          "stateUnchanged": true
+        },
+        {
+          "ok": true,
+          "linearizability": {
+            "ok": true,
+            "keys": 12,
+            "operations": 36,
+            "violations": [],
+            "inconclusive": []
+          },
+          "exactlyOnce": {
+            "ok": true,
+            "counts": {
+              "requests": 24,
+              "acknowledged": 24,
+              "retried": 24,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 24,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 0,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "appliedMoreThanOnce": [],
+            "missingAcknowledged": []
+          },
+          "ranges": {
+            "ok": true,
+            "problems": []
+          },
+          "converged": true,
+          "history": {
+            "invoke": 36,
+            "ok": 36,
+            "fail": 0,
+            "info": 0
+          },
+          "scenario": "S4-retry-after-unknown",
+          "seed": 4,
+          "profile": "batched-delay",
+          "writes": 24,
+          "retried": 24,
+          "answeredByDedup": 24
+        }
+      ],
+      "campaign": {
+        "summary": {
+          "runs": 50,
+          "passed": 50,
+          "failed": [],
+          "linearizabilityKeysChecked": 600,
+          "operationsChecked": 12038,
+          "linearizabilityViolations": 0,
+          "linearizabilityInconclusive": 0,
+          "logicalRequests": 7981,
+          "acknowledged": 7904,
+          "retried": 612,
+          "appliedMoreThanOnce": 0,
+          "duplicateLogicalWrites": 0,
+          "missingAcknowledged": 0,
+          "unacknowledgedApplied": 7,
+          "staleEpochWritesAccepted": 0,
+          "probes": 114,
+          "unrequestedApplications": 0,
+          "ledgerDisagreements": 0,
+          "rangeSafetyProblems": 0,
+          "notConverged": 0
+        },
+        "seeds": [
+          {
+            "seed": 1,
+            "ok": true,
+            "faults": {
+              "probe": 3,
+              "isolate": 2,
+              "crash-range-leader": 5,
+              "crash-node": 1,
+              "restart-range": 2,
+              "heal": 2
+            },
+            "counts": {
+              "requests": 116,
+              "acknowledged": 111,
+              "retried": 12,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 111,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 3,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 172,
+              "ok": 166,
+              "fail": 6,
+              "info": 0
+            },
+            "fingerprint": "0f64a88ec5d0f86326901a993b368480db3ced21c27acd1fd7978c993153fe81"
+          },
+          {
+            "seed": 2,
+            "ok": true,
+            "faults": {
+              "crash-node": 1,
+              "crash-range-leader": 4,
+              "restart-range": 3,
+              "probe": 2,
+              "isolate": 1,
+              "loss": 2,
+              "restart-node": 1,
+              "heal": 1
+            },
+            "counts": {
+              "requests": 56,
+              "acknowledged": 56,
+              "retried": 12,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 56,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 2,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 94,
+              "ok": 94,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "e35f3bea70d093eee87a8a9c6c4965c58830f1e94f2c8fd4038de9b62d728dfc"
+          },
+          {
+            "seed": 3,
+            "ok": true,
+            "faults": {
+              "loss": 1,
+              "isolate": 1,
+              "heal": 3,
+              "probe": 3,
+              "crash-range-leader": 3,
+              "restart-range": 3
+            },
+            "counts": {
+              "requests": 345,
+              "acknowledged": 345,
+              "retried": 14,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 345,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 3,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 509,
+              "ok": 509,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "3947c0ec64e5d80f175e87b35f7a144721fb438f13971df77744c9acdac9c05d"
+          },
+          {
+            "seed": 4,
+            "ok": true,
+            "faults": {
+              "heal": 2,
+              "probe": 4,
+              "isolate": 6,
+              "crash-node": 2,
+              "restart-node": 2,
+              "loss": 1
+            },
+            "counts": {
+              "requests": 185,
+              "acknowledged": 185,
+              "retried": 4,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 185,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 4,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 275,
+              "ok": 275,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "dae635029fbe706fe0cfeae9eba1502e740d99e6cdf775e0422f8bbfc5a3f8dc"
+          },
+          {
+            "seed": 5,
+            "ok": true,
+            "faults": {
+              "crash-range-leader": 4,
+              "probe": 4,
+              "isolate": 1,
+              "heal": 2,
+              "restart-range": 3,
+              "crash-node": 1,
+              "restart-node": 1
+            },
+            "counts": {
+              "requests": 246,
+              "acknowledged": 246,
+              "retried": 16,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 246,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 4,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 364,
+              "ok": 364,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "fb74e16aab6500bf01fc45cb34d4d54c710fd4095096c45bf7db379ea9e65f0f"
+          },
+          {
+            "seed": 6,
+            "ok": true,
+            "faults": {
+              "loss": 1,
+              "crash-range-leader": 4,
+              "crash-node": 1,
+              "isolate": 2,
+              "restart-range": 3,
+              "heal": 1,
+              "restart-node": 1,
+              "probe": 2
+            },
+            "counts": {
+              "requests": 79,
+              "acknowledged": 79,
+              "retried": 11,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 79,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 2,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 136,
+              "ok": 136,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "6eefa7aadf44eb7c6d1fcb526695edcc99c9be8e99fbe9dc37a2a0a9882b39f9"
+          },
+          {
+            "seed": 7,
+            "ok": true,
+            "faults": {
+              "crash-range-leader": 7,
+              "restart-range": 3,
+              "crash-node": 1,
+              "probe": 3,
+              "restart-node": 1,
+              "isolate": 1,
+              "loss": 1
+            },
+            "counts": {
+              "requests": 200,
+              "acknowledged": 196,
+              "retried": 22,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 196,
+              "unacknowledgedApplied": 1,
+              "staleEpochWritesAccepted": 0,
+              "probes": 3,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 299,
+              "ok": 294,
+              "fail": 4,
+              "info": 1
+            },
+            "fingerprint": "774264a161b4a3165c64e4ca491fd1b3feed8a42e270de27c7cbee8609869ca2"
+          },
+          {
+            "seed": 8,
+            "ok": true,
+            "faults": {
+              "heal": 3,
+              "probe": 2,
+              "crash-range-leader": 3,
+              "restart-range": 1,
+              "loss": 3,
+              "crash-node": 1,
+              "isolate": 1
+            },
+            "counts": {
+              "requests": 169,
+              "acknowledged": 163,
+              "retried": 12,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 163,
+              "unacknowledgedApplied": 1,
+              "staleEpochWritesAccepted": 0,
+              "probes": 2,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 253,
+              "ok": 247,
+              "fail": 5,
+              "info": 1
+            },
+            "fingerprint": "be21bacf8b3b97b281146c29c8386d92216a6efbc53860fc85ca2b1561b926d7"
+          },
+          {
+            "seed": 9,
+            "ok": true,
+            "faults": {
+              "heal": 4,
+              "probe": 2,
+              "crash-range-leader": 5,
+              "isolate": 2,
+              "loss": 2,
+              "restart-range": 1
+            },
+            "counts": {
+              "requests": 152,
+              "acknowledged": 148,
+              "retried": 11,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 148,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 2,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 244,
+              "ok": 238,
+              "fail": 6,
+              "info": 0
+            },
+            "fingerprint": "f41c23698eb4b506bb411516dc71d8c8c9a31841367cfe98447059e1a30827c4"
+          },
+          {
+            "seed": 10,
+            "ok": true,
+            "faults": {
+              "heal": 4,
+              "isolate": 2,
+              "probe": 1,
+              "crash-node": 2,
+              "crash-range-leader": 2,
+              "restart-range": 1,
+              "restart-node": 2,
+              "loss": 1
+            },
+            "counts": {
+              "requests": 91,
+              "acknowledged": 91,
+              "retried": 9,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 91,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 1,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 157,
+              "ok": 157,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "7856f30264b0a7be185366bb70e2e0239f6257e18413abcb0574c52b599bf0d1"
+          },
+          {
+            "seed": 11,
+            "ok": true,
+            "faults": {
+              "crash-range-leader": 6,
+              "probe": 2,
+              "loss": 2,
+              "heal": 2,
+              "restart-range": 4,
+              "crash-node": 1
+            },
+            "counts": {
+              "requests": 113,
+              "acknowledged": 113,
+              "retried": 19,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 113,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 2,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 165,
+              "ok": 165,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "f5d43e74fde7799b58ea55da070b37e88ab76616a0d775a03a6634b1487755a3"
+          },
+          {
+            "seed": 12,
+            "ok": true,
+            "faults": {
+              "crash-range-leader": 6,
+              "restart-range": 6,
+              "isolate": 2,
+              "crash-node": 2,
+              "restart-node": 1,
+              "heal": 1
+            },
+            "counts": {
+              "requests": 120,
+              "acknowledged": 120,
+              "retried": 19,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 120,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 0,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 187,
+              "ok": 187,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "11c434f04a35515b4a8f56a81dabd86e1d78a83322f2e339e2114dce8eaa8422"
+          },
+          {
+            "seed": 13,
+            "ok": true,
+            "faults": {
+              "crash-range-leader": 2,
+              "probe": 2,
+              "heal": 1,
+              "restart-range": 1,
+              "crash-node": 1,
+              "loss": 2,
+              "isolate": 2,
+              "restart-node": 1
+            },
+            "counts": {
+              "requests": 170,
+              "acknowledged": 170,
+              "retried": 15,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 170,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 2,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 262,
+              "ok": 262,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "e41e155f6e5e8a306ee04aa7d6f7be0a371b561d8c05cc74795cc9ddbc930dc4"
+          },
+          {
+            "seed": 14,
+            "ok": true,
+            "faults": {
+              "crash-range-leader": 4,
+              "crash-node": 2,
+              "heal": 4,
+              "probe": 1,
+              "restart-range": 3,
+              "restart-node": 2,
+              "isolate": 1
+            },
+            "counts": {
+              "requests": 203,
+              "acknowledged": 203,
+              "retried": 4,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 203,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 1,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 310,
+              "ok": 310,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "ce5eeaafdbe00cc076dba12f22dcd184d39a5587f9d6c2884897781f7588d771"
+          },
+          {
+            "seed": 15,
+            "ok": true,
+            "faults": {
+              "crash-range-leader": 6,
+              "restart-range": 3,
+              "probe": 2,
+              "crash-node": 1,
+              "heal": 2,
+              "isolate": 1,
+              "loss": 2,
+              "restart-node": 1
+            },
+            "counts": {
+              "requests": 107,
+              "acknowledged": 107,
+              "retried": 14,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 107,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 2,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 182,
+              "ok": 182,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "10c49d44dece8ddec001fa7d064d587fd49ce2e50e9cee1d9a09cc4b77cc0621"
+          },
+          {
+            "seed": 16,
+            "ok": true,
+            "faults": {
+              "probe": 5,
+              "crash-range-leader": 2,
+              "isolate": 2,
+              "heal": 2,
+              "crash-node": 2,
+              "restart-node": 2,
+              "restart-range": 2,
+              "loss": 1
+            },
+            "counts": {
+              "requests": 293,
+              "acknowledged": 293,
+              "retried": 14,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 293,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 5,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 422,
+              "ok": 422,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "26f3eba51cd47731cfcbc8a013d547fffed327d4d87147f1bd781a19b7b4dd97"
+          },
+          {
+            "seed": 17,
+            "ok": true,
+            "faults": {
+              "crash-range-leader": 3,
+              "crash-node": 2,
+              "heal": 3,
+              "probe": 2,
+              "isolate": 3,
+              "restart-range": 2,
+              "loss": 1,
+              "restart-node": 1
+            },
+            "counts": {
+              "requests": 92,
+              "acknowledged": 92,
+              "retried": 13,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 92,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 2,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 152,
+              "ok": 152,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "745cc2c661f4093966f0c83768eee74c34b36ab0e385530ae3baa141f304103b"
+          },
+          {
+            "seed": 18,
+            "ok": true,
+            "faults": {
+              "crash-node": 2,
+              "restart-node": 1,
+              "isolate": 3,
+              "heal": 5,
+              "crash-range-leader": 3,
+              "probe": 1,
+              "restart-range": 2
+            },
+            "counts": {
+              "requests": 118,
+              "acknowledged": 118,
+              "retried": 9,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 118,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 1,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 194,
+              "ok": 194,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "55b9748ca28c79abd5a1903923a21d8afd1b87202af45e949464b4eba993246c"
+          },
+          {
+            "seed": 19,
+            "ok": true,
+            "faults": {
+              "crash-range-leader": 4,
+              "probe": 5,
+              "crash-node": 1,
+              "loss": 3,
+              "heal": 2,
+              "restart-node": 1,
+              "restart-range": 2,
+              "isolate": 1
+            },
+            "counts": {
+              "requests": 214,
+              "acknowledged": 214,
+              "retried": 18,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 214,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 5,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 294,
+              "ok": 292,
+              "fail": 2,
+              "info": 0
+            },
+            "fingerprint": "6e15b20ce4191327f029c5942aafb6690479dc4527d17ad511691393ffa0e5a6"
+          },
+          {
+            "seed": 20,
+            "ok": true,
+            "faults": {
+              "probe": 2,
+              "crash-range-leader": 5,
+              "restart-range": 5,
+              "isolate": 1,
+              "loss": 2,
+              "heal": 1
+            },
+            "counts": {
+              "requests": 199,
+              "acknowledged": 199,
+              "retried": 18,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 199,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 2,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 286,
+              "ok": 286,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "d8db1345f87622f23777e748134fc5dd43474d5eee746c041811956223932032"
+          },
+          {
+            "seed": 21,
+            "ok": true,
+            "faults": {
+              "heal": 2,
+              "crash-range-leader": 5,
+              "probe": 2,
+              "isolate": 1,
+              "restart-range": 3,
+              "crash-node": 1
+            },
+            "counts": {
+              "requests": 176,
+              "acknowledged": 175,
+              "retried": 10,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 175,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 2,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 267,
+              "ok": 266,
+              "fail": 1,
+              "info": 0
+            },
+            "fingerprint": "ba2a5b92b2058ef50590ac771450aae53100676e1d51ca74449d4d2769895291"
+          },
+          {
+            "seed": 22,
+            "ok": true,
+            "faults": {
+              "crash-range-leader": 5,
+              "restart-range": 2,
+              "probe": 1,
+              "isolate": 2,
+              "crash-node": 1,
+              "heal": 1,
+              "restart-node": 1
+            },
+            "counts": {
+              "requests": 113,
+              "acknowledged": 110,
+              "retried": 11,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 110,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 1,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 175,
+              "ok": 170,
+              "fail": 3,
+              "info": 2
+            },
+            "fingerprint": "5894897ce4606dcdf6ff027c4c3ba8fcd01aa5b1175f6efac8c0d223d31bc681"
+          },
+          {
+            "seed": 23,
+            "ok": true,
+            "faults": {
+              "heal": 5,
+              "crash-range-leader": 4,
+              "crash-node": 1,
+              "isolate": 2,
+              "probe": 3,
+              "restart-node": 1,
+              "restart-range": 3
+            },
+            "counts": {
+              "requests": 197,
+              "acknowledged": 197,
+              "retried": 13,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 197,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 3,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 297,
+              "ok": 297,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "7d328b2a7d31ff678dff602f0a7f96c884507bd09f7284a155252404b4869950"
+          },
+          {
+            "seed": 24,
+            "ok": true,
+            "faults": {
+              "heal": 4,
+              "loss": 1,
+              "crash-range-leader": 6,
+              "restart-range": 2,
+              "probe": 4,
+              "isolate": 1
+            },
+            "counts": {
+              "requests": 221,
+              "acknowledged": 219,
+              "retried": 12,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 219,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 4,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 357,
+              "ok": 354,
+              "fail": 3,
+              "info": 0
+            },
+            "fingerprint": "699df63a737935b59a45d0168156074472ca8240b396f2e9d3a8ba15ef7f36e6"
+          },
+          {
+            "seed": 25,
+            "ok": true,
+            "faults": {
+              "crash-node": 2,
+              "crash-range-leader": 4,
+              "heal": 1,
+              "isolate": 1,
+              "restart-range": 2,
+              "restart-node": 1
+            },
+            "counts": {
+              "requests": 56,
+              "acknowledged": 55,
+              "retried": 15,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 55,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 0,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 92,
+              "ok": 90,
+              "fail": 2,
+              "info": 0
+            },
+            "fingerprint": "ddc072b5a3ebff625d0689283ce988edf9147f21c49cadcdacc2b95f3ec1221d"
+          },
+          {
+            "seed": 26,
+            "ok": true,
+            "faults": {
+              "crash-range-leader": 5,
+              "loss": 2,
+              "isolate": 3,
+              "crash-node": 1,
+              "restart-node": 1,
+              "restart-range": 3
+            },
+            "counts": {
+              "requests": 70,
+              "acknowledged": 66,
+              "retried": 11,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 66,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 0,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 107,
+              "ok": 101,
+              "fail": 6,
+              "info": 0
+            },
+            "fingerprint": "c3713c41a4a10e08e2fbcdf0685ebb7085e1e2b78485bf95fb3930b51692c28c"
+          },
+          {
+            "seed": 27,
+            "ok": true,
+            "faults": {
+              "loss": 2,
+              "heal": 3,
+              "crash-node": 1,
+              "crash-range-leader": 3,
+              "restart-range": 1,
+              "isolate": 3
+            },
+            "counts": {
+              "requests": 109,
+              "acknowledged": 103,
+              "retried": 9,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 103,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 0,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 158,
+              "ok": 151,
+              "fail": 7,
+              "info": 0
+            },
+            "fingerprint": "479e9cd9670265b7186fa39c1049c2db9f38e1fb9937a843d04e0a720a0cb5cb"
+          },
+          {
+            "seed": 28,
+            "ok": true,
+            "faults": {
+              "isolate": 3,
+              "crash-range-leader": 5,
+              "restart-range": 2,
+              "probe": 3,
+              "crash-node": 1,
+              "restart-node": 1,
+              "loss": 1,
+              "heal": 1
+            },
+            "counts": {
+              "requests": 98,
+              "acknowledged": 93,
+              "retried": 18,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 93,
+              "unacknowledgedApplied": 1,
+              "staleEpochWritesAccepted": 0,
+              "probes": 3,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 152,
+              "ok": 146,
+              "fail": 3,
+              "info": 3
+            },
+            "fingerprint": "cb82d1daeb605412a84f279396bc61220d72bc20b9b94f7c23b9e89c4ea788e9"
+          },
+          {
+            "seed": 29,
+            "ok": true,
+            "faults": {
+              "probe": 6,
+              "crash-range-leader": 3,
+              "restart-range": 3,
+              "heal": 2,
+              "loss": 1,
+              "isolate": 2
+            },
+            "counts": {
+              "requests": 228,
+              "acknowledged": 228,
+              "retried": 10,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 228,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 6,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 337,
+              "ok": 337,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "c63bfc39e5eb681f6906c9b29c6e891d49dbeab4f6c83e37ce213110c8b3253a"
+          },
+          {
+            "seed": 30,
+            "ok": true,
+            "faults": {
+              "crash-node": 1,
+              "loss": 3,
+              "crash-range-leader": 4,
+              "isolate": 2,
+              "restart-node": 1,
+              "heal": 1,
+              "restart-range": 1
+            },
+            "counts": {
+              "requests": 92,
+              "acknowledged": 92,
+              "retried": 8,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 92,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 0,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 129,
+              "ok": 129,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "b97b90b9d66e627fe416b42499019b20822ff2b33dde8248b111b8033df4d4d8"
+          },
+          {
+            "seed": 31,
+            "ok": true,
+            "faults": {
+              "isolate": 2,
+              "crash-node": 2,
+              "probe": 2,
+              "crash-range-leader": 4,
+              "restart-node": 1,
+              "restart-range": 3
+            },
+            "counts": {
+              "requests": 36,
+              "acknowledged": 32,
+              "retried": 4,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 32,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 2,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 72,
+              "ok": 64,
+              "fail": 5,
+              "info": 3
+            },
+            "fingerprint": "751734ca664156c5e3b648248e2b21ade976d6ddb4dbccb6ae407df49f2beaa5"
+          },
+          {
+            "seed": 32,
+            "ok": true,
+            "faults": {
+              "loss": 3,
+              "probe": 2,
+              "crash-range-leader": 3,
+              "crash-node": 2,
+              "heal": 1,
+              "restart-node": 1,
+              "restart-range": 1
+            },
+            "counts": {
+              "requests": 145,
+              "acknowledged": 141,
+              "retried": 8,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 141,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 2,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 218,
+              "ok": 212,
+              "fail": 2,
+              "info": 4
+            },
+            "fingerprint": "f0edcca093e1ce8a93cb44f8e0d0a2cdfc6639e9175cc9e9ff21e28f31fc93bd"
+          },
+          {
+            "seed": 33,
+            "ok": true,
+            "faults": {
+              "crash-range-leader": 4,
+              "restart-range": 2,
+              "probe": 4,
+              "crash-node": 2,
+              "restart-node": 1,
+              "loss": 1,
+              "heal": 2,
+              "isolate": 1
+            },
+            "counts": {
+              "requests": 189,
+              "acknowledged": 189,
+              "retried": 23,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 189,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 4,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 295,
+              "ok": 295,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "0e70d0d5bcf78baa01d45df93e3cde268227d0f74aa0f46aa01d4096617a9919"
+          },
+          {
+            "seed": 34,
+            "ok": true,
+            "faults": {
+              "heal": 2,
+              "crash-range-leader": 4,
+              "loss": 1,
+              "probe": 4,
+              "crash-node": 1,
+              "restart-range": 4,
+              "restart-node": 1
+            },
+            "counts": {
+              "requests": 237,
+              "acknowledged": 237,
+              "retried": 10,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 237,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 4,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 345,
+              "ok": 345,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "fb203540aa37265fe66b6f2136a069b907571d5fa8ef1b6f5369292d015e276e"
+          },
+          {
+            "seed": 35,
+            "ok": true,
+            "faults": {
+              "crash-range-leader": 5,
+              "restart-range": 4,
+              "crash-node": 1,
+              "loss": 1,
+              "isolate": 3,
+              "heal": 1,
+              "probe": 1,
+              "restart-node": 1
+            },
+            "counts": {
+              "requests": 138,
+              "acknowledged": 138,
+              "retried": 13,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 138,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 1,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 203,
+              "ok": 203,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "2850ff4606e7f93248e1387c00d4d51948714ae06858fb68ade54d106924965a"
+          },
+          {
+            "seed": 36,
+            "ok": true,
+            "faults": {
+              "crash-node": 2,
+              "crash-range-leader": 4,
+              "isolate": 3,
+              "probe": 2,
+              "restart-range": 3,
+              "restart-node": 2,
+              "heal": 1
+            },
+            "counts": {
+              "requests": 129,
+              "acknowledged": 129,
+              "retried": 14,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 129,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 2,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 187,
+              "ok": 187,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "53d071b66d1d95e1ed82a6918550fff3b585aab71a5d277713e1886dccf99369"
+          },
+          {
+            "seed": 37,
+            "ok": true,
+            "faults": {
+              "crash-range-leader": 3,
+              "crash-node": 2,
+              "restart-node": 1,
+              "probe": 4,
+              "loss": 1
+            },
+            "counts": {
+              "requests": 143,
+              "acknowledged": 138,
+              "retried": 12,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 138,
+              "unacknowledgedApplied": 4,
+              "staleEpochWritesAccepted": 0,
+              "probes": 4,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 212,
+              "ok": 206,
+              "fail": 2,
+              "info": 4
+            },
+            "fingerprint": "ef8e730e4a7a1d900f4a84dbcd98cfc2f654b1b62165d97302e671b03a2e5fc7"
+          },
+          {
+            "seed": 38,
+            "ok": true,
+            "faults": {
+              "crash-node": 1,
+              "crash-range-leader": 3,
+              "loss": 2,
+              "probe": 3,
+              "heal": 1,
+              "restart-range": 2
+            },
+            "counts": {
+              "requests": 99,
+              "acknowledged": 98,
+              "retried": 10,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 98,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 3,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 156,
+              "ok": 155,
+              "fail": 1,
+              "info": 0
+            },
+            "fingerprint": "d3da37a9ac9f5e4601b7717c4f6690ee5998597169eb64d95243f958999622cd"
+          },
+          {
+            "seed": 39,
+            "ok": true,
+            "faults": {
+              "crash-range-leader": 5,
+              "heal": 3,
+              "isolate": 2,
+              "crash-node": 2,
+              "restart-node": 2,
+              "restart-range": 2,
+              "loss": 1
+            },
+            "counts": {
+              "requests": 154,
+              "acknowledged": 151,
+              "retried": 16,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 151,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 0,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 226,
+              "ok": 222,
+              "fail": 1,
+              "info": 3
+            },
+            "fingerprint": "54f4fe19b95ca83db88a5f14122ba60c9507b553c303ce21dd447a49e323d099"
+          },
+          {
+            "seed": 40,
+            "ok": true,
+            "faults": {
+              "crash-node": 2,
+              "isolate": 2,
+              "restart-node": 1,
+              "heal": 4,
+              "loss": 2,
+              "crash-range-leader": 2,
+              "restart-range": 1,
+              "probe": 2
+            },
+            "counts": {
+              "requests": 203,
+              "acknowledged": 203,
+              "retried": 5,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 203,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 2,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 320,
+              "ok": 320,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "fd6beda9bfdfda250a4644138571b2737364503ee2a67936c5765e42a4c3a02c"
+          },
+          {
+            "seed": 41,
+            "ok": true,
+            "faults": {
+              "heal": 2,
+              "loss": 2,
+              "probe": 2,
+              "crash-range-leader": 3,
+              "crash-node": 1,
+              "isolate": 2,
+              "restart-node": 1
+            },
+            "counts": {
+              "requests": 112,
+              "acknowledged": 112,
+              "retried": 6,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 112,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 2,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 174,
+              "ok": 172,
+              "fail": 2,
+              "info": 0
+            },
+            "fingerprint": "ad9c0bc5f9f37a536b50ca2de228889e2ec5ae04dcc6ee3ed5714a3cc7a52fa3"
+          },
+          {
+            "seed": 42,
+            "ok": true,
+            "faults": {
+              "probe": 2,
+              "crash-node": 2,
+              "restart-node": 2,
+              "heal": 3,
+              "isolate": 1,
+              "crash-range-leader": 2,
+              "restart-range": 2,
+              "loss": 1
+            },
+            "counts": {
+              "requests": 296,
+              "acknowledged": 296,
+              "retried": 2,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 296,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 2,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 431,
+              "ok": 431,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "8a9798d1e348c27298fe10e7a8f5c1b8cf5ed5c2abd498c137f1c32954be2210"
+          },
+          {
+            "seed": 43,
+            "ok": true,
+            "faults": {
+              "loss": 2,
+              "probe": 2,
+              "crash-range-leader": 3,
+              "crash-node": 2,
+              "isolate": 2,
+              "restart-node": 1,
+              "restart-range": 2,
+              "heal": 1
+            },
+            "counts": {
+              "requests": 86,
+              "acknowledged": 81,
+              "retried": 8,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 81,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 2,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 132,
+              "ok": 126,
+              "fail": 6,
+              "info": 0
+            },
+            "fingerprint": "d8ef069b3057f90f67fe73301828d722f2a2621d96767b181f54b43af338309c"
+          },
+          {
+            "seed": 44,
+            "ok": true,
+            "faults": {
+              "probe": 4,
+              "heal": 2,
+              "crash-range-leader": 3,
+              "crash-node": 1
+            },
+            "counts": {
+              "requests": 339,
+              "acknowledged": 335,
+              "retried": 8,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 335,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 4,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 499,
+              "ok": 493,
+              "fail": 6,
+              "info": 0
+            },
+            "fingerprint": "0c3896d256e742e45eed06a132677122ad4e19cf02adfe07f85d8cebb2568821"
+          },
+          {
+            "seed": 45,
+            "ok": true,
+            "faults": {
+              "crash-range-leader": 6,
+              "heal": 1,
+              "probe": 2,
+              "restart-range": 5,
+              "loss": 1,
+              "isolate": 1
+            },
+            "counts": {
+              "requests": 198,
+              "acknowledged": 197,
+              "retried": 17,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 197,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 2,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 289,
+              "ok": 288,
+              "fail": 1,
+              "info": 0
+            },
+            "fingerprint": "83cbca720214c9c4b9f592dbb3d840f623235c5a3951ad94e02b7f9ee0df7daf"
+          },
+          {
+            "seed": 46,
+            "ok": true,
+            "faults": {
+              "isolate": 1,
+              "probe": 3,
+              "heal": 6,
+              "loss": 2,
+              "crash-range-leader": 5,
+              "restart-range": 3
+            },
+            "counts": {
+              "requests": 210,
+              "acknowledged": 210,
+              "retried": 13,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 210,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 3,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 308,
+              "ok": 308,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "8000ac7a70a42eba96657c666d87501c1007a473b7056f63fc94fe8ab834729b"
+          },
+          {
+            "seed": 47,
+            "ok": true,
+            "faults": {
+              "probe": 4,
+              "crash-range-leader": 5,
+              "restart-range": 2,
+              "crash-node": 1,
+              "loss": 1,
+              "isolate": 1
+            },
+            "counts": {
+              "requests": 184,
+              "acknowledged": 179,
+              "retried": 9,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 179,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 4,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 279,
+              "ok": 273,
+              "fail": 6,
+              "info": 0
+            },
+            "fingerprint": "5a4653fbe6b4c517c9d7ee09263e32253a66266b41ec8d2b102c4e9d1d9df6e6"
+          },
+          {
+            "seed": 48,
+            "ok": true,
+            "faults": {
+              "isolate": 1,
+              "crash-range-leader": 5,
+              "restart-range": 4,
+              "loss": 1,
+              "heal": 1,
+              "probe": 2
+            },
+            "counts": {
+              "requests": 137,
+              "acknowledged": 137,
+              "retried": 17,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 137,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 2,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 197,
+              "ok": 197,
+              "fail": 0,
+              "info": 0
+            },
+            "fingerprint": "c50e1c36333c294672b228bdbf9ca2d129a34a29ec5c40106481d168a0c3427d"
+          },
+          {
+            "seed": 49,
+            "ok": true,
+            "faults": {
+              "probe": 2,
+              "crash-node": 1,
+              "crash-range-leader": 4,
+              "restart-range": 2,
+              "loss": 1,
+              "heal": 2,
+              "restart-node": 1
+            },
+            "counts": {
+              "requests": 117,
+              "acknowledged": 117,
+              "retried": 12,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 117,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 2,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 178,
+              "ok": 176,
+              "fail": 2,
+              "info": 0
+            },
+            "fingerprint": "9741196c328ab9f688dc961fbe166dd53ac5e5e9b218b6cb82927556695d5a25"
+          },
+          {
+            "seed": 50,
+            "ok": true,
+            "faults": {
+              "crash-node": 2,
+              "heal": 2,
+              "crash-range-leader": 5,
+              "restart-range": 3,
+              "loss": 1,
+              "restart-node": 1,
+              "isolate": 1
+            },
+            "counts": {
+              "requests": 201,
+              "acknowledged": 197,
+              "retried": 22,
+              "appliedMoreThanOnce": 0,
+              "duplicateLogicalWrites": 0,
+              "missingAcknowledged": 0,
+              "acknowledgedAppliedOnce": 197,
+              "unacknowledgedApplied": 0,
+              "staleEpochWritesAccepted": 0,
+              "probes": 0,
+              "unrequestedApplications": 0,
+              "ledgerDisagreements": 0
+            },
+            "history": {
+              "invoke": 289,
+              "ok": 285,
+              "fail": 4,
+              "info": 0
+            },
+            "fingerprint": "ba5008280bcc0dfc10ccf92509786375b199a74e02c8899a10a725eb99dd343e"
+          }
+        ]
+      },
+      "ok": true
+    }
+  },
+  "ok": true
+}

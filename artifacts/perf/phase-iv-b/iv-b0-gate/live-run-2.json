@@ -1,0 +1,293 @@
+{
+  "schema": "cloudproof.multi-raft.iv-b0-live/v1",
+  "git": {
+    "sha": "d8edaa053e6f42d052b175d91609cf502dcf9f36",
+    "dirty": false
+  },
+  "node": "v24.14.1",
+  "startedAt": "2026-10-11T12:55:22.699Z",
+  "profile": "optimized-http",
+  "steps": [
+    {
+      "name": "started",
+      "at": "2026-10-11T12:55:23.533Z",
+      "origins": [
+        "http://127.0.0.1:17301",
+        "http://127.0.0.1:17302",
+        "http://127.0.0.1:17303"
+      ],
+      "leaders": true
+    },
+    {
+      "name": "range leader crashed",
+      "at": "2026-10-11T12:55:26.225Z",
+      "kind": "range-leader-crash",
+      "rangeId": "r1",
+      "crashedNode": "n2",
+      "elected": true,
+      "leaderlessMs": 623,
+      "newLeaderNode": "n3",
+      "committedByOtherRanges": {
+        "r2": 30,
+        "r3": 30
+      },
+      "diagnostics": {
+        "r2": {
+          "writer": 30,
+          "sharedClients": 9,
+          "offeredAttempts": 39
+        },
+        "r3": {
+          "writer": 30,
+          "sharedClients": 4,
+          "offeredAttempts": 34
+        }
+      }
+    },
+    {
+      "name": "range leader crashed",
+      "at": "2026-10-11T12:55:28.692Z",
+      "kind": "range-leader-crash",
+      "rangeId": "r2",
+      "crashedNode": "n3",
+      "elected": true,
+      "leaderlessMs": 823,
+      "newLeaderNode": "n1",
+      "committedByOtherRanges": {
+        "r1": 49,
+        "r3": 49
+      },
+      "diagnostics": {
+        "r1": {
+          "writer": 49,
+          "sharedClients": 6,
+          "offeredAttempts": 55
+        },
+        "r3": {
+          "writer": 49,
+          "sharedClients": 2,
+          "offeredAttempts": 51
+        }
+      }
+    },
+    {
+      "name": "range leader crashed",
+      "at": "2026-10-11T12:55:30.884Z",
+      "kind": "range-leader-crash",
+      "rangeId": "r3",
+      "crashedNode": "n3",
+      "elected": true,
+      "leaderlessMs": 652,
+      "newLeaderNode": "n1",
+      "committedByOtherRanges": {
+        "r1": 301,
+        "r2": 288
+      },
+      "diagnostics": {
+        "r1": {
+          "writer": 301,
+          "sharedClients": 5,
+          "offeredAttempts": 306
+        },
+        "r2": {
+          "writer": 288,
+          "sharedClients": 2,
+          "offeredAttempts": 290
+        }
+      }
+    },
+    {
+      "name": "process killed",
+      "at": "2026-10-11T12:55:33.002Z",
+      "kind": "process-kill",
+      "killedNode": "n1",
+      "rangesLedByKilledNode": [
+        "r2",
+        "r3"
+      ],
+      "elected": true,
+      "leaderlessMs": 589,
+      "vacuous": false,
+      "committedByRangesLedElsewhere": {
+        "r1": 47
+      },
+      "diagnostics": {
+        "r1": {
+          "writer": 47,
+          "sharedClients": 0,
+          "offeredAttempts": 47
+        }
+      }
+    },
+    {
+      "name": "workload stopped",
+      "at": "2026-10-11T12:55:35.214Z",
+      "logicalWrites": 7653
+    },
+    {
+      "name": "fencing probes",
+      "at": "2026-10-11T12:55:36.568Z",
+      "convergedBefore": true,
+      "probes": 36,
+      "writesRefused": 36,
+      "readsRefused": 36,
+      "stateUnchanged": true
+    },
+    {
+      "name": "full restart",
+      "at": "2026-10-11T12:55:37.605Z",
+      "leadersAfterRestart": true,
+      "converged": true,
+      "stateSurvived": true
+    }
+  ],
+  "windows": [
+    {
+      "kind": "range-leader-crash",
+      "rangeId": "r1",
+      "crashedNode": "n2",
+      "elected": true,
+      "leaderlessMs": 623,
+      "newLeaderNode": "n3",
+      "committedByOtherRanges": {
+        "r2": 30,
+        "r3": 30
+      },
+      "diagnostics": {
+        "r2": {
+          "writer": 30,
+          "sharedClients": 9,
+          "offeredAttempts": 39
+        },
+        "r3": {
+          "writer": 30,
+          "sharedClients": 4,
+          "offeredAttempts": 34
+        }
+      }
+    },
+    {
+      "kind": "range-leader-crash",
+      "rangeId": "r2",
+      "crashedNode": "n3",
+      "elected": true,
+      "leaderlessMs": 823,
+      "newLeaderNode": "n1",
+      "committedByOtherRanges": {
+        "r1": 49,
+        "r3": 49
+      },
+      "diagnostics": {
+        "r1": {
+          "writer": 49,
+          "sharedClients": 6,
+          "offeredAttempts": 55
+        },
+        "r3": {
+          "writer": 49,
+          "sharedClients": 2,
+          "offeredAttempts": 51
+        }
+      }
+    },
+    {
+      "kind": "range-leader-crash",
+      "rangeId": "r3",
+      "crashedNode": "n3",
+      "elected": true,
+      "leaderlessMs": 652,
+      "newLeaderNode": "n1",
+      "committedByOtherRanges": {
+        "r1": 301,
+        "r2": 288
+      },
+      "diagnostics": {
+        "r1": {
+          "writer": 301,
+          "sharedClients": 5,
+          "offeredAttempts": 306
+        },
+        "r2": {
+          "writer": 288,
+          "sharedClients": 2,
+          "offeredAttempts": 290
+        }
+      }
+    },
+    {
+      "kind": "process-kill",
+      "killedNode": "n1",
+      "rangesLedByKilledNode": [
+        "r2",
+        "r3"
+      ],
+      "elected": true,
+      "leaderlessMs": 589,
+      "vacuous": false,
+      "committedByRangesLedElsewhere": {
+        "r1": 47
+      },
+      "diagnostics": {
+        "r1": {
+          "writer": 47,
+          "sharedClients": 0,
+          "offeredAttempts": 47
+        }
+      }
+    }
+  ],
+  "fencing": {
+    "probes": 36,
+    "writesRefused": 36,
+    "readsRefused": 36,
+    "stateUnchanged": true
+  },
+  "durability": {
+    "leadersAfterRestart": true,
+    "converged": true,
+    "stateSurvived": true
+  },
+  "linearizability": {
+    "ok": true,
+    "keys": 12,
+    "operations": 9333,
+    "violations": [],
+    "inconclusive": []
+  },
+  "exactlyOnce": {
+    "ok": true,
+    "counts": {
+      "requests": 7653,
+      "acknowledged": 7653,
+      "retried": 22,
+      "appliedMoreThanOnce": 0,
+      "duplicateLogicalWrites": 0,
+      "missingAcknowledged": 0,
+      "acknowledgedAppliedOnce": 7653,
+      "unacknowledgedApplied": 0,
+      "staleEpochWritesAccepted": 0,
+      "probes": 36,
+      "unrequestedApplications": 0,
+      "ledgerDisagreements": 0
+    },
+    "appliedMoreThanOnce": [],
+    "missingAcknowledged": []
+  },
+  "history": {
+    "invoke": 9333,
+    "ok": 9333,
+    "fail": 0,
+    "info": 0
+  },
+  "conditions": {
+    "concurrencyOnThreeRanges": true,
+    "independentLeaderFailure": true,
+    "independentProgress": true,
+    "fencing": true,
+    "durability": true,
+    "logicalLinearizability": true,
+    "exactlyOnce": true
+  },
+  "ok": true,
+  "finishedAt": "2026-10-11T12:55:38.393Z"
+}

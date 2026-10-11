@@ -7,8 +7,11 @@ dated amendment with a reason, before the data it governs, as in Phase IV-A.
 
 ## Status
 
-_Design and methodology frozen. Nothing implemented, nothing measured. The branch `feature/phase-iv-b-multi-raft` was
-cut from `bf521b0`, the merge of Phase IV-A into `main`._
+_Design and methodology frozen at `258313e`, before any code. **IV-B.0 (static Multi-Raft) is implemented, and its
+correctness gate (§13) passed at `d8edaa0`:** see
+[`artifacts/perf/phase-iv-b/iv-b0-gate/RESULT.md`](artifacts/perf/phase-iv-b/iv-b0-gate/RESULT.md). IV-B.1 (live split)
+has not started and awaits review of that result. Nothing has been benchmarked. The branch was cut from `bf521b0`, the
+merge of Phase IV-A into `main`._
 
 ## 0. Starting point and relationship to Phase IV-A
 
