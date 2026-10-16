@@ -48,6 +48,8 @@ artifacts/cloudproof/phase-iii-pilot/*
 !artifacts/perf/
 artifacts/perf/*
 !artifacts/perf/phase-iv-a/
+# Phase IV-B (Multi-Raft): gate evidence and, later, benchmark artifacts
+!artifacts/perf/phase-iv-b/
 
 # Phase IV-A benchmark scratch data (cluster data dirs, raw CPU profiles)
 .bench-data/

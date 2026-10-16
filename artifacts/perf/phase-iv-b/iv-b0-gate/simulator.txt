@@ -1,0 +1,166 @@
+PASS baseline S1-independent-leaders ops=476 acked=464 retried=5 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline S2-durability-across-restart ops=60 acked=36 retried=0 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline S3-fencing ops=24 acked=12 retried=0 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline S4-retry-after-unknown ops=36 acked=24 retried=24 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline campaign seed=1 ops=370 acked=239 retried=10 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline campaign seed=2 ops=253 acked=172 retried=6 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline campaign seed=3 ops=343 acked=227 retried=11 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline campaign seed=4 ops=179 acked=118 retried=12 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline campaign seed=5 ops=213 acked=134 retried=13 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline campaign seed=6 ops=177 acked=109 retried=13 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline campaign seed=7 ops=232 acked=160 retried=9 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline campaign seed=8 ops=199 acked=135 retried=11 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline campaign seed=9 ops=208 acked=133 retried=8 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline campaign seed=10 ops=116 acked=70 retried=12 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline campaign seed=11 ops=260 acked=166 retried=22 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline campaign seed=12 ops=145 acked=92 retried=15 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline campaign seed=13 ops=167 acked=97 retried=27 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline campaign seed=14 ops=219 acked=142 retried=13 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline campaign seed=15 ops=237 acked=152 retried=21 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline campaign seed=16 ops=330 acked=213 retried=14 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline campaign seed=17 ops=208 acked=142 retried=6 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline campaign seed=18 ops=157 acked=93 retried=13 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline campaign seed=19 ops=244 acked=167 retried=16 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline campaign seed=20 ops=149 acked=87 retried=22 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline campaign seed=21 ops=93 acked=49 retried=10 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline campaign seed=22 ops=204 acked=129 retried=13 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline campaign seed=23 ops=290 acked=199 retried=9 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline campaign seed=24 ops=234 acked=148 retried=13 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline campaign seed=25 ops=188 acked=123 retried=17 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline campaign seed=26 ops=160 acked=95 retried=11 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline campaign seed=27 ops=201 acked=137 retried=12 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline campaign seed=28 ops=262 acked=175 retried=14 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline campaign seed=29 ops=151 acked=97 retried=18 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline campaign seed=30 ops=89 acked=57 retried=7 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline campaign seed=31 ops=211 acked=142 retried=22 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline campaign seed=32 ops=355 acked=232 retried=12 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline campaign seed=33 ops=192 acked=130 retried=15 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline campaign seed=34 ops=253 acked=172 retried=23 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline campaign seed=35 ops=244 acked=154 retried=7 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline campaign seed=36 ops=184 acked=129 retried=9 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline campaign seed=37 ops=146 acked=91 retried=10 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline campaign seed=38 ops=453 acked=301 retried=10 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline campaign seed=39 ops=272 acked=176 retried=12 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline campaign seed=40 ops=128 acked=72 retried=9 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline campaign seed=41 ops=232 acked=148 retried=11 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline campaign seed=42 ops=492 acked=334 retried=7 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline campaign seed=43 ops=182 acked=115 retried=14 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline campaign seed=44 ops=135 acked=79 retried=20 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline campaign seed=45 ops=346 acked=242 retried=15 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline campaign seed=46 ops=173 acked=111 retried=8 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline campaign seed=47 ops=305 acked=187 retried=7 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline campaign seed=48 ops=254 acked=172 retried=26 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline campaign seed=49 ops=416 acked=274 retried=19 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS baseline campaign seed=50 ops=329 acked=219 retried=11 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http S1-independent-leaders ops=524 acked=512 retried=4 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http S2-durability-across-restart ops=60 acked=36 retried=0 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http S3-fencing ops=24 acked=12 retried=0 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http S4-retry-after-unknown ops=36 acked=24 retried=24 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http campaign seed=1 ops=201 acked=132 retried=6 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http campaign seed=2 ops=107 acked=54 retried=9 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http campaign seed=3 ops=480 acked=335 retried=9 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http campaign seed=4 ops=229 acked=153 retried=10 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http campaign seed=5 ops=350 acked=239 retried=8 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http campaign seed=6 ops=109 acked=59 retried=16 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http campaign seed=7 ops=158 acked=108 retried=10 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http campaign seed=8 ops=341 acked=232 retried=13 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http campaign seed=9 ops=212 acked=132 retried=6 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http campaign seed=10 ops=192 acked=124 retried=12 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http campaign seed=11 ops=288 acked=188 retried=17 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http campaign seed=12 ops=437 acked=291 retried=12 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http campaign seed=13 ops=288 acked=184 retried=13 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http campaign seed=14 ops=510 acked=341 retried=8 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http campaign seed=15 ops=94 acked=46 retried=7 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http campaign seed=16 ops=429 acked=307 retried=16 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http campaign seed=17 ops=163 acked=107 retried=15 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http campaign seed=18 ops=188 acked=115 retried=10 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http campaign seed=19 ops=332 acked=242 retried=18 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http campaign seed=20 ops=385 acked=262 retried=14 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http campaign seed=21 ops=433 acked=292 retried=14 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http campaign seed=22 ops=359 acked=247 retried=22 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http campaign seed=23 ops=248 acked=163 retried=15 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http campaign seed=24 ops=196 acked=123 retried=11 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http campaign seed=25 ops=159 acked=89 retried=22 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http campaign seed=26 ops=369 acked=250 retried=9 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http campaign seed=27 ops=308 acked=215 retried=8 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http campaign seed=28 ops=203 acked=133 retried=16 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http campaign seed=29 ops=296 acked=196 retried=9 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http campaign seed=30 ops=312 acked=212 retried=20 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http campaign seed=31 ops=215 acked=143 retried=10 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http campaign seed=32 ops=133 acked=86 retried=11 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http campaign seed=33 ops=400 acked=268 retried=20 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http campaign seed=34 ops=149 acked=106 retried=19 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http campaign seed=35 ops=299 acked=204 retried=10 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http campaign seed=36 ops=191 acked=129 retried=3 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http campaign seed=37 ops=155 acked=90 retried=20 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http campaign seed=38 ops=219 acked=134 retried=16 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http campaign seed=39 ops=257 acked=166 retried=15 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http campaign seed=40 ops=381 acked=256 retried=13 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http campaign seed=41 ops=272 acked=182 retried=17 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http campaign seed=42 ops=135 acked=76 retried=14 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http campaign seed=43 ops=118 acked=72 retried=12 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http campaign seed=44 ops=229 acked=170 retried=16 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http campaign seed=45 ops=261 acked=181 retried=10 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http campaign seed=46 ops=109 acked=69 retried=12 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http campaign seed=47 ops=164 acked=89 retried=15 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http campaign seed=48 ops=241 acked=164 retried=8 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http campaign seed=49 ops=355 acked=239 retried=21 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS optimized-http campaign seed=50 ops=274 acked=182 retried=15 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay S1-independent-leaders ops=378 acked=366 retried=6 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay S2-durability-across-restart ops=60 acked=36 retried=0 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay S3-fencing ops=24 acked=12 retried=0 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay S4-retry-after-unknown ops=36 acked=24 retried=24 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay campaign seed=1 ops=172 acked=111 retried=12 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay campaign seed=2 ops=94 acked=56 retried=12 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay campaign seed=3 ops=509 acked=345 retried=14 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay campaign seed=4 ops=275 acked=185 retried=4 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay campaign seed=5 ops=364 acked=246 retried=16 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay campaign seed=6 ops=136 acked=79 retried=11 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay campaign seed=7 ops=299 acked=196 retried=22 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay campaign seed=8 ops=253 acked=163 retried=12 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay campaign seed=9 ops=244 acked=148 retried=11 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay campaign seed=10 ops=157 acked=91 retried=9 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay campaign seed=11 ops=165 acked=113 retried=19 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay campaign seed=12 ops=187 acked=120 retried=19 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay campaign seed=13 ops=262 acked=170 retried=15 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay campaign seed=14 ops=310 acked=203 retried=4 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay campaign seed=15 ops=182 acked=107 retried=14 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay campaign seed=16 ops=422 acked=293 retried=14 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay campaign seed=17 ops=152 acked=92 retried=13 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay campaign seed=18 ops=194 acked=118 retried=9 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay campaign seed=19 ops=294 acked=214 retried=18 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay campaign seed=20 ops=286 acked=199 retried=18 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay campaign seed=21 ops=267 acked=175 retried=10 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay campaign seed=22 ops=175 acked=110 retried=11 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay campaign seed=23 ops=297 acked=197 retried=13 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay campaign seed=24 ops=357 acked=219 retried=12 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay campaign seed=25 ops=92 acked=55 retried=15 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay campaign seed=26 ops=107 acked=66 retried=11 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay campaign seed=27 ops=158 acked=103 retried=9 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay campaign seed=28 ops=152 acked=93 retried=18 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay campaign seed=29 ops=337 acked=228 retried=10 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay campaign seed=30 ops=129 acked=92 retried=8 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay campaign seed=31 ops=72 acked=32 retried=4 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay campaign seed=32 ops=218 acked=141 retried=8 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay campaign seed=33 ops=295 acked=189 retried=23 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay campaign seed=34 ops=345 acked=237 retried=10 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay campaign seed=35 ops=203 acked=138 retried=13 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay campaign seed=36 ops=187 acked=129 retried=14 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay campaign seed=37 ops=212 acked=138 retried=12 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay campaign seed=38 ops=156 acked=98 retried=10 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay campaign seed=39 ops=226 acked=151 retried=16 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay campaign seed=40 ops=320 acked=203 retried=5 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay campaign seed=41 ops=174 acked=112 retried=6 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay campaign seed=42 ops=431 acked=296 retried=2 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay campaign seed=43 ops=132 acked=81 retried=8 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay campaign seed=44 ops=499 acked=335 retried=8 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay campaign seed=45 ops=289 acked=197 retried=17 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay campaign seed=46 ops=308 acked=210 retried=13 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay campaign seed=47 ops=279 acked=179 retried=9 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay campaign seed=48 ops=197 acked=137 retried=17 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay campaign seed=49 ops=178 acked=117 retried=12 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+PASS batched-delay campaign seed=50 ops=289 acked=197 retried=22 appliedTwice=0 missingAcked=0 staleAccepted=0 linViolations=0
+baseline: PASS {"runs":50,"passed":50,"failed":[],"linearizabilityKeysChecked":600,"operationsChecked":11580,"linearizabilityViolations":0,"linearizabilityInconclusive":0,"logicalRequests":7626,"acknowledged":7537,"retried":665,"appliedMoreThanOnce":0,"duplicateLogicalWrites":0,"missingAcknowledged":0,"unacknowledgedApplied":21,"staleEpochWritesAccepted":0,"probes":140,"unrequestedApplications":0,"ledgerDisagreements":0,"rangeSafetyProblems":0,"notConverged":0}
+optimized-http: PASS {"runs":50,"passed":50,"failed":[],"linearizabilityKeysChecked":600,"operationsChecked":12933,"linearizabilityViolations":0,"linearizabilityInconclusive":0,"logicalRequests":8690,"acknowledged":8577,"retried":652,"appliedMoreThanOnce":0,"duplicateLogicalWrites":0,"missingAcknowledged":0,"unacknowledgedApplied":21,"staleEpochWritesAccepted":0,"probes":122,"unrequestedApplications":0,"ledgerDisagreements":0,"rangeSafetyProblems":0,"notConverged":0}
+batched-delay: PASS {"runs":50,"passed":50,"failed":[],"linearizabilityKeysChecked":600,"operationsChecked":12038,"linearizabilityViolations":0,"linearizabilityInconclusive":0,"logicalRequests":7981,"acknowledged":7904,"retried":612,"appliedMoreThanOnce":0,"duplicateLogicalWrites":0,"missingAcknowledged":0,"unacknowledgedApplied":7,"staleEpochWritesAccepted":0,"probes":114,"unrequestedApplications":0,"ledgerDisagreements":0,"rangeSafetyProblems":0,"notConverged":0}
+IV-B.0 simulator gate: PASS

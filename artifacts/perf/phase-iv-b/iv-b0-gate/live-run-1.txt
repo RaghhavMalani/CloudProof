@@ -1,0 +1,12 @@
+[live] started {"origins":["http://127.0.0.1:17301","http://127.0.0.1:17302","http://127.0.0.1:17303"],"leaders":true}
+[live] range leader crashed {"kind":"range-leader-crash","rangeId":"r1","crashedNode":"n3","elected":true,"leaderlessMs":646,"newLeaderNode":"n1","committedByOtherRanges":{"r2":116,"r3":114},"diagnostics":{"r2":{"writer":116,"sharedClients":5,"offeredAttempts":121},"r3":{"writer":114,"sharedClients":4,"offeredAttempts":118}}}
+[live] range leader crashed {"kind":"range-leader-crash","rangeId":"r2","crashedNode":"n1","elected":true,"leaderlessMs":730,"newLeaderNode":"n3","committedByOtherRanges":{"r1":50,"r3":50},"diagnostics":{"r1":{"writer":50,"sharedClients":8,"offeredAttempts":58},"r3":{"writer":50,"sharedClients":5,"offeredAttempts":55}}}
+[live] range leader crashed {"kind":"range-leader-crash","rangeId":"r3","crashedNode":"n2","elected":true,"leaderlessMs":657,"newLeaderNode":"n1","committedByOtherRanges":{"r1":50,"r2":54},"diagnostics":{"r1":{"writer":50,"sharedClients":4,"offeredAttempts":54},"r2":{"writer":54,"sharedClients":3,"offeredAttempts":57}}}
+[live] process killed {"kind":"process-kill","killedNode":"n1","rangesLedByKilledNode":["r1","r3"],"elected":true,"leaderlessMs":772,"vacuous":false,"committedByRangesLedElsewhere":{"r2":50},"diagnostics":{"r2":{"writer":50,"sharedClients":6,"offeredAttempts":56}}}
+[live] workload stopped {"logicalWrites":5123}
+[live] fencing probes {"convergedBefore":true,"probes":36,"writesRefused":36,"readsRefused":36,"stateUnchanged":true}
+[live] full restart {"leadersAfterRestart":true,"converged":true,"stateSurvived":true}
+[live] conditions {"concurrencyOnThreeRanges":true,"independentLeaderFailure":true,"independentProgress":true,"fencing":true,"durability":true,"logicalLinearizability":true,"exactlyOnce":true}
+[live] exactly-once {"requests":5123,"acknowledged":5123,"retried":25,"appliedMoreThanOnce":0,"duplicateLogicalWrites":0,"missingAcknowledged":0,"acknowledgedAppliedOnce":5123,"unacknowledgedApplied":0,"staleEpochWritesAccepted":0,"probes":36,"unrequestedApplications":0,"ledgerDisagreements":0}
+[live] linearizability keys=12 operations=6256 violations=0 inconclusive=0
+IV-B.0 live gate: PASS

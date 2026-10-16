@@ -1,0 +1,207 @@
+{
+  "schema": "cloudproof.multi-raft.iv-b0-live/v1",
+  "git": {
+    "sha": "190f8232fc7e509f409c36da466f60b500a62a8f",
+    "dirty": true
+  },
+  "node": "v24.14.1",
+  "startedAt": "2026-10-11T12:50:47.813Z",
+  "profile": "optimized-http",
+  "steps": [
+    {
+      "name": "started",
+      "at": "2026-10-11T12:50:48.566Z",
+      "origins": [
+        "http://127.0.0.1:17301",
+        "http://127.0.0.1:17302",
+        "http://127.0.0.1:17303"
+      ],
+      "leaders": true
+    },
+    {
+      "name": "range leader crashed",
+      "at": "2026-10-11T12:50:51.438Z",
+      "kind": "range-leader-crash",
+      "rangeId": "r1",
+      "crashedNode": "n1",
+      "elected": true,
+      "leaderlessMs": 860,
+      "newLeaderNode": "n2",
+      "committedByOtherRanges": {
+        "r2": 1,
+        "r3": 5
+      }
+    },
+    {
+      "name": "range leader crashed",
+      "at": "2026-10-11T12:50:53.807Z",
+      "kind": "range-leader-crash",
+      "rangeId": "r2",
+      "crashedNode": "n1",
+      "elected": true,
+      "leaderlessMs": 815,
+      "newLeaderNode": "n3",
+      "committedByOtherRanges": {
+        "r1": 10,
+        "r3": 11
+      }
+    },
+    {
+      "name": "range leader crashed",
+      "at": "2026-10-11T12:50:56.045Z",
+      "kind": "range-leader-crash",
+      "rangeId": "r3",
+      "crashedNode": "n1",
+      "elected": true,
+      "leaderlessMs": 697,
+      "newLeaderNode": "n2",
+      "committedByOtherRanges": {
+        "r1": 1,
+        "r2": 7
+      }
+    },
+    {
+      "name": "process killed",
+      "at": "2026-10-11T12:50:58.351Z",
+      "kind": "process-kill",
+      "killedNode": "n2",
+      "rangesLedByKilledNode": [
+        "r1",
+        "r3"
+      ],
+      "elected": true,
+      "leaderlessMs": 759,
+      "vacuous": false,
+      "committedByRangesLedElsewhere": {
+        "r2": 0
+      }
+    },
+    {
+      "name": "workload stopped",
+      "at": "2026-10-11T12:51:00.573Z",
+      "logicalWrites": 3239
+    },
+    {
+      "name": "fencing probes",
+      "at": "2026-10-11T12:51:01.953Z",
+      "convergedBefore": true,
+      "probes": 36,
+      "writesRefused": 36,
+      "readsRefused": 36,
+      "stateUnchanged": true
+    },
+    {
+      "name": "full restart",
+      "at": "2026-10-11T12:51:03.242Z",
+      "leadersAfterRestart": true,
+      "converged": true,
+      "stateSurvived": true
+    }
+  ],
+  "windows": [
+    {
+      "kind": "range-leader-crash",
+      "rangeId": "r1",
+      "crashedNode": "n1",
+      "elected": true,
+      "leaderlessMs": 860,
+      "newLeaderNode": "n2",
+      "committedByOtherRanges": {
+        "r2": 1,
+        "r3": 5
+      }
+    },
+    {
+      "kind": "range-leader-crash",
+      "rangeId": "r2",
+      "crashedNode": "n1",
+      "elected": true,
+      "leaderlessMs": 815,
+      "newLeaderNode": "n3",
+      "committedByOtherRanges": {
+        "r1": 10,
+        "r3": 11
+      }
+    },
+    {
+      "kind": "range-leader-crash",
+      "rangeId": "r3",
+      "crashedNode": "n1",
+      "elected": true,
+      "leaderlessMs": 697,
+      "newLeaderNode": "n2",
+      "committedByOtherRanges": {
+        "r1": 1,
+        "r2": 7
+      }
+    },
+    {
+      "kind": "process-kill",
+      "killedNode": "n2",
+      "rangesLedByKilledNode": [
+        "r1",
+        "r3"
+      ],
+      "elected": true,
+      "leaderlessMs": 759,
+      "vacuous": false,
+      "committedByRangesLedElsewhere": {
+        "r2": 0
+      }
+    }
+  ],
+  "fencing": {
+    "probes": 36,
+    "writesRefused": 36,
+    "readsRefused": 36,
+    "stateUnchanged": true
+  },
+  "durability": {
+    "leadersAfterRestart": true,
+    "converged": true,
+    "stateSurvived": true
+  },
+  "linearizability": {
+    "ok": true,
+    "keys": 12,
+    "operations": 4664,
+    "violations": [],
+    "inconclusive": []
+  },
+  "exactlyOnce": {
+    "ok": true,
+    "counts": {
+      "requests": 3239,
+      "acknowledged": 3239,
+      "retried": 13,
+      "appliedMoreThanOnce": 0,
+      "duplicateLogicalWrites": 0,
+      "missingAcknowledged": 0,
+      "acknowledgedAppliedOnce": 3239,
+      "unacknowledgedApplied": 0,
+      "staleEpochWritesAccepted": 0,
+      "probes": 36,
+      "unrequestedApplications": 0,
+      "ledgerDisagreements": 0
+    },
+    "appliedMoreThanOnce": [],
+    "missingAcknowledged": []
+  },
+  "history": {
+    "invoke": 4664,
+    "ok": 4664,
+    "fail": 0,
+    "info": 0
+  },
+  "conditions": {
+    "concurrencyOnThreeRanges": true,
+    "independentLeaderFailure": true,
+    "independentProgress": false,
+    "fencing": true,
+    "durability": true,
+    "logicalLinearizability": true,
+    "exactlyOnce": true
+  },
+  "ok": false,
+  "finishedAt": "2026-10-11T12:51:03.622Z"
+}
